@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>사주문 - 미리보기</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    html, body { height: 100%; margin: 0; background: #f0f0f0; font-family: 'Noto Sans KR', sans-serif; }
+    #root { height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ─── SVG Paths (로그인) ───
+    const svgLogin = {
+      pd1b3d80: "M16 7H3.83L9.42 1.41L8 0L0 8L8 16L9.41 14.59L3.83 9H16V7Z",
+      p24b67a00: "M8 19.5C9.1 19.5 10 18.6 10 17.5H6C6 18.6 6.9 19.5 8 19.5ZM14 13.5V8.5C14 5.43 12.37 2.86 9.5 2.18V1.5C9.5 0.67 8.83 0 8 0C7.17 0 6.5 0.67 6.5 1.5V2.18C3.64 2.86 2 5.42 2 8.5V13.5L0 15.5V16.5H16V15.5L14 13.5ZM12 14.5H4V8.5C4 6.02 5.51 4 8 4C10.49 4 12 6.02 12 8.5V14.5Z",
+      p37774d00: "M10.983 0.236583C10.9086 0.161618 10.8201 0.102116 10.7227 0.0615109C10.6252 0.0209055 10.5207 0 10.4151 0C10.3095 0 10.205 0.0209055 10.1075 0.0615109C10.01 0.102116 9.92158 0.161618 9.84722 0.236583L3.88862 6.20318L1.38521 3.69177C1.30801 3.6172 1.21688 3.55856 1.11702 3.51921C1.01716 3.47985 0.910526 3.46055 0.803207 3.46241C0.695888 3.46427 0.589985 3.48724 0.491545 3.53003C0.393106 3.57281 0.304057 3.63457 0.229484 3.71177C0.154911 3.78897 0.0962733 3.8801 0.0569193 3.97996C0.0175654 4.07982 -0.00173443 4.18645 0.000122306 4.29377C0.00197904 4.40109 0.0249559 4.50699 0.0677406 4.60543C0.110525 4.70387 0.17228 4.79292 0.249479 4.86749L3.32076 7.93877C3.39511 8.01374 3.48357 8.07324 3.58104 8.11384C3.6785 8.15445 3.78304 8.17536 3.88862 8.17536C3.99421 8.17536 4.09875 8.15445 4.19621 8.11384C4.29368 8.07324 4.38214 8.01374 4.45649 7.93877L10.983 1.41231C11.0641 1.33741 11.1289 1.24651 11.1732 1.14533C11.2176 1.04416 11.2404 0.9349 11.2404 0.824445C11.2404 0.713989 11.2176 0.604731 11.1732 0.503555C11.1289 0.402379 11.0641 0.311479 10.983 0.236583Z",
+      p31c1a6c0: "M13.5605 10.7061L6.14573 0H0V20H6.43946V9.29768L13.8543 20H20V0H13.5605V10.7061Z",
+      p1fb403e0: "M11.2405 0C5.01808 0 0 4.01442 0 8.88798C0 12.0514 2.08752 14.8213 5.2188 16.403L4.15898 20.3613C4.139 20.4207 4.13593 20.4843 4.15011 20.5453C4.16429 20.6063 4.19516 20.6621 4.23927 20.7065C4.30359 20.7633 4.38635 20.7946 4.47211 20.7948C4.54322 20.7891 4.61068 20.761 4.6648 20.7146L9.22524 17.6395C9.89841 17.7324 10.577 17.7807 11.2566 17.784C17.4709 17.784 22.4971 13.7696 22.4971 8.88798C22.4971 4.00639 17.4549 0 11.2405 0Z",
+      p35aae00: "M3.93382 7.4829H2.7054C2.55314 7.48731 2.40277 7.44832 2.27183 7.37048C2.2137 7.33406 2.16373 7.28599 2.12504 7.22935C2.08635 7.1727 2.05979 7.10866 2.04702 7.04127C2.04312 6.99853 2.04312 6.95561 2.04702 6.91287C2.04321 6.83292 2.05873 6.75317 2.09227 6.68049C2.12582 6.60781 2.1764 6.54432 2.23972 6.49535C2.37969 6.39398 2.54864 6.34043 2.72145 6.34275H6.42279C6.57625 6.33736 6.72765 6.37943 6.85635 6.46321C6.91585 6.49802 6.96688 6.54565 7.00576 6.60258C7.04464 6.6595 7.07039 6.72433 7.08116 6.79242C7.08508 6.83247 7.08508 6.87282 7.08116 6.91287C7.08495 6.99398 7.06946 7.07481 7.03597 7.14878C7.00247 7.22275 6.95192 7.28767 6.88847 7.33833C6.7519 7.43958 6.58459 7.49067 6.41476 7.4829H5.22648V11.7061C5.23131 11.7961 5.21738 11.886 5.18559 11.9704C5.1538 12.0547 5.10484 12.1315 5.04181 12.1959C4.98137 12.2574 4.90872 12.3057 4.82852 12.3375C4.74832 12.3693 4.66234 12.3839 4.57613 12.3805C4.42535 12.3848 4.27776 12.3366 4.15863 12.2441C4.04522 12.1537 3.96825 12.0253 3.94185 11.8827C3.93392 11.8241 3.93392 11.7647 3.94185 11.7061L3.93382 7.4829Z",
+      p2077e970: "M7.43556 6.65589C7.47087 6.52377 7.55381 6.40936 7.6684 6.33472C7.7905 6.26551 7.92963 6.23212 8.06984 6.23837H8.37494C8.52372 6.23304 8.67105 6.26918 8.80047 6.34275C8.93762 6.43498 9.03507 6.57541 9.07346 6.73616L10.6792 11.2725C10.7209 11.3909 10.7557 11.5116 10.7836 11.6339C10.7864 11.6847 10.7864 11.7356 10.7836 11.7864C10.7863 11.8646 10.7719 11.9425 10.7414 12.0147C10.7109 12.0868 10.665 12.1514 10.607 12.2039C10.5507 12.2616 10.4832 12.307 10.4086 12.3374C10.334 12.3678 10.2539 12.3825 10.1734 12.3805C10.0496 12.3928 9.92521 12.3631 9.82034 12.2961C9.71547 12.2291 9.63621 12.1288 9.59534 12.0112L9.25812 11.0237H7.14652L6.8093 12.0112C6.76942 12.1311 6.6892 12.2334 6.58233 12.3007C6.47545 12.3681 6.34853 12.3963 6.22319 12.3805C6.08742 12.3841 5.95443 12.3416 5.84583 12.2601C5.74002 12.1759 5.66863 12.056 5.64511 11.9229C5.64085 11.8775 5.64085 11.8318 5.64511 11.7864C5.63132 11.7067 5.63132 11.6253 5.64511 11.5456C5.64511 11.4573 5.70131 11.3608 5.73342 11.2725L7.43556 6.65589ZM8.23845 7.70773L7.4757 10.1164H8.99317L8.23845 7.70773Z",
+      p11085b00: "M10.9675 6.91296C10.9593 6.73278 11.0228 6.55671 11.1441 6.42321C11.2058 6.36102 11.2798 6.31241 11.3614 6.28061C11.443 6.2488 11.5304 6.23441 11.6178 6.23846C11.7682 6.23671 11.915 6.28473 12.0353 6.37499C12.1469 6.46917 12.2209 6.60017 12.2441 6.74429C12.252 6.80021 12.252 6.85704 12.2441 6.91296V11.1362H14.452C14.6051 11.1342 14.7555 11.1759 14.8856 11.2565C14.9441 11.2926 14.9943 11.3406 15.033 11.3973C15.0718 11.454 15.0981 11.5182 15.1104 11.5858C15.1104 11.5858 15.1104 11.6661 15.1104 11.7062C15.1142 11.7862 15.0987 11.8658 15.0652 11.9385C15.0316 12.0112 14.981 12.0748 14.9177 12.1237C14.7778 12.2251 14.6088 12.2786 14.436 12.2762H11.7222C11.5494 12.2874 11.3776 12.2424 11.2324 12.1478C11.1026 12.0508 11.0161 11.9066 10.9916 11.7464C10.9857 11.6582 10.9857 11.5696 10.9916 11.4814L10.9675 6.91296Z",
+      p241a9770: "M15.2551 6.913C15.2503 6.73334 15.3134 6.55848 15.4317 6.42325C15.5521 6.3139 15.7064 6.24934 15.8688 6.24056C16.0311 6.23178 16.1915 6.27929 16.3229 6.37503C16.4369 6.46838 16.5138 6.59932 16.5397 6.74433C16.5437 6.80046 16.5437 6.85687 16.5397 6.913V8.88005L18.571 6.53557C18.6493 6.45559 18.7324 6.38058 18.8199 6.31083C18.9024 6.26172 18.997 6.23662 19.0929 6.2385C19.2332 6.23774 19.3705 6.27976 19.4863 6.35896C19.5409 6.39572 19.5875 6.44314 19.6234 6.49832C19.6593 6.5535 19.6837 6.61532 19.6951 6.68013C19.6983 6.69603 19.6983 6.71246 19.6951 6.72835C19.6912 6.74688 19.6912 6.76598 19.6951 6.78451C19.6948 6.869 19.6727 6.95201 19.6309 7.02542C19.5882 7.10314 19.5371 7.17577 19.4783 7.24212L18.1455 8.70344L19.7513 11.1924V11.2727C19.8347 11.3877 19.8997 11.5151 19.944 11.6501V11.6902C19.9533 11.7832 19.9399 11.8771 19.9049 11.9638C19.8699 12.0505 19.8145 12.1274 19.7433 12.188C19.6093 12.2892 19.4455 12.3429 19.2776 12.3406C19.166 12.3452 19.0553 12.3202 18.9564 12.2682C18.8495 12.1965 18.7614 12.1002 18.6995 11.9872L17.2061 9.57856L16.4915 10.3253V11.6661C16.4964 11.8457 16.4333 12.0206 16.3149 12.1558C16.2515 12.2178 16.176 12.2663 16.0931 12.298C16.0103 12.3298 15.9218 12.3443 15.8332 12.3406C15.685 12.3437 15.5404 12.2954 15.4237 12.204C15.3103 12.1136 15.2333 11.9854 15.2069 11.8428C15.199 11.7842 15.199 11.7247 15.2069 11.6661L15.2551 6.913Z",
+    };
+
+    // ─── SVG Paths (홈/상세) ───
+    const svgMain = {
+      p3572fc00: "M6.87306 3.70167L5.89306 0.475C5.69973 -0.158333 4.8064 -0.158333 4.61973 0.475L3.63306 3.70167H0.666398C0.0197316 3.70167 -0.246935 4.535 0.279732 4.90833L2.7064 6.64167L1.75306 9.715C1.55973 10.335 2.27973 10.835 2.79307 10.4417L5.25306 8.575L7.71306 10.4483C8.2264 10.8417 8.9464 10.3417 8.75306 9.72167L7.79973 6.64833L10.2264 4.915C10.7531 4.535 10.4864 3.70833 9.83973 3.70833H6.87306V3.70167Z",
+      p2cfa2500: "M7.5 0H0.833333C0.375 0 0 0.4125 0 0.916667V9.16667L1.66667 7.33333H7.5C7.95833 7.33333 8.33333 6.92083 8.33333 6.41667V0.916667C8.33333 0.4125 7.95833 0 7.5 0Z",
+      p2c368300: "M7.08333 12.9979L6.05625 12.0629C2.40833 8.755 0 6.57333 0 3.89583C0 1.71417 1.71417 0 3.89583 0C5.12833 0 6.31125 0.57375 7.08333 1.48042C7.85542 0.57375 9.03833 0 10.2708 0C12.4525 0 14.1667 1.71417 14.1667 3.89583C14.1667 6.57333 11.7583 8.755 8.11042 12.07L7.08333 12.9979Z",
+      p37774d00: "M10.983 0.236583C10.9086 0.161618 10.8201 0.102116 10.7227 0.0615109C10.6252 0.0209055 10.5207 0 10.4151 0C10.3095 0 10.205 0.0209055 10.1075 0.0615109C10.01 0.102116 9.92158 0.161618 9.84722 0.236583L3.88862 6.20318L1.38521 3.69177C1.30801 3.6172 1.21688 3.55856 1.11702 3.51921C1.01716 3.47985 0.910526 3.46055 0.803207 3.46241C0.695888 3.46427 0.589985 3.48724 0.491545 3.53003C0.393106 3.57281 0.304057 3.63457 0.229484 3.71177C0.154911 3.78897 0.0962733 3.8801 0.0569193 3.97996C0.0175654 4.07982 -0.00173443 4.18645 0.000122306 4.29377C0.00197904 4.40109 0.0249559 4.50699 0.0677406 4.60543C0.110525 4.70387 0.17228 4.79292 0.249479 4.86749L3.32076 7.93877C3.39511 8.01374 3.48357 8.07324 3.58104 8.11384C3.6785 8.15445 3.78304 8.17536 3.88862 8.17536C3.99421 8.17536 4.09875 8.15445 4.19621 8.11384C4.29368 8.07324 4.38214 8.01374 4.45649 7.93877L10.983 1.41231C11.0641 1.33741 11.1289 1.24651 11.1732 1.14533C11.2176 1.04416 11.2404 0.9349 11.2404 0.824445C11.2404 0.713989 11.2176 0.604731 11.1732 0.503555C11.1289 0.402379 11.0641 0.311479 10.983 0.236583Z",
+      p2cb87d00: "M5.83333 10H9.16667V8.33333H5.83333V10ZM0 0V1.66667H15V0H0ZM2.5 5.83333H12.5V4.16667H2.5V5.83333Z",
+      p24b67a00: "M8 19.5C9.1 19.5 10 18.6 10 17.5H6C6 18.6 6.9 19.5 8 19.5ZM14 13.5V8.5C14 5.43 12.37 2.86 9.5 2.18V1.5C9.5 0.67 8.83 0 8 0C7.17 0 6.5 0.67 6.5 1.5V2.18C3.64 2.86 2 5.42 2 8.5V13.5L0 15.5V16.5H16V15.5L14 13.5ZM12 14.5H4V8.5C4 6.02 5.51 4 8 4C10.49 4 12 6.02 12 8.5V14.5Z",
+      p39222e80: "M13.5417 11.9167H12.6858L12.3825 11.6242C13.4442 10.3892 14.0833 8.78583 14.0833 7.04167C14.0833 3.1525 10.9308 0 7.04167 0C3.1525 0 0 3.1525 0 7.04167C0 10.9308 3.1525 14.0833 7.04167 14.0833C8.78583 14.0833 10.3892 13.4442 11.6242 12.3825L11.9167 12.6858V13.5417L17.3333 18.9475L18.9475 17.3333L13.5417 11.9167ZM7.04167 11.9167C4.34417 11.9167 2.16667 9.73917 2.16667 7.04167C2.16667 4.34417 4.34417 2.16667 7.04167 2.16667C9.73917 2.16667 11.9167 4.34417 11.9167 7.04167C11.9167 9.73917 9.73917 11.9167 7.04167 11.9167Z",
+      p3565fd80: "M14.5 0C12.76 0 11.09 0.81 10 2.09C8.91 0.81 7.24 0 5.5 0C2.42 0 0 2.42 0 5.5C0 9.28 3.4 12.36 8.55 17.04L10 18.35L11.45 17.03C16.6 12.36 20 9.28 20 5.5C20 2.42 17.58 0 14.5 0ZM10.1 15.55L10 15.65L9.9 15.55C5.14 11.24 2 8.39 2 5.5C2 3.5 3.5 2 5.5 2C7.04 2 8.54 2.99 9.07 4.36H10.94C11.46 2.99 12.96 2 14.5 2C16.5 2 18 3.5 18 5.5C18 8.39 14.86 11.24 10.1 15.55Z",
+      p224d4200: "M10 0C4.48 0 0 4.48 0 10C0 15.52 4.48 20 10 20C15.52 20 20 15.52 20 10C20 4.48 15.52 0 10 0ZM5.35 16.5C6.66 15.56 8.26 15 10 15C11.74 15 13.34 15.56 14.65 16.5C13.34 17.44 11.74 18 10 18C8.26 18 6.66 17.44 5.35 16.5ZM16.14 15.12C14.45 13.8 12.32 13 10 13C7.68 13 5.55 13.8 3.86 15.12C2.7 13.73 2 11.95 2 10C2 5.58 5.58 2 10 2C14.42 2 18 5.58 18 10C18 11.95 17.3 13.73 16.14 15.12Z",
+      p21504a00: "M10 4C8.07 4 6.5 5.57 6.5 7.5C6.5 9.43 8.07 11 10 11C11.93 11 13.5 9.43 13.5 7.5C13.5 5.57 11.93 4 10 4ZM10 9C9.17 9 8.5 8.33 8.5 7.5C8.5 6.67 9.17 6 10 6C10.83 6 11.5 6.67 11.5 7.5C11.5 8.33 10.83 9 10 9Z",
+    };
+
+    // ─── 로고 경로 ───
+    const LOGO_SRC = "sajumoon/assets/logo.png";
+    const CIRCLE_MOON_SRC = "sajumoon/assets/circle_moon.png";
+    const CRESCENT_MOON_SRC = "sajumoon/assets/crescent_moon.png";
+    const MENUHOME_LOGO_SRC = "sajumoon/assets/menuhome_logo.png";
+
+    // ─── 상담사 데이터 ───
+    const typeColors = { 사주: "#3f5b51", 신점: "#c47c7c", 타로: "#7ca4c4" };
+
+    const counselors = [
+      { id: 1, name: "강도사", code: "118131", subtitle: "경청이 답이다", type: "사주", price: "1,000", description: "경청이 우선, 마음의 소리", rating: 4.8, reviews: 152, image: "https://images.unsplash.com/photo-1545696968-1a5245650b36?w=400", favorited: false, hasChat: false, experience: "15년", specialties: ["사주팔자", "궁합", "운세"], bio: "15년 경력의 사주 전문 상담사입니다. 경청을 바탕으로 내담자의 마음에 공감하며, 정확한 사주 해석으로 인생의 방향을 제시합니다." },
+      { id: 2, name: "김선녀", code: "224587", subtitle: "마음을 읽는 신점", type: "신점", price: "1,500", description: "정확한 신점, 따뜻한 상담", rating: 4.9, reviews: 328, image: "https://images.unsplash.com/photo-1581065178026-390bc4e78dad?w=400", favorited: true, hasChat: true, experience: "20년", specialties: ["신점", "작명", "택일"], bio: "20년 이상의 경험으로 정확한 신점 상담을 제공합니다. 따뜻한 마음으로 고민을 함께 나누겠습니다." },
+      { id: 3, name: "이타로", code: "335912", subtitle: "카드가 알려주는 길", type: "타로", price: "1,000", description: "정밀 타로, 미래를 읽다", rating: 4.7, reviews: 89, image: "https://images.unsplash.com/photo-1667184763638-a666fc90ece2?w=400", favorited: false, hasChat: true, experience: "8년", specialties: ["타로", "연애운", "진로"], bio: "타로 카드를 통해 당신의 현재와 미래를 읽어드립니다. 연애, 진로, 재물 등 다양한 분야의 상담이 가능합니다." },
+      { id: 4, name: "박철학", code: "441290", subtitle: "명리학의 대가", type: "사주", price: "2,000", description: "깊이 있는 사주 풀이", rating: 4.6, reviews: 201, image: "https://images.unsplash.com/photo-1545696968-1a5245650b36?w=400", favorited: false, hasChat: true, experience: "25년", specialties: ["사주", "관상", "풍수"], bio: "25년 명리학 연구와 상담 경력. 사주팔자, 관상, 풍수 등 전통 역학 전반에 깊은 조예를 가지고 있습니다." },
+      { id: 5, name: "최영매", code: "557823", subtitle: "영혼의 메신저", type: "신점", price: "1,800", description: "진심 어린 신점 상담", rating: 4.5, reviews: 176, image: "https://images.unsplash.com/photo-1581065178026-390bc4e78dad?w=400", favorited: false, hasChat: false, experience: "18년", specialties: ["신점", "귀신상담", "액막이"], bio: "18년 신점 경력의 영매. 진심 어린 상담으로 여러분의 고민을 해결해 드립니다." },
+    ];
+
+    const bannerImages = [
+      "https://images.unsplash.com/photo-1612323272388-34fe470bedad?w=600",
+      "https://images.unsplash.com/photo-1615829332206-22479388eecc?w=600",
+      "https://images.unsplash.com/photo-1631222958324-aeddd0bf4b53?w=600",
+    ];
+
+    // ─── 이미지 컴포넌트 ───
+    function ImageWithFallback({ src, alt, className, style }) {
+      const [error, setError] = useState(false);
+      if (error) {
+        return <div className={`bg-gray-200 flex items-center justify-center ${className}`} style={style}><span className="text-gray-400 text-xs">이미지 없음</span></div>;
+      }
+      return <img src={src} alt={alt} className={className} style={style} onError={() => setError(true)} />;
+    }
+
+    // ══════════════════════════════════════════
+    // 로그인 페이지
+    // ══════════════════════════════════════════
+    function LoginPage({ navigate }) {
+      const [username, setUsername] = useState("");
+      const [password, setPassword] = useState("");
+      const [keepLogin, setKeepLogin] = useState(true);
+
+      return (
+        <div className="bg-[#f8f8f8] min-h-screen w-full max-w-[430px] mx-auto relative flex flex-col">
+          <div className="bg-white h-[55px] flex items-center justify-between px-4 shrink-0">
+            <button className="w-[24px] h-[24px] flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d={svgLogin.pd1b3d80} fill="black" />
+              </svg>
+            </button>
+            <span className="text-[14px] text-black">로그인</span>
+            <button className="w-[24px] h-[24px] flex items-center justify-center">
+              <svg width="16" height="19.5" viewBox="0 0 16 19.5" fill="none">
+                <path d={svgLogin.p24b67a00} fill="black" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="flex-1 px-[12px] pt-[14px]">
+            <div className="bg-white rounded-[20px] px-[24px] pt-[34px] pb-[40px] flex flex-col items-center">
+              <div className="w-[136px] h-[50px] mb-[30px]">
+                <img src={LOGO_SRC} alt="사주문" className="w-full h-full object-cover" />
+              </div>
+
+              <input type="text" placeholder="아이디 입력" value={username} onChange={e => setUsername(e.target.value)}
+                className="w-full h-[42px] bg-[#f8f8f8] rounded-[10px] px-[15px] text-[14px] text-black outline-none mb-[10px]"
+                style={{ color: '#000' }} />
+              <input type="password" placeholder="비밀번호 입력" value={password} onChange={e => setPassword(e.target.value)}
+                className="w-full h-[42px] bg-[#f8f8f8] rounded-[10px] px-[15px] text-[14px] text-black outline-none mb-[12px]"
+                style={{ color: '#000' }} />
+
+              <div className="w-full flex items-center justify-between mb-[16px]">
+                <button className="flex items-center gap-[6px]" onClick={() => setKeepLogin(!keepLogin)}>
+                  <div className={`w-[20px] h-[20px] rounded-[5px] flex items-center justify-center ${keepLogin ? "bg-black" : "bg-white border border-[#ccc]"}`}>
+                    {keepLogin && (
+                      <svg width="11" height="8" viewBox="0 0 11.2404 8.17535" fill="none">
+                        <path d={svgLogin.p37774d00} fill="white" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-[14px] text-black">로그인유지</span>
+                </button>
+                <a href="https://sajumoon.co.kr/bbs/password_lost.php" target="_blank" rel="noreferrer" className="text-[14px] text-[#868686] underline">
+                  아이디/비밀번호 찾기
+                </a>
+              </div>
+
+              <button className="w-full h-[44px] bg-[#8259f5] rounded-[5px] text-white text-[14px] mb-[10px]"
+                onClick={() => navigate('home')}>
+                로그인
+              </button>
+              <button className="w-full h-[44px] bg-white border border-[#8259f5] rounded-[5px] text-[#8259f5] text-[14px] mb-[24px]">
+                회원가입
+              </button>
+
+              <p className="text-[14px] text-[#969696] mb-[16px]">SNS 간편로그인</p>
+              <div className="flex items-center gap-[12px]">
+                <button className="w-[40px] h-[40px] bg-white rounded-full flex items-center justify-center border border-[rgba(0,0,0,0.15)]">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d={svgLogin.p31c1a6c0} fill="#03A94D" fillRule="evenodd" clipRule="evenodd" />
+                  </svg>
+                </button>
+                <button className="w-[40px] h-[40px] bg-[#FEE500] rounded-full flex items-center justify-center relative">
+                  <svg width="23" height="21" viewBox="0 0 22.4971 20.7948" fill="none">
+                    <path d={svgLogin.p1fb403e0} fill="#392020" />
+                    <path d={svgLogin.p35aae00} fill="#FEE500" />
+                    <path d={svgLogin.p2077e970} fill="#FEE500" />
+                    <path d={svgLogin.p11085b00} fill="#FEE500" />
+                    <path d={svgLogin.p241a9770} fill="#FEE500" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════
+    // 홈 페이지
+    // ══════════════════════════════════════════
+    function BannerSlider() {
+      const [current, setCurrent] = useState(0);
+      useEffect(() => {
+        const timer = setInterval(() => setCurrent(p => (p + 1) % bannerImages.length), 3500);
+        return () => clearInterval(timer);
+      }, []);
+      return (
+        <div className="relative rounded-[10px] overflow-hidden h-full">
+          <div className="flex h-full transition-transform duration-500 ease-in-out" style={{ transform: `translateX(-${current * 100}%)` }}>
+            {bannerImages.map((img, i) => (
+              <div key={i} className="min-w-full h-full relative shrink-0">
+                <ImageWithFallback src={img} alt={`배너 ${i+1}`} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                <div className="absolute bottom-4 left-4 text-white">
+                  <p className="text-[16px] font-bold">오늘의 운세를 확인하세요</p>
+                  <p className="text-[12px] opacity-80 mt-0.5">지금 바로 상담 시작하기</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+            {bannerImages.map((_, i) => (
+              <button key={i} onClick={() => setCurrent(i)}
+                className={`rounded-full transition-all h-2 ${i === current ? "w-5 bg-white" : "w-2 bg-white/50"}`} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function HomePage({ navigate }) {
+      const categories = ["전체", "타로", "사주", "신점"];
+      const sortOptions = ["추천순", "최신순", "후기많은순", "가격높은순", "가격낮은순"];
+      const [selectedCategory, setSelectedCategory] = useState("전체");
+      const [sortBy, setSortBy] = useState("추천순");
+      const [onlyAvailable, setOnlyAvailable] = useState(false);
+      const [showDropdown, setShowDropdown] = useState(false);
+      const [list, setList] = useState(counselors);
+      const dropdownRef = useRef(null);
+
+      useEffect(() => {
+        const handleClick = e => {
+          if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setShowDropdown(false);
+        };
+        document.addEventListener("mousedown", handleClick);
+        return () => document.removeEventListener("mousedown", handleClick);
+      }, []);
+
+      const filtered = selectedCategory === "전체" ? list : list.filter(c => c.type === selectedCategory);
+      const sorted = [...filtered].sort((a, b) => {
+        switch(sortBy) {
+          case "최신순": return b.id - a.id;
+          case "후기많은순": return b.reviews - a.reviews;
+          case "가격높은순": return parseInt(b.price.replace(",","")) - parseInt(a.price.replace(",",""));
+          case "가격낮은순": return parseInt(a.price.replace(",","")) - parseInt(b.price.replace(",",""));
+          default: return b.rating - a.rating;
+        }
+      });
+
+      const toggleFav = id => setList(prev => prev.map(c => c.id === id ? {...c, favorited: !c.favorited} : c));
+
+      return (
+        <div className="max-w-[393px] mx-auto bg-white min-h-screen relative" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
+          {/* Header */}
+          <div className="sticky top-0 z-50 bg-white flex items-center justify-center h-[55px] border-b border-[#f3f3f3]">
+            <img src={LOGO_SRC} alt="Logo" className="h-[42px] object-contain" />
+            <button className="absolute right-4 p-1">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d={svgMain.p24b67a00} fill="black" transform="translate(4, 2)" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Banner */}
+          <div className="px-5 pt-3 flex gap-3 h-[250px]">
+            <div className="flex-[2] h-full"><BannerSlider /></div>
+            <div className="flex flex-col gap-2 w-[110px] shrink-0 h-full">
+              <div className="bg-white border-[1.5px] border-[#8259f5] rounded-[15px] px-3 py-2 flex flex-col items-center justify-center flex-1">
+                <img src={CIRCLE_MOON_SRC} alt="총 사주 대화" className="w-[24px] h-[24px] object-contain" />
+                <p className="text-[14px] text-black mt-1 font-extrabold">257,851</p>
+                <p className="text-[#868686] text-[10px]">총 사주 대화</p>
+              </div>
+              <div className="bg-[#f3efff] border-[1.5px] border-[#8259f5] rounded-[15px] px-3 py-2 flex flex-col items-center justify-center flex-1">
+                <img src={CRESCENT_MOON_SRC} alt="진행중 대화" className="w-[24px] h-[24px] object-contain" />
+                <p className="text-[14px] text-black mt-1 font-extrabold">11</p>
+                <p className="text-[#868686] text-[10px]">진행중 대화</p>
+              </div>
+              <button className="bg-[#4a445b] text-white text-[12px] px-4 py-2.5 rounded-[15px] whitespace-nowrap font-black">
+                추천 보기
+              </button>
+            </div>
+          </div>
+
+          {/* Category + List */}
+          <div className="bg-[#f8f8f8] min-h-screen pb-28 mt-4">
+            {/* 카테고리 탭 */}
+            <div className="flex px-5 gap-3.5 pt-5">
+              {categories.map(cat => (
+                <button key={cat} onClick={() => setSelectedCategory(cat)}
+                  className={`flex-1 py-2.5 rounded-full text-[14px] text-center transition-all ${selectedCategory === cat ? "bg-[#8259f5] text-white shadow-md font-bold" : "bg-white text-[#868686] border border-[#eee]"}`}>
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* 필터 바 */}
+            <div className="flex items-center justify-between px-5 pt-3 pb-2">
+              <button className="flex items-center gap-1.5 text-[14px] text-black" onClick={() => setOnlyAvailable(!onlyAvailable)}>
+                <div className={`w-5 h-5 rounded-[5px] flex items-center justify-center transition-colors ${onlyAvailable ? "bg-black" : "bg-[#d9d9d9]"}`}>
+                  {onlyAvailable && <svg width="11" height="8" viewBox="0 0 11.2404 8.17535" fill="none"><path d={svgMain.p37774d00} fill="white" /></svg>}
+                </div>
+                <span>바로 연결 가능</span>
+              </button>
+              <div className="relative" ref={dropdownRef}>
+                <button className="flex items-center gap-0.5 text-[14px] text-black" onClick={() => setShowDropdown(!showDropdown)}>
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d={svgMain.p2cb87d00} fill="#838383" transform="translate(2.5, 5)" />
+                  </svg>
+                  <span>{sortBy}</span>
+                </button>
+                {showDropdown && (
+                  <div className="absolute right-0 top-8 bg-white rounded-xl shadow-[0px_4px_20px_rgba(0,0,0,0.15)] py-2 z-50 min-w-[140px]">
+                    {sortOptions.map(opt => (
+                      <button key={opt} onClick={() => { setSortBy(opt); setShowDropdown(false); }}
+                        className={`w-full text-left px-4 py-2.5 text-[13px] ${sortBy === opt ? "bg-[#f3efff] text-[#8259f5] font-semibold" : "text-black hover:bg-[#f8f8f8]"}`}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 상담사 카드 목록 */}
+            <div className="pt-1">
+              {sorted.map(c => (
+                <div key={c.id}
+                  className="bg-white rounded-[20px] shadow-[0px_0px_8px_0px_rgba(0,0,0,0.1)] px-4 pt-4 pb-3 mx-5 mb-3 cursor-pointer"
+                  onClick={() => navigate('detail', c.id)}>
+                  <div className="flex gap-3">
+                    <ImageWithFallback src={c.image} alt={c.name} className="w-[98px] h-[101px] rounded-[10px] object-cover shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[14px] text-black font-semibold">{c.name}</span>
+                          <span className="text-[14px] text-[#dfae21]">{c.code}</span>
+                        </div>
+                        <button onClick={e => { e.stopPropagation(); toggleFav(c.id); }} className="p-1">
+                          <svg width="17" height="16" viewBox="0 0 14.1667 12.9979" fill="none">
+                            <path d={svgMain.p2c368300} fill={c.favorited ? "#8259F5" : "#D9D9D9"} />
+                          </svg>
+                        </button>
+                      </div>
+                      <p className="text-[12px] text-black mt-0.5">{c.subtitle}</p>
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <span className="text-[12px] text-white px-2 py-0.5 font-medium" style={{ backgroundColor: typeColors[c.type] }}>{c.type}</span>
+                        <span className="text-[11px] text-[#777]">30초당 <span className="font-semibold text-[12px]">{c.price}</span><span className="text-[12px]">원</span></span>
+                      </div>
+                      <p className="text-[11px] text-[#8259f5] mt-1.5">{c.description}</p>
+                      <div className="flex items-center gap-2.5 mt-1.5">
+                        <div className="flex items-center gap-0.5">
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d={svgMain.p3572fc00} fill="#FFB800" transform="translate(1.7, 1.7)" /></svg>
+                          <span className="text-[10px] text-[#777]">{c.rating}</span>
+                        </div>
+                        <div className="flex items-center gap-0.5">
+                          <svg width="11" height="11" viewBox="0 0 8.33333 9.16667" fill="none"><path d={svgMain.p2cfa2500} fill="#9C9C9C" /></svg>
+                          <span className="text-[10px] text-[#777]">{c.reviews}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-3" onClick={e => e.stopPropagation()}>
+                    {c.hasChat && (
+                      <button className="bg-[#7867a8] text-white text-[13px] py-2 rounded-[5px] flex-1 font-medium"
+                        onClick={() => alert("채팅 연결 중...")}>채팅연결</button>
+                    )}
+                    <button className="bg-[#8259f5] text-white text-[13px] py-2 rounded-[5px] flex-1 font-medium"
+                      onClick={() => alert("전화 연결 중...")}>전화연결</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 하단 네비게이션 */}
+          <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[393px] z-50 px-4 pb-2">
+            <div className="bg-white border border-[#f3f3f3] rounded-[20px] shadow-[0px_-2px_12px_rgba(0,0,0,0.1)]">
+              <div className="flex items-end justify-around px-2 pt-2.5 pb-3">
+                {[
+                  { label: "검색", icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d={svgMain.p39222e80} fill="currentColor" transform="translate(2.5, 2.5)" /></svg> },
+                  { label: "저장함", icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d={svgMain.p3565fd80} fill="currentColor" transform="translate(2, 3)" /></svg> },
+                  { label: "홈", isHome: true, icon: <div className="w-[45px] h-[45px] rounded-full bg-white border-2 border-[#8259f5] flex items-center justify-center overflow-hidden shadow-lg -mt-5"><img src={MENUHOME_LOGO_SRC} alt="홈" className="w-[38px] h-[38px] object-contain" /></div> },
+                  { label: "포인트", icon: <div className="w-[22px] h-[22px] relative flex items-center justify-center"><svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="10" stroke="currentColor" strokeWidth="2" /></svg><span className="absolute text-[14px]">P</span></div> },
+                  { label: "마이페이지", icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d={svgMain.p224d4200} fill="currentColor" transform="translate(2, 2)" /><path d={svgMain.p21504a00} fill="currentColor" transform="translate(2, 2)" /></svg> },
+                ].map(item => (
+                  <button key={item.label} className="flex flex-col items-center gap-0.5 min-w-[48px] text-[#555]">
+                    <div className="h-[26px] flex items-center justify-center">{item.icon}</div>
+                    <span className={`text-[10px] ${item.isHome ? "mt-1" : ""}`}>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════
+    // 상세 페이지
+    // ══════════════════════════════════════════
+    function DetailPage({ id, navigate }) {
+      const counselor = counselors.find(c => c.id === id);
+      if (!counselor) {
+        return (
+          <div className="max-w-[393px] mx-auto bg-white min-h-screen flex flex-col items-center justify-center gap-4">
+            <p className="text-[16px] text-[#777]">상담사를 찾을 수 없습니다</p>
+            <button onClick={() => navigate('home')} className="bg-[#8259f5] text-white px-6 py-2.5 rounded-full text-[14px]">홈으로 돌아가기</button>
+          </div>
+        );
+      }
+
+      return (
+        <div className="max-w-[393px] mx-auto bg-white min-h-screen relative" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
+          {/* Header */}
+          <div className="sticky top-0 z-50 bg-white flex items-center h-[55px] px-4 border-b border-[#f3f3f3]">
+            <button onClick={() => navigate('home')} className="p-1">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M15 18L9 12L15 6" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <span className="text-[16px] flex-1 text-center font-semibold">상담사 프로필</span>
+            <button className="p-1">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d={svgMain.p24b67a00} fill="black" transform="translate(4, 2)" />
+              </svg>
+            </button>
+          </div>
+
+          {/* 프로필 */}
+          <div className="px-5 pt-5 pb-4">
+            <div className="flex gap-4">
+              <ImageWithFallback src={counselor.image} alt={counselor.name} className="w-[120px] h-[120px] rounded-[15px] object-cover shrink-0" />
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[18px] text-black font-bold">{counselor.name}</span>
+                  <span className="text-[14px] text-[#dfae21]">{counselor.code}</span>
+                </div>
+                <p className="text-[13px] text-[#555] mt-1">{counselor.subtitle}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-[12px] text-white px-2.5 py-1 rounded-sm font-medium" style={{ backgroundColor: typeColors[counselor.type] }}>{counselor.type}</span>
+                  <span className="text-[12px] text-[#777]">경력 {counselor.experience}</span>
+                </div>
+                <div className="flex items-center gap-3 mt-2">
+                  <div className="flex items-center gap-1">
+                    <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d={svgMain.p3572fc00} fill="#FFB800" transform="translate(1.7, 1.7)" /></svg>
+                    <span className="text-[13px] text-black font-semibold">{counselor.rating}</span>
+                  </div>
+                  <span className="text-[12px] text-[#777]">후기 {counselor.reviews}건</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 요금 */}
+          <div className="mx-5 bg-[#f3efff] rounded-[15px] px-4 py-3.5 flex items-center justify-between">
+            <span className="text-[13px] text-[#555]">상담 요금</span>
+            <span className="text-[15px] text-[#8259f5] font-bold">30초당 {counselor.price}원</span>
+          </div>
+
+          {/* 소개 */}
+          <div className="mx-5 mt-5">
+            <p className="text-[14px] text-[#8259f5] mb-3 font-semibold">{counselor.description}</p>
+            <p className="text-[13px] text-[#555] leading-[1.8]">{counselor.bio}</p>
+          </div>
+
+          {/* 전문 분야 */}
+          <div className="mx-5 mt-5">
+            <p className="text-[14px] text-black mb-2 font-semibold">전문 분야</p>
+            <div className="flex gap-2 flex-wrap">
+              {counselor.specialties.map(s => (
+                <span key={s} className="bg-[#f8f8f8] text-[13px] text-[#555] px-3.5 py-1.5 rounded-full border border-[#eee]">{s}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* 최근 후기 */}
+          <div className="mx-5 mt-6 mb-6">
+            <p className="text-[14px] text-black mb-3 font-semibold">최근 후기</p>
+            {[
+              { user: "김**", text: "정말 잘 맞아요! 다음에도 꼭 상담받고 싶습니다.", date: "2026.04.10" },
+              { user: "이**", text: "따뜻하게 상담해주셔서 마음이 편안해졌어요.", date: "2026.04.08" },
+            ].map((r, i) => (
+              <div key={i} className="bg-[#f8f8f8] rounded-[12px] px-4 py-3 mb-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[13px] text-black font-medium">{r.user}</span>
+                  <span className="text-[11px] text-[#aaa]">{r.date}</span>
+                </div>
+                <div className="flex gap-0.5 mb-1">
+                  {[1,2,3,4,5].map(n => <svg key={n} width="14" height="14" viewBox="0 0 14 14" fill="none"><path d={svgMain.p3572fc00} fill="#FFB800" transform="translate(1.7, 1.7)" /></svg>)}
+                </div>
+                <p className="text-[12px] text-[#555]">{r.text}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* 하단 버튼 */}
+          <div className="sticky bottom-0 bg-white px-5 py-3 border-t border-[#f3f3f3] flex gap-2.5">
+            {counselor.hasChat && (
+              <button className="bg-[#7867a8] text-white text-[14px] py-3 rounded-[10px] flex-1 font-semibold"
+                onClick={() => alert("채팅 연결 중...")}>채팅연결</button>
+            )}
+            <button className="bg-[#8259f5] text-white text-[14px] py-3 rounded-[10px] flex-1 font-semibold"
+              onClick={() => alert("전화 연결 중...")}>전화연결</button>
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════
+    // 앱 루트 (페이지 라우팅)
+    // ══════════════════════════════════════════
+    function App() {
+      const [page, setPage] = useState("login");
+      const [detailId, setDetailId] = useState(null);
+
+      const navigate = (target, id) => {
+        if (target === 'detail') { setDetailId(id); setPage('detail'); }
+        else { setPage(target); setDetailId(null); }
+      };
+
+      if (page === "login") return <LoginPage navigate={navigate} />;
+      if (page === "home")  return <HomePage navigate={navigate} />;
+      if (page === "detail") return <DetailPage id={detailId} navigate={navigate} />;
+      return null;
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

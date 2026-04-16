@@ -1,0 +1,17 @@
+.DS_Store
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+.vite/
+*.log
+
+.env
+.env.*
+!.env.example
+
+*.pem
+*.key
+credentials*.json
+secrets*.json
