@@ -1,0 +1,1 @@
+<span class="counselor_num"><?=$cinfo["mb_no"]?></span>

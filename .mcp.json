@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "figma": {
+      "type": "http",
+      "url": "http://127.0.0.1:3845/mcp"
+    },
+    "figma-api": {
+      "command": "/Users/jin-yubi/.nvm/versions/node/v24.7.0/bin/npx",
+      "args": ["-y", "figma-developer-mcp", "--stdio"],
+      "env": {
+        "FIGMA_API_KEY": "figd_nNT5DFRf4FXiJ_lghH5L8QtBGR7zQDqN-dKkNpsD",
+        "PATH": "/Users/jin-yubi/.nvm/versions/node/v24.7.0/bin:/usr/local/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}

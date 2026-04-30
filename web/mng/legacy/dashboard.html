@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>대시보드 - 관리자</title>
+  <script>if (localStorage.getItem('darkMode') === '1') { document.documentElement.classList.add('dark'); }</script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { outfit: ['Outfit', 'sans-serif'] },
+          colors: {
+            brand: { 25:'#f2f7ff', 50:'#ecf3ff', 100:'#dde9ff', 200:'#c2d6ff', 300:'#9cb9ff', 400:'#7592ff', 500:'#465fff', 600:'#3641f5', 700:'#2a31d8' },
+            gray:  { 25:'#fcfcfd', 50:'#f9fafb', 100:'#f2f4f7', 200:'#e4e7ec', 300:'#d0d5dd', 400:'#98a2b3', 500:'#667085', 600:'#475467', 700:'#344054', 800:'#1d2939', 900:'#101828' }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="flex h-screen overflow-hidden antialiased font-outfit bg-gray-50 dark:bg-gray-900">
+
+  <div id="sidebar-backdrop" onclick="closeMobileSidebar()" class="hidden fixed inset-0 bg-gray-900/50 z-[9998] lg:hidden"></div>
+  <aside id="sidebar"
+  class="flex-shrink-0 flex flex-col h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 overflow-x-hidden px-5 transition-colors duration-200">
+
+  <div class="sidebar-header flex items-center justify-between pt-6 pb-6 flex-shrink-0">
+    <a href="dashboard.html">
+      <div class="hide-collapsed">
+        <span class="text-xl font-bold text-gray-800 dark:text-white tracking-tight">inxight</span>
+      </div>
+      <div class="show-collapsed hidden">
+        <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+          <i data-lucide="bar-chart-2" class="w-4 h-4 text-white"></i>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="flex flex-col flex-1 overflow-y-auto no-scrollbar pt-5">
+    <nav>
+
+      <!-- ══════════════ 관리 메뉴 ══════════════ -->
+      <div class="mb-6">
+        <h3 class="mb-4 text-xs font-semibold uppercase leading-5 text-gray-400 dark:text-gray-500">
+          <span class="hide-collapsed">관리 메뉴</span>
+          <svg class="show-collapsed hidden mx-auto fill-current" width="24" height="24" viewBox="0 0 24 24">
+            <path fill-rule="evenodd" clip-rule="evenodd"
+              d="M5.99915 10.2451C6.96564 10.2451 7.74915 11.0286 7.74915 11.9951V12.0051C7.74915 12.9716 6.96564 13.7551 5.99915 13.7551C5.03265 13.7551 4.24915 12.9716 4.24915 12.0051V11.9951C4.24915 11.0286 5.03265 10.2451 5.99915 10.2451ZM17.9991 10.2451C18.9656 10.2451 19.7491 11.0286 19.7491 11.9951V12.0051C19.7491 12.9716 18.9656 13.7551 17.9991 13.7551C17.0326 13.7551 16.2491 12.9716 16.2491 12.0051V11.9951C16.2491 11.0286 17.0326 10.2451 17.9991 10.2451ZM13.7491 11.9951C13.7491 11.0286 12.9656 10.2451 11.9991 10.2451C11.0326 10.2451 10.2491 11.0286 10.2491 11.9951V12.0051C10.2491 12.9716 11.0326 13.7551 11.9991 13.7551C12.9656 13.7551 13.7491 12.9716 13.7491 12.0051V11.9951Z" fill="currentColor" />
+          </svg>
+        </h3>
+
+        <ul class="flex flex-col gap-2">
+
+          <!-- 대시보드 -->
+          <li>
+            <a href="dashboard.html" class="menu-item menu-item-active" data-tooltip="대시보드">
+              <i data-lucide="layout-dashboard" class="w-6 h-6 flex-shrink-0 menu-item-icon-active"></i>
+              <span class="hide-collapsed">대시보드</span>
+            </a>
+          </li>
+
+          <!-- 회원관리 -->
+          <li>
+            <button onclick="toggleSubmenu('member')" class="menu-item-btn menu-item-inactive">
+              <i data-lucide="users" class="w-6 h-6 flex-shrink-0 menu-item-icon-inactive"></i>
+              <span class="hide-collapsed flex-1">회원관리</span>
+              <i data-lucide="chevron-down" id="member-arrow" class="hide-collapsed arrow-icon w-4 h-4"></i>
+            </button>
+            <div id="member-submenu" class="submenu-wrap hidden">
+              <ul data-label="회원관리" class="flex flex-col gap-1 mt-2 pl-9">
+                <li><a href="member_list.html" class="menu-dropdown-item menu-dropdown-item-inactive">회원 리스트</a></li>
+              </ul>
+            </div>
+          </li>
+
+          <!-- 콘텐츠관리 -->
+          <li>
+            <button onclick="toggleSubmenu('content')" class="menu-item-btn menu-item-inactive">
+              <i data-lucide="file-text" class="w-6 h-6 flex-shrink-0 menu-item-icon-inactive"></i>
+              <span class="hide-collapsed flex-1">콘텐츠관리</span>
+              <i data-lucide="chevron-down" id="content-arrow" class="hide-collapsed arrow-icon w-4 h-4"></i>
+            </button>
+            <div id="content-submenu" class="submenu-wrap hidden">
+              <ul data-label="콘텐츠관리" class="flex flex-col gap-1 mt-2 pl-9">
+                <li><a href="content_list.html" class="menu-dropdown-item menu-dropdown-item-inactive">콘텐츠 리스트</a></li>
+              </ul>
+            </div>
+          </li>
+
+        </ul>
+      </div>
+
+      <!-- ══════════════ 설정 ══════════════ -->
+      <div class="mb-6">
+        <h3 class="mb-4 text-xs font-semibold uppercase leading-5 text-gray-400 dark:text-gray-500">
+          <span class="hide-collapsed">설정</span>
+          <svg class="show-collapsed hidden mx-auto fill-current" width="24" height="24" viewBox="0 0 24 24">
+            <path fill-rule="evenodd" clip-rule="evenodd"
+              d="M5.99915 10.2451C6.96564 10.2451 7.74915 11.0286 7.74915 11.9951V12.0051C7.74915 12.9716 6.96564 13.7551 5.99915 13.7551C5.03265 13.7551 4.24915 12.9716 4.24915 12.0051V11.9951C4.24915 11.0286 5.03265 10.2451 5.99915 10.2451ZM17.9991 10.2451C18.9656 10.2451 19.7491 11.0286 19.7491 11.9951V12.0051C19.7491 12.9716 18.9656 13.7551 17.9991 13.7551C17.0326 13.7551 16.2491 12.9716 16.2491 12.0051V11.9951C16.2491 11.0286 17.0326 10.2451 17.9991 10.2451ZM13.7491 11.9951C13.7491 11.0286 12.9656 10.2451 11.9991 10.2451C11.0326 10.2451 10.2491 11.0286 10.2491 11.9951V12.0051C10.2491 12.9716 11.0326 13.7551 11.9991 13.7551C12.9656 13.7551 13.7491 12.9716 13.7491 12.0051V11.9951Z" fill="currentColor" />
+          </svg>
+        </h3>
+        <ul class="flex flex-col gap-2">
+          <li>
+            <a href="login.html" class="menu-item menu-item-inactive" data-tooltip="로그아웃">
+              <i data-lucide="log-out" class="w-6 h-6 flex-shrink-0 menu-item-icon-inactive"></i>
+              <span class="hide-collapsed">로그아웃</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+    </nav>
+  </div>
+</aside>
+
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <header class="sticky top-0 z-[10000] flex w-full border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-colors duration-200">
+  <div class="flex grow items-center justify-between px-4 py-4">
+
+    <div class="flex items-center gap-4">
+      <button id="sidebar-toggle-btn" onclick="toggleSidebar()"
+        class="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200
+               dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100
+               dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors shrink-0">
+        <svg id="icon-hamburger" width="16" height="12" viewBox="0 0 16 12" fill="none">
+          <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M0.583252 1C0.583252 0.585788 0.919038 0.25 1.33325 0.25H14.6666C15.0808 0.25 15.4166 0.585786 15.4166 1C15.4166 1.41421 15.0808 1.75 14.6666 1.75L1.33325 1.75C0.919038 1.75 0.583252 1.41422 0.583252 1ZM0.583252 11C0.583252 10.5858 0.919038 10.25 1.33325 10.25L14.6666 10.25C15.0808 10.25 15.4166 10.5858 15.4166 11C15.4166 11.4142 15.0808 11.75 14.6666 11.75L1.33325 11.75C0.919038 11.75 0.583252 11.4142 0.583252 11ZM1.33325 5.25C0.919038 5.25 0.583252 5.58579 0.583252 6C0.583252 6.41421 0.919038 6.75 1.33325 6.75L7.99992 6.75C8.41413 6.75 8.74992 6.41421 8.74992 6C8.74992 5.58579 8.41413 5.25 7.99992 5.25L1.33325 5.25Z"
+            fill="currentColor" />
+        </svg>
+        <i id="icon-sidebar-close" data-lucide="x" class="hidden w-5 h-5"></i>
+      </button>
+      <a href="dashboard.html" class="lg:hidden">
+        <span class="text-base sm:text-lg font-bold text-gray-800 dark:text-white tracking-tight">inxight</span>
+      </a>
+    </div>
+
+    <div class="flex items-center gap-3 lg:gap-4">
+
+      <!-- 다크모드 -->
+      <button id="dark-mode-btn" onclick="toggleDarkMode()"
+        class="flex h-10 w-10 items-center justify-center rounded-full border
+               border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500
+               dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700
+               dark:hover:text-gray-200 transition-colors">
+        <i id="icon-moon" data-lucide="moon" class="w-5 h-5"></i>
+        <i id="icon-sun" data-lucide="sun" class="w-5 h-5 hidden"></i>
+      </button>
+
+      <!-- 관리자 메뉴 -->
+      <div class="relative" id="user-wrapper">
+        <button onclick="toggleDropdown('user')"
+          class="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+          <div class="flex h-10 w-10 items-center justify-center rounded-full border
+                   border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500
+                   dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700
+                   dark:hover:text-gray-200 transition-colors block md:hidden">
+            <i data-lucide="user" class="w-5 h-5"></i>
+          </div>
+          <span class="text-sm font-medium hidden md:block">Admin</span>
+          <i id="user-chevron" data-lucide="chevron-down"
+            class="w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform duration-200 hidden md:block"></i>
+        </button>
+
+        <div id="user-dropdown"
+          class="hidden absolute right-0 mt-4 w-[240px] rounded-2xl border border-gray-200
+                 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 shadow-lg z-[9999]">
+          <div class="px-1 pb-3 border-b border-gray-100 dark:border-gray-700 mb-3">
+            <span class="block text-sm font-medium text-gray-800 dark:text-white">Admin</span>
+            <span class="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">admin@bridgestone.kr</span>
+          </div>
+          <ul class="flex flex-col gap-1 border-b border-gray-100 dark:border-gray-700 pb-3 mb-3">
+            <li>
+              <a href="dashboard.html" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium
+                                  text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700
+                                  hover:text-gray-900 dark:hover:text-white transition-colors">
+                <i data-lucide="layout-dashboard" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+                대시보드
+              </a>
+            </li>
+          </ul>
+          <a href="login.html" class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium
+                         text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700
+                         hover:text-gray-900 dark:hover:text-white transition-colors">
+            <i data-lucide="log-out" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+            로그아웃
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</header>
+
+    <main class="flex-1 overflow-auto">
+      <div class="p-4 md:p-6 max-w-screen-2xl mx-auto space-y-6">
+
+        <!-- 페이지 제목 -->
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h3 class="text-2xl font-semibold text-gray-800 dark:text-white">대시보드</h3>
+          <nav class="flex items-center gap-1.5 text-sm">
+            <span class="font-medium text-gray-800 dark:text-white">대시보드</span>
+          </nav>
+        </div>
+
+        <!-- ── KPI 카드 4개 ── -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
+
+          <!-- 오늘 방문자 -->
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 md:p-6">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10">
+              <i data-lucide="eye" class="w-6 h-6 text-brand-500"></i>
+            </div>
+            <div class="mt-5 flex items-end justify-between">
+              <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">오늘 방문자</p>
+                <h4 class="mt-2 text-2xl font-bold text-gray-800 dark:text-white">1,248</h4>
+              </div>
+              <span class="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 text-xs font-medium px-2.5 py-0.5">
+                <svg class="w-3 h-3 fill-current" viewBox="0 0 12 12"><path fill-rule="evenodd" clip-rule="evenodd" d="M5.56462 1.62393C5.70193 1.47072 5.90135 1.37432 6.12329 1.37432C6.31631 1.37415 6.50845 1.44731 6.65505 1.59381L9.65514 4.5918C9.94814 4.88459 9.94831 5.35947 9.65552 5.65246C9.36273 5.94546 8.88785 5.94562 8.59486 5.65283L6.87329 3.93247L6.87329 10.125C6.87329 10.5392 6.53751 10.875 6.12329 10.875C5.70908 10.875 5.37329 10.5392 5.37329 10.125L5.37329 3.93578L3.65516 5.65282C3.36218 5.94562 2.8873 5.94547 2.5945 5.65248C2.3017 5.35949 2.30185 4.88462 2.59484 4.59182L5.56462 1.62393Z"/></svg>
+                +12.5%
+              </span>
+            </div>
+          </div>
+
+          <!-- 총 회원수 -->
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 md:p-6">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 dark:bg-green-500/10">
+              <i data-lucide="users" class="w-6 h-6 text-green-500"></i>
+            </div>
+            <div class="mt-5 flex items-end justify-between">
+              <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">총 회원수</p>
+                <h4 class="mt-2 text-2xl font-bold text-gray-800 dark:text-white">3,782</h4>
+              </div>
+              <span class="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 text-xs font-medium px-2.5 py-0.5">
+                <svg class="w-3 h-3 fill-current" viewBox="0 0 12 12"><path fill-rule="evenodd" clip-rule="evenodd" d="M5.56462 1.62393C5.70193 1.47072 5.90135 1.37432 6.12329 1.37432C6.31631 1.37415 6.50845 1.44731 6.65505 1.59381L9.65514 4.5918C9.94814 4.88459 9.94831 5.35947 9.65552 5.65246C9.36273 5.94546 8.88785 5.94562 8.59486 5.65283L6.87329 3.93247L6.87329 10.125C6.87329 10.5392 6.53751 10.875 6.12329 10.875C5.70908 10.875 5.37329 10.5392 5.37329 10.125L5.37329 3.93578L3.65516 5.65282C3.36218 5.94562 2.8873 5.94547 2.5945 5.65248C2.3017 5.35949 2.30185 4.88462 2.59484 4.59182L5.56462 1.62393Z"/></svg>
+                +8.2%
+              </span>
+            </div>
+          </div>
+
+          <!-- 구독자 -->
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 md:p-6">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 dark:bg-purple-500/10">
+              <i data-lucide="bell-ring" class="w-6 h-6 text-purple-500"></i>
+            </div>
+            <div class="mt-5 flex items-end justify-between">
+              <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">구독자</p>
+                <h4 class="mt-2 text-2xl font-bold text-gray-800 dark:text-white">892</h4>
+              </div>
+              <span class="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 text-xs font-medium px-2.5 py-0.5">
+                <svg class="w-3 h-3 fill-current" viewBox="0 0 12 12"><path fill-rule="evenodd" clip-rule="evenodd" d="M5.56462 1.62393C5.70193 1.47072 5.90135 1.37432 6.12329 1.37432C6.31631 1.37415 6.50845 1.44731 6.65505 1.59381L9.65514 4.5918C9.94814 4.88459 9.94831 5.35947 9.65552 5.65246C9.36273 5.94546 8.88785 5.94562 8.59486 5.65283L6.87329 3.93247L6.87329 10.125C6.87329 10.5392 6.53751 10.875 6.12329 10.875C5.70908 10.875 5.37329 10.5392 5.37329 10.125L5.37329 3.93578L3.65516 5.65282C3.36218 5.94562 2.8873 5.94547 2.5945 5.65248C2.3017 5.35949 2.30185 4.88462 2.59484 4.59182L5.56462 1.62393Z"/></svg>
+                +5.3%
+              </span>
+            </div>
+          </div>
+
+          <!-- 이번달 결제 -->
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 md:p-6">
+            <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-50 dark:bg-orange-500/10">
+              <i data-lucide="credit-card" class="w-6 h-6 text-orange-500"></i>
+            </div>
+            <div class="mt-5 flex items-end justify-between">
+              <div>
+                <p class="text-sm text-gray-500 dark:text-gray-400">이번달 결제</p>
+                <h4 class="mt-2 text-2xl font-bold text-gray-800 dark:text-white">&#8361;4,520,000</h4>
+              </div>
+              <span class="inline-flex items-center gap-1 rounded-full bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium px-2.5 py-0.5">
+                <svg class="w-3 h-3 fill-current" viewBox="0 0 12 12"><path fill-rule="evenodd" clip-rule="evenodd" d="M5.56462 10.3761C5.70193 10.5293 5.90135 10.6257 6.12329 10.6257C6.31631 10.6259 6.50845 10.5527 6.65505 10.4062L9.65514 7.4082C9.94814 7.11541 9.94831 6.64053 9.65552 6.34754C9.36273 6.05454 8.88785 6.05438 8.59486 6.34717L6.87329 8.06753L6.87329 1.875C6.87329 1.46079 6.53751 1.125 6.12329 1.125C5.70908 1.125 5.37329 1.46079 5.37329 1.875L5.37329 8.06422L3.65516 6.34718C3.36218 6.05438 2.8873 6.05453 2.5945 6.34752C2.3017 6.64051 2.30185 7.11538 2.59484 7.40818L5.56462 10.3761Z"/></svg>
+                -3.1%
+              </span>
+            </div>
+          </div>
+
+        </div>
+        <!-- / KPI 카드 -->
+
+        <!-- ── 방문자 현황 차트 + 구독 현황 ── -->
+        <div class="grid grid-cols-12 gap-4 md:gap-6">
+
+          <!-- 방문자 현황 (Area Chart) -->
+          <div class="col-span-12 xl:col-span-7 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-5 pt-5 pb-2 sm:px-6 sm:pt-6">
+            <div class="flex items-center justify-between mb-1">
+              <h3 class="text-base font-semibold text-gray-800 dark:text-white">방문자 현황</h3>
+              <div class="flex items-center gap-0.5 rounded-xl bg-gray-100 dark:bg-gray-800 p-1">
+                <button data-visitor-tab="daily" class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors bg-white dark:bg-gray-700 text-gray-800 dark:text-white shadow-sm">일간</button>
+                <button data-visitor-tab="weekly" class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors text-gray-500 dark:text-gray-400">주간</button>
+                <button data-visitor-tab="monthly" class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors text-gray-500 dark:text-gray-400">월간</button>
+              </div>
+            </div>
+            <div class="w-full overflow-x-auto">
+              <div id="chartVisitor" class="min-w-[500px]"></div>
+            </div>
+          </div>
+
+          <!-- 구독 관리 -->
+          <div class="col-span-12 xl:col-span-5 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5 sm:p-6">
+            <div class="flex items-center justify-between mb-5">
+              <h3 class="text-base font-semibold text-gray-800 dark:text-white">구독 현황</h3>
+              <button class="text-sm text-brand-500 hover:text-brand-600 font-medium transition">전체보기</button>
+            </div>
+            <div id="chartSubscription" class="mb-5"></div>
+            <div class="space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-brand-500"></span>
+                  <span class="text-sm text-gray-700 dark:text-gray-300">프리미엄</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-800 dark:text-white">456명 (51%)</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-green-400"></span>
+                  <span class="text-sm text-gray-700 dark:text-gray-300">스탠다드</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-800 dark:text-white">298명 (33%)</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-orange-400"></span>
+                  <span class="text-sm text-gray-700 dark:text-gray-300">무료체험</span>
+                </div>
+                <span class="text-sm font-semibold text-gray-800 dark:text-white">138명 (16%)</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ── 결제 관리 테이블 ── -->
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800">
+          <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 class="text-base font-semibold text-gray-800 dark:text-white">최근 결제 내역</h3>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">최근 결제된 내역을 확인할 수 있습니다.</p>
+            </div>
+            <button class="inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 px-3.5 py-2 text-sm font-medium text-gray-700 dark:text-gray-400 transition">
+              <i data-lucide="download" class="w-4 h-4"></i>
+              엑셀 다운로드
+            </button>
+          </div>
+          <div class="p-5 sm:p-6">
+            <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
+              <div class="w-full overflow-x-auto">
+                <table class="min-w-[700px] w-full">
+                  <thead>
+                    <tr class="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 whitespace-nowrap" style="width:120px;">결제번호</th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 whitespace-nowrap" style="width:80px;">회원</th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 whitespace-nowrap">상품</th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 whitespace-nowrap" style="width:110px;">금액</th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 whitespace-nowrap" style="width:110px;">결제일</th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400 whitespace-nowrap" style="width:80px;">상태</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <td class="px-5 py-4 sm:px-6 text-sm font-mono font-medium text-brand-500 whitespace-nowrap">#PAY-0048</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">김철수</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">프리미엄 구독 (연간)</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm font-semibold text-gray-800 dark:text-white whitespace-nowrap">&#8361;120,000</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400">2026.03.18</td>
+                      <td class="px-5 py-4 sm:px-6"><span class="rounded-full bg-green-50 dark:bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">완료</span></td>
+                    </tr>
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <td class="px-5 py-4 sm:px-6 text-sm font-mono font-medium text-brand-500 whitespace-nowrap">#PAY-0047</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">이영희</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">스탠다드 구독 (월간)</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm font-semibold text-gray-800 dark:text-white whitespace-nowrap">&#8361;15,000</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400">2026.03.17</td>
+                      <td class="px-5 py-4 sm:px-6"><span class="rounded-full bg-green-50 dark:bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">완료</span></td>
+                    </tr>
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <td class="px-5 py-4 sm:px-6 text-sm font-mono font-medium text-brand-500 whitespace-nowrap">#PAY-0046</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">박지민</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">프리미엄 구독 (월간)</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm font-semibold text-gray-800 dark:text-white whitespace-nowrap">&#8361;12,000</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400">2026.03.16</td>
+                      <td class="px-5 py-4 sm:px-6"><span class="rounded-full bg-orange-50 dark:bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400">대기</span></td>
+                    </tr>
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <td class="px-5 py-4 sm:px-6 text-sm font-mono font-medium text-brand-500 whitespace-nowrap">#PAY-0045</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">최민호</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">스탠다드 구독 (연간)</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm font-semibold text-gray-800 dark:text-white whitespace-nowrap">&#8361;150,000</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400">2026.03.15</td>
+                      <td class="px-5 py-4 sm:px-6"><span class="rounded-full bg-red-50 dark:bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">취소</span></td>
+                    </tr>
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                      <td class="px-5 py-4 sm:px-6 text-sm font-mono font-medium text-brand-500 whitespace-nowrap">#PAY-0044</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">정수연</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">프리미엄 구독 (연간)</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm font-semibold text-gray-800 dark:text-white whitespace-nowrap">&#8361;120,000</td>
+                      <td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400">2026.03.14</td>
+                      <td class="px-5 py-4 sm:px-6"><span class="rounded-full bg-green-50 dark:bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">완료</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="js/components/sidebar.js"></script>
+  <script src="js/components/header.js"></script>
+  <script>
+    lucide.createIcons();
+    if (typeof initDarkMode === 'function') initDarkMode();
+    if (typeof initHeaderListeners === 'function') initHeaderListeners();
+  </script>
+
+  <script>
+    // ── Charts ──
+    (function () {
+      const isDark = () => document.documentElement.classList.contains('dark');
+      function axisColor() { return isDark() ? '#667085' : '#98a2b3'; }
+      function gridColor() { return isDark() ? '#1d2939' : '#f2f4f7'; }
+      function legendColor() { return isDark() ? '#ffffff' : '#344054'; }
+
+      // 방문자 현황 Area Chart
+      const visitorOpts = {
+        series: [
+          { name: '방문자', data: [120, 185, 142, 198, 165, 230, 210, 195, 240, 178, 220, 260, 190, 245] },
+          { name: '페이지뷰', data: [350, 480, 390, 520, 440, 610, 560, 510, 640, 470, 580, 690, 500, 650] }
+        ],
+        chart: { fontFamily: 'Outfit, sans-serif', type: 'area', height: 280, toolbar: { show: false }, zoom: { enabled: false } },
+        colors: ['#465fff', '#34d399'],
+        fill: { type: 'gradient', gradient: { opacityFrom: 0.35, opacityTo: 0.05, stops: [0, 95, 100] } },
+        stroke: { width: 2, curve: 'smooth' },
+        markers: { size: 0 },
+        dataLabels: { enabled: false },
+        xaxis: {
+          categories: ['3/5','3/6','3/7','3/8','3/9','3/10','3/11','3/12','3/13','3/14','3/15','3/16','3/17','3/18'],
+          axisBorder: { show: false }, axisTicks: { show: false },
+          labels: { style: { colors: axisColor(), fontSize: '12px', fontFamily: 'Outfit, sans-serif' } }
+        },
+        yaxis: { labels: { style: { colors: axisColor(), fontSize: '12px', fontFamily: 'Outfit, sans-serif' } } },
+        grid: { borderColor: gridColor(), yaxis: { lines: { show: true } }, xaxis: { lines: { show: false } } },
+        tooltip: { theme: isDark() ? 'dark' : 'light' },
+        legend: { show: true, position: 'top', horizontalAlign: 'right', labels: { colors: legendColor() } }
+      };
+      const visitorChart = new ApexCharts(document.getElementById('chartVisitor'), visitorOpts);
+      visitorChart.render();
+
+      // 구독 현황 Donut Chart
+      const subOpts = {
+        series: [456, 298, 138],
+        chart: { fontFamily: 'Outfit, sans-serif', type: 'donut', height: 200 },
+        colors: ['#465fff', '#34d399', '#fb923c'],
+        labels: ['프리미엄', '스탠다드', '무료체험'],
+        plotOptions: {
+          pie: {
+            donut: {
+              size: '65%',
+              labels: {
+                show: true,
+                total: { show: true, label: '전체 구독자', fontSize: '12px', color: isDark() ? '#98a2b3' : '#667085',
+                  formatter: () => '892명' }
+              }
+            }
+          }
+        },
+        dataLabels: { enabled: false },
+        legend: { show: false },
+        stroke: { width: 0 }
+      };
+      const subChart = new ApexCharts(document.getElementById('chartSubscription'), subOpts);
+      subChart.render();
+
+      // 탭 전환
+      document.querySelectorAll('[data-visitor-tab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('[data-visitor-tab]').forEach(b => {
+            b.classList.remove('bg-white', 'dark:bg-gray-700', 'text-gray-800', 'dark:text-white', 'shadow-sm');
+            b.classList.add('text-gray-500', 'dark:text-gray-400');
+          });
+          btn.classList.add('bg-white', 'dark:bg-gray-700', 'text-gray-800', 'dark:text-white', 'shadow-sm');
+          btn.classList.remove('text-gray-500', 'dark:text-gray-400');
+        });
+      });
+
+      // 다크모드 반응
+      new MutationObserver(() => {
+        const ax = axisColor(), gr = gridColor(), lg = legendColor(), th = isDark() ? 'dark' : 'light';
+        const upd = { tooltip: { theme: th }, xaxis: { labels: { style: { colors: ax } } }, yaxis: { labels: { style: { colors: ax } } }, grid: { borderColor: gr }, legend: { labels: { colors: lg } } };
+        visitorChart.updateOptions(upd);
+      }).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    })();
+  </script>
+</body>
+</html>

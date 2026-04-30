@@ -1,0 +1,126 @@
+@charset "utf-8";
+
+
+/*20250728 eun 폰트 https로 변경시작*/
+@import url(https://fonts.googleapis.com/earlyaccess/notosanskr.css);
+/*20250728 eun 폰트 https로 변경마감*/
+
+@font-face {font-family: 'Noto Sans KR';font-style: normal;font-weight: 100;src: url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Thin.woff2) format('woff2'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Thin.woff) format('woff'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Thin.otf) format('opentype');} 
+@font-face {font-family: 'Noto Sans KR';font-style: normal;font-weight: 300;src: url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Light.woff2) format('woff2'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Light.woff) format('woff'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Light.otf) format('opentype');} 
+@font-face {font-family: 'Noto Sans KR';font-style: normal;font-weight: 400;src: url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR.woff2) format('woff2'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR.woff) format('woff'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR.otf) format('opentype');} 
+@font-face {font-family: 'Noto Sans KR';font-style: normal;font-weight: 500;src: url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Medium.woff2) format('woff2'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Medium.woff) format('woff'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Medium.otf) format('opentype');} 
+@font-face {font-family: 'Noto Sans KR';font-style: normal;font-weight: 700;src: url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Bold.woff2) format('woff2'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Bold.woff) format('woff'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Bold.otf) format('opentype');} 
+@font-face {font-family: 'Noto Sans KR';font-style: normal;font-weight: 900;src: url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Black.woff2) format('woff2'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Black.woff) format('woff'),url(//fonts.gstatic.com/ea/notosanskr/v2/NotoSansKR-Black.otf) format('opentype');}
+
+
+@font-face {
+    font-family: 'NEXON Lv2 Gothic';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-04@2.1/NEXON Lv2 Gothic Light.woff') format('woff');
+    font-weight: 200;
+    font-style: normal;
+}
+@font-face {
+    font-family: 'NEXON Lv2 Gothic';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-04@2.1/NEXON Lv2 Gothic.woff') format('woff');
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'NEXON Lv2 Gothic';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-04@2.1/NEXON Lv2 Gothic Bold.woff') format('woff');
+    font-weight: 600;
+    font-style: normal;
+}
+
+@font-face {
+	font-family: 'SUIT';
+	font-weight: 100;
+	src: url('/theme/basic/css/font/woff2/SUIT-Thin.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'SUIT';
+	font-weight: 200;
+	src: url('/theme/basic/css/font/SUIT-ExtraLight.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'SUIT';
+	font-weight: 300;
+	src: url('/theme/basic/css/font/SUIT-Light.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'SUIT';
+	font-weight: 400;
+    src: url('/theme/basic/css/font/SUIT.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'SUIT';
+	font-weight: 500;
+	src: url('/theme/basic/css/font/SUIT-Medium.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'SUIT';
+	font-weight: 600;
+	src: url('/theme/basic/css/font/SUIT-SemiBold.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'SUIT';
+	font-weight: 700;
+	src: url('/theme/basic/css/font/SUIT-Bold.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'SUIT';
+	font-weight: 800;
+	src: url('/theme/basic/css/font/SUIT-ExtraBold.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'SUIT';
+	font-weight: 900;
+	src: url('/theme/basic/css/font/SUIT-Heavy.woff2') format('woff2');
+}
+
+/* FONT SMOOTHING */
+
+body {
+	/*
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	*/
+}
+
+
+
+
+html {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important; }
+body {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	}
+html, h1, h2, h3, h4, h5, h6, form, fieldset, img {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+h1, h2, h3, h4, h5, h6 {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+article, aside, details, figcaption, figure, footer, header, hgroup, menu, nav, section {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+
+
+ul, dl,dt,dd {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;transform:skew(-0.01deg);}
+legend {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+label, input, button, select, img {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+input, button {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+input[type="submit"]{font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+button {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+
+textarea, select {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+select {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+p {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+pre {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+a {font-family:'SUIT', 'NEXON Lv2 Gothic', 'Noto Sans KR', 'Malgun Gothic', dotum, sans-serif !important;}
+
+i{font-family:xeicon!important;}
+

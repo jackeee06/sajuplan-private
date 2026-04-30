@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UI 가이드 - Admin 디자인 시스템</title>
+  <script>if (localStorage.getItem('darkMode') === '1') { document.documentElement.classList.add('dark'); }</script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { outfit: ['Outfit', 'sans-serif'] },
+          colors: {
+            brand: { 25:'#f2f7ff', 50:'#ecf3ff', 100:'#dde9ff', 200:'#c2d6ff', 300:'#9cb9ff', 400:'#7592ff', 500:'#465fff', 600:'#3641f5', 700:'#2a31d8' },
+            gray:  { 25:'#fcfcfd', 50:'#f9fafb', 100:'#f2f4f7', 200:'#e4e7ec', 300:'#d0d5dd', 400:'#98a2b3', 500:'#667085', 600:'#475467', 700:'#344054', 800:'#1d2939', 900:'#101828' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .guide-section { max-width: 1000px; margin: 0 auto; padding: 50px 20px; border-bottom: 1px solid #e4e7ec; }
+    html.dark .guide-section { border-bottom-color: #1d2939; }
+    .guide-section:last-child { border-bottom: none; }
+    .preview-area { border: 1px solid #e4e7ec; border-radius: 12px; padding: 30px; background: white; margin-bottom: 10px; }
+    html.dark .preview-area { border-color: #344054; background: #101828; }
+    .comp-label { font-size: 12px; color: #667085; margin-bottom: 6px; }
+    html.dark .comp-label { color: #98a2b3; }
+    .code-block { background: #1e1e1e; color: #d4d4d4; padding: 15px; border-radius: 8px; font-family: 'SF Mono','Consolas',monospace; font-size: 12px; line-height: 1.6; overflow-x: auto; margin-top: 10px; white-space: pre; }
+    /* 툴팁 */
+    .tooltip-wrap { position: relative; display: inline-flex; align-items: center; }
+    .tooltip-box { display: none; position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); padding: 0.5rem 0.75rem; background: #1d2939; color: #fff; font-size: 0.75rem; font-weight: 400; line-height: 1.5; border-radius: 0.5rem; white-space: nowrap; z-index: 50; box-shadow: 0 4px 12px rgba(0,0,0,0.15); pointer-events: none; }
+    .tooltip-box::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #1d2939; }
+    .tooltip-wrap:hover .tooltip-box { display: block; }
+    .tooltip-wrap.active .tooltip-box { display: block; pointer-events: auto; }
+    /* 셀렉트 커스텀 화살표 */
+    select { -webkit-appearance: none; appearance: none; padding-right: 2.5rem !important; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 24 24' stroke='%2398a2b3' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.75rem center; background-size: 1rem; }
+    html.dark select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' viewBox='0 0 24 24' stroke='%23667085' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); }
+  </style>
+</head>
+<body class="antialiased font-outfit bg-white dark:bg-gray-900 min-h-screen">
+
+  <!-- Guide Header -->
+  <div class="bg-brand-600 dark:bg-gray-800 text-white px-10 py-10">
+    <div class="max-w-[1000px] mx-auto flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold mb-1">Admin UI Guide</h1>
+        <p class="text-sm text-brand-200 dark:text-gray-400">inxight 관리자 디자인 시스템 컴포넌트 가이드</p>
+      </div>
+      <button onclick="document.documentElement.classList.toggle('dark'); localStorage.setItem('darkMode', document.documentElement.classList.contains('dark')?'1':'0')"
+        class="flex h-10 w-10 items-center justify-center rounded-full border border-white/30 text-white hover:bg-white/10 transition">
+        <i data-lucide="moon" class="w-5 h-5"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Guide Navigation -->
+  <nav class="sticky top-0 z-50 bg-gray-900 dark:bg-gray-800 overflow-x-auto whitespace-nowrap px-10 shadow-lg">
+    <div class="max-w-[1000px] mx-auto">
+      <a href="#colors" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">컬러</a>
+      <a href="#typography" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">타이포그래피</a>
+      <a href="#buttons" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">버튼</a>
+      <a href="#forms" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">폼</a>
+      <a href="#datepicker" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">날짜선택</a>
+      <a href="#badges" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">뱃지</a>
+      <a href="#cards" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">카드</a>
+      <a href="#tables" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">테이블</a>
+      <a href="#modals" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">모달</a>
+      <a href="#tooltips" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">툴팁</a>
+      <a href="#filters" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">검색필터</a>
+      <a href="#breadcrumb" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">브레드크럼</a>
+      <a href="#icons" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">아이콘</a>
+      <a href="#charts" class="inline-block px-4 py-3.5 text-sm text-gray-400 hover:text-white hover:border-b-2 hover:border-white transition">차트</a>
+    </div>
+  </nav>
+
+
+  <!-- ══════════════ 1. Colors ══════════════ -->
+  <section class="guide-section" id="colors">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Colors</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">디자인 시스템에서 사용하는 컬러 팔레트입니다.</p>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">Brand Colors</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+        <div class="h-14" style="background:#f2f7ff;"></div>
+        <div class="p-2 text-xs"><strong class="block text-gray-800 dark:text-white">25</strong><span class="text-gray-500">#f2f7ff</span></div>
+      </div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+        <div class="h-14" style="background:#ecf3ff;"></div>
+        <div class="p-2 text-xs"><strong class="block text-gray-800 dark:text-white">50</strong><span class="text-gray-500">#ecf3ff</span></div>
+      </div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+        <div class="h-14" style="background:#c2d6ff;"></div>
+        <div class="p-2 text-xs"><strong class="block text-gray-800 dark:text-white">200</strong><span class="text-gray-500">#c2d6ff</span></div>
+      </div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+        <div class="h-14" style="background:#7592ff;"></div>
+        <div class="p-2 text-xs"><strong class="block text-gray-800 dark:text-white">400</strong><span class="text-gray-500">#7592ff</span></div>
+      </div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+        <div class="h-14" style="background:#465fff;"></div>
+        <div class="p-2 text-xs"><strong class="block text-gray-800 dark:text-white">500 (Primary)</strong><span class="text-gray-500">#465fff</span></div>
+      </div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+        <div class="h-14" style="background:#3641f5;"></div>
+        <div class="p-2 text-xs"><strong class="block text-gray-800 dark:text-white">600</strong><span class="text-gray-500">#3641f5</span></div>
+      </div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+        <div class="h-14" style="background:#2a31d8;"></div>
+        <div class="p-2 text-xs"><strong class="block text-gray-800 dark:text-white">700</strong><span class="text-gray-500">#2a31d8</span></div>
+      </div>
+    </div>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">Gray Scale</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-5 lg:grid-cols-10 gap-3 mb-8">
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12" style="background:#f9fafb;"></div><div class="p-1.5 text-[10px]"><strong class="block dark:text-white">50</strong>#f9fafb</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12" style="background:#f2f4f7;"></div><div class="p-1.5 text-[10px]"><strong class="block dark:text-white">100</strong>#f2f4f7</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12" style="background:#e4e7ec;"></div><div class="p-1.5 text-[10px]"><strong class="block dark:text-white">200</strong>#e4e7ec</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12" style="background:#d0d5dd;"></div><div class="p-1.5 text-[10px]"><strong class="block dark:text-white">300</strong>#d0d5dd</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12" style="background:#98a2b3;"></div><div class="p-1.5 text-[10px]"><strong class="block dark:text-white">400</strong>#98a2b3</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12" style="background:#667085;"></div><div class="p-1.5 text-[10px]"><strong class="block dark:text-white">500</strong>#667085</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12" style="background:#475467;"></div><div class="p-1.5 text-[10px]"><strong class="block dark:text-white">600</strong>#475467</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12" style="background:#344054;"></div><div class="p-1.5 text-[10px]"><strong class="block dark:text-white">700</strong>#344054</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12" style="background:#1d2939;"></div><div class="p-1.5 text-[10px]"><strong class="block dark:text-white">800</strong>#1d2939</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12" style="background:#101828;"></div><div class="p-1.5 text-[10px]"><strong class="block dark:text-white">900</strong>#101828</div></div>
+    </div>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">Semantic Colors (상태 뱃지)</h3>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12 flex items-center justify-center" style="background:#f0fdf4;"><span class="text-xs font-medium" style="color:#15803d;">성공 / 활성 / 공개</span></div><div class="p-2 text-xs text-gray-500">bg-green-50 text-green-700</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12 flex items-center justify-center" style="background:#fff7ed;"><span class="text-xs font-medium" style="color:#ea580c;">경고 / 대기 / 비활성</span></div><div class="p-2 text-xs text-gray-500">bg-orange-50 text-orange-600</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12 flex items-center justify-center" style="background:#fef2f2;"><span class="text-xs font-medium" style="color:#dc2626;">오류 / 차단 / 취소</span></div><div class="p-2 text-xs text-gray-500">bg-red-50 text-red-600</div></div>
+      <div class="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700"><div class="h-12 flex items-center justify-center" style="background:#ecf3ff;"><span class="text-xs font-medium" style="color:#465fff;">정보 / 프리미엄</span></div><div class="p-2 text-xs text-gray-500">bg-brand-50 text-brand-600</div></div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 2. Typography ══════════════ -->
+  <section class="guide-section" id="typography">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Typography</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">기본 폰트: Outfit (Google Fonts)</p>
+
+    <div class="preview-area space-y-6">
+      <div><h3 class="text-2xl font-semibold text-gray-800 dark:text-white">페이지 제목 (text-2xl font-semibold)</h3><p class="text-xs text-gray-400 mt-1">페이지 최상단 제목</p></div>
+      <div><h4 class="text-base font-semibold text-gray-800 dark:text-white">카드 제목 (text-base font-semibold)</h4><p class="text-xs text-gray-400 mt-1">카드, 섹션 헤더</p></div>
+      <div><h4 class="text-lg font-bold text-gray-900 dark:text-white">모달 제목 (text-lg font-bold)</h4><p class="text-xs text-gray-400 mt-1">모달 팝업 제목</p></div>
+      <div><p class="text-sm text-gray-500 dark:text-gray-400">본문 텍스트 (text-sm text-gray-500)</p><p class="text-xs text-gray-400 mt-1">일반 본문, 설명</p></div>
+      <div><p class="text-sm font-medium text-gray-700 dark:text-gray-300">라벨 (text-sm font-medium text-gray-700)</p><p class="text-xs text-gray-400 mt-1">폼 라벨</p></div>
+      <div><p class="text-xs font-medium text-gray-600 dark:text-gray-400">필터 라벨 (text-xs font-medium text-gray-600)</p><p class="text-xs text-gray-400 mt-1">검색 필터 라벨</p></div>
+      <div><p class="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">테이블 헤더 (text-xs font-semibold uppercase)</p><p class="text-xs text-gray-400 mt-1">테이블 thead</p></div>
+      <div><span class="text-xl font-bold text-gray-800 dark:text-white tracking-tight">inxight</span><p class="text-xs text-gray-400 mt-1">로고 (text-xl font-bold tracking-tight)</p></div>
+      <div><span class="text-2xl font-bold text-gray-800 dark:text-white">3,782</span><p class="text-xs text-gray-400 mt-1">KPI 수치 (text-2xl font-bold)</p></div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 3. Buttons ══════════════ -->
+  <section class="guide-section" id="buttons">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Buttons</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">버튼 스타일 가이드입니다.</p>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">Primary / Secondary / Danger</h3>
+    <div class="preview-area">
+      <div class="flex flex-wrap gap-4 items-start">
+        <div>
+          <p class="comp-label">Primary</p>
+          <button class="inline-flex items-center gap-2 rounded-lg bg-brand-500 hover:bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition"><i data-lucide="plus" class="w-4 h-4"></i>등록</button>
+        </div>
+        <div>
+          <p class="comp-label">Secondary (Outline)</p>
+          <button class="inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 px-3.5 py-2 text-sm font-medium text-gray-700 dark:text-gray-400 transition"><i data-lucide="download" class="w-4 h-4"></i>엑셀 다운로드</button>
+        </div>
+        <div>
+          <p class="comp-label">Danger</p>
+          <button class="inline-flex items-center gap-2 rounded-lg border border-red-300 dark:border-red-700 bg-white dark:bg-gray-900 hover:bg-red-50 dark:hover:bg-red-900/20 px-3.5 py-2 text-sm font-medium text-red-600 dark:text-red-400 transition"><i data-lucide="trash-2" class="w-4 h-4"></i>선택 삭제</button>
+        </div>
+        <div>
+          <p class="comp-label">Danger Solid</p>
+          <button class="rounded-lg bg-red-500 px-6 py-2.5 text-sm font-medium text-white hover:bg-red-600 transition">삭제</button>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700 mt-8">Icon Buttons (테이블 액션)</h3>
+    <div class="preview-area">
+      <div class="flex gap-3 items-center">
+        <div>
+          <p class="comp-label">수정</p>
+          <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-brand-500 hover:border-brand-300 transition"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+        </div>
+        <div>
+          <p class="comp-label">삭제</p>
+          <button class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-300 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+        </div>
+        <div>
+          <p class="comp-label">다크모드 토글</p>
+          <button class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition"><i data-lucide="moon" class="w-5 h-5"></i></button>
+        </div>
+        <div>
+          <p class="comp-label">햄버거</p>
+          <button class="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-100 transition"><i data-lucide="menu" class="w-5 h-5"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700 mt-8">Full Width / Block</h3>
+    <div class="preview-area" style="max-width:400px;">
+      <button class="w-full flex items-center justify-center rounded-lg bg-brand-500 hover:bg-brand-600 px-4 py-3 text-sm font-medium text-white transition shadow-sm">로그인</button>
+      <button class="w-full flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition mt-3">취소</button>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 4. Forms ══════════════ -->
+  <section class="guide-section" id="forms">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Forms</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">폼 컨트롤 가이드입니다. 높이 h-10 (필터) / h-11 (모달), border-radius rounded-lg.</p>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">Text Input</h3>
+    <div class="preview-area" style="max-width:500px;">
+      <div class="space-y-4">
+        <div>
+          <label class="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">이름 <span class="text-red-500">*</span></label>
+          <input type="text" placeholder="이름을 입력하세요" class="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-4 text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition">
+        </div>
+        <div>
+          <label class="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">비밀번호</label>
+          <div class="relative">
+            <input type="password" placeholder="비밀번호" class="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 pl-4 pr-11 text-sm text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition">
+            <button class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400"><i data-lucide="eye" class="w-4.5 h-4.5"></i></button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700 mt-8">Select / Textarea</h3>
+    <div class="preview-area" style="max-width:500px;">
+      <div class="space-y-4">
+        <div>
+          <label class="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">카테고리</label>
+          <select class="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-4 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition">
+            <option>선택하세요</option><option>공지사항</option><option>뉴스</option><option>이벤트</option>
+          </select>
+        </div>
+        <div>
+          <label class="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">내용</label>
+          <textarea rows="3" placeholder="내용을 입력하세요" class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-4 py-3 text-sm text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition resize-none"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700 mt-8">Checkbox / File Upload</h3>
+    <div class="preview-area" style="max-width:500px;">
+      <div class="space-y-4">
+        <label class="flex items-center gap-2.5 cursor-pointer select-none text-sm text-gray-700 dark:text-gray-400">
+          <span class="relative flex h-5 w-5 flex-shrink-0">
+            <input type="checkbox" class="peer sr-only" checked>
+            <span class="flex h-5 w-5 items-center justify-center rounded-[5px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 peer-checked:border-brand-500 peer-checked:bg-brand-500 transition-colors"></span>
+            <svg class="peer-checked:block hidden absolute inset-0 m-auto pointer-events-none w-3 h-3" viewBox="0 0 12 10" fill="none"><path d="M1.5 5l3 3 6-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          로그인 상태 유지
+        </label>
+        <div>
+          <label class="flex items-center justify-center gap-2 w-full h-24 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-brand-400 bg-gray-50 dark:bg-gray-900 cursor-pointer transition">
+            <i data-lucide="upload-cloud" class="w-6 h-6 text-gray-400"></i>
+            <span class="text-sm text-gray-500 dark:text-gray-400">이미지를 드래그하거나 클릭하여 업로드</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 4.5 Datepicker ══════════════ -->
+  <section class="guide-section" id="datepicker">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Datepicker</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">커스텀 한국어 달력입니다. datepicker.js가 <code class="text-xs bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">data-datepicker="true"</code> 요소를 자동 초기화합니다.</p>
+
+    <div class="preview-area" style="max-width:500px;">
+      <div class="space-y-4">
+        <div>
+          <label class="block mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">날짜 선택</label>
+          <div class="relative" data-datepicker="true">
+            <input type="text" placeholder="날짜 선택" readonly
+              class="datepicker-input w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 pl-3.5 pr-10 text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition cursor-pointer">
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
+              <i data-lucide="calendar" class="w-4.5 h-4.5"></i>
+            </span>
+            <div class="datepicker-dropdown hidden absolute left-0 top-full mt-2 z-50 w-[280px] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-lg"></div>
+          </div>
+        </div>
+      </div>
+      <div class="code-block mt-4">&lt;div class="relative" data-datepicker="true"&gt;
+  &lt;input type="text" placeholder="날짜 선택" readonly
+    class="datepicker-input w-full h-10 rounded-lg border ..."&gt;
+  &lt;span class="absolute right-3 top-1/2 -translate-y-1/2 ..."&gt;
+    &lt;i data-lucide="calendar" class="w-4.5 h-4.5"&gt;&lt;/i&gt;
+  &lt;/span&gt;
+  &lt;div class="datepicker-dropdown hidden absolute ..."&gt;&lt;/div&gt;
+&lt;/div&gt;</div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 5. Badges ══════════════ -->
+  <section class="guide-section" id="badges">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Badges</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">상태 뱃지 패턴입니다. rounded-full px-2.5 py-0.5 text-xs font-medium</p>
+
+    <div class="preview-area">
+      <div class="flex flex-wrap gap-3 items-center">
+        <div><p class="comp-label">활성/공개</p><span class="rounded-full bg-green-50 dark:bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">활성</span></div>
+        <div><p class="comp-label">비활성/대기</p><span class="rounded-full bg-orange-50 dark:bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400">비활성</span></div>
+        <div><p class="comp-label">차단/오류</p><span class="rounded-full bg-red-50 dark:bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-600 dark:text-red-400">차단</span></div>
+        <div><p class="comp-label">프리미엄</p><span class="rounded-full bg-brand-50 dark:bg-brand-500/10 px-2.5 py-0.5 text-xs font-medium text-brand-600 dark:text-brand-400">프리미엄</span></div>
+        <div><p class="comp-label">스탠다드</p><span class="rounded-full bg-green-50 dark:bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">스탠다드</span></div>
+        <div><p class="comp-label">무료</p><span class="rounded-full bg-orange-50 dark:bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400">무료</span></div>
+        <div><p class="comp-label">공지사항</p><span class="rounded-full bg-purple-50 dark:bg-purple-500/10 px-2.5 py-0.5 text-xs font-medium text-purple-600 dark:text-purple-400">공지사항</span></div>
+        <div><p class="comp-label">뉴스</p><span class="rounded-full bg-blue-50 dark:bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">뉴스</span></div>
+        <div><p class="comp-label">이벤트</p><span class="rounded-full bg-brand-50 dark:bg-brand-500/10 px-2.5 py-0.5 text-xs font-medium text-brand-600 dark:text-brand-400">이벤트</span></div>
+        <div><p class="comp-label">가이드</p><span class="rounded-full bg-green-50 dark:bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">가이드</span></div>
+        <div><p class="comp-label">임시저장</p><span class="rounded-full bg-gray-100 dark:bg-gray-700 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:text-gray-400">임시저장</span></div>
+        <div><p class="comp-label">증감 (+)</p><span class="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 text-xs font-medium px-2.5 py-0.5">+12.5%</span></div>
+        <div><p class="comp-label">증감 (-)</p><span class="inline-flex items-center gap-1 rounded-full bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium px-2.5 py-0.5">-3.1%</span></div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 6. Cards ══════════════ -->
+  <section class="guide-section" id="cards">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Cards</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">카드 컴포넌트 패턴입니다.</p>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">KPI Card</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 dark:bg-brand-500/10"><i data-lucide="eye" class="w-6 h-6 text-brand-500"></i></div>
+        <div class="mt-5 flex items-end justify-between">
+          <div><p class="text-sm text-gray-500 dark:text-gray-400">오늘 방문자</p><h4 class="mt-2 text-2xl font-bold text-gray-800 dark:text-white">1,248</h4></div>
+          <span class="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-500/10 text-green-600 text-xs font-medium px-2.5 py-0.5">+12.5%</span>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-green-50 dark:bg-green-500/10"><i data-lucide="users" class="w-6 h-6 text-green-500"></i></div>
+        <div class="mt-5 flex items-end justify-between">
+          <div><p class="text-sm text-gray-500 dark:text-gray-400">총 회원수</p><h4 class="mt-2 text-2xl font-bold text-gray-800 dark:text-white">3,782</h4></div>
+          <span class="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-500/10 text-green-600 text-xs font-medium px-2.5 py-0.5">+8.2%</span>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 dark:bg-purple-500/10"><i data-lucide="bell-ring" class="w-6 h-6 text-purple-500"></i></div>
+        <div class="mt-5 flex items-end justify-between">
+          <div><p class="text-sm text-gray-500 dark:text-gray-400">구독자</p><h4 class="mt-2 text-2xl font-bold text-gray-800 dark:text-white">892</h4></div>
+          <span class="inline-flex items-center gap-1 rounded-full bg-green-50 dark:bg-green-500/10 text-green-600 text-xs font-medium px-2.5 py-0.5">+5.3%</span>
+        </div>
+      </div>
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+        <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-orange-50 dark:bg-orange-500/10"><i data-lucide="credit-card" class="w-6 h-6 text-orange-500"></i></div>
+        <div class="mt-5 flex items-end justify-between">
+          <div><p class="text-sm text-gray-500 dark:text-gray-400">이번달 결제</p><h4 class="mt-2 text-2xl font-bold text-gray-800 dark:text-white">&#8361;4.5M</h4></div>
+          <span class="inline-flex items-center gap-1 rounded-full bg-red-50 dark:bg-red-500/10 text-red-600 text-xs font-medium px-2.5 py-0.5">-3.1%</span>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">Content Card (헤더 + 바디)</h3>
+    <div class="preview-area" style="max-width:600px;">
+      <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800">
+        <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+          <h4 class="text-base font-semibold text-gray-800 dark:text-white">카드 제목</h4>
+          <button class="inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:bg-gray-50 px-3.5 py-2 text-sm font-medium text-gray-700 dark:text-gray-400 transition"><i data-lucide="download" class="w-4 h-4"></i>내보내기</button>
+        </div>
+        <div class="p-5 sm:p-6">
+          <p class="text-sm text-gray-500 dark:text-gray-400">카드 본문 영역입니다. 테이블, 차트, 폼 등을 포함합니다.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 7. Tables ══════════════ -->
+  <section class="guide-section" id="tables">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Tables</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">테이블 패턴입니다. DataTables 또는 순수 HTML 모두 사용 가능합니다.</p>
+
+    <div class="preview-area overflow-x-auto">
+      <table class="min-w-full">
+        <thead>
+          <tr class="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+            <th class="px-4 py-3 text-center w-12"><input type="checkbox" class="w-4 h-4 rounded border-gray-300"></th>
+            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">번호</th>
+            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">회원정보</th>
+            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">구독</th>
+            <th class="px-5 py-3 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">상태</th>
+            <th class="px-5 py-3 text-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">관리</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+            <td class="px-4 py-4 text-center"><input type="checkbox" class="w-4 h-4 rounded border-gray-300"></td>
+            <td class="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">1</td>
+            <td class="px-5 py-4"><div><p class="text-sm font-medium text-gray-800 dark:text-white">김철수</p><p class="text-xs text-gray-500 dark:text-gray-400">chulsoo@email.com</p></div></td>
+            <td class="px-5 py-4"><span class="rounded-full bg-brand-50 dark:bg-brand-500/10 px-2.5 py-0.5 text-xs font-medium text-brand-600 dark:text-brand-400">프리미엄</span></td>
+            <td class="px-5 py-4"><span class="rounded-full bg-green-50 dark:bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">활성</span></td>
+            <td class="px-5 py-4"><div class="flex items-center justify-center gap-2"><button class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-brand-500 hover:border-brand-300 transition"><i data-lucide="pencil" class="w-4 h-4"></i></button><button class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-300 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></td>
+          </tr>
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+            <td class="px-4 py-4 text-center"><input type="checkbox" class="w-4 h-4 rounded border-gray-300"></td>
+            <td class="px-5 py-4 text-sm text-gray-500 dark:text-gray-400">2</td>
+            <td class="px-5 py-4"><div><p class="text-sm font-medium text-gray-800 dark:text-white">이영희</p><p class="text-xs text-gray-500 dark:text-gray-400">younghee@email.com</p></div></td>
+            <td class="px-5 py-4"><span class="rounded-full bg-green-50 dark:bg-green-500/10 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:text-green-400">스탠다드</span></td>
+            <td class="px-5 py-4"><span class="rounded-full bg-orange-50 dark:bg-orange-500/10 px-2.5 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400">비활성</span></td>
+            <td class="px-5 py-4"><div class="flex items-center justify-center gap-2"><button class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-brand-500 hover:border-brand-300 transition"><i data-lucide="pencil" class="w-4 h-4"></i></button><button class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-300 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 8. Modals ══════════════ -->
+  <section class="guide-section" id="modals">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Modals</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">모달 패턴입니다. openModal(id) / closeModal(id)로 제어합니다.</p>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700">Form Modal</h3>
+    <button onclick="openModal('guide-form')" class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-600 transition mb-4">폼 모달 열기</button>
+
+    <h3 class="text-sm font-bold text-gray-800 dark:text-white mb-4 pb-2 border-b border-gray-200 dark:border-gray-700 mt-4">Delete Confirm Modal</h3>
+    <button onclick="openModal('guide-delete')" class="rounded-lg bg-red-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-red-600 transition">삭제 확인 모달 열기</button>
+  </section>
+
+
+  <!-- ══════════════ 8.5 Tooltips ══════════════ -->
+  <section class="guide-section" id="tooltips">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Tooltips</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">도움말 툴팁입니다. 데스크탑에서 호버, 모바일에서 클릭으로 동작합니다.</p>
+
+    <div class="preview-area">
+      <div class="flex flex-wrap gap-8 items-center">
+        <div>
+          <p class="comp-label">라벨 옆 도움말</p>
+          <label class="flex items-center gap-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+            검색어
+            <span class="tooltip-wrap relative">
+              <i data-lucide="help-circle" class="w-3.5 h-3.5 text-gray-400 dark:text-gray-500 cursor-help"></i>
+              <span class="tooltip-box">이름, 이메일, 연락처로<br>통합 검색할 수 있습니다.</span>
+            </span>
+          </label>
+        </div>
+        <div>
+          <p class="comp-label">단독 사용</p>
+          <span class="tooltip-wrap relative">
+            <i data-lucide="help-circle" class="w-4 h-4 text-gray-400 dark:text-gray-500 cursor-help"></i>
+            <span class="tooltip-box">이것은 툴팁 예시입니다.</span>
+          </span>
+        </div>
+      </div>
+      <div class="code-block mt-4">&lt;span class="tooltip-wrap relative"&gt;
+  &lt;i data-lucide="help-circle" class="w-3.5 h-3.5 text-gray-400 cursor-help"&gt;&lt;/i&gt;
+  &lt;span class="tooltip-box"&gt;도움말 텍스트&lt;/span&gt;
+&lt;/span&gt;</div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 9. Search Filters ══════════════ -->
+  <section class="guide-section" id="filters">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Search Filters</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">검색 필터 패턴입니다.</p>
+
+    <div class="preview-area">
+      <div class="flex items-center gap-2 mb-4">
+        <i data-lucide="search" class="w-5 h-5 text-gray-400"></i>
+        <h4 class="text-sm font-semibold text-gray-800 dark:text-white">검색 필터</h4>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div>
+          <label class="block mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">검색어</label>
+          <input type="text" placeholder="이름, 이메일" class="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-3.5 text-sm text-gray-800 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition">
+        </div>
+        <div>
+          <label class="block mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">카테고리</label>
+          <select class="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-3.5 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition">
+            <option>전체</option><option>공지사항</option><option>뉴스</option>
+          </select>
+        </div>
+        <div>
+          <label class="block mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">날짜</label>
+          <input type="text" placeholder="날짜 선택" readonly class="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-3.5 text-sm text-gray-800 dark:text-white placeholder-gray-400 cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition">
+        </div>
+        <div>
+          <label class="block mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">상태</label>
+          <select class="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-3.5 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition">
+            <option>전체</option><option>활성</option><option>비활성</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 mt-4">
+        <button class="inline-flex items-center gap-2 rounded-lg bg-brand-500 hover:bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition"><i data-lucide="search" class="w-4 h-4"></i>검색</button>
+        <button class="inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-400 transition"><i data-lucide="rotate-ccw" class="w-4 h-4"></i>초기화</button>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 10. Breadcrumb ══════════════ -->
+  <section class="guide-section" id="breadcrumb">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Breadcrumb</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">경로 표시 네비게이션입니다.</p>
+
+    <div class="preview-area">
+      <nav class="flex items-center gap-1.5 text-sm">
+        <a href="#" class="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition">대시보드</a>
+        <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+        <span class="text-gray-500 dark:text-gray-400">회원관리</span>
+        <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+        <span class="font-medium text-gray-800 dark:text-white">회원 리스트</span>
+      </nav>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 11. Icons ══════════════ -->
+  <section class="guide-section" id="icons">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Icons (Lucide)</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">Lucide 아이콘을 사용합니다. <a href="https://lucide.dev/icons" target="_blank" class="text-brand-500 underline">전체 목록</a></p>
+
+    <div class="preview-area">
+      <div class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-4">
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="layout-dashboard" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">layout-dashboard</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="users" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">users</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="file-text" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">file-text</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="search" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">search</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="pencil" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">pencil</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="trash-2" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">trash-2</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="plus" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">plus</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="download" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">download</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="upload-cloud" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">upload-cloud</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="calendar" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">calendar</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="eye" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">eye</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="moon" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">moon</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="sun" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">sun</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="log-out" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">log-out</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="x" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">x</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="alert-triangle" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">alert-triangle</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="rotate-ccw" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">rotate-ccw</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="credit-card" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">credit-card</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="bell-ring" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">bell-ring</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="paperclip" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">paperclip</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="chevron-down" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">chevron-down</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="chevron-right" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">chevron-right</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="shield-check" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">shield-check</span></div>
+        <div class="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"><i data-lucide="bar-chart-2" class="w-6 h-6 text-gray-600 dark:text-gray-300"></i><span class="text-[10px] text-gray-500">bar-chart-2</span></div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════ 12. Charts ══════════════ -->
+  <section class="guide-section" id="charts">
+    <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-2">Charts (ApexCharts)</h2>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mb-8">대시보드에서 ApexCharts CDN을 사용합니다. Area, Donut 차트 예시는 <a href="dashboard.html" class="text-brand-500 underline">대시보드</a>에서 확인하세요.</p>
+
+    <div class="preview-area">
+      <div class="code-block">&lt;script src="https://cdn.jsdelivr.net/npm/apexcharts"&gt;&lt;/script&gt;
+
+// Area Chart 기본 패턴
+const chart = new ApexCharts(el, {
+  chart: { type: 'area', height: 280, toolbar: { show: false } },
+  colors: ['#465fff', '#34d399'],
+  stroke: { width: 2, curve: 'smooth' },
+  fill: { type: 'gradient', gradient: { opacityFrom: 0.35, opacityTo: 0.05 } },
+  // 다크모드 반응:
+  tooltip: { theme: isDark() ? 'dark' : 'light' }
+});</div>
+    </div>
+  </section>
+
+
+  <!-- Footer -->
+  <div class="text-center py-10 text-sm text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700">
+    inxight Admin Design System UI Guide<br>
+    <a href="dashboard.html" class="text-brand-500 mt-2 inline-block">← 대시보드로 이동</a>
+    &nbsp;|&nbsp;
+    <a href="member_list.html" class="text-brand-500">회원관리</a>
+    &nbsp;|&nbsp;
+    <a href="content_list.html" class="text-brand-500">콘텐츠관리</a>
+  </div>
+
+
+  <!-- ═══ 모달들 (가이드용) ═══ -->
+
+  <!-- 폼 모달 -->
+  <div id="modal-guide-form" class="hidden fixed inset-0 z-[10000] flex items-center justify-center px-4">
+    <div class="fixed inset-0 h-full w-full bg-gray-400/50 backdrop-blur-[32px]" onclick="closeModal('guide-form')"></div>
+    <div class="relative z-10 w-full max-w-lg bg-white dark:bg-gray-800 rounded-3xl p-8" onclick="event.stopPropagation()">
+      <div class="flex items-start justify-between mb-6">
+        <h3 class="text-lg font-bold text-gray-900 dark:text-white">폼 모달 예시</h3>
+        <button onclick="closeModal('guide-form')" class="flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-gray-600 transition"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </div>
+      <div class="space-y-4 mb-8">
+        <div class="grid grid-cols-2 gap-4">
+          <div><label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">이름</label><input type="text" placeholder="홍길동" class="h-11 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-4 text-sm text-gray-800 dark:text-white/90 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"></div>
+          <div><label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">연락처</label><input type="tel" placeholder="010-0000-0000" class="h-11 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-4 text-sm text-gray-800 dark:text-white/90 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"></div>
+        </div>
+        <div><label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">이메일</label><input type="email" placeholder="email@example.com" class="h-11 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-4 text-sm text-gray-800 dark:text-white/90 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition"></div>
+      </div>
+      <div class="flex justify-end gap-3">
+        <button onclick="closeModal('guide-form')" class="rounded-lg border border-gray-200 dark:border-gray-700 px-5 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">취소</button>
+        <button class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-600 transition">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 삭제 확인 모달 -->
+  <div id="modal-guide-delete" class="hidden fixed inset-0 z-[10000] flex items-center justify-center px-4">
+    <div class="fixed inset-0 h-full w-full bg-gray-400/50 backdrop-blur-[32px]" onclick="closeModal('guide-delete')"></div>
+    <div class="relative z-10 w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl px-8 pt-10 pb-10 text-center" onclick="event.stopPropagation()">
+      <button onclick="closeModal('guide-delete')" class="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-400 hover:text-gray-600 transition"><i data-lucide="x" class="w-4 h-4"></i></button>
+      <div class="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-red-100 dark:bg-red-500/15"><i data-lucide="alert-triangle" class="w-8 h-8 text-red-500"></i></div>
+      <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-3">삭제 확인</h3>
+      <p class="text-sm leading-6 text-gray-500 dark:text-gray-400 mb-8">정말 삭제하시겠습니까?<br>삭제된 데이터는 복구할 수 없습니다.</p>
+      <div class="flex items-center justify-center gap-3">
+        <button onclick="closeModal('guide-delete')" class="rounded-lg border border-gray-200 dark:border-gray-700 px-6 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">취소</button>
+        <button onclick="closeModal('guide-delete')" class="rounded-lg bg-red-500 px-6 py-2.5 text-sm font-medium text-white hover:bg-red-600 transition">삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/components/datepicker.js"></script>
+  <script>
+    lucide.createIcons();
+
+    // 툴팁 모바일 클릭 토글
+    document.querySelectorAll('.tooltip-wrap').forEach(function(wrap) {
+      wrap.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var isActive = wrap.classList.contains('active');
+        document.querySelectorAll('.tooltip-wrap.active').forEach(function(w) { w.classList.remove('active'); });
+        if (!isActive) wrap.classList.add('active');
+      });
+    });
+    document.addEventListener('click', function() {
+      document.querySelectorAll('.tooltip-wrap.active').forEach(function(w) { w.classList.remove('active'); });
+    });
+
+    function openModal(id) {
+      var el = document.getElementById('modal-' + id);
+      if (!el) return;
+      el.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      lucide.createIcons();
+    }
+    function closeModal(id) {
+      var el = document.getElementById('modal-' + id);
+      if (!el) return;
+      el.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+    document.addEventListener('keydown', function(e) {
+      if (e.key !== 'Escape') return;
+      document.querySelectorAll('[id^="modal-"]').forEach(function(m) {
+        if (!m.classList.contains('hidden')) m.classList.add('hidden');
+      });
+      document.body.style.overflow = '';
+    });
+  </script>
+</body>
+</html>

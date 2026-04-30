@@ -1,0 +1,19 @@
+@charset "utf-8";
+
+
+.td_test,
+.td_send { width:80px !important;}
+
+.td_test a,
+.td_send a {    display: inline-block;
+    height: 26px;
+    line-height: 26px;
+    border: 0;
+    border-radius: 3px;
+    padding: 0 8px;
+    margin: 1px;
+    font-weight: normal;
+	color:#fff !important;}
+	
+.td_test a {background: #9eacc6;}
+.td_send a { background: #8259f5;}

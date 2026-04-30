@@ -1,0 +1,18 @@
+@charset "utf-8";
+
+/* 인기검색어 */
+#popular {padding:15px; counter-reset : numbering; list-style-type:none;}
+#popular h2 {text-align:left;color:#000;line-height:24px; font-size:16px;}
+#popular .popular_item {background:#fff;padding:12px 0;border-bottom:1px solid #e5ecee; text-align:left; font-weight:400; font-size:16px !important; }
+#popular .popular_item:before{
+    counter-increment : numbering; 
+    content : counter(numbering);
+    margin-right:15px;
+	width:15px;
+	display:inline-block;
+	font-weight:600;
+}
+ 
+#popular a {display:block;text-align:left;color:#000; border-bottom:1px solid #e5ecee}
+#popular a:last-of-type {border-bottom:0}
+#popular a:hover {color:#3a8afd}

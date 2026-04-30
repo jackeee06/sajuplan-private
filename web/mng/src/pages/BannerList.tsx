@@ -1,0 +1,158 @@
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Plus, Trash2 } from 'lucide-react'
+import { api } from '../lib/api'
+
+/**
+ * sample/adm/bannerlist.php (메뉴 350600 "배너관리") 정확 매핑.
+ *
+ * 컬럼: ID / 위치 / 시작 / 종료 / 출력순서 / 조회 / 관리 / 이미지
+ * 필터: 위치(17종) / 상태(전체/진행중/종료)
+ */
+
+const POSITIONS = [
+  '회원가입완료', '메인-비주얼', '메인-상단띠배너', '메인-중앙배너',
+  '로그인-상단띠배너', '마이페이지', '일반-상담후기', '일반-이용안내',
+  '일반-상담사신청', '상담사-코인내역', '상담사-공지사항',
+  '이벤트1', '이벤트2', '이벤트3', '오늘의운세',
+  '소원다락방-상단', '소원다락방-하단', '사주문의길',
+]
+
+interface Banner {
+  id: number
+  position: string | null
+  title: string | null
+  link_url: string | null
+  image_url: string | null
+  display_order: number
+  starts_at: string | null
+  ends_at: string | null
+  is_active: boolean
+  hit_count: number
+}
+
+interface Resp { items: Banner[]; total: number; page: number; limit: number }
+
+const FILE_BASE = (import.meta.env.VITE_API_BASE ?? '/api').replace(/\/api\/?$/, '')
+
+export default function BannerList() {
+  const [filter, setFilter] = useState<{ position: string; status: string; page: number }>({ position: '', status: '', page: 1 })
+  const [data, setData] = useState<Resp | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const load = () => {
+    const params = new URLSearchParams()
+    if (filter.position) params.set('position', filter.position)
+    if (filter.status) params.set('status', filter.status)
+    params.set('page', String(filter.page))
+    params.set('limit', '50')
+    setLoading(true); setError(null)
+    api<Resp>(`/admin/banners?${params}`).then(setData).catch((e) => setError(e.message)).finally(() => setLoading(false))
+  }
+  useEffect(load, [filter])
+
+  const onDelete = async (b: Banner) => {
+    if (!confirm(`배너를 삭제하시겠습니까?`)) return
+    try {
+      await api(`/admin/banners/${b.id}`, { method: 'DELETE' })
+      setSuccess('삭제 완료')
+      load()
+    } catch (e) { setError(e instanceof Error ? e.message : '삭제 실패') }
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">배너 관리</h1>
+        <Link to="/banners/new" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">
+          <Plus className="w-4 h-4" /> 배너추가
+        </Link>
+      </div>
+
+      {data && (
+        <div className="text-xs text-gray-500">{data.total ? `${data.total.toLocaleString()}` : '등록된'} 배너</div>
+      )}
+
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <select value={filter.position} onChange={(e) => setFilter((f) => ({ ...f, position: e.target.value, page: 1 }))} className={cls}>
+            <option value="">위치 전체</option>
+            {POSITIONS.map((p) => (<option key={p} value={p}>{p}</option>))}
+          </select>
+          <select value={filter.status} onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value, page: 1 }))} className={cls}>
+            <option value="">배너 시간 전체</option>
+            <option value="ing">진행중인 배너</option>
+            <option value="end">종료된 배너</option>
+          </select>
+        </div>
+      </div>
+
+      {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}
+      {success && <div className="p-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm">{success}</div>}
+
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-brand-600 dark:bg-brand-700 text-[11px] text-white">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">ID</th>
+                <th className="px-3 py-2 text-left font-medium">위치</th>
+                <th className="px-3 py-2 text-left font-medium">이미지</th>
+                <th className="px-3 py-2 text-left font-medium">제목/링크</th>
+                <th className="px-3 py-2 text-left font-medium">시작일시</th>
+                <th className="px-3 py-2 text-left font-medium">종료일시</th>
+                <th className="px-3 py-2 text-right font-medium">순서</th>
+                <th className="px-3 py-2 text-right font-medium">조회</th>
+                <th className="px-3 py-2 text-right font-medium">관리</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {loading && !data ? (
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">로딩...</td></tr>
+              ) : !data || data.items.length === 0 ? (
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">자료가 없습니다.</td></tr>
+              ) : (
+                data.items.map((b) => (
+                  <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                    <td className="px-3 py-2 text-gray-500">{b.id}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{b.position || '-'}</td>
+                    <td className="px-3 py-2">
+                      {b.image_url ? (
+                        <img src={b.image_url.startsWith('http') ? b.image_url : FILE_BASE + b.image_url} alt={b.title || ''} className="h-12 max-w-[120px] object-contain" />
+                      ) : <span className="text-gray-300">-</span>}
+                    </td>
+                    <td className="px-3 py-2 max-w-[280px] truncate">
+                      <div>{b.title || '-'}</div>
+                      {b.link_url && <a href={b.link_url} target="_blank" rel="noreferrer" className="text-[10px] text-brand-600 hover:underline">{b.link_url}</a>}
+                    </td>
+                    <td className="px-3 py-2 text-gray-500 whitespace-nowrap text-[11px]">{formatDT(b.starts_at)}</td>
+                    <td className="px-3 py-2 text-gray-500 whitespace-nowrap text-[11px]">{formatDT(b.ends_at)}</td>
+                    <td className="px-3 py-2 text-right">{b.display_order}</td>
+                    <td className="px-3 py-2 text-right text-gray-500">{b.hit_count.toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right whitespace-nowrap">
+                      <Link to={`/banners/${b.id}`} className="inline-flex items-center px-2 py-1 text-xs rounded border hover:bg-gray-50 mr-1">수정</Link>
+                      <button onClick={() => onDelete(b)} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-rose-200 text-rose-700 hover:bg-rose-50">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const cls = 'px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
+
+function formatDT(s: string | null): string {
+  if (!s) return '-'
+  const dt = new Date(s); if (isNaN(dt.getTime())) return s
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`
+}

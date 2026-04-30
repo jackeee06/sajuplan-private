@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>AG9상담톡</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+    <link
+      href="http://netdna.bootstrapcdn.com/bootstrap/4.1.1/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style type="text/css">
+      .container {
+        max-width: 1170px;
+        margin: auto;
+      }
+      img {
+        max-width: 100%;
+      }
+      .inbox_people {
+        background: #f8f8f8 none repeat scroll 0 0;
+        float: left;
+        overflow: hidden;
+        width: 60%;
+        border-right: 1px solid #c4c4c4;
+      }
+      .inbox_msg {
+        border: 1px solid #c4c4c4;
+        clear: both;
+        overflow: hidden;
+      }
+      .top_spac {
+        margin: 20px 0 0;
+      }
+
+      .recent_heading {
+        float: left;
+        width: 40%;
+      }
+      .srch_bar {
+        display: inline-block;
+        text-align: right;
+        width: 60%;
+        padding: 10px;
+      }
+      .headind_srch {
+        padding: 10px 29px 10px 20px;
+        overflow: hidden;
+        border-bottom: 1px solid #c4c4c4;
+      }
+
+      .recent_heading h4 {
+        color: #05728f;
+        font-size: 21px;
+        margin: auto;
+      }
+      .srch_bar input {
+        border: 1px solid #cdcdcd;
+        border-width: 0 0 1px 0;
+        width: 80%;
+        padding: 2px 0 4px 6px;
+        background: none;
+      }
+      .srch_bar .input-group-addon button {
+        background: rgba(0, 0, 0, 0) none repeat scroll 0 0;
+        border: medium none;
+        padding: 0;
+        color: #707070;
+        font-size: 18px;
+      }
+      .srch_bar .input-group-addon {
+        margin: 0 0 0 -27px;
+      }
+
+      .chat_ib h5 {
+        font-size: 15px;
+        color: #464646;
+        margin: 0 0 8px 0;
+      }
+      .chat_ib h5 span {
+        font-size: 13px;
+        float: right;
+      }
+      .chat_ib p {
+        font-size: 14px;
+        color: #989898;
+        margin: auto;
+      }
+      .chat_img {
+        float: left;
+        width: 11%;
+      }
+      .chat_ib {
+        float: left;
+        padding: 0 0 0 15px;
+        width: 88%;
+      }
+
+      .chat_people {
+        overflow: hidden;
+        clear: both;
+      }
+      .chat_list {
+        border-bottom: 1px solid #c4c4c4;
+        margin: 0;
+        padding: 18px 16px 10px;
+      }
+      .inbox_chat {
+        height: 550px;
+        overflow-y: scroll;
+      }
+
+      .active_chat {
+        background: #ebebeb;
+      }
+
+      .incoming_msg_img {
+        display: inline-block;
+        font-size: 14px;
+        width: 8%;
+      }
+      .outgoing_msg_img {
+        display: inline-block;
+        font-size: 14px;
+        width: 8%;
+      }
+      .received_msg {
+        display: inline-block;
+        padding: 0 0 0 10px;
+        vertical-align: top;
+        width: 90%;
+      }
+      .received_withd_msg p {
+        background: #05728f none repeat scroll 0 0;
+        border-radius: 3px;
+        font-size: 14px;
+        color: #fff;
+        margin: 0;
+        padding: 5px 10px 5px 12px;
+        width: 100%;
+      }
+      .time_date {
+        color: #747474;
+        display: block;
+        font-size: 12px;
+        margin: 8px 0 0;
+      }
+      .received_withd_msg {
+        width: 83%;
+      }
+      .mesgs {
+        float: left;
+        padding: 30px 15px 0 25px;
+        width: 100%;
+      }
+
+      .sent_msg p {
+        background: #ebebeb none repeat scroll 0 0;
+        border-radius: 3px;
+        font-size: 14px;
+        margin: 0;
+        color: #646464;
+        padding: 5px 10px 5px 12px;
+        width: 100%;
+      }
+      .outgoing_msg {
+        overflow: hidden;
+        margin: 26px 0 26px;
+      }
+      .sent_msg {
+        float: right;
+        width: 83%;
+      }
+      .input_msg_write textarea {
+        background: rgba(0, 0, 0, 0) none repeat scroll 0 0;
+        border: medium none;
+        color: #4c4c4c;
+        font-size: 15px;
+        min-height: 48px;
+        width: 100%;
+      }
+      .input_buttom {
+        background: rgba(0, 0, 0, 0) none repeat scroll 0 0;
+        border: medium none;
+        color: #4c4c4c;
+        font-size: 12px;
+        min-height: 20px;
+        text-align: left;
+        width: 100%;
+      }
+
+      .type_msg {
+        border-top: 1px solid #c4c4c4;
+        position: relative;
+      }
+      .msg_send_btn {
+        background: #05728f none repeat scroll 0 0;
+        border: medium none;
+        border-radius: 50%;
+        color: #fff;
+        cursor: pointer;
+        font-size: 17px;
+        height: 33px;
+        position: absolute;
+        right: 0;
+        top: 11px;
+        width: 33px;
+      }
+      .messaging {
+        padding: 0 0 50px 0;
+      }
+      .msg_history {
+        height: 516px;
+        overflow-y: auto;
+      }
+    </style>
+  </head>
+
+  <script>
+    var token = "ltQHxC1"; // api호출하여 수신한 json변수의 token값임: memb_token과 csr_token구분
+    // cid:connection id(ws서버입장), Tid:TransactionID(서버입장),MembId(웹관리자),CsrId(웹관리자),IdTp(memb or csr),RoomId(token 맨뒤1 byte제거)
+    var cid;
+    var tid;
+    var membid;
+    var csrid;
+    var idtp;
+    var roomid;
+
+    $(document).ready(function () {
+      $(".btn.btn-light.btn-sm").click(function () {
+        var files = document.getElementById("file-select");
+        files.click();
+      });
+
+      $(".btn.btn-link.btn-sm").click(function () {
+        sendRoomOut2Srv(-1, tid);
+      });
+      $(".write_msg").on("keydown", function (e) {
+        if (e.which == 13) {
+          if ($(this).val() == "") {
+            return false;
+          }
+          if (e.shiftKey == true || e.altKey) {
+            inp = $(this).val();
+            $(this).val(inp + "\n");
+          } else {
+            $("#btn-submit").click();
+          }
+          return false;
+        }
+      });
+    });
+
+    function uploadNow() {
+      var metadata = {
+        Cid: cid,
+        Tid: tid,
+      };
+      var form = new FormData();
+      form.append(
+        "metadata",
+        new Blob([JSON.stringify(metadata)], { type: "application/json" })
+      );
+
+      var files = document.getElementById("file-select");
+      var numFiles = files.files.length;
+      for (var i = 0; i < numFiles; i++) {
+        form.append("media", files.files[i]);
+      }
+
+      var xhr = new XMLHttpRequest();
+      xhr.open("post", "/fileupload.ag");
+      xhr.responseType = "json";
+      xhr.onload = () => {
+        console.log(xhr.response);
+      };
+      xhr.send(form);
+    }
+  </script>
+
+  <body>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.css"
+      type="text/css"
+      rel="stylesheet"
+    />
+    <div class="container">
+      <h3 class="text-center">AG9상담톡</h3>
+
+      <div class="messaging">
+        <div class="inbox_msg">
+          <div class="mesgs">
+            <div class="msg_history"></div>
+            <div class="type_msg">
+              <div class="input_msg_write">
+                <textarea
+                  type="text"
+                  class="write_msg"
+                  placeholder="Type a message"
+                  id="write_msg_text"
+                ></textarea>
+                <button
+                  class="msg_send_btn"
+                  id="btn-submit"
+                  type="button"
+                  onclick="SendMsg2ServerSubmit()"
+                >
+                  <i class="fa fa-paper-plane-o" aria-hidden="true"></i>
+                </button>
+                <div class="input_buttom">
+                  &nbsp;&nbsp;<button
+                    type="button"
+                    class="btn btn-light btn-sm"
+                  >
+                    사진전송</button
+                  >&nbsp;&nbsp;
+                  <button type="button" class="btn btn-link btn-sm">
+                    퇴장요청
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <template data-template="in_msg_temp">
+      <div class="incoming_msg">
+        <div class="incoming_msg_img"></div>
+        <div class="received_msg">
+          <div class="received_withd_msg">
+            <p class="msg"></p>
+            <span class="time_date"></span>
+          </div>
+        </div>
+      </div>
+    </template>
+    <template data-template="out_msg_temp">
+      <div class="outgoing_msg">
+        <div class="outgoing_msg_img"></div>
+        <div class="sent_msg">
+          <p class="msg"></p>
+          <span class="time_date"></span>
+        </div>
+      </div>
+    </template>
+
+    <div style="visibility: hidden">
+      <input
+        type="file"
+        id="file-select"
+        onchange="uploadNow()"
+        name="media"
+        multiple
+      />
+    </div>
+
+    <script src="http://netdna.bootstrapcdn.com/bootstrap/4.1.1/js/bootstrap.min.js"></script>
+    <script>
+      const possibleEmojis = [
+        "🐀",
+        "🐁",
+        "🐭",
+        "🐹",
+        "🐂",
+        "🐃",
+        "🐄",
+        "🐮",
+        "🐅",
+        "🐆",
+        "🐯",
+        "🐇",
+        "🐐",
+        "🐑",
+        "🐏",
+        "🐴",
+        "🐎",
+        "🐱",
+        "🐈",
+        "🐰",
+        "🐓",
+        "🐔",
+        "🐤",
+        "🐣",
+        "🐥",
+        "🐦",
+        "🐧",
+        "🐘",
+        "🐩",
+        "🐕",
+        "🐷",
+        "🐖",
+        "🐗",
+        "🐫",
+        "🐪",
+        "🐶",
+        "🐺",
+        "🐻",
+        "🐨",
+        "🐼",
+        "🐵",
+        "🙈",
+        "🙉",
+        "🙊",
+        "🐒",
+        "🐉",
+        "🐲",
+        "🐊",
+        "🐍",
+        "🐢",
+        "🐸",
+        "🐋",
+        "🐳",
+        "🐬",
+        "🐙",
+        "🐟",
+        "🐠",
+        "🐡",
+        "🐚",
+        "🐌",
+        "🐛",
+        "🐜",
+        "🐝",
+        "🐞",
+      ];
+      const emoji_idx = Math.floor(Math.random() * possibleEmojis.length);
+      const other_emoji_idx = Math.floor(Math.random() * possibleEmojis.length);
+
+      var conn;
+      function insertMessageToDOM(options, isFromMe, htmlFlag, sendTime) {
+        if (isFromMe) {
+          insertMessageToDOM_OUT(options, isFromMe, htmlFlag, sendTime);
+        } else {
+          insertMessageToDOM_IN(options, isFromMe, htmlFlag, sendTime);
+        }
+      }
+
+      function insertMessageToDOM_IN(options, isFromMe, htmlFlag, sendTime) {
+        const template = document.querySelector(
+          'template[data-template="in_msg_temp"]'
+        );
+        const nameEl = template.content.querySelector(".incoming_msg_img");
+        if (options.emoji || options.name) {
+          nameEl.innerText = options.emoji + " " + options.name;
+        }
+        template.content.querySelector(".time_date").innerText = sendTime;
+        if (htmlFlag == true) {
+          template.content.querySelector(".msg").innerHTML = options.content;
+        } else {
+          template.content.querySelector(".msg").innerText = options.content;
+        }
+
+        const clone = document.importNode(template.content, true);
+        const messageEl = clone.querySelector(".in_msg_temp");
+
+        const messagesEl = document.querySelector(".msg_history");
+        messagesEl.appendChild(clone);
+        messagesEl.scrollTop =
+          messagesEl.scrollHeight - messagesEl.clientHeight;
+      }
+
+      function insertMessageToDOM_OUT(options, isFromMe, htmlFlag, sendTime) {
+        const template = document.querySelector(
+          'template[data-template="out_msg_temp"]'
+        );
+        const nameEl = template.content.querySelector(".outgoing_msg_img");
+        if (options.emoji || options.name) {
+          //nameEl.innerText = options.emoji + ' ' + options.name;
+        }
+        template.content.querySelector(".time_date").innerText = sendTime;
+        if (htmlFlag == true) {
+          template.content.querySelector(".msg").innerHTML = options.content;
+        } else {
+          template.content.querySelector(".msg").innerText = options.content;
+        }
+
+        const clone = document.importNode(template.content, true);
+        const messageEl = clone.querySelector(".out_msg_temp");
+
+        const messagesEl = document.querySelector(".msg_history");
+        messagesEl.appendChild(clone);
+        messagesEl.scrollTop =
+          messagesEl.scrollHeight - messagesEl.clientHeight;
+      }
+
+      function msgOut(js, MyFlag, sendTime) {
+        var idx;
+        if (js.FromCid < 0) {
+          js.FromName = "admin";
+        }
+        if (MyFlag == true) {
+          idx = emoji_idx;
+        } else {
+          idx = other_emoji_idx;
+        }
+        const dataTmp = {
+          name: js.FromName,
+          content: js.JoMsg.Msg,
+          emoji: possibleEmojis[idx],
+        };
+        insertMessageToDOM(dataTmp, MyFlag, false, sendTime);
+      }
+
+      function msgOutHtml(js, MyFlag, sendTime) {
+        var idx;
+        if (MyFlag == true) {
+          idx = emoji_idx;
+        } else {
+          idx = other_emoji_idx;
+        }
+        if (js.FromCid < 0) {
+          js.FromName = "admin";
+        }
+        const dataTmp = {
+          name: js.FromName,
+          content: js.JoMsg.Msg,
+          emoji: possibleEmojis[idx],
+        };
+        insertMessageToDOM(dataTmp, MyFlag, true, sendTime);
+      }
+
+      function sendRoomOut2Srv(cidprm, tidprm) {
+        const svrData = {
+          CmdTp: "room_out_req",
+          Cid: Number(cidprm),
+          Tid: tidprm, // 명령내린Tid
+        };
+        const jsStr = JSON.stringify(svrData);
+        conn.send(jsStr);
+      }
+
+      // ------
+
+      if (window["WebSocket"]) {
+        conn = new WebSocket("ws://passcall.co.kr:20100/wscp/" + token);
+        // 보안 : conn = new WebSocket("wss://passcall.co.kr:20101/wscp/" + token);
+        conn.onclose = function (evt) {
+          const value = "Connection closed.(refresh필요)";
+          const data1 = {
+            name: "admin",
+            content: value,
+          };
+          // 맨뒤 true이면 자신 false이면 서버의 메시지를 의미
+          insertMessageToDOM(data1, false);
+        };
+        conn.onmessage = function (evt) {
+          console.log(
+            "->message receive data[" + evt.data + "] cid[" + cid + "]"
+          );
+          const js = JSON.parse(evt.data);
+          var opt1;
+
+          // send time 공통
+          var sendTime = js.SendTime;
+
+          switch (js.CmdTp) {
+            case "room_in_noti": // 방입장 통지
+              // js.JoMsg.RoomId, MembId,CsrId,IdTp 공통: 아래 메시지들 동일(미연결시에는 공백)
+              msgOut(js, false, sendTime);
+              break;
+            case "room_out_noti": // 방퇴장 통지
+              msgOut(js, false, sendTime);
+              break;
+            case "system_notify":
+              console.log( "ClosedRoomId[", js.JoMsg.RoomId , "] reason[", js.JoMsg.Reason , "] msg[", js.JoMsg.Msg, "]");
+              msgOut(js, false, sendTime);
+            case "cli_connect_ok":
+              tid = js.JoMsg.Tid;
+              membid = js.JoMsg.MembId;
+              csrid = js.JoMsg.CsrId;
+              idtp = js.JoMsg.IdTp;
+              roomid = js.JoMsg.RoomId;
+              cid = js.JoMsg.Cid;
+              console.log("연결성공[", js, "]");
+              break;
+            case "cli_disconnect": // 끊어진 사실 통지
+              msgOut(js, false, sendTime);
+              break;
+            case "conv_msg": // 대화내용 수신
+              var myDispFlag = false;
+              if (cid == js.FromCid) {
+                myDispFlag = true;
+              }
+              // 공지
+              if (js.FromCid < 0) {
+                myDispFlag = false;
+              }
+              if (js.JoMsg.HtmlFlag == true) {
+                msgOutHtml(js, myDispFlag, sendTime);
+              } else {
+                msgOut(js, myDispFlag, sendTime);
+              }
+              break;
+            default: // 공지등 일반내용은 여기로 들어감
+              msgOut(js, false, sendTime);
+              break;
+          }
+        };
+        conn.onopen = function (evt) {
+          const regist = {
+            CmdTp: "regist",
+            Token: token,
+          };
+          const regist_str = JSON.stringify(regist);
+          conn.send(regist_str);
+          console.log("<-onopen msg[", regist_str, "]");
+        };
+      } else {
+        var item = document.createElement("div");
+        item.innerHTML = "Your browser does not support WebSockets.";
+        appendLog(item);
+      }
+
+      // send message to server
+      function SendMsg2ServerSubmit() {
+        const input = document.querySelector('textarea[type="text"]');
+        const tpMsg = input.value;
+        const svrData = {
+          CmdTp: "conv_msg",
+          Msg: tpMsg,
+          HtmlFlag: false,
+        };
+        const jsStr = JSON.stringify(svrData);
+        conn.send(jsStr);
+        input.value = "";
+      }
+      $("#write_msg_text").on("focus", function (e) {
+        $(".msg_history").css("height", "200px");
+      });
+      $("#write_msg_text").on("focusout", function (e) {
+        $(".msg_history").css("height", "512px");
+      });
+    </script>
+  </body>
+</html>

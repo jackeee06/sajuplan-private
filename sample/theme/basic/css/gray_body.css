@@ -1,0 +1,5 @@
+@charset "utf-8";
+
+
+body,
+.con_div { background: #faf9f7 !important;} /* BODY 컬러를 회색으로 통일 */

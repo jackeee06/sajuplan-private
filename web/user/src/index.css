@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+  body {
+    @apply antialiased bg-white text-gray-800;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  }
+
+  /* 체크박스 — Figma: 22x22, r=6, on=#9b7af7, white check */
+  input[type='checkbox'],
+  input[type='radio'] {
+    appearance: none;
+    -webkit-appearance: none;
+    @apply relative inline-block flex-shrink-0 w-[22px] h-[22px] align-middle cursor-pointer
+           border border-gray-300 bg-white
+           transition-all duration-150
+           hover:border-brand-400
+           focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:ring-offset-1
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  input[type='checkbox'] {
+    border-radius: 6px;
+  }
+  input[type='radio'] {
+    @apply rounded-full;
+  }
+  input[type='checkbox']:checked,
+  input[type='radio']:checked {
+    background-color: #9b7af7;
+    border-color: #9b7af7;
+  }
+  input[type='checkbox']:checked::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 8 7 12 13 4'/></svg>");
+    background-size: 100% 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  input[type='radio']:checked::after {
+    content: '';
+    position: absolute;
+    @apply top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-white;
+  }
+}
+
+@layer components {
+  /* 모바일 컨테이너 — 디자인 기준 390, 데스크톱에선 최대 560 */
+  .mobile-frame {
+    @apply mx-auto w-full max-w-[560px] min-h-screen bg-white;
+  }
+}

@@ -1,0 +1,6 @@
+@charset "utf-8";
+
+.head { background-color:transparent !important;}
+
+.point,
+.head_block { display:none !important;}

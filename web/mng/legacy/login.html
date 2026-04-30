@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>관리자 로그인</title>
+  <script>if (localStorage.getItem('darkMode') === '1') { document.documentElement.classList.add('dark'); }</script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { outfit: ['Outfit', 'sans-serif'] },
+          colors: {
+            brand: { 25:'#f2f7ff', 50:'#ecf3ff', 100:'#dde9ff', 200:'#c2d6ff', 300:'#9cb9ff', 400:'#7592ff', 500:'#465fff', 600:'#3641f5', 700:'#2a31d8' },
+            gray:  { 25:'#fcfcfd', 50:'#f9fafb', 100:'#f2f4f7', 200:'#e4e7ec', 300:'#d0d5dd', 400:'#98a2b3', 500:'#667085', 600:'#475467', 700:'#344054', 800:'#1d2939', 900:'#101828' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="antialiased font-outfit bg-white dark:bg-gray-900 min-h-screen">
+
+  <div class="flex min-h-screen">
+
+    <!-- ── 왼쪽: 브랜드 배너 ── -->
+    <div class="hidden lg:flex lg:w-1/2 bg-brand-600 dark:bg-gray-800 items-center justify-center relative overflow-hidden">
+      <div class="absolute top-0 right-0 w-96 h-96 bg-brand-500/40 rounded-full -translate-y-1/3 translate-x-1/3"></div>
+      <div class="absolute bottom-0 left-0 w-80 h-80 bg-brand-700/40 rounded-full translate-y-1/3 -translate-x-1/3"></div>
+      <div class="absolute inset-0 opacity-[0.04]" style="background-image: radial-gradient(circle, white 1px, transparent 1px); background-size: 32px 32px;"></div>
+      <div class="relative z-10 flex flex-col items-center text-center px-10 max-w-xs">
+        <div class="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-6">
+          <i data-lucide="shield-check" class="w-8 h-8 text-white"></i>
+        </div>
+        <h2 class="text-2xl font-bold text-white mb-3">Admin</h2>
+        <p class="text-brand-200 text-sm leading-relaxed">관리자 전용 페이지입니다. 인가된 사용자만 접근할 수 있습니다.</p>
+      </div>
+    </div>
+
+    <!-- ── 오른쪽: 로그인 폼 ── -->
+    <div class="flex flex-1 flex-col justify-center px-6 py-12 lg:px-12 xl:px-16">
+
+      <div class="w-full max-w-md mx-auto">
+
+        <div class="mb-8">
+          <h1 class="text-3xl font-bold text-gray-800 dark:text-white mb-2">관리자 로그인</h1>
+          <p class="text-sm text-gray-500 dark:text-gray-400">관리자 아이디와 비밀번호를 입력해주세요.</p>
+        </div>
+
+        <!-- 로그인 폼 -->
+        <form class="space-y-5" onsubmit="return false;">
+
+          <div>
+            <label class="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+              아이디 <span class="text-red-500">*</span>
+            </label>
+            <input type="text" placeholder="admin"
+              class="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-4 py-2.5 text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 dark:focus:border-brand-400 transition">
+          </div>
+
+          <div>
+            <label class="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+              비밀번호 <span class="text-red-500">*</span>
+            </label>
+            <div class="relative">
+              <input type="password" id="passwordInput" placeholder="비밀번호를 입력하세요"
+                class="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 pl-4 pr-11 py-2.5 text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 dark:focus:border-brand-400 transition">
+              <button type="button" onclick="togglePassword()" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition">
+                <i id="pwEyeIcon" data-lucide="eye" class="w-4.5 h-4.5"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between">
+            <label class="flex items-center gap-2.5 cursor-pointer select-none text-sm text-gray-700 dark:text-gray-400">
+              <span class="relative flex h-5 w-5 flex-shrink-0">
+                <input type="checkbox" class="peer sr-only">
+                <span class="flex h-5 w-5 items-center justify-center rounded-[5px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 peer-checked:border-brand-500 peer-checked:bg-brand-500 transition-colors"></span>
+                <svg class="peer-checked:block hidden absolute inset-0 m-auto pointer-events-none w-3 h-3" viewBox="0 0 12 10" fill="none">
+                  <path d="M1.5 5l3 3 6-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              로그인 상태 유지
+            </label>
+          </div>
+
+          <button type="submit" onclick="location.href='dashboard.html'"
+            class="w-full flex items-center justify-center rounded-lg bg-brand-500 hover:bg-brand-600 px-4 py-3 text-sm font-medium text-white transition shadow-sm">
+            로그인
+          </button>
+
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    function togglePassword() {
+      const input = document.getElementById('passwordInput');
+      const icon = document.getElementById('pwEyeIcon');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.setAttribute('data-lucide', 'eye-off');
+      } else {
+        input.type = 'password';
+        icon.setAttribute('data-lucide', 'eye');
+      }
+      lucide.createIcons();
+    }
+  </script>
+</body>
+</html>

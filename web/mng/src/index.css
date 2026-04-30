@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    @apply h-full;
+  }
+  body {
+    @apply antialiased font-outfit bg-white text-gray-800 dark:bg-gray-900 dark:text-gray-200;
+  }
+
+  /* === 체크박스 / 라디오 공통 디자인 ===
+   * 기본 브라우저 모양을 brand-600 보라색 기반 커스텀 디자인으로 통일.
+   * 페이지 단위 input[type=checkbox]에 별도 클래스 없이도 적용됨.
+   */
+  input[type='checkbox'],
+  input[type='radio'] {
+    appearance: none;
+    -webkit-appearance: none;
+    @apply relative inline-block flex-shrink-0 w-[18px] h-[18px] align-middle cursor-pointer
+           border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800
+           transition-all duration-150
+           hover:border-brand-500 dark:hover:border-brand-400
+           focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:ring-offset-1
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+  input[type='checkbox'] {
+    @apply rounded-[5px];
+  }
+  input[type='radio'] {
+    @apply rounded-full;
+  }
+  input[type='checkbox']:checked,
+  input[type='radio']:checked {
+    @apply bg-brand-600 border-brand-600;
+  }
+  /* 체크 표시 — SVG checkmark */
+  input[type='checkbox']:checked::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 8 7 12 13 4'/></svg>");
+    background-size: 100% 100%;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  /* 라디오 점 */
+  input[type='radio']:checked::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: white;
+  }
+}
+
+@layer components {
+  .menu-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors;
+  }
+  .menu-item-inactive {
+    @apply text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white;
+  }
+  .menu-item-active {
+    @apply bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400;
+  }
+  .menu-item-btn {
+    @apply flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors;
+  }
+  .menu-dropdown-item {
+    @apply flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors;
+  }
+  .menu-dropdown-item-inactive {
+    @apply text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white;
+  }
+  .menu-dropdown-item-active {
+    @apply bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400;
+  }
+}

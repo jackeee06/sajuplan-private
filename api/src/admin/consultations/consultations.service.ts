@@ -1,0 +1,279 @@
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { SQL, type Sql } from '../../shared/db/db.module';
+
+/**
+ * sample/adm/coin_counsel_history.php 정확 매핑.
+ *
+ *   sample:                          신규:
+ *   ─────────────────────────────────────────
+ *   FROM platform_consulting         FROM consultation
+ *   csrid                            consultation.csrid
+ *   membid                           consultation.membid
+ *   wr_datetime                      consultation.created_at
+ *   start                            consultation.started_at
+ *   end                              consultation.ended_at
+ *   eventtm                          consultation.eventtm
+ *   reason ('DISCONNECT'|'END_CHAT') consultation.reason
+ *   preflag ('Y'|'')                 consultation.preflag
+ *   no (PK 레거시)                   consultation.no
+ *   from (고객 전화)                  consultation.caller_phone
+ *
+ *   get_csrid(csrid):                LEFT JOIN member c ON c.csrid = cs.csrid
+ *     g5_member.mb_id  → c.login_id
+ *     g5_member.mb_nick → c.nickname
+ *     g5_member.mb_4   → c.call_070_unit_cost  (환불 임계값)
+ *     g5_write_counselor.ca_name → c.counselor_category (분야)
+ *
+ *   get_mbid(membid):                LEFT JOIN member m ON m.id = cs.member_id
+ *     g5_member.mb_id  → m.login_id
+ *     g5_member.mb_name → m.name
+ *     (회원 정보 없으면 caller_phone 폴백)
+ *
+ *   탭(view) 분류 — sample SQL 그대로:
+ *     all : reason IN ('DISCONNECT','END_CHAT')
+ *     call: reason = 'DISCONNECT'
+ *     chat: reason = 'END_CHAT'
+ *
+ *   카운트 배지 — sample SQL 그대로:
+ *     070  : reason='DISCONNECT' AND preflag='Y'
+ *     060  : reason='DISCONNECT' AND preflag=''
+ *     채팅: reason='END_CHAT'
+ *
+ *   검색 (sfl=...):
+ *     mb_id   : 회원아이디 → m.login_id 매칭
+ *     cmb_id  : 상담사 아이디 → c.login_id 매칭
+ *     mb_hp   : 휴대폰번호 → cs.caller_phone (하이픈 제거 비교)
+ *     mb_nick : 상담사닉네임 → c.nickname 매칭
+ *     preflag : preflag='Y' (070) 또는 '' (060) 직접 비교
+ */
+
+export interface ConsultationRow {
+  id: number;
+  no: number | null;
+  // 시각/식별자
+  eventtm: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+  csrid: string | null;
+  membid: string | null;
+  caller_phone: string | null;
+  callee_phone: string | null;
+  callid: string | null;
+  roomid: string | null;
+  // 상담 데이터
+  reason: string | null;
+  preflag: string | null;
+  usetm: number;
+  amt: number;
+  amt_free: number;
+  amt_pro: number;
+  is_paid: boolean;
+  is_settled: boolean;
+  is_absent_disconnect: boolean;
+  skip_charge: boolean;
+  // JOIN: 회원
+  member_id: number | null;
+  member_login_id: string | null;
+  member_name: string | null;
+  // JOIN: 상담사
+  counselor_id: number | null;
+  counselor_login_id: string | null;
+  counselor_name: string | null;
+  counselor_nickname: string | null;
+  counselor_category: string | null;
+  counselor_unit_cost: number | null; // mb_4
+}
+
+export type View = 'all' | 'call' | 'chat';
+
+export type Sfl = 'mb_id' | 'cmb_id' | 'mb_hp' | 'mb_nick' | 'preflag';
+
+export interface ConsultationFilter {
+  view?: View;
+  sfl?: Sfl;
+  stx?: string;
+  fr_date?: string;
+  to_date?: string;
+  page?: number;
+  limit?: number;
+}
+
+@Injectable()
+export class ConsultationsService {
+  constructor(@Inject(SQL) private readonly sql: Sql) {}
+
+  /** sample where_base + where_reason + sql_search_preflag 빌드 */
+  private buildWhere(filter: ConsultationFilter, withReason: boolean) {
+    const conds: ReturnType<Sql>[] = [];
+
+    // sample: where_base = " where (1) and csrid !='' "
+    conds.push(this.sql`cs.csrid IS NOT NULL AND cs.csrid <> ''`);
+
+    // 검색 — 부분 매칭 (ILIKE %stx%)
+    if (filter.stx) {
+      const stx = filter.stx;
+      const q = `%${stx}%`;
+      switch (filter.sfl) {
+        case 'mb_id':
+          // 회원아이디 + 이름/닉네임도 함께 부분 매칭
+          conds.push(this.sql`(m.login_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
+          break;
+        case 'cmb_id':
+          // 상담사 아이디 + 이름/닉네임도 함께
+          conds.push(this.sql`(c.login_id ILIKE ${q} OR c.name ILIKE ${q} OR c.nickname ILIKE ${q})`);
+          break;
+        case 'mb_hp':
+          // 휴대폰: 하이픈 제거 후 부분 매칭 (앞/뒤 % 모두)
+          conds.push(
+            this.sql`REGEXP_REPLACE(cs.caller_phone, '[^0-9]', '', 'g') ILIKE ${'%' + stx.replace(/[^0-9]/g, '') + '%'}`,
+          );
+          break;
+        case 'mb_nick':
+          // 상담사 닉네임 + 이름도 함께
+          conds.push(this.sql`(c.nickname ILIKE ${q} OR c.name ILIKE ${q})`);
+          break;
+        case 'preflag':
+          // 060/070 카운트 클릭 시 (sql_search_preflag) — 정확 비교
+          conds.push(this.sql`cs.preflag = ${stx}`);
+          break;
+        default:
+          // 전체 검색
+          conds.push(this.sql`(
+            m.login_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q}
+            OR c.login_id ILIKE ${q} OR c.nickname ILIKE ${q}
+            OR cs.callid ILIKE ${q} OR cs.roomid ILIKE ${q}
+          )`);
+      }
+    }
+
+    // 기간 (sample: wr_datetime, 신규: created_at)
+    if (filter.fr_date && filter.to_date) {
+      conds.push(this.sql`cs.created_at BETWEEN ${filter.fr_date + ' 00:00:00'}::timestamptz AND ${filter.to_date + ' 23:59:59'}::timestamptz`);
+    } else if (filter.fr_date) {
+      conds.push(this.sql`cs.created_at >= ${filter.fr_date + ' 00:00:00'}::timestamptz`);
+    } else if (filter.to_date) {
+      conds.push(this.sql`cs.created_at <= ${filter.to_date + ' 23:59:59'}::timestamptz`);
+    }
+
+    // view에 따른 reason
+    if (withReason) {
+      const view = filter.view ?? 'all';
+      if (view === 'call') {
+        conds.push(this.sql`cs.reason = 'DISCONNECT'`);
+      } else if (view === 'chat') {
+        conds.push(this.sql`cs.reason = 'END_CHAT'`);
+      } else {
+        conds.push(this.sql`(cs.reason = 'DISCONNECT' OR cs.reason = 'END_CHAT')`);
+      }
+    }
+
+    return conds.reduce(
+      (acc, c, i) => (i === 0 ? this.sql`WHERE ${c}` : this.sql`${acc} AND ${c}`),
+      this.sql``,
+    );
+  }
+
+  async findAll(filter: ConsultationFilter) {
+    const page = Math.max(1, Math.trunc(filter.page ?? 1));
+    const limit = Math.min(200, Math.max(1, Math.trunc(filter.limit ?? 20)));
+    const offset = (page - 1) * limit;
+
+    const whereClause = this.buildWhere(filter, true);
+
+    const items = await this.sql<ConsultationRow[]>`
+      SELECT
+        cs.id, cs.no,
+        cs.eventtm, cs.started_at, cs.ended_at, cs.created_at,
+        cs.csrid, cs.membid, cs.caller_phone, cs.callee_phone, cs.callid, cs.roomid,
+        cs.reason, cs.preflag, cs.usetm, cs.amt, cs.amt_free, cs.amt_pro,
+        cs.is_paid, cs.is_settled, cs.is_absent_disconnect, cs.skip_charge,
+        cs.member_id, cs.counselor_id,
+        m.login_id AS member_login_id, m.name AS member_name,
+        c.login_id AS counselor_login_id, c.name AS counselor_name,
+        c.nickname AS counselor_nickname,
+        c.counselor_category AS counselor_category,
+        c.call_070_unit_cost AS counselor_unit_cost
+      FROM consultation cs
+      LEFT JOIN member m ON m.id = cs.member_id
+      LEFT JOIN member c ON c.id = cs.counselor_id
+      ${whereClause}
+      ORDER BY cs.created_at DESC, cs.id DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    const totalRows = await this.sql<{ cnt: string }[]>`
+      SELECT count(*)::text AS cnt
+      FROM consultation cs
+      LEFT JOIN member m ON m.id = cs.member_id
+      LEFT JOIN member c ON c.id = cs.counselor_id
+      ${whereClause}
+    `;
+
+    // sample의 카운트 배지: where_base만 적용 + reason/preflag 분기
+    // (검색/기간 조건은 적용하되 view/preflag는 무시 — 사용자가 다른 탭으로 이동해도 다른 탭 건수 정확히 보이게)
+    const baseFilter: ConsultationFilter = {
+      ...filter,
+      view: undefined, // reason 분기 안 함
+      sfl: filter.sfl === 'preflag' ? undefined : filter.sfl, // preflag 검색은 분기에서만 사용
+      stx: filter.sfl === 'preflag' ? undefined : filter.stx,
+    };
+    const baseWhere = this.buildWhere(baseFilter, false);
+
+    const summaryRows = await this.sql<{
+      cnt_total: string;
+      cnt_070: string;
+      cnt_060: string;
+      cnt_chat: string;
+    }[]>`
+      SELECT
+        count(*) FILTER (WHERE cs.reason IN ('DISCONNECT','END_CHAT'))::text AS cnt_total,
+        count(*) FILTER (WHERE cs.reason = 'DISCONNECT' AND cs.preflag = 'Y')::text AS cnt_070,
+        count(*) FILTER (WHERE cs.reason = 'DISCONNECT' AND (cs.preflag = '' OR cs.preflag IS NULL))::text AS cnt_060,
+        count(*) FILTER (WHERE cs.reason = 'END_CHAT')::text AS cnt_chat
+      FROM consultation cs
+      LEFT JOIN member m ON m.id = cs.member_id
+      LEFT JOIN member c ON c.id = cs.counselor_id
+      ${baseWhere}
+    `;
+
+    return {
+      items,
+      total: Number(totalRows[0].cnt),
+      page,
+      limit,
+      summary: {
+        cnt_total: Number(summaryRows[0].cnt_total),
+        cnt_070: Number(summaryRows[0].cnt_070),
+        cnt_060: Number(summaryRows[0].cnt_060),
+        cnt_chat: Number(summaryRows[0].cnt_chat),
+      },
+    };
+  }
+
+  async getDetail(id: number) {
+    const rows = await this.sql<ConsultationRow[]>`
+      SELECT
+        cs.id, cs.no,
+        cs.eventtm, cs.started_at, cs.ended_at, cs.created_at,
+        cs.csrid, cs.membid, cs.caller_phone, cs.callee_phone, cs.callid, cs.roomid,
+        cs.reason, cs.preflag, cs.usetm, cs.amt, cs.amt_free, cs.amt_pro,
+        cs.is_paid, cs.is_settled, cs.is_absent_disconnect, cs.skip_charge,
+        cs.member_id, cs.counselor_id,
+        m.login_id AS member_login_id, m.name AS member_name,
+        c.login_id AS counselor_login_id, c.name AS counselor_name,
+        c.nickname AS counselor_nickname,
+        c.counselor_category AS counselor_category,
+        c.call_070_unit_cost AS counselor_unit_cost
+      FROM consultation cs
+      LEFT JOIN member m ON m.id = cs.member_id
+      LEFT JOIN member c ON c.id = cs.counselor_id
+      WHERE cs.id = ${id}
+      LIMIT 1
+    `;
+    if (rows.length === 0) {
+      throw new NotFoundException('해당 상담을 찾을 수 없습니다.');
+    }
+    return rows[0];
+  }
+}

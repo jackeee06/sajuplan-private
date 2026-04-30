@@ -1,0 +1,508 @@
+@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700&display=swap');
+
+/* ===================================
+   리뷰 게시판 – style4.css 덮어쓰기 포함
+   !important 는 style4.css 우선순위 이기기 위해 사용
+=================================== */
+.con_section_03 {
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #fff;
+    padding-bottom: 20px;
+}
+.con_section_03 *,
+.con_section_03 *::before,
+.con_section_03 *::after { box-sizing: border-box; }
+
+/* ===================================
+   정렬 & 필터 바
+=================================== */
+.con_section_03 .review_sort {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    padding: 12px 20px !important;
+    font-size: 13px !important;
+    color: #555 !important;
+    border-bottom: 1px solid #f0f0f0 !important;
+}
+.con_section_03 .review_sort_item {
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.con_section_03 .review_sort_btn {
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: #8259f5 !important;
+}
+.con_section_03 .review_sort_photo {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.con_section_03 .review_sort_photo label {
+    font-size: 13px !important;
+    color: #666 !important;
+    cursor: pointer;
+}
+.con_section_03 .review_sort_photo input[type="checkbox"] {
+    accent-color: #8259f5;
+    width: 16px !important;
+    height: 16px !important;
+}
+
+/* ===================================
+   전체 건수
+=================================== */
+.con_section_03 #bo_list_total {
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    padding: 14px 20px !important;
+    font-size: 13px !important;
+    color: #999 !important;
+    border-bottom: 1px solid #eee !important;
+    background: #fff !important;
+}
+.con_section_03 #bo_list_total span {
+    font-weight: 600 !important;
+    color: #333 !important;
+}
+
+/* ===================================
+   전체선택 / 삭제
+=================================== */
+.con_section_03 .all_chk.chk_box {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 10px 20px !important;
+    border-bottom: 1px solid #f0f0f0 !important;
+}
+.con_section_03 .all_chk.chk_box label {
+    font-size: 13px !important;
+    color: #666 !important;
+    font-weight: 500 !important;
+}
+.con_section_03 .all_chk .btn.black_bg {
+    margin-left: auto !important;
+    padding: 6px 14px !important;
+    border-radius: 8px !important;
+    border: none !important;
+    background: #333 !important;
+    color: #fff !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+}
+.con_section_03 .selec_chk {
+    width: 16px !important;
+    height: 16px !important;
+    accent-color: #8259f5;
+}
+
+/* ===================================
+   개별 리뷰 카드
+=================================== */
+.con_section_03 .review_wrap {
+    padding: 20px !important;
+    border-bottom: 8px solid #f5f5f7 !important;
+    margin: 0 !important;
+}
+.con_section_03 .review_wrap:last-child {
+    border-bottom: none !important;
+}
+
+/* ===================================
+   ★ 상담사 프로필 영역 (가장 중요)
+=================================== */
+.con_section_03 .review_wrap ul.review_user.counsel_info {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 12px !important;
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 0 12px !important;
+    position: relative !important;
+    flex-wrap: nowrap !important;
+}
+
+/* 프로필 이미지 */
+.con_section_03 .review_wrap li.review_user_img {
+    flex-shrink: 0 !important;
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    border-radius: 50% !important;
+    overflow: hidden !important;
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.con_section_03 .review_wrap .review_user_img_item {
+    width: 100% !important;
+    height: 100% !important;
+    background-size: cover !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    border-radius: 50% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* 상담사 이름 & 뱃지 라인 */
+.con_section_03 .review_wrap li.review_user_score {
+    list-style: none !important;
+    flex: 1 !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.con_section_03 .review_wrap p.review_user_id {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #1a1a1a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.4 !important;
+}
+
+/* ★ 핵심: 카테고리 보라색 뱃지 – style4.css의 display:block 덮어쓰기 */
+.con_section_03 .review_wrap .review_user_id .cate,
+.con_section_03 .review_wrap .review_user_id .cate.point,
+.con_section_03 .review_wrap .review_user_id span.cate,
+.con_section_03 .review_wrap .review_user_id span.cate.point {
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 2px 8px !important;
+    border-radius: 4px !important;
+    background: #8259f5 !important;
+    color: #fff !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    line-height: 1.4 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    vertical-align: middle !important;
+    height: auto !important;
+    width: auto !important;
+    max-width: none !important;
+}
+
+/* 인증 아이콘 */
+.con_section_03 .review_wrap .review_user_id img {
+    width: 14px !important;
+    height: 14px !important;
+    vertical-align: middle !important;
+    flex-shrink: 0 !important;
+}
+
+/* 상담사 번호 */
+.con_section_03 .review_wrap .counselor_num {
+    font-size: 13px !important;
+    color: #999 !important;
+    font-weight: 400 !important;
+}
+
+/* ===================================
+   작성자 정보 줄
+=================================== */
+.con_section_03 .review_wrap ul.review_user:not(.counsel_info):not(.counsel) {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 0 10px !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+}
+
+/* 상담 정보 태그 (전화상담 | 00시12분 | 날짜) */
+.con_section_03 .review_wrap .review_info {
+    display: inline !important;
+    font-size: 12px !important;
+    color: #999 !important;
+    margin-right: 0 !important;
+}
+.con_section_03 .review_wrap .review_info + .review_info::before {
+    content: '  |  ' !important;
+    color: #ddd !important;
+    font-size: 11px !important;
+}
+
+/* ===================================
+   후기 본문
+=================================== */
+.con_section_03 .review_wrap ul.review_con {
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+.con_section_03 .review_wrap .review_con a {
+    text-decoration: none !important;
+    color: inherit !important;
+}
+.con_section_03 .review_wrap .review_con_text {
+    list-style: none !important;
+}
+.con_section_03 .review_wrap .review_text {
+    padding: 0 !important;
+}
+.con_section_03 .review_wrap ul.review_title {
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #1a1a1a !important;
+    line-height: 1.5 !important;
+    margin: 0 0 6px !important;
+    padding: 0 !important;
+    list-style: none !important;
+}
+.con_section_03 .review_wrap ul.review_txt {
+    font-size: 14px !important;
+    color: #555 !important;
+    line-height: 1.6 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    list-style: none !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden !important;
+    word-break: break-word !important;
+}
+
+/* 후기 사진 */
+.con_section_03 .review_wrap .review_photo {
+    margin-top: 12px !important;
+}
+.con_section_03 .review_wrap .review_photo img {
+    width: 100% !important;
+    max-width: 200px !important;
+    border-radius: 10px !important;
+    object-fit: cover !important;
+}
+
+/* 상담주제 & 수정/삭제 */
+.con_section_03 .review_wrap .review_topic {
+    display: inline-block !important;
+    font-size: 12px !important;
+    color: #999 !important;
+    padding: 10px 0 4px 0 !important;
+    margin-top: 6px !important;
+}
+.con_section_03 .review_wrap .review_list_btn_wrap {
+    float: right !important;
+    display: flex !important;
+    gap: 6px !important;
+}
+.con_section_03 .review_wrap .review_list_btn {
+    display: inline-block !important;
+    padding: 4px 10px !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    text-decoration: none !important;
+    border: 1px solid #ddd !important;
+    color: #666 !important;
+    background: #fff !important;
+}
+
+/* ===================================
+   ★ 댓글 (상담사 답변)
+=================================== */
+.con_section_03 .review_wrap ul.review_user.counsel {
+    display: block !important;
+    list-style: none !important;
+    margin: 16px 0 0 !important;
+    padding: 16px !important;
+    background: #f8f7fc !important;
+    border-radius: 12px !important;
+    border: 1px solid #ede9f7 !important;
+    position: relative !important;
+}
+.con_section_03 .review_wrap ul.review_user.counsel::before {
+    content: '' !important;
+    position: absolute !important;
+    top: -7px !important;
+    left: 24px !important;
+    width: 14px !important;
+    height: 14px !important;
+    background: #f8f7fc !important;
+    border-left: 1px solid #ede9f7 !important;
+    border-top: 1px solid #ede9f7 !important;
+    transform: rotate(45deg) !important;
+}
+.con_section_03 .review_wrap ul.review_user.counsel a {
+    text-decoration: none !important;
+    color: inherit !important;
+    display: block !important;
+}
+
+/* 답변 작성자 */
+.con_section_03 .review_wrap li.review_re_name {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    font-size: 14px !important;
+    font-weight: 700 !important;
+    color: #8259f5 !important;
+    margin: 0 0 8px !important;
+    padding: 0 !important;
+    list-style: none !important;
+    line-height: 1 !important;
+}
+.con_section_03 .review_wrap li.review_re_name::before {
+    content: '💬' !important;
+    font-size: 14px !important;
+}
+.con_section_03 .review_wrap li.review_re_name .re_date {
+    font-size: 11px !important;
+    font-weight: 400 !important;
+    color: #b0a8c8 !important;
+    margin-left: auto !important;
+}
+
+/* 답변 내용 */
+.con_section_03 .review_wrap li.review_re_con {
+    font-size: 14px !important;
+    color: #444 !important;
+    line-height: 1.65 !important;
+    word-break: break-word !important;
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* ===================================
+   빈 리스트
+=================================== */
+.con_section_03 .empty_table {
+    text-align: center !important;
+    padding: 80px 20px !important;
+    color: #ccc !important;
+    font-size: 14px !important;
+}
+
+/* ===================================
+   검색 폼
+=================================== */
+#bo_sch {
+    padding: 12px 20px !important;
+    background: #fff !important;
+    border: none !important;
+}
+#bo_sch legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+#bo_sch form {
+    display: flex !important;
+    gap: 6px !important;
+    align-items: center !important;
+    background: #f4f4f5 !important;
+    border-radius: 10px !important;
+    padding: 4px !important;
+}
+#bo_sch select {
+    flex-shrink: 0 !important;
+    height: 36px !important;
+    padding: 0 8px !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    color: #555 !important;
+    background: transparent !important;
+    outline: none !important;
+    -webkit-appearance: none;
+    appearance: none;
+    font-weight: 500 !important;
+}
+#bo_sch .sch_input {
+    flex: 1 !important;
+    height: 36px !important;
+    padding: 0 10px !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    color: #222 !important;
+    background: transparent !important;
+    outline: none !important;
+}
+#bo_sch .sch_input::placeholder { color: #bbb !important; }
+#bo_sch .sch_btn {
+    flex-shrink: 0 !important;
+    width: 36px !important;
+    height: 36px !important;
+    border: none !important;
+    border-radius: 8px !important;
+    background: #8259f5 !important;
+    color: #fff !important;
+    font-size: 14px !important;
+    cursor: pointer;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* ===================================
+   페이지네이션
+=================================== */
+.pg_wrap {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 24px 16px !important;
+    gap: 4px !important;
+    background: #fff !important;
+}
+.pg_wrap a,
+.pg_wrap .pg_current {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    padding: 0 2px !important;
+    border-radius: 8px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    color: #999 !important;
+    text-decoration: none !important;
+}
+.pg_wrap .pg_current {
+    background: #8259f5 !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+}
+
+/* ===================================
+   접근성
+=================================== */
+.sound_only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+    clip: rect(0,0,0,0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+/* ===================================
+   반응형
+=================================== */
+@media screen and (max-width: 360px) {
+    .con_section_03 .review_wrap { padding: 16px !important; }
+    .con_section_03 .review_wrap ul.review_user.counsel { padding: 12px !important; margin-top: 12px !important; }
+    .con_section_03 .review_wrap li.review_re_name { font-size: 13px !important; }
+    .con_section_03 .review_wrap li.review_re_con { font-size: 13px !important; }
+    .con_section_03 .review_wrap ul.review_title { font-size: 14px !important; }
+    .con_section_03 .review_wrap ul.review_txt { font-size: 13px !important; }
+}

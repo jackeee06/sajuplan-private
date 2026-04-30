@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>콘텐츠관리 - 관리자</title>
+  <script>if (localStorage.getItem('darkMode') === '1') { document.documentElement.classList.add('dark'); }</script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { outfit: ['Outfit', 'sans-serif'] },
+          colors: {
+            brand: { 25:'#f2f7ff', 50:'#ecf3ff', 100:'#dde9ff', 200:'#c2d6ff', 300:'#9cb9ff', 400:'#7592ff', 500:'#465fff', 600:'#3641f5', 700:'#2a31d8' },
+            gray:  { 25:'#fcfcfd', 50:'#f9fafb', 100:'#f2f4f7', 200:'#e4e7ec', 300:'#d0d5dd', 400:'#98a2b3', 500:'#667085', 600:'#475467', 700:'#344054', 800:'#1d2939', 900:'#101828' }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- DataTables 기본 CSS 제거 — style.css에서 커스텀 오버라이드 -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+</head>
+<body class="flex h-screen overflow-hidden antialiased font-outfit bg-gray-50 dark:bg-gray-900">
+
+  <div id="sidebar-backdrop" onclick="closeMobileSidebar()" class="hidden fixed inset-0 bg-gray-900/50 z-[9998] lg:hidden"></div>
+  <aside id="sidebar"
+  class="flex-shrink-0 flex flex-col h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 overflow-x-hidden px-5 transition-colors duration-200">
+
+  <div class="sidebar-header flex items-center justify-between pt-6 pb-6 flex-shrink-0">
+    <a href="dashboard.html">
+      <div class="hide-collapsed">
+        <span class="text-xl font-bold text-gray-800 dark:text-white tracking-tight">inxight</span>
+      </div>
+      <div class="show-collapsed hidden">
+        <div class="w-8 h-8 bg-brand-500 rounded-lg flex items-center justify-center">
+          <i data-lucide="bar-chart-2" class="w-4 h-4 text-white"></i>
+        </div>
+      </div>
+    </a>
+  </div>
+
+  <div class="flex flex-col flex-1 overflow-y-auto no-scrollbar pt-5">
+    <nav>
+
+      <!-- ══════════════ 관리 메뉴 ══════════════ -->
+      <div class="mb-6">
+        <h3 class="mb-4 text-xs font-semibold uppercase leading-5 text-gray-400 dark:text-gray-500">
+          <span class="hide-collapsed">관리 메뉴</span>
+          <svg class="show-collapsed hidden mx-auto fill-current" width="24" height="24" viewBox="0 0 24 24">
+            <path fill-rule="evenodd" clip-rule="evenodd"
+              d="M5.99915 10.2451C6.96564 10.2451 7.74915 11.0286 7.74915 11.9951V12.0051C7.74915 12.9716 6.96564 13.7551 5.99915 13.7551C5.03265 13.7551 4.24915 12.9716 4.24915 12.0051V11.9951C4.24915 11.0286 5.03265 10.2451 5.99915 10.2451ZM17.9991 10.2451C18.9656 10.2451 19.7491 11.0286 19.7491 11.9951V12.0051C19.7491 12.9716 18.9656 13.7551 17.9991 13.7551C17.0326 13.7551 16.2491 12.9716 16.2491 12.0051V11.9951C16.2491 11.0286 17.0326 10.2451 17.9991 10.2451ZM13.7491 11.9951C13.7491 11.0286 12.9656 10.2451 11.9991 10.2451C11.0326 10.2451 10.2491 11.0286 10.2491 11.9951V12.0051C10.2491 12.9716 11.0326 13.7551 11.9991 13.7551C12.9656 13.7551 13.7491 12.9716 13.7491 12.0051V11.9951Z" fill="currentColor" />
+          </svg>
+        </h3>
+
+        <ul class="flex flex-col gap-2">
+
+          <!-- 대시보드 -->
+          <li>
+            <a href="dashboard.html" class="menu-item menu-item-inactive" data-tooltip="대시보드">
+              <i data-lucide="layout-dashboard" class="w-6 h-6 flex-shrink-0 menu-item-icon-inactive"></i>
+              <span class="hide-collapsed">대시보드</span>
+            </a>
+          </li>
+
+          <!-- 회원관리 -->
+          <li>
+            <button onclick="toggleSubmenu('member')" class="menu-item-btn menu-item-inactive">
+              <i data-lucide="users" class="w-6 h-6 flex-shrink-0 menu-item-icon-inactive"></i>
+              <span class="hide-collapsed flex-1">회원관리</span>
+              <i data-lucide="chevron-down" id="member-arrow" class="hide-collapsed arrow-icon w-4 h-4"></i>
+            </button>
+            <div id="member-submenu" class="submenu-wrap hidden">
+              <ul data-label="회원관리" class="flex flex-col gap-1 mt-2 pl-9">
+                <li><a href="member_list.html" class="menu-dropdown-item menu-dropdown-item-inactive">회원 리스트</a></li>
+              </ul>
+            </div>
+          </li>
+
+          <!-- 콘텐츠관리 -->
+          <li>
+            <button onclick="toggleSubmenu('content')" class="menu-item-btn menu-item-active">
+              <i data-lucide="file-text" class="w-6 h-6 flex-shrink-0 menu-item-icon-active"></i>
+              <span class="hide-collapsed flex-1">콘텐츠관리</span>
+              <i data-lucide="chevron-down" id="content-arrow" class="hide-collapsed arrow-icon w-4 h-4 open"></i>
+            </button>
+            <div id="content-submenu" class="submenu-wrap">
+              <ul data-label="콘텐츠관리" class="flex flex-col gap-1 mt-2 pl-9">
+                <li><a href="content_list.html" class="menu-dropdown-item menu-dropdown-item-active">콘텐츠 리스트</a></li>
+              </ul>
+            </div>
+          </li>
+
+        </ul>
+      </div>
+
+      <!-- ══════════════ 설정 ══════════════ -->
+      <div class="mb-6">
+        <h3 class="mb-4 text-xs font-semibold uppercase leading-5 text-gray-400 dark:text-gray-500">
+          <span class="hide-collapsed">설정</span>
+          <svg class="show-collapsed hidden mx-auto fill-current" width="24" height="24" viewBox="0 0 24 24">
+            <path fill-rule="evenodd" clip-rule="evenodd"
+              d="M5.99915 10.2451C6.96564 10.2451 7.74915 11.0286 7.74915 11.9951V12.0051C7.74915 12.9716 6.96564 13.7551 5.99915 13.7551C5.03265 13.7551 4.24915 12.9716 4.24915 12.0051V11.9951C4.24915 11.0286 5.03265 10.2451 5.99915 10.2451ZM17.9991 10.2451C18.9656 10.2451 19.7491 11.0286 19.7491 11.9951V12.0051C19.7491 12.9716 18.9656 13.7551 17.9991 13.7551C17.0326 13.7551 16.2491 12.9716 16.2491 12.0051V11.9951C16.2491 11.0286 17.0326 10.2451 17.9991 10.2451ZM13.7491 11.9951C13.7491 11.0286 12.9656 10.2451 11.9991 10.2451C11.0326 10.2451 10.2491 11.0286 10.2491 11.9951V12.0051C10.2491 12.9716 11.0326 13.7551 11.9991 13.7551C12.9656 13.7551 13.7491 12.9716 13.7491 12.0051V11.9951Z" fill="currentColor" />
+          </svg>
+        </h3>
+        <ul class="flex flex-col gap-2">
+          <li>
+            <a href="login.html" class="menu-item menu-item-inactive" data-tooltip="로그아웃">
+              <i data-lucide="log-out" class="w-6 h-6 flex-shrink-0 menu-item-icon-inactive"></i>
+              <span class="hide-collapsed">로그아웃</span>
+            </a>
+          </li>
+        </ul>
+      </div>
+
+    </nav>
+  </div>
+</aside>
+
+  <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <header class="sticky top-0 z-[10000] flex w-full border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 transition-colors duration-200">
+  <div class="flex grow items-center justify-between px-4 py-4">
+
+    <div class="flex items-center gap-4">
+      <button id="sidebar-toggle-btn" onclick="toggleSidebar()"
+        class="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200
+               dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-100
+               dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors shrink-0">
+        <svg id="icon-hamburger" width="16" height="12" viewBox="0 0 16 12" fill="none">
+          <path fill-rule="evenodd" clip-rule="evenodd"
+            d="M0.583252 1C0.583252 0.585788 0.919038 0.25 1.33325 0.25H14.6666C15.0808 0.25 15.4166 0.585786 15.4166 1C15.4166 1.41421 15.0808 1.75 14.6666 1.75L1.33325 1.75C0.919038 1.75 0.583252 1.41422 0.583252 1ZM0.583252 11C0.583252 10.5858 0.919038 10.25 1.33325 10.25L14.6666 10.25C15.0808 10.25 15.4166 10.5858 15.4166 11C15.4166 11.4142 15.0808 11.75 14.6666 11.75L1.33325 11.75C0.919038 11.75 0.583252 11.4142 0.583252 11ZM1.33325 5.25C0.919038 5.25 0.583252 5.58579 0.583252 6C0.583252 6.41421 0.919038 6.75 1.33325 6.75L7.99992 6.75C8.41413 6.75 8.74992 6.41421 8.74992 6C8.74992 5.58579 8.41413 5.25 7.99992 5.25L1.33325 5.25Z"
+            fill="currentColor" />
+        </svg>
+        <i id="icon-sidebar-close" data-lucide="x" class="hidden w-5 h-5"></i>
+      </button>
+      <a href="dashboard.html" class="lg:hidden">
+        <span class="text-base sm:text-lg font-bold text-gray-800 dark:text-white tracking-tight">inxight</span>
+      </a>
+    </div>
+
+    <div class="flex items-center gap-3 lg:gap-4">
+
+      <!-- 다크모드 -->
+      <button id="dark-mode-btn" onclick="toggleDarkMode()"
+        class="flex h-10 w-10 items-center justify-center rounded-full border
+               border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500
+               dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700
+               dark:hover:text-gray-200 transition-colors">
+        <i id="icon-moon" data-lucide="moon" class="w-5 h-5"></i>
+        <i id="icon-sun" data-lucide="sun" class="w-5 h-5 hidden"></i>
+      </button>
+
+      <!-- 관리자 메뉴 -->
+      <div class="relative" id="user-wrapper">
+        <button onclick="toggleDropdown('user')"
+          class="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+          <div class="flex h-10 w-10 items-center justify-center rounded-full border
+                   border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-500
+                   dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700
+                   dark:hover:text-gray-200 transition-colors block md:hidden">
+            <i data-lucide="user" class="w-5 h-5"></i>
+          </div>
+          <span class="text-sm font-medium hidden md:block">Admin</span>
+          <i id="user-chevron" data-lucide="chevron-down"
+            class="w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform duration-200 hidden md:block"></i>
+        </button>
+
+        <div id="user-dropdown"
+          class="hidden absolute right-0 mt-4 w-[240px] rounded-2xl border border-gray-200
+                 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 shadow-lg z-[9999]">
+          <div class="px-1 pb-3 border-b border-gray-100 dark:border-gray-700 mb-3">
+            <span class="block text-sm font-medium text-gray-800 dark:text-white">Admin</span>
+            <span class="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">admin@bridgestone.kr</span>
+          </div>
+          <ul class="flex flex-col gap-1 border-b border-gray-100 dark:border-gray-700 pb-3 mb-3">
+            <li>
+              <a href="dashboard.html" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium
+                                  text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700
+                                  hover:text-gray-900 dark:hover:text-white transition-colors">
+                <i data-lucide="layout-dashboard" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+                대시보드
+              </a>
+            </li>
+          </ul>
+          <a href="login.html" class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium
+                         text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700
+                         hover:text-gray-900 dark:hover:text-white transition-colors">
+            <i data-lucide="log-out" class="w-5 h-5 text-gray-500 dark:text-gray-400"></i>
+            로그아웃
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</header>
+
+    <main class="flex-1 overflow-auto">
+      <div class="p-4 md:p-6 max-w-screen-2xl mx-auto space-y-6">
+
+        <!-- 페이지 제목 -->
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h3 class="text-2xl font-semibold text-gray-800 dark:text-white">콘텐츠 리스트</h3>
+          <nav class="flex items-center gap-1.5 text-sm">
+            <a href="dashboard.html" class="text-gray-500 dark:text-gray-400 hover:text-brand-500 transition">대시보드</a>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+            <span class="text-gray-500 dark:text-gray-400">콘텐츠관리</span>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+            <span class="font-medium text-gray-800 dark:text-white">콘텐츠 리스트</span>
+          </nav>
+        </div>
+
+        <!-- ── 검색 필터 ── -->
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 sm:p-6">
+          <div class="flex items-center gap-2 mb-4">
+            <i data-lucide="search" class="w-5 h-5 text-gray-400"></i>
+            <h4 class="text-sm font-semibold text-gray-800 dark:text-white">검색 필터</h4>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div>
+              <label class="block mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">검색어</label>
+              <input type="text" placeholder="제목, 내용"
+                class="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-3.5 text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition">
+            </div>
+            <div>
+              <label class="block mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">카테고리</label>
+              <select class="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-3.5 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition">
+                <option value="">전체</option>
+                <option value="notice">공지사항</option>
+                <option value="news">뉴스</option>
+                <option value="event">이벤트</option>
+                <option value="guide">가이드</option>
+              </select>
+            </div>
+            <div>
+              <label class="block mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">등록일</label>
+              <div class="relative" data-datepicker="true">
+                <input type="text" placeholder="날짜 선택" readonly
+                  class="datepicker-input w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 pl-3.5 pr-10 text-sm text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition cursor-pointer">
+                <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none">
+                  <i data-lucide="calendar" class="w-4.5 h-4.5"></i>
+                </span>
+                <div class="datepicker-dropdown hidden absolute left-0 top-full mt-2 z-50 w-[280px] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-lg"></div>
+              </div>
+            </div>
+            <div>
+              <label class="block mb-1.5 text-xs font-medium text-gray-600 dark:text-gray-400">공개 상태</label>
+              <select class="w-full h-10 rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-3.5 text-sm text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition">
+                <option value="">전체</option>
+                <option value="public">공개</option>
+                <option value="private">비공개</option>
+                <option value="draft">임시저장</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex items-center gap-3 mt-4">
+            <button class="inline-flex items-center gap-2 rounded-lg border border-brand-500 bg-brand-500 hover:bg-brand-600 hover:border-brand-600 px-4 py-2.5 text-sm font-medium text-white transition">
+              <i data-lucide="search" class="w-4 h-4"></i>
+              검색
+            </button>
+            <button class="inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-400 transition">
+              <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+              초기화
+            </button>
+          </div>
+        </div>
+
+        <!-- ── 콘텐츠 테이블 ── -->
+        <div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800">
+          <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h4 class="text-base font-semibold text-gray-800 dark:text-white">전체 콘텐츠 <span class="text-brand-500">128</span>건</h4>
+            </div>
+            <div class="flex items-center gap-3">
+              <button onclick="openDeleteSelected()" class="inline-flex items-center gap-2 rounded-lg border border-red-300 dark:border-red-700 bg-white dark:bg-gray-900 hover:bg-red-50 dark:hover:bg-red-900/20 px-3.5 py-2 text-sm font-medium text-red-600 dark:text-red-400 transition">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                선택 삭제
+              </button>
+              <button onclick="openContentForm('register')" class="inline-flex items-center gap-2 rounded-lg bg-brand-500 hover:bg-brand-600 px-4 py-2.5 text-sm font-medium text-white transition">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                콘텐츠 등록
+              </button>
+            </div>
+          </div>
+          <div class="p-5 sm:p-6" id="contentTableArea">
+                <table id="contentTable" class="min-w-full">
+                  <thead>
+                    <tr class="border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                      <th class="px-4 py-3 text-center w-12">
+                        <input type="checkbox" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-500/20">
+                      </th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">번호</th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">제목</th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">카테고리</th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">작성자</th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">등록일</th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">조회</th>
+                      <th class="px-5 py-3 sm:px-6 text-left text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">상태</th>
+                      <th class="px-5 py-3 sm:px-6 text-center text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                  </tbody>
+                </table>
+
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════
+       콘텐츠 등록/수정 모달
+  ═══════════════════════════════════════ -->
+  <div id="modal-content-form"
+       class="hidden fixed inset-0 z-[10000] flex items-start justify-center px-4 pt-16 pb-10 overflow-y-auto">
+    <div class="fixed inset-0 h-full w-full bg-gray-400/50 backdrop-blur-[32px]"
+         onclick="closeModal('content-form')"></div>
+    <div class="relative z-10 w-full max-w-2xl bg-white dark:bg-gray-800 rounded-3xl p-8"
+         onclick="event.stopPropagation()">
+      <div class="flex items-start justify-between mb-6">
+        <h3 id="content-form-title" class="text-lg font-bold text-gray-900 dark:text-white">콘텐츠 등록</h3>
+        <button onclick="closeModal('content-form')"
+          class="flex h-8 w-8 items-center justify-center rounded-full
+                 border border-gray-200 dark:border-gray-700
+                 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="space-y-4 mb-8">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">카테고리 <span class="text-red-500">*</span></label>
+            <select class="h-11 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-4 text-sm text-gray-800 dark:text-white/90 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition">
+              <option value="">선택하세요</option>
+              <option value="notice">공지사항</option>
+              <option value="news">뉴스</option>
+              <option value="event">이벤트</option>
+              <option value="guide">가이드</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">공개 상태</label>
+            <select class="h-11 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-4 text-sm text-gray-800 dark:text-white/90 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition">
+              <option value="public">공개</option>
+              <option value="private">비공개</option>
+              <option value="draft">임시저장</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">제목 <span class="text-red-500">*</span></label>
+          <input type="text" placeholder="콘텐츠 제목을 입력하세요"
+            class="h-11 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-4 text-sm text-gray-800 dark:text-white/90 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition" />
+        </div>
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">내용 <span class="text-red-500">*</span></label>
+          <textarea rows="8" placeholder="콘텐츠 내용을 입력하세요"
+            class="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-transparent dark:bg-gray-900 px-4 py-3 text-sm text-gray-800 dark:text-white/90 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition resize-none"></textarea>
+        </div>
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">썸네일 이미지</label>
+          <div class="relative">
+            <input type="file" accept="image/*" class="hidden" id="thumbnailInput">
+            <label for="thumbnailInput"
+              class="flex items-center justify-center gap-2 w-full h-24 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-brand-400 dark:hover:border-brand-500 bg-gray-50 dark:bg-gray-900 cursor-pointer transition">
+              <i data-lucide="upload-cloud" class="w-6 h-6 text-gray-400"></i>
+              <span class="text-sm text-gray-500 dark:text-gray-400">이미지를 드래그하거나 클릭하여 업로드</span>
+            </label>
+          </div>
+        </div>
+        <div>
+          <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400">첨부파일</label>
+          <div class="relative">
+            <input type="file" multiple class="hidden" id="attachInput">
+            <label for="attachInput"
+              class="flex items-center justify-center gap-2 w-full h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-brand-400 dark:hover:border-brand-500 bg-gray-50 dark:bg-gray-900 cursor-pointer transition">
+              <i data-lucide="paperclip" class="w-5 h-5 text-gray-400"></i>
+              <span class="text-sm text-gray-500 dark:text-gray-400">파일 첨부 (최대 10MB)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="flex justify-end gap-3">
+        <button onclick="closeModal('content-form')"
+          class="rounded-lg border border-gray-200 dark:border-gray-700 px-5 py-2.5 text-sm font-medium
+                 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          취소
+        </button>
+        <button class="rounded-lg bg-gray-500 hover:bg-gray-600 px-5 py-2.5 text-sm font-medium text-white transition">
+          임시저장
+        </button>
+        <button class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-600 transition">
+          저장
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════
+       삭제 확인 모달
+  ═══════════════════════════════════════ -->
+  <div id="modal-delete-confirm"
+       class="hidden fixed inset-0 z-[10000] flex items-center justify-center px-4">
+    <div class="fixed inset-0 h-full w-full bg-gray-400/50 backdrop-blur-[32px]"
+         onclick="closeModal('delete-confirm')"></div>
+    <div class="relative z-10 w-full max-w-md bg-white dark:bg-gray-800 rounded-3xl px-8 pt-10 pb-10 text-center"
+         onclick="event.stopPropagation()">
+      <button onclick="closeModal('delete-confirm')"
+        class="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full
+               bg-gray-100 dark:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+      <div class="flex items-center justify-center w-16 h-16 mx-auto mb-6 rounded-full bg-red-100 dark:bg-red-500/15">
+        <i data-lucide="alert-triangle" class="w-8 h-8 text-red-500"></i>
+      </div>
+      <h3 class="text-xl font-bold text-gray-900 dark:text-white mb-3">삭제 확인</h3>
+      <p id="delete-message" class="text-sm leading-6 text-gray-500 dark:text-gray-400 mb-8">
+        해당 콘텐츠를 정말 삭제하시겠습니까?<br>삭제된 데이터는 복구할 수 없습니다.
+      </p>
+      <div class="flex items-center justify-center gap-3">
+        <button onclick="closeModal('delete-confirm')"
+          class="rounded-lg border border-gray-200 dark:border-gray-700 px-6 py-2.5 text-sm font-medium
+                 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          취소
+        </button>
+        <button onclick="closeModal('delete-confirm')"
+          class="rounded-lg bg-red-500 px-6 py-2.5 text-sm font-medium text-white hover:bg-red-600 transition">
+          삭제
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="js/components/sidebar.js"></script>
+  <script src="js/components/header.js"></script>
+  <script src="js/components/datepicker.js"></script>
+  <script>
+    // 초기화
+    lucide.createIcons();
+    if (typeof initDarkMode === 'function') initDarkMode();
+    if (typeof initHeaderListeners === 'function') initHeaderListeners();
+
+    // ── 더미데이터 1000건 생성 ──
+    (function() {
+      var categories = [
+        {label:'공지사항', cls:'bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400'},
+        {label:'뉴스',     cls:'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400'},
+        {label:'이벤트',   cls:'bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400'},
+        {label:'가이드',   cls:'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400'}
+      ];
+      var statuses = [
+        {label:'공개',     cls:'bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400'},
+        {label:'비공개',   cls:'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400'},
+        {label:'임시저장', cls:'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}
+      ];
+      var writers = ['관리자','에디터','마케팅','운영팀'];
+      var titles = [
+        '타이어 교체 주기 안내','신제품 출시 소식','봄맞이 프로모션','안전 운전 가이드',
+        '서비스 센터 확장 안내','겨울철 타이어 관리법','회원 등급 개편 안내','정기 점검 일정',
+        '런플랫 타이어 소개','연비 절약 타이어 추천','SUV 전용 타이어 라인업','전기차 타이어 가이드',
+        '타이어 공기압 체크 방법','여름철 장거리 운전 팁','타이어 보관법 안내','드라이빙 안전 수칙',
+        '신규 매장 오픈 안내','제휴 할인 이벤트','온라인 예약 서비스 안내','고객 만족도 조사 결과',
+        '타이어 소음 줄이는 방법','사계절 타이어 비교','레이싱 타이어 특별전','환경 친화 타이어 소개',
+        '타이어 마모 점검 가이드','빗길 안전 운전 요령','고속도로 타이어 점검','캠핑카 타이어 추천'
+      ];
+      function pad(n){ return n<10?'0'+n:''+n; }
+      function randDate(){
+        var y = Math.random()>0.3?2026:2025;
+        var m = Math.floor(Math.random()*12)+1;
+        var d = Math.floor(Math.random()*28)+1;
+        return y+'.'+pad(m)+'.'+pad(d);
+      }
+      var tbody = document.querySelector('#contentTable tbody');
+      for(var i=1;i<=1000;i++){
+        var no = 1000-i+1;
+        var title = titles[Math.floor(Math.random()*titles.length)] + ' #' + no;
+        var cat = categories[Math.floor(Math.random()*categories.length)];
+        var writer = writers[Math.floor(Math.random()*writers.length)];
+        var dt = randDate();
+        var views = Math.floor(Math.random()*5000);
+        var st = statuses[i%15===0?2:(Math.random()>0.25?0:1)];
+        var tr = document.createElement('tr');
+        tr.className = 'hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors';
+        tr.innerHTML =
+          '<td class="px-4 py-4 text-center"><input type="checkbox" class="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-brand-500 focus:ring-brand-500/20"></td>'+
+          '<td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400">'+no+'</td>'+
+          '<td class="px-5 py-4 sm:px-6"><p class="text-sm font-medium text-gray-800 dark:text-white">'+title+'</p></td>'+
+          '<td class="px-5 py-4 sm:px-6"><span class="rounded-full px-2.5 py-0.5 text-xs font-medium '+cat.cls+'">'+cat.label+'</span></td>'+
+          '<td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400">'+writer+'</td>'+
+          '<td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400">'+dt+'</td>'+
+          '<td class="px-5 py-4 sm:px-6 text-sm text-gray-500 dark:text-gray-400">'+views.toLocaleString()+'</td>'+
+          '<td class="px-5 py-4 sm:px-6"><span class="rounded-full px-2.5 py-0.5 text-xs font-medium '+st.cls+'">'+st.label+'</span></td>'+
+          '<td class="px-5 py-4 sm:px-6"><div class="flex items-center justify-center gap-2">'+
+            '<button onclick="openContentForm(\'edit\')" class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-brand-500 hover:border-brand-300 transition" title="수정"><i data-lucide="pencil" class="w-4 h-4"></i></button>'+
+            '<button onclick="openDeleteConfirm('+no+',\''+title.replace(/'/g,"\\'")+'\')" class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-300 transition" title="삭제"><i data-lucide="trash-2" class="w-4 h-4"></i></button>'+
+          '</div></td>';
+        tbody.appendChild(tr);
+      }
+    })();
+
+    // DataTables 초기화
+    $('#contentTable').DataTable({
+      language: {
+        lengthMenu: '_MENU_ 건씩',
+        info: '_START_ - _END_ / 총 _TOTAL_건',
+        infoEmpty: '데이터가 없습니다',
+        infoFiltered: '(전체 _MAX_건 중 필터링)',
+        zeroRecords: '검색 결과가 없습니다',
+        emptyTable: '등록된 데이터가 없습니다',
+        paginate: { first: '«', last: '»', next: '›', previous: '‹' }
+      },
+      pageLength: 10,
+      lengthMenu: [10, 25, 50, 100],
+      order: [[1, 'desc']],
+      ordering: true,
+      columnDefs: [
+        { orderable: false, targets: [0, 8] }
+      ],
+      scrollX: true,
+      pagingType: 'simple_numbers',
+      dom: 'rt<"dt-bottom"<"dt-bottom-left"li>p>',
+      drawCallback: function(settings) {
+        lucide.createIcons();
+        limitPageButtons(this.api(), 5);
+      }
+    });
+
+    function limitPageButtons(api, maxButtons) {
+      var paginate = $(api.table().container()).find('.dataTables_paginate');
+      var buttons = paginate.find('.paginate_button').not('.previous,.next,.first,.last');
+      var current = api.page();
+      var totalPages = api.page.info().pages;
+      if (totalPages <= maxButtons) return;
+
+      var half = Math.floor(maxButtons / 2);
+      var start = current - half;
+      var end = current + half;
+      if (start < 0) { end -= start; start = 0; }
+      if (end >= totalPages) { start -= (end - totalPages + 1); end = totalPages - 1; }
+      if (start < 0) start = 0;
+
+      buttons.each(function(i) {
+        var pageNum = parseInt($(this).text()) - 1;
+        if (isNaN(pageNum)) { $(this).hide(); return; }
+        if (pageNum < start || pageNum > end) {
+          $(this).hide();
+        } else {
+          $(this).show();
+        }
+      });
+
+      paginate.find('.ellipsis-dot').remove();
+      var ellipsis = '<span class="ellipsis-dot" style="display:inline-flex;align-items:center;padding:0 4px;color:#98a2b3;font-size:12px;">...</span>';
+      if (start > 0) paginate.find('.previous').after(ellipsis);
+      if (end < totalPages - 1) paginate.find('.next').before(ellipsis);
+    }
+
+    // 모달 함수
+    function openModal(id) {
+      const el = document.getElementById('modal-' + id);
+      if (!el) return;
+      el.classList.remove('hidden');
+      document.body.style.overflow = 'hidden';
+      lucide.createIcons();
+    }
+    function closeModal(id) {
+      const el = document.getElementById('modal-' + id);
+      if (!el) return;
+      el.classList.add('hidden');
+      document.body.style.overflow = '';
+    }
+
+    function openContentForm(mode) {
+      const title = document.getElementById('content-form-title');
+      if (mode === 'register') {
+        title.textContent = '콘텐츠 등록';
+      } else {
+        title.textContent = '콘텐츠 수정';
+      }
+      openModal('content-form');
+    }
+
+    function openDeleteConfirm(id, name) {
+      document.getElementById('delete-message').innerHTML =
+        '<strong>' + name + '</strong> 콘텐츠를 정말 삭제하시겠습니까?<br>삭제된 데이터는 복구할 수 없습니다.';
+      openModal('delete-confirm');
+    }
+    function openDeleteSelected() {
+      document.getElementById('delete-message').innerHTML =
+        '선택한 콘텐츠를 정말 삭제하시겠습니까?<br>삭제된 데이터는 복구할 수 없습니다.';
+      openModal('delete-confirm');
+    }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      document.querySelectorAll('[id^="modal-"]').forEach(function (modal) {
+        if (!modal.classList.contains('hidden')) modal.classList.add('hidden');
+      });
+      document.body.style.overflow = '';
+    });
+  </script>
+</body>
+</html>

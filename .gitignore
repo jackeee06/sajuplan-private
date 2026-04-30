@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+.next/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.development.local
+.env.production
+.env.production.local
+
+# Secrets
+api/secrets/
+api/uploads/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# DB dumps
+*.sql
+
+# Deploy scripts
+deploy.sh
+
+# Misc
+*.local

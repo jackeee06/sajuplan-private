@@ -1,0 +1,61 @@
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Query, UseGuards } from '@nestjs/common';
+import { AdminAuthGuard } from '../auth/admin-auth.guard';
+import { BoardOpsService } from './board-ops.service';
+
+@Controller('admin/board-ops')
+@UseGuards(AdminAuthGuard)
+export class BoardOpsController {
+  constructor(private readonly svc: BoardOpsService) {}
+
+  @Get('search-keywords')
+  searchKeywords(@Query() q: Record<string, string>) {
+    return this.svc.searchKeywords({
+      fr_date: q.fr_date || undefined,
+      to_date: q.to_date || undefined,
+      page: q.page ? Number(q.page) : undefined,
+      limit: q.limit ? Number(q.limit) : undefined,
+    });
+  }
+
+  @Get('popular-ranking')
+  popular(@Query() q: Record<string, string>) {
+    return this.svc.popularRanking({ days: q.days ? Number(q.days) : undefined });
+  }
+
+  @Get('comments')
+  comments(@Query() q: Record<string, string>) {
+    return this.svc.commentsAll({
+      q: q.q || undefined,
+      board_slug: q.board_slug || undefined,
+      fr_date: q.fr_date || undefined,
+      to_date: q.to_date || undefined,
+      page: q.page ? Number(q.page) : undefined,
+      limit: q.limit ? Number(q.limit) : undefined,
+    });
+  }
+
+  @Delete('comments/:id')
+  removeComment(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.removeComment(id);
+  }
+
+  @Get('posts-overview')
+  postsOverview() {
+    return this.svc.postsOverview();
+  }
+
+  @Get('reports')
+  reports(@Query() q: Record<string, string>) {
+    return this.svc.reports({
+      status: q.status ? Number(q.status) : undefined,
+      board_slug: q.board_slug || undefined,
+      page: q.page ? Number(q.page) : undefined,
+      limit: q.limit ? Number(q.limit) : undefined,
+    });
+  }
+
+  @Patch('reports/:id')
+  updateReport(@Param('id', ParseIntPipe) id: number, @Body() body: { status: number }) {
+    return this.svc.updateReportStatus(id, body.status);
+  }
+}

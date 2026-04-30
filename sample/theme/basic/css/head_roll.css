@@ -1,0 +1,12 @@
+@charset "utf-8";
+
+.head {
+      background:rgba(0,0,0,0);
+    }
+
+.head.roll {
+    background : rgba(255,255,255,1);
+  }
+  
+.head .title { display:none;}
+.head.roll .title { display:block;}

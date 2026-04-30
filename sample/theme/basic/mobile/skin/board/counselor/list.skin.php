@@ -1,0 +1,517 @@
+<?php
+
+if (!defined('_GNUBOARD_')) exit; // 개별 페이지 접근 불가
+
+include_once(G5_LIB_PATH.'/thumbnail.lib.php');
+
+// 선택옵션으로 인해 셀합치기가 가변적으로 변함
+$colspan = 2;
+
+if ($is_checkbox) $colspan++;
+
+
+
+// add_stylesheet('css 구문', 출력순서); 숫자가 작을 수록 먼저 출력됨
+add_stylesheet('<link rel="stylesheet" href="'.$board_skin_url.'/style.css?ver=1">', 0);
+
+// 카테고리별 배경이미지 Class
+
+
+
+
+?>
+
+<form name="fboardlist" id="fboardlist" action="<?php echo G5_BBS_URL; ?>/board_list_update.php" onsubmit="return fboardlist_submit(this);" method="post">
+    <input type="hidden" name="bo_table" value="<?php echo $bo_table ?>">
+    <input type="hidden" name="sfl" value="<?php echo $sfl ?>">
+    <input type="hidden" name="stx" value="<?php echo $stx ?>">
+    <input type="hidden" name="spt" value="<?php echo $spt ?>">
+    <input type="hidden" name="sst" value="<?php echo $sst ?>">
+    <input type="hidden" name="sod" value="<?php echo $sod ?>">
+    <input type="hidden" name="page" value="<?php echo $page ?>">
+    <input type="hidden" name="sw" value="">
+
+    <!--
+<?php if ($write_href) { ?>
+	<div class="fix_btn write_btn">
+    	<a href="<?php echo $write_href ?>" title="상담사 등록">상담사 등록</a>
+    </div>
+<?php } ?>
+-->
+
+    <!-- 게시판 목록 시작 -->
+    <div id="bo_list">
+
+        <!--
+    <?php if ($is_category) { ?>
+    <nav id="bo_cate">
+        <h2><?php echo ($board['bo_mobile_subject'] ? $board['bo_mobile_subject'] : $board['bo_subject']) ?> 카테고리</h2>
+        <ul id="bo_cate_ul">
+            <?php echo $category_option ?>
+        </ul>
+    </nav>
+    <?php } ?>
+	-->
+
+        <?php include_once(G5_PATH.'/include/counsel_navi.php'); ?>
+
+        <div class="list_sort_wrap">
+            <div class="list_sort">
+                <!--<img src="../../../img/common/icon_sort.png">-->
+                <select name="s_desc" id="s_desc" onchange="search_enable_idle()">
+                    <option value="" <?php if($s_desc==""){echo "selected";}?>>기본</option>
+                    <option value="wr_datetime" <?php if($s_desc=="wr_datetime"){echo "selected";}?>>최신순</option>
+                    <option value="aft" <?php if($s_desc=="aft"){echo "selected";}?>>후기많은 순</option>
+                    <option value="fat" <?php if($s_desc=="fat"){echo "selected";}?>>단골많은 순</option>
+                    <option value="amt" <?php if($s_desc=="amt"){echo "selected";}?>>가격 낮은순</option>
+                    <option value="damt" <?php if($s_desc=="damt"){echo "selected";}?>>가격 높은순</option>
+                </select>
+            </div>
+
+            <div class="list_sort">
+                <select name="s_wr_5" id="s_wr_5" onchange="search_enable_idle()">
+                    <option value="">전체분야</option>
+                    <?foreach($s_wr_5_array as $key=>$value){?>
+                        <option value="<?=$value?>" <?if($s_wr_5==$value){echo "selected";}?>><?=$value?></option>
+                    <?}?>
+                </select>
+            </div>
+
+            <div class="list_sort">
+                <select name="s_wr_6" id="s_wr_6" onchange="search_enable_idle()">
+                    <option value="">전체스타일</option>
+                    <option value="경청하는" <?if($s_wr_6=="경청하는"){echo "selected";}?>>경청하는</option>
+                    <option value="소통하는" <?if($s_wr_6=="소통하는"){echo "selected";}?>>소통하는</option>
+                    <option value="깊이있는" <?if($s_wr_6=="깊이있는"){echo "selected";}?>>깊이있는</option>
+                    <option value="공감하는" <?if($s_wr_6=="공감하는"){echo "selected";}?>>공감하는</option>
+                    <option value="긍정적인" <?if($s_wr_6=="긍정적인"){echo "selected";}?>>긍정적인</option>
+                    <option value="현실조언" <?if($s_wr_6=="현실조언"){echo "selected";}?>>현실조언</option>
+                    <option value="카리스마" <?if($s_wr_6=="카리스마"){echo "selected";}?>>카리스마</option>
+                    <option value="솔직담백" <?if($s_wr_6=="솔직담백"){echo "selected";}?>>솔직담백</option>
+                    <option value="부드러운" <?if($s_wr_6=="부드러운"){echo "selected";}?>>부드러운</option>
+                    <option value="친근한" <?if($s_wr_6=="친근한"){echo "selected";}?>>친근한</option>
+                    <option value="차분한" <?if($s_wr_6=="차분한"){echo "selected";}?>>차분한</option>
+                    <option value="편안한" <?if($s_wr_6=="편안한"){echo "selected";}?>>편안한</option>
+                    <option value="조곤조곤" <?if($s_wr_6=="조곤조곤"){echo "selected";}?>>조곤조곤</option>
+                    <option value="또박또박" <?if($s_wr_6=="또박또박"){echo "selected";}?>>또박또박</option>
+                </select>
+            </div>
+
+            <div class="list_sort">
+                <select name="s_mb_10" id="s_mb_10" onchange="search_enable_idle();">
+                    <!--    20250715 eun 성별 값 '여' '남' 작업 시작 (db에 여, 남이라고 저장되어있음)-->
+                    <option>성별</option>
+                    <option value="여" <?if($s_mb_10=="여"){echo "selected";}?>>여성</option>
+                    <option value="남" <?if($s_mb_10=="남"){echo "selected";}?>>남성</option>
+                    <!--    20250715 eun 성별 값 '여' '남' 작업 마감-->
+
+                </select>
+            </div>
+        </div>
+
+        <div class="list_filter_wrap">
+            <div class="list_title"><span class="point"><?php echo $member['mb_id'] ? $member['mb_nick'] : '비회원'; ?></span>님을 위한 추천</div>
+            <div class="list_filter">
+                <input type="checkbox" id="ing_counsel" <?php if($state=="IDLE"){?>checked="checked"<?}?> onclick="search_enable_idle();">
+                <label for="ing_counsel">상담가능만 보기</label>
+            </div>
+        </div>
+
+
+        <?
+        //$qstr1 =  str_replace ( '&amp;', '&', $qstr );
+        ?>
+
+        <script>
+            function search_enable_idle(){
+                var qstr = "<?=$qstr?>";
+                var sca = '<?=$sca?>';
+                var s_desc = $("#s_desc").val();
+                var s_wr_5 = $("#s_wr_5").val();
+                var s_wr_6 = $("#s_wr_6").val();
+
+                var s_mb_10 = $("#s_mb_10").val();
+
+                if($('#ing_counsel').is(':checked')==true){
+                    location.href='?bo_table=counselor&state=IDLE<?=$qstr?>&s_desc='+s_desc+"&s_wr_5="+s_wr_5+"&s_wr_6="+s_wr_6+'&s_mb_10='+s_mb_10+'&sca='+sca;
+                }else{
+                    location.href='?bo_table=counselor&s_desc='+s_desc+'&s_wr_5='+s_wr_5+'&s_wr_6='+s_wr_6+'&s_mb_10='+s_mb_10+'<?=$qstr?>'+'&sca='+sca;
+                }
+            }
+        </script>
+
+        <div id="bo_list_total" style=" display:none;">
+          <?php echo $page ?>페이지
+        </div>
+
+        <div class="list_01">
+            <?php if ($is_checkbox) { ?>
+                <div class="all_chk chk_box">
+                    <input type="checkbox" id="chkall" onclick="if (this.checked) all_checked(true); else all_checked(false);" class="selec_chk">
+                    <label for="chkall">
+                        <span></span>
+                        <b class="sound_only">현재 페이지 게시물 </b> 전체선택
+                    </label>
+
+                    <?php if ($rss_href || $write_href) { ?>
+                        <ul class="<?php echo isset($view) ? 'view_is_list btn_top' : 'btn_top top btn_bo_user';?>">
+                            <!--
+					<?php if ($admin_href) { ?><li><a href="<?php echo $admin_href ?>" class="btn_admin btn" title="관리자"><i class="fa fa-cog fa-spin fa-fw"></i><span class="sound_only">관리자</span></a></li><?php } ?>
+    				<?php if ($rss_href) { ?><li><a href="<?php echo $rss_href ?>" class="btn_b03 btn" title="RSS"><i class="fa fa-rss" aria-hidden="true"></i><span class="sound_only">RSS</span></a></li><?php } ?>
+                    -->
+                            <?php if ($is_admin == 'super' || $is_auth) {  ?>
+                                <li>
+                                    <button type="button" class="btn_more_opt btn_b03 btn is_list_btn" title="게시판 리스트 옵션"><i class="fa fa-ellipsis-v" aria-hidden="true"></i><span class="sound_only">게시판 리스트 옵션</span></button>
+                                    <?php if ($is_checkbox) { ?>
+                                        <ul class="more_opt is_list_btn">
+                                            <li><button type="submit" name="btn_submit" value="선택삭제" onclick="document.pressed=this.value"><i class="fa fa-trash-o" aria-hidden="true"></i> 선택삭제</button></li>
+                                            <!--
+                                               <li><button type="submit" name="btn_submit" value="선택복사" onclick="document.pressed=this.value"><i class="fa fa-files-o" aria-hidden="true"></i> 선택복사</button></li>
+                                            <li><button type="submit" name="btn_submit" value="선택이동" onclick="document.pressed=this.value"><i class="fa fa-arrows" aria-hidden="true"></i> 선택이동</button></li>
+                                            -->
+                                        </ul>
+                                    <?php } ?>
+                                </li>
+                            <?php } ?>
+                        </ul>
+                    <?php } ?>
+                </div>
+            <?php } ?>
+            <ul>
+                <?php $printed_any = false; // 실제로 렌더링한 항목이 있었는지 20250909 추가 ?>
+                <?php for ($i=0; $i<count($list); $i++) {
+                    // 전역 스위치가 OFF($chk_f='N')면 '심리' 카테고리만 숨김
+                    if (function_exists('cs_is_hidden_cat') && cs_is_hidden_cat($list[$i]['ca_name'])) {
+                        continue;
+                    }
+
+                    $printed_any = true; // 이 아래로 내려오면 실제로 하나 렌더링함
+
+                    $cinfo = get_member($list[$i]["mb_id"]);
+                    // echo $cinfo;
+                    ?>
+
+                    <div class="counselor_list" id="list_area">
+                        <!--20250728 eun 메인 상담사 수정 시작-->
+                        <div class="counselor_list_item" data-mb_id="<?=$list[$i]['mb_id']?>" data-state="<?=$list[$i]['state']?>">
+                        <!--20250728 eun 메인 상담사 수정 마감-->
+                            <ul class="counselor_img_wrap type_bg <?=$cate_bg[$list[$i]['ca_name']]?>">
+                                <span class="list_scrap" onclick="scrap_submit('<?=$list[$i]["wr_id"]?>')" style="cursor:pointer;">
+                                    <?
+                                    $sflag = is_scrap_wr_id($member["mb_id"], 'counselor', $list[$i]["wr_id"]);
+                                    $scrap_img = "/img/common/list_icon_scrap.png";
+                                    if($sflag==true){
+                                        $scrap_img = "/img/common/list_icon_scrap_on.png";
+                                    }
+                                    ?>
+                                    <img src="<?=$scrap_img?>" id="scrap_icon_<?=$list[$i]["wr_id"]?>" alt="스크랩 아이콘">
+                                </span>
+
+                                <a href="<?php echo $list[$i]['href'] ?>">
+                                    <?php if ($list[$i]['is_notice']) { // 공지사항 ?>
+                                        <span class="is_notice" style="<?php echo $line_height_style; ?>">공지</span>
+                                    <?php } else {
+                                        $thumb = get_list_thumbnail($board['bo_table'], $list[$i]['wr_id'], $board['bo_gallery_width'], $board['bo_gallery_height'], false, true);
+
+                                        if($thumb['src']) {
+                                            $img_content = '<li class="counselor_img" style=" background-image:url('.$thumb['src'].');">';
+                                        } else {
+                                            $img_content = '<li class="counselor_img" style=" background-image:url(../img/common/noimage.png);">';
+                                        }
+
+                                        echo run_replace('thumb_image_tag', $img_content, $thumb);
+                                    }
+                                    ?>
+                                </a>
+                            </ul>
+                            <ul class="counselor_con_wrap">
+                                <?php if ($is_checkbox) { ?>
+                                    <div class="bo_chk chk_box">
+                                        <input type="checkbox" name="chk_wr_id[]" value="<?php echo $list[$i]['wr_id'] ?>" id="chk_wr_id_<?php echo $i ?>" class="selec_chk">
+                                        <label for="chk_wr_id_<?php echo $i ?>">
+                                            <span></span>
+                                            <b class="sound_only"><?php echo $list[$i]['subject'] ?></b>
+                                        </label>
+                                    </div>
+                                <?php } ?>
+                                <div class="counselor_con_right">
+                                    <a href="<?php echo $list[$i]['href'] ?>">
+                                        <li>
+                                            <div class="top">
+                                                <div class="counselor_con_title">
+                                                    <?php echo $list[$i]['subject'] ?>
+                                                    <!-- 상담사 고유번호 -->
+                                                    <?php include(G5_PATH.'/include/counselor_num_list_board.php'); ?>
+
+                                                    <i class="fa fa-star list_bottom_ic"></i>
+                                                    <span class="list_bottom_font"><?=get_dangol_cnt($list[$i]["wr_id"])?></span>
+
+                                                    <i class="fa fa-comment list_bottom_ic"></i>
+                                                    <span class="list_bottom_font"><?=get_counselor_afcnt($list[$i]["mb_id"])?></span>
+                                                </div>
+                                                <div class="counselor_con_text line2_text"><?php echo $list[$i]['wr_8'] ?></div>
+                                            </div>
+                                            <div class="counselor_con_price">
+                                                <?=number_format($list[$i]["mb_4"])?>원
+                                                <span class="unit"><?=$list[$i]["mb_5"]?>초당</span>
+                                            </div>
+
+                                            <div style="margin-top:2px;">
+                                                <details class="counselor_list_info">
+                                                    <summary style="display:flex; justify-content:space-between; align-items:center;">
+                                                        <?php if ($is_category && $list[$i]['ca_name']) { ?>
+                                                            <span class="icon_cate <?=$cate_bg[$list[$i]['ca_name']]?>"><?php echo $list[$i]['ca_name']; ?></span>
+                                                        <?php } ?>
+                                                        <a href="<?php echo $list[$i]['href'] ?>">
+                                                            <ul class="left">
+                                                                <span class="tag"><?php echo $list[$i]['wr_9'] ?></span>,
+                                                                <span class="tag"><?php echo $list[$i]['wr_10'] ?></span>
+                                                            </ul>
+                                                        </a>
+                                                    </summary>
+                                                </details>
+                                            </div>
+                                        </li>
+                                    </a>
+                                </div>
+                            </ul>
+                        </div>
+                        <?php include(G5_PATH.'/include/counselor_board_state_btn.php'); ?>
+                    </div>
+                    <!--20250801 eun 리스트 ajax 추가 시작-->
+                    <!--    <script>
+                            // 15초마다 polling
+                            setInterval(function() {
+                                console.log("상담사 목록 갱신 중...");
+
+                                $.post('/sub/counselor_list_ajax.php', {
+                                    'act': 'every'
+                                }, function (data) {
+                                    if (data.trim()) {
+                                        $("#list_area").html(data);
+                                    }
+                                });
+                            }, 5000); // 15초=15000ms
+
+                        </script>-->
+                    <!--20250801 eun 리스트 ajax 추가 마감-->
+
+                    <!--  리스트 원본  -->
+                    <li class="<?php if ($list[$i]['is_notice']) echo "bo_notice"; ?>" style="display:none;">
+
+                        <div class="gall_img" style="<?php if ($board['bo_gallery_height'] > 0) echo 'height:'.$board['bo_gallery_height'].'px;max-height:'.$board['bo_gallery_height'].'px'; ?>">
+                            <a href="<?php echo $list[$i]['href'] ?>">
+                                <?php
+                                if ($list[$i]['is_notice']) { // 공지사항  ?>
+                                    <span class="is_notice" style="<?php echo $line_height_style; ?>">공지</span>
+                                <?php } else {
+                                    $thumb = get_list_thumbnail($board['bo_table'], $list[$i]['wr_id'], $board['bo_gallery_width'], $board['bo_gallery_height'], false, true);
+
+                                    if($thumb['src']) {
+                                        $img_content = '<img src="'.$thumb['src'].'" alt="'.$thumb['alt'].'" >';
+                                    } else {
+                                        $img_content = '<span class="no_image" style="'.$line_height_style.'">no image</span>';
+                                    }
+
+                                    echo run_replace('thumb_image_tag', $img_content, $thumb);
+                                }
+                                ?>
+                            </a>
+                        </div>
+
+                        <div class="bo_cnt">
+                            <?php if ($list[$i]['is_notice'] || ($is_category && $list[$i]['ca_name'])) { ?>
+                                <div class="bo_cate_ico">
+                                    <?php if ($list[$i]['is_notice']) { ?><strong class="notice_icon">공지</strong><?php } ?>
+                                    <?php if ($is_category && $list[$i]['ca_name']) { ?>
+                                        <a href="<?php echo $list[$i]['ca_name_href'] ?>" class="bo_cate_link"><?php echo $list[$i]['ca_name']; ?></a>
+                                    <?php } ?>
+                                </div>
+                            <?php } ?>
+
+                            <a href="<?php echo $list[$i]['href'] ?>" class="bo_subject">
+                                <?php echo $list[$i]['icon_reply']; ?>
+                                <?php if (isset($list[$i]['icon_secret'])) echo $list[$i]['icon_secret']; ?>
+                                <?php echo $list[$i]['subject'] ?>
+                                <?php
+                                // if ($list[$i]['file']['count']) { echo '<'.$list[$i]['file']['count'].'>'; }
+                                if ($list[$i]['icon_new']) echo "<span class=\"new_icon\">N<span class=\"sound_only\">새글</span></span>";
+                                //if (isset($list[$i]['icon_hot'])) echo $list[$i]['icon_hot'];
+                                //if (isset($list[$i]['icon_file'])) echo $list[$i]['icon_file'];
+                                //if (isset($list[$i]['icon_link'])) echo $list[$i]['icon_link'];
+                                ?>
+
+                                <?php if ($list[$i]['comment_cnt']) { ?>
+                                    <span class="bo_cmt">
+							<span class="sound_only">댓글</span>
+							<?php echo $list[$i]['comment_cnt']; ?>
+							<span class="sound_only">개</span>
+                        </span>
+                                <?php } ?>
+                            </a>
+                        </div>
+                        <div class="bo_info">
+                            <!--<span class="sound_only">작성자</span><?php echo $list[$i]['name'] ?>-->
+                            <span class="bo_date"><i class="fa fa-clock-o" aria-hidden="true"></i> <?php echo $list[$i]['datetime'] ?></span>
+                            <!--
+                	<span class="bo_view"><i class="fa fa-eye" aria-hidden="true"></i> <?php echo number_format($list[$i]['wr_hit']) ?><span class="sound_only">회</span></span>
+                	<?php if ($is_good) { ?><span class="sound_only">추천</span><i class="fa fa-thumbs-o-up" aria-hidden="true"></i> <?php echo $list[$i]['wr_good'] ?><?php } ?>
+                    <?php if ($is_nogood) { ?><span class="sound_only">비추천</span><i class="fa fa-thumbs-o-down" aria-hidden="true"></i> <?php echo $list[$i]['wr_nogood'] ?><?php } ?>
+                    -->
+                        </div>
+
+                        <?php if ($is_checkbox) { ?>
+                            <div class="bo_chk chk_box">
+                                <input type="checkbox" name="chk_wr_id[]" value="<?php echo $list[$i]['wr_id'] ?>" id="chk_wr_id_<?php echo $i ?>" class="selec_chk">
+                                <label for="chk_wr_id_<?php echo $i ?>">
+                                    <span></span>
+                                    <b class="sound_only"><?php echo $list[$i]['subject'] ?></b>
+                                </label>
+                            </div>
+                        <?php } ?>
+
+                    </li>
+                    <?php /*} */?><!--
+                --><?php /*if (count($list) == 0) { echo '<li class="empty_table">등록된 상담사가 없습니다.</li>'; } */?>
+                <?php } ?>
+                <?php if (!$printed_any) { echo '<li class="empty_table">등록된 상담사가 없습니다.</li>'; } ?>
+
+            </ul>
+        </div>
+    </div>
+
+</form>
+
+<?php if($is_checkbox) { ?>
+    <noscript>
+        <p>자바스크립트를 사용하지 않는 경우<br>별도의 확인 절차 없이 바로 선택삭제 처리하므로 주의하시기 바랍니다.</p>
+    </noscript>
+<?php } ?>
+
+<!-- 페이지 -->
+<?php echo $write_pages; ?>
+
+<fieldset id="bo_sch" style="display:none;">
+    <legend>게시물 검색</legend>
+    <form name="fsearch" method="get">
+        <input type="hidden" name="bo_table" value="<?php echo $bo_table ?>">
+        <input type="hidden" name="sca" value="<?php echo $sca ?>">
+        <input type="hidden" name="sop" value="and">
+        <label for="sfl" class="sound_only">검색대상</label>
+        <select name="sfl" id="sfl">
+            <?php echo get_board_sfl_select_options($sfl); ?>
+        </select>
+        <input name="stx" value="<?php echo stripslashes($stx) ?>" placeholder="검색어를 입력하세요" required id="stx" class="sch_input" size="15" maxlength="20">
+        <button type="submit" value="검색" class="sch_btn"><i class="fa fa-search" aria-hidden="true"></i> <span class="sound_only">검색</span></button>
+    </form>
+</fieldset>
+
+
+
+<script type="text/javascript">
+    function scrap_submit(wr_id) {
+//var param = $("form[name=f_scrap_popin]").serialize();
+        $.ajax({
+            url: g5_bbs_url+"/scrap_popin_update.php",
+            type: "POST",
+            data: {bo_table:'counselor', wr_id:wr_id},
+            success:function(data){
+                //alert("성공");
+                console.log(data);
+                var a_comment = /<noscript>(([\s\S]+?[\s\S]))<\/p>/.exec(data);
+                if (a_comment != null)
+                {
+                    var content = String(a_comment[1].trim());
+                    content = content.substring(3,content.length);
+                    alert(content);
+
+                    $('#scrap_icon_'+wr_id).attr("src","/img/common/list_icon_scrap_on.png");
+                }
+            },
+            error:function(data){
+                alert("error");
+            }
+        });
+    }
+</script>
+<!--팝업창없이 바로 스크랩하기 : END -->
+
+
+
+<?php if ($is_checkbox) { ?>
+    <script>
+        function all_checked(sw) {
+            var f = document.fboardlist;
+
+            for (var i=0; i<f.length; i++) {
+                if (f.elements[i].name == "chk_wr_id[]")
+                    f.elements[i].checked = sw;
+            }
+        }
+
+        function fboardlist_submit(f) {
+            var chk_count = 0;
+
+            for (var i=0; i<f.length; i++) {
+                if (f.elements[i].name == "chk_wr_id[]" && f.elements[i].checked)
+                    chk_count++;
+            }
+
+            if (!chk_count) {
+                alert(document.pressed + "할 게시물을 하나 이상 선택하세요.");
+                return false;
+            }
+
+            if(document.pressed == "선택복사") {
+                select_copy("copy");
+                return;
+            }
+
+            if(document.pressed == "선택이동") {
+                select_copy("move");
+                return;
+            }
+
+            if(document.pressed == "선택삭제") {
+                if (!confirm("선택한 게시물을 정말 삭제하시겠습니까?\n\n한번 삭제한 자료는 복구할 수 없습니다\n\n답변글이 있는 게시글을 선택하신 경우\n답변글도 선택하셔야 게시글이 삭제됩니다."))
+                    return false;
+
+                f.removeAttribute("target");
+                f.action = g5_bbs_url+"/board_list_update.php";
+            }
+
+            return true;
+        }
+
+        // 선택한 게시물 복사 및 이동
+        function select_copy(sw) {
+            var f = document.fboardlist;
+
+            if (sw == 'copy')
+                str = "복사";
+            else
+                str = "이동";
+
+            var sub_win = window.open("", "move", "left=50, top=50, width=500, height=550, scrollbars=1");
+
+            f.sw.value = sw;
+            f.target = "move";
+            f.action = g5_bbs_url+"/move.php";
+            f.submit();
+        }
+
+        // 게시판 리스트 관리자 옵션
+        jQuery(function($){
+            $(".btn_more_opt.is_list_btn").on("click", function(e) {
+                e.stopPropagation();
+                $(".more_opt.is_list_btn").toggle();
+            });
+            $(document).on("click", function (e) {
+                if(!$(e.target).closest('.is_list_btn').length) {
+                    $(".more_opt.is_list_btn").hide();
+                }
+            });
+        });
+    </script>
+<?php } ?>
+<!-- 게시판 목록 끝 -->
