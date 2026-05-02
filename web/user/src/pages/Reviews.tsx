@@ -22,7 +22,7 @@ interface Reply {
   text: string
 }
 
-interface Review {
+export interface Review {
   id: number
   badge: Badge
   counselorName: string
@@ -52,7 +52,7 @@ const BADGE_BG: Record<Badge, string> = {
   사주: '#FF6467',
 }
 
-const MOCK_REVIEWS: Review[] = [
+export const MOCK_REVIEWS: Review[] = [
   {
     id: 1, badge: '타로', counselorName: '강타로', counselorCode: '335912',
     reviewType: '채팅상담', date: '2026.04.23', duration: '00시간17분20초',

@@ -2,11 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import CounselorCard, { Counselor } from '../components/CounselorCard'
+import { bannersApi, PublicBanner, statsApi, settingsApi, PublicSettings } from '../lib/api'
 
-const BANNER_SLIDES = [
-  { src: '/img/banner_sample.jpg', to: '/today-fortune' },
-  { src: '/img/banner_sample.jpg', to: '/today-fortune' },
-]
+/** 업로드 파일은 API 도메인에서 서빙됨 — image_url 이 '/uploads/...' 면 BASE 붙임 */
+const FILE_BASE = (import.meta.env.VITE_API_BASE as string | undefined ?? '/api').replace(/\/api\/?$/, '')
+
+/** image_url 이 절대(http/https) 면 그대로, 상대 (/uploads/...) 면 FILE_BASE 붙임 */
+function resolveImageUrl(u: string | null): string {
+  if (!u) return ''
+  if (/^https?:\/\//.test(u)) return u
+  if (u.startsWith('/')) return `${FILE_BASE}${u}`
+  return u
+}
 
 type MainTab = 'all' | 'popular' | 'chat' | 'review'
 type ChipTab = '전체' | '사주' | '타로' | '신점'
@@ -95,6 +102,31 @@ export default function Home() {
   const [tab, setTab] = useState<MainTab>('all')
   const [chip, setChip] = useState<ChipTab>('전체')
   const [counselors, setCounselors] = useState(MOCK_COUNSELORS)
+  // 메인 통계 — 어드민 dashboard 와 같은 데이터 소스 (consultation, member)
+  const [stats, setStats] = useState<{ recent: number; online: number }>({
+    recent: 0,
+    online: 0,
+  })
+
+  useEffect(() => {
+    let alive = true
+    statsApi.main().then(
+      (r) => {
+        if (alive) {
+          setStats({
+            recent: r.recent_consultations,
+            online: r.online_counselors,
+          })
+        }
+      },
+      () => {
+        // 실패 시 0 유지
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const onLikeToggle = (id: Counselor['id']) =>
     setCounselors((prev) =>
@@ -134,13 +166,13 @@ export default function Home() {
             <StatCard
               icon="/img/main_icon01.svg"
               label="최근 상담 건수"
-              value="2,570,923"
+              value={stats.recent.toLocaleString()}
               suffix="건"
             />
             <StatCard
               icon="/img/main_icon02.svg"
               label="현재 접속중인 상담사"
-              value="241"
+              value={stats.online.toLocaleString()}
               suffix="명"
             />
           </div>
@@ -213,25 +245,48 @@ export default function Home() {
  *  - 우하단 페이지네이션 "current / total"
  */
 function BannerSlider() {
+  const [banners, setBanners] = useState<PublicBanner[]>([])
   const [idx, setIdx] = useState(0)
-  const total = BANNER_SLIDES.length
+  const total = banners.length
   const startXRef = useRef<number | null>(null)
   const draggingRef = useRef(false)
-  const pausedRef = useRef(false)
   const SWIPE_THRESHOLD = 40
 
+  // 어드민에 등록된 '메인-상단배너' 위치의 활성 배너 가져오기
   useEffect(() => {
+    let alive = true
+    bannersApi.listByPosition('메인-상단배너').then(
+      (r) => {
+        if (alive) setBanners(r.items)
+      },
+      () => {
+        // 실패 시 빈 배열 — 배너 영역만 비어 보임
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // 자동 슬라이드 — 4초마다 다음 배너 (% total 로 무한 루프 보장)
+  useEffect(() => {
+    if (total <= 1) return
     const t = setInterval(() => {
-      if (!pausedRef.current) setIdx((i) => (i + 1) % total)
+      setIdx((i) => (i + 1) % total)
     }, 4000)
     return () => clearInterval(t)
   }, [total])
 
+  // 사용자가 빠르게 슬라이드 한 후엔 idx 가 banners 범위 벗어날 수 있으니 안전하게 클램프
+  useEffect(() => {
+    if (total > 0 && idx >= total) setIdx(0)
+  }, [idx, total])
+
+  // 드래그 — setPointerCapture 안 씀(일부 브라우저에서 release 미보장).
+  // 단순 down/move/up 으로 작동.
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     startXRef.current = e.clientX
     draggingRef.current = false
-    pausedRef.current = true
-    ;(e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId)
   }
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (startXRef.current == null) return
@@ -243,7 +298,10 @@ function BannerSlider() {
     if (dx > SWIPE_THRESHOLD) setIdx((i) => (i - 1 + total) % total)
     else if (dx < -SWIPE_THRESHOLD) setIdx((i) => (i + 1) % total)
     startXRef.current = null
-    pausedRef.current = false
+  }
+  // 박스 밖으로 마우스 나가면 드래그 상태 리셋
+  const onPointerLeave = () => {
+    startXRef.current = null
   }
   const onClickCapture = (e: React.MouseEvent) => {
     if (draggingRef.current) {
@@ -253,6 +311,9 @@ function BannerSlider() {
     }
   }
 
+  // 배너 없음 — 빈 영역으로 자리 차지하지 않음
+  if (total === 0) return null
+
   return (
     <div
       className="relative rounded-[24px] overflow-hidden aspect-[358/260] bg-[#3D2078] cursor-grab active:cursor-grabbing select-none touch-pan-y"
@@ -260,35 +321,66 @@ function BannerSlider() {
       onPointerMove={onPointerMove}
       onPointerUp={finishDrag}
       onPointerCancel={finishDrag}
+      onPointerLeave={onPointerLeave}
       onClickCapture={onClickCapture}
     >
       <div
         className="flex w-full h-full transition-transform duration-500 ease-out"
         style={{ transform: `translateX(-${idx * 100}%)` }}
       >
-        {BANNER_SLIDES.map((s, i) => (
-          <Link
-            key={i}
-            to={s.to}
-            className="w-full h-full shrink-0 block"
-            aria-label={`배너 ${i + 1}`}
-            draggable={false}
-          >
+        {banners.map((b, i) => {
+          const img = (
             <img
-              src={s.src}
-              alt=""
+              src={resolveImageUrl(b.image_url)}
+              alt={b.title ?? ''}
               className="w-full h-full object-cover pointer-events-none"
               draggable={false}
             />
-          </Link>
-        ))}
+          )
+          // 링크 있으면 외부면 <a>, 내부면 <Link>, 없으면 <div>
+          if (!b.link_url) {
+            return (
+              <div key={b.id} className="w-full h-full shrink-0 block" aria-label={`배너 ${i + 1}`}>
+                {img}
+              </div>
+            )
+          }
+          if (/^https?:\/\//.test(b.link_url)) {
+            return (
+              <a
+                key={b.id}
+                href={b.link_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full h-full shrink-0 block"
+                aria-label={`배너 ${i + 1}`}
+                draggable={false}
+              >
+                {img}
+              </a>
+            )
+          }
+          return (
+            <Link
+              key={b.id}
+              to={b.link_url}
+              className="w-full h-full shrink-0 block"
+              aria-label={`배너 ${i + 1}`}
+              draggable={false}
+            >
+              {img}
+            </Link>
+          )
+        })}
       </div>
-      {/* 페이지네이션 — Figma 1:706 (px 8 py 5, bg rgba(0,0,0,0.6), 12/500 white) */}
-      <div className="absolute bottom-[17px] right-[12px] flex items-center gap-1 bg-black/60 rounded-full px-2 py-[5px] pointer-events-none">
-        <span className="text-[12px] leading-[1.1] text-white font-medium">{idx + 1}</span>
-        <span className="text-[12px] leading-[1.1] text-white font-medium">/</span>
-        <span className="text-[12px] leading-[1.1] text-white font-medium">{total}</span>
-      </div>
+      {/* 페이지네이션 — 배너 2개 이상일 때만 노출 */}
+      {total > 1 && (
+        <div className="absolute bottom-[17px] right-[12px] flex items-center gap-1 bg-black/60 rounded-full px-2 py-[5px] pointer-events-none">
+          <span className="text-[12px] leading-[1.1] text-white font-medium">{idx + 1}</span>
+          <span className="text-[12px] leading-[1.1] text-white font-medium">/</span>
+          <span className="text-[12px] leading-[1.1] text-white font-medium">{total}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -355,19 +447,49 @@ function TabBtn({
  *  - 하단: 이용약관·개인정보취급방침(14/500 #364153) + Copyright(14/400 #6A7282)
  */
 function Footer() {
-  const items: [string, string][] = [
-    ['대표', '홍루연'],
-    ['주소', '서울특별시 강남구 언주로87길 6 mh빌딩 503호'],
-    ['사업자등록번호', '816-87-03567'],
-    ['대표전화', '010-8702-9996'],
-    ['이메일', 'Originhouse9@gmail.com'],
-    ['제휴 및 상담사 채용 문의', 'Originhouse9@gmail.com'],
-  ]
+  const [s, setS] = useState<PublicSettings>({})
+
+  useEffect(() => {
+    let alive = true
+    settingsApi.public().then(
+      (r) => {
+        if (alive) setS(r)
+      },
+      () => {
+        // 실패 시 빈 값 — 푸터 비어 보임
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  // [라벨, 값] — 값이 빈 문자열이면 행 생략
+  const items: [string, string][] = (
+    [
+      ['대표', s['footer.ceo'] ?? ''],
+      ['주소', s['footer.address'] ?? ''],
+      ['사업자등록번호', s['footer.business_no'] ?? ''],
+      ['통신판매업신고번호', s['footer.ecommerce_no'] ?? ''],
+      ['대표전화', s['footer.phone'] ?? ''],
+      ['팩스', s['footer.fax'] ?? ''],
+      ['이메일', s['footer.email'] ?? ''],
+      ['운영시간', s['footer.business_hours'] ?? ''],
+      ['개인정보보호책임자', s['footer.privacy_officer'] ?? ''],
+    ] as [string, string][]
+  ).filter(([, v]) => v.trim() !== '')
+
+  const companyName = s['footer.company_name'] || '사주문'
+  const copyright =
+    s['footer.copyright'] || `Copyrightⓒ ${companyName}. All Rights Reserved.`
+  const kakaoUrl = s['site.kakao_channel_url'] || ''
+  const extraInfo = s['footer.extra_info'] || ''
+
   return (
     <footer className="border-t border-[#F3F4F6] pt-7 px-4 pb-14 flex flex-col gap-5">
       <div className="flex flex-col gap-3 pb-5 border-b border-[#F3F4F6]">
         <button type="button" className="flex items-center gap-1 text-[15px] font-semibold text-[#364153] leading-[110%]">
-          사주문 사업자 정보
+          {companyName} 사업자 정보
           <svg viewBox="0 0 20 20" className="w-5 h-5 fill-[#364153]">
             <path d="M5 12.5L10 7.5L15 12.5L14 13.5L10 9.5L6 13.5Z" />
           </svg>
@@ -384,19 +506,38 @@ function Footer() {
             </div>
           ))}
         </div>
+        {extraInfo && (
+          <p className="text-[13px] text-[#99A1AF] leading-[150%] whitespace-pre-line mt-1">
+            {extraInfo}
+          </p>
+        )}
       </div>
       <div className="flex flex-col gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <a href="#" className="text-[14px] font-medium text-[#364153] leading-[110%]">
             이용약관
           </a>
           <a href="#" className="text-[14px] font-medium text-[#364153] leading-[110%]">
             개인정보취급방침
           </a>
+          {kakaoUrl && (
+            <a
+              href={kakaoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => {
+                // 모바일 웹뷰에서 target=_blank 가 차단될 때를 대비해 명시적 open
+                e.preventDefault()
+                const w = window.open(kakaoUrl, '_blank', 'noopener,noreferrer')
+                if (!w) window.location.href = kakaoUrl
+              }}
+              className="text-[14px] font-medium text-[#FEE500] bg-[#3C1E1E] px-3 py-1 rounded-full leading-[110%] cursor-pointer"
+            >
+              카카오 1:1 상담
+            </a>
+          )}
         </div>
-        <p className="text-[14px] text-[#6A7282] leading-[110%]">
-          Copyrightⓒ 사주문. All Rights Reserved.
-        </p>
+        <p className="text-[14px] text-[#6A7282] leading-[110%]">{copyright}</p>
       </div>
     </footer>
   )
@@ -409,7 +550,26 @@ function Footer() {
  *  화면 우측 하단(BottomNav 위)에 floating
  */
 function FloatingButtons() {
+  const [kakaoUrl, setKakaoUrl] = useState<string>('')
   const onGoTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
+
+  // 어드민 site.kakao_channel_url 동적 로드 (운영팀이 어드민에서 변경 가능)
+  useEffect(() => {
+    let alive = true
+    settingsApi.public().then(
+      (r) => {
+        if (alive) setKakaoUrl(r['site.kakao_channel_url'] || '')
+      },
+      () => {
+        // 실패 시 기본 URL fallback (sample 라이브 채널)
+        if (alive) setKakaoUrl('https://pf.kakao.com/_gLTVX')
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [])
+
   return (
     <div className="fixed right-4 bottom-[100px] flex flex-col gap-2 z-40">
       <button
@@ -424,18 +584,25 @@ function FloatingButtons() {
           <path d="M5 12l7-7 7 7" />
         </svg>
       </button>
-      <a
-        href="https://pf.kakao.com/"
-        target="_blank"
-        rel="noreferrer"
-        aria-label="카카오톡 문의"
-        className="w-[50px] h-[50px] rounded-full bg-[#8259F5] flex items-center justify-center"
-        style={{ boxShadow: '0 4px 6px -2px rgba(130,89,245,0.1), 0 10px 15px -3px rgba(130,89,245,0.15)' }}
-      >
-        <svg viewBox="0 0 20 20" className="w-5 h-5 fill-white">
-          <path d="M10 2C5.6 2 2 4.8 2 8.2c0 2.2 1.5 4.1 3.7 5.2-.2.6-.7 2.4-.8 2.8 0 .1 0 .2.1.3.1 0 .2 0 .3 0 .2-.1 2.4-1.6 2.9-1.9.6.1 1.2.2 1.8.2 4.4 0 8-2.8 8-6.2C18 4.8 14.4 2 10 2z" />
-        </svg>
-      </a>
+      {kakaoUrl && (
+        <a
+          href={kakaoUrl}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="카카오톡 문의"
+          onClick={(e) => {
+            e.preventDefault()
+            const w = window.open(kakaoUrl, '_blank', 'noopener,noreferrer')
+            if (!w) window.location.href = kakaoUrl
+          }}
+          className="w-[50px] h-[50px] rounded-full bg-[#8259F5] flex items-center justify-center cursor-pointer"
+          style={{ boxShadow: '0 4px 6px -2px rgba(130,89,245,0.1), 0 10px 15px -3px rgba(130,89,245,0.15)' }}
+        >
+          <svg viewBox="0 0 20 20" className="w-5 h-5 fill-white">
+            <path d="M10 2C5.6 2 2 4.8 2 8.2c0 2.2 1.5 4.1 3.7 5.2-.2.6-.7 2.4-.8 2.8 0 .1 0 .2.1.3.1 0 .2 0 .3 0 .2-.1 2.4-1.6 2.9-1.9.6.1 1.2.2 1.8.2 4.4 0 8-2.8 8-6.2C18 4.8 14.4 2 10 2z" />
+          </svg>
+        </a>
+      )}
     </div>
   )
 }

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import MobileHeader from '../components/MobileHeader'
 import InputField from '../components/InputField'
 import PrimaryButton, { OutlineButton } from '../components/PrimaryButton'
+import AlertModal from '../components/AlertModal'
+import { ApiError, smsApi, authApi } from '../lib/api'
 
 type Tab = 'phone' | 'email'
 
@@ -20,33 +22,83 @@ export default function Find() {
   const [phone, setPhone] = useState('')
   const [phoneCode, setPhoneCode] = useState('')
   const [phoneSent, setPhoneSent] = useState(false)
+  const [phoneVerified, setPhoneVerified] = useState(false)
   const [timer, setTimer] = useState(0)
   const [phoneError, setPhoneError] = useState<string | null>(null)
   const [codeError, setCodeError] = useState<string | null>(null)
+  const [verifying, setVerifying] = useState(false)
 
   // 이메일 탭 상태
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
 
   const [submitting, setSubmitting] = useState(false)
+  const [sending, setSending] = useState(false)
+
+  // 알림 모달 — alert() 대체
+  const [alertState, setAlertState] = useState<
+    { message: string; onConfirm?: () => void } | null
+  >(null)
+  const showAlert = (message: string, onConfirm?: () => void) =>
+    setAlertState({ message, onConfirm })
+  const closeAlert = () => {
+    const cb = alertState?.onConfirm
+    setAlertState(null)
+    if (cb) cb()
+  }
 
   useEffect(() => {
-    if (!phoneSent || timer <= 0) return
+    if (!phoneSent || phoneVerified || timer <= 0) return
     const id = setInterval(() => setTimer((t) => t - 1), 1000)
     return () => clearInterval(id)
-  }, [phoneSent, timer])
+  }, [phoneSent, phoneVerified, timer])
 
   const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`
 
-  const onSendCode = () => {
-    if (!/^\d{10,11}$/.test(phone)) {
-      setPhoneError("'-' 없이 숫자만 입력해주세요.")
+  const onVerifyCode = async () => {
+    if (phoneCode.length < 4) {
+      setCodeError('인증번호를 입력해주세요.')
       return
     }
+    if (verifying) return
+    setVerifying(true)
+    try {
+      await smsApi.verify(phone, phoneCode)
+      setPhoneVerified(true)
+      setCodeError(null)
+      showAlert('휴대폰 인증이 완료되었습니다.')
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '인증번호 확인에 실패했습니다.'
+      setCodeError(msg)
+      showAlert(msg)
+    } finally {
+      setVerifying(false)
+    }
+  }
+
+  const onSendCode = async () => {
+    // sample 정책: ^01[0-9]{8,9}$
+    if (!/^01[0-9]{8,9}$/.test(phone)) {
+      setPhoneError('휴대폰번호를 올바르게 입력해 주십시오.')
+      return
+    }
+    if (sending) return
     setPhoneError(null)
-    // TODO: 인증번호 전송 API
-    setPhoneSent(true)
-    setTimer(180)
+    setCodeError(null)
+    setSending(true)
+    setPhoneVerified(false)
+    setPhoneCode('')
+    try {
+      await smsApi.send(phone)
+      setPhoneSent(true)
+      setTimer(180)
+      showAlert('인증번호가 발송되었습니다.\n알림톡(또는 SMS)을 확인해주세요.')
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '인증번호 발송에 실패했습니다.'
+      setPhoneError(msg)
+    } finally {
+      setSending(false)
+    }
   }
 
   const onSubmit = async (e: FormEvent) => {
@@ -58,8 +110,8 @@ export default function Find() {
         setPhoneError('인증번호를 전송해주세요.')
         return
       }
-      if (phoneCode.length !== 6) {
-        setCodeError('인증번호 6자리를 입력해주세요.')
+      if (!phoneVerified) {
+        setCodeError('휴대폰 인증을 완료해주세요.')
         return
       }
       setCodeError(null)
@@ -73,16 +125,25 @@ export default function Find() {
 
     setSubmitting(true)
     try {
-      // TODO: 찾기 API
-      await new Promise((r) => setTimeout(r, 600))
+      if (tab === 'phone') {
+        // 비밀번호 찾기 (휴대폰) — 인증 완료된 폰번호로 임시비밀번호 발급 + 알림톡 발송
+        await authApi.findByPhone(phone, phoneCode)
+      } else {
+        // 비밀번호 찾기 (이메일) — 임시비밀번호 발급 + 메일 발송
+        await authApi.findByEmail(email)
+      }
       navigate('/find/complete', { replace: true, state: { method: tab } })
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '요청에 실패했습니다.'
+      if (tab === 'phone') setCodeError(msg)
+      else setEmailError(msg)
     } finally {
       setSubmitting(false)
     }
   }
 
   const canSubmit =
-    tab === 'phone' ? phoneSent && phoneCode.length === 6 : email.includes('@')
+    tab === 'phone' ? phoneVerified : email.includes('@')
 
   return (
     <div className="mobile-frame flex flex-col">
@@ -147,8 +208,8 @@ export default function Find() {
                     disabled={phoneSent && timer > 0}
                   />
                 </div>
-                <OutlineButton type="button" onClick={onSendCode}>
-                  {phoneSent ? '재전송' : '인증번호 전송'}
+                <OutlineButton type="button" onClick={onSendCode} disabled={sending}>
+                  {sending ? '전송 중...' : phoneSent ? '재전송' : '인증번호 전송'}
                 </OutlineButton>
               </div>
               {phoneError && <p className="text-[13px] text-[#FF6467] mt-1.5 ml-2">{phoneError}</p>}
@@ -159,16 +220,35 @@ export default function Find() {
                     <FieldLabel required className="mb-0">
                       인증번호
                     </FieldLabel>
-                    <span className="text-[13px] text-[#FF6467] font-medium">{fmt(timer)}</span>
+                    {!phoneVerified && (
+                      <span className="text-[13px] text-[#FF6467] font-medium">{fmt(timer)}</span>
+                    )}
                   </div>
-                  <InputField
-                    value={phoneCode}
-                    onChange={(v) => setPhoneCode(v.replace(/[^0-9]/g, '').slice(0, 6))}
-                    placeholder="인증번호 6자리를 입력해주세요."
-                    error={!!codeError}
-                    rightPadding="sm"
-                  />
-                  {codeError && <p className="text-[13px] text-[#FF6467] mt-1.5 ml-2">{codeError}</p>}
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <InputField
+                        value={phoneCode}
+                        onChange={(v) => setPhoneCode(v.replace(/[^0-9]/g, '').slice(0, 6))}
+                        placeholder="인증번호 6자리를 입력해주세요."
+                        error={!!codeError}
+                        rightPadding="sm"
+                        disabled={phoneVerified}
+                        maxLength={6}
+                        inputMode="numeric"
+                      />
+                    </div>
+                    {!phoneVerified && (
+                      <OutlineButton type="button" onClick={onVerifyCode} disabled={verifying}>
+                        {verifying ? '확인 중...' : '인증하기'}
+                      </OutlineButton>
+                    )}
+                  </div>
+                  {codeError && !phoneVerified && (
+                    <p className="text-[13px] text-[#FF6467] mt-1.5 ml-2">{codeError}</p>
+                  )}
+                  {phoneVerified && (
+                    <p className="text-[13px] text-[#10b981] mt-1.5">✓ 휴대폰 인증이 완료되었습니다.</p>
+                  )}
                 </>
               )}
             </>
@@ -196,6 +276,12 @@ export default function Find() {
           </div>
         </form>
       </main>
+
+      <AlertModal
+        open={!!alertState}
+        message={alertState?.message ?? ''}
+        onClose={closeAlert}
+      />
     </div>
   )
 }
