@@ -15,15 +15,19 @@ interface NavItem {
   iconBase: string
 }
 
-const ITEMS: NavItem[] = [
-  { to: '/favorites', label: '단골', iconBase: 'bookmark' },
-  { to: '/counselors', label: '상담사', iconBase: 'heart' },
-  { to: '/', label: '홈', iconBase: 'home' },
-  { to: '/point', label: '충전', iconBase: 'point' },
-  { to: '/mypage', label: '마이', iconBase: 'my' },
-]
+interface Props {
+  /** 마이 메뉴 링크 — 상담사 모드에서 '/counselor/mypage'로 오버라이드 */
+  myHref?: string
+}
 
-export default function BottomNav() {
+export default function BottomNav({ myHref = '/mypage' }: Props = {}) {
+  const ITEMS: NavItem[] = [
+    { to: '/favorites', label: '단골', iconBase: 'bookmark' },
+    { to: '/counselors', label: '상담사', iconBase: 'heart' },
+    { to: '/', label: '홈', iconBase: 'home' },
+    { to: '/point', label: '충전', iconBase: 'point' },
+    { to: myHref, label: '마이', iconBase: 'my' },
+  ]
   return (
     <nav
       className="fixed bottom-3 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-[496px] h-[70px] z-30 rounded-full px-8 flex items-center justify-between border border-[#F9FAFB] backdrop-blur-[7px] shadow-[0_4px_20px_rgba(0,0,0,0.06)]"

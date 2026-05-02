@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import CounselorCard, { Counselor } from '../components/CounselorCard'
 import FilterDropdown from '../components/FilterDropdown'
+import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
 
 type Category = '전체' | '사주' | '타로' | '신점'
@@ -80,6 +81,14 @@ export default function Favorites() {
         <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">
           단골 상담사
         </h1>
+        <div className="flex items-center gap-3">
+          <Link to="/search" aria-label="검색" className="w-[30px] h-[30px] flex items-center justify-center">
+            <img src="/img/ic_hd_search.svg" alt="" className="w-7 h-7" />
+          </Link>
+          <Link to="/notifications" aria-label="알림" className="w-[30px] h-[30px] flex items-center justify-center">
+            <img src="/img/ic_hd_push.svg" alt="" className="w-7 h-7" />
+          </Link>
+        </div>
       </header>
 
       <main className="flex-1">
@@ -134,10 +143,16 @@ export default function Favorites() {
           />
           <button
             type="button"
-            aria-label="필터 열기"
+            aria-label="필터 초기화"
+            onClick={() => {
+              setField(null)
+              setStyle(null)
+              setGender(null)
+              resetPage()
+            }}
             className="w-9 h-9 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] flex items-center justify-center shrink-0"
           >
-            <img src="/img/ic_filter.svg" alt="" className="w-4 h-4" />
+            <img src="/img/ic_reset.svg" alt="" className="w-5 h-5" />
           </button>
         </section>
 
@@ -180,26 +195,9 @@ export default function Favorites() {
         <Pagination currentPage={page} totalPages={1} onPageChange={setPage} />
       </main>
 
-      <FloatingGoTop />
+      <FloatingActions bottomOffset={100} />
 
       <BottomNav />
     </div>
-  )
-}
-
-function FloatingGoTop() {
-  return (
-    <button
-      type="button"
-      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      aria-label="위로 가기"
-      className="fixed right-4 bottom-[100px] z-40 w-[50px] h-[50px] rounded-full border border-[#F9FAFB] backdrop-blur-[6px] flex items-center justify-center"
-      style={{ background: 'rgba(243, 244, 246, 0.8)' }}
-    >
-      <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="#030712" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 19V5" />
-        <path d="M5 12l7-7 7 7" />
-      </svg>
-    </button>
   )
 }
