@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 
 interface CounselorPayload {
   // 계정
-  login_id: string
+  mb_id: string
   password: string
   // 기본
   name: string
@@ -49,7 +49,7 @@ interface CounselorPayload {
 }
 
 const empty = (): CounselorPayload => ({
-  login_id: '', password: '',
+  mb_id: '', password: '',
   name: '', nickname: '', email: '', phone: '',
   gender: '',
   counselor_category: '타로',
@@ -101,6 +101,12 @@ export default function CounselorForm() {
   const [linkingM2net, setLinkingM2net] = useState(false)
   const [files, setFiles] = useState<CounselorFile[]>([])
   const [uploading, setUploading] = useState<string | null>(null)
+  // 신규 등록 시 INSERT 전에 임시 보관할 파일 (등록 직후 일괄 업로드)
+  const [pendingFiles, setPendingFiles] = useState<{
+    profile?: File
+    wide?: File
+    contracts: File[]
+  }>({ contracts: [] })
 
   useEffect(() => {
     if (isNew) return
@@ -109,7 +115,7 @@ export default function CounselorForm() {
       .then((r) => {
         setData((d) => ({
           ...d,
-          login_id: String(r.login_id ?? ''),
+          mb_id: String(r.mb_id ?? ''),
           name: String(r.name ?? ''),
           nickname: String(r.nickname ?? ''),
           email: String(r.email ?? ''),
@@ -161,7 +167,7 @@ export default function CounselorForm() {
     setM2netResult(null)
     // 검증
     if (isNew) {
-      if (!data.login_id) return setError('아이디를 입력하세요.')
+      if (!data.mb_id) return setError('아이디를 입력하세요.')
       if (!data.password) return setError('비밀번호를 입력하세요.')
     }
     if (!data.name) return setError('이름을 입력하세요.')
@@ -189,6 +195,8 @@ export default function CounselorForm() {
           { method: 'POST', body: JSON.stringify(payload) },
         )
         setM2netResult({ ok: res.m2net.ok, csrid: res.csrid, error: res.m2net.error })
+        // 임시 보관된 첨부파일들 자동 업로드
+        await flushPendingFiles(res.id)
         if (!res.m2net.ok) {
           setSuccess(`등록이 완료되었습니다. (엠투넷 연동 실패: ${res.m2net.error ?? '알 수 없음'} — 수정 화면에서 재연동 가능)`)
         } else {
@@ -251,7 +259,7 @@ export default function CounselorForm() {
       {/* 1) 계정 정보 */}
       <Section title="계정 정보">
         <Row label="아이디" required>
-          <input type="text" value={data.login_id} disabled={!isNew} onChange={(e) => set('login_id', e.target.value)} className={inputCls} />
+          <input type="text" value={data.mb_id} disabled={!isNew} onChange={(e) => set('mb_id', e.target.value)} className={inputCls} />
         </Row>
         <Row label="비밀번호" required={isNew} hint={!isNew ? '비워두면 변경 안 함' : undefined}>
           <input type="password" autoComplete="new-password" value={data.password} onChange={(e) => set('password', e.target.value)} className={inputCls} />
@@ -533,16 +541,25 @@ export default function CounselorForm() {
         </Row>
       </Section>
 
-      {/* 6) 첨부파일 + 메모 (수정 모드 전용) */}
-      {!isNew && (
-        <Section title="첨부파일 / 메모">
-          <Row label="프로필 사진" hint="JPG/PNG/GIF/WEBP · 5MB 이하 · 비율 390×192 · 권장 사이즈 1170×576" fullWidth>
+      {/* 6) 첨부파일 + 메모 — 신규 등록 시 임시 보관, 저장 시 자동 업로드 */}
+      <Section title="첨부파일 / 메모">
+          <Row label="프로필 사진" hint="JPG/PNG/GIF/WEBP · 5MB 이하 · 권장 사이즈 200×200" fullWidth>
             <FileSlot
               kind="profile"
               accept="image/*"
               files={files.filter((f) => f.kind === 'profile')}
               uploading={uploading === 'profile'}
               onUpload={(file) => uploadFile('profile', file)}
+              onDelete={(fileId) => removeFile(fileId)}
+            />
+          </Row>
+          <Row label="와이드 사진" hint="JPG/PNG/GIF/WEBP · 5MB 이하 · 권장 사이즈 1170×576" fullWidth>
+            <FileSlot
+              kind="wide"
+              accept="image/*"
+              files={files.filter((f) => f.kind === 'wide')}
+              uploading={uploading === 'wide'}
+              onUpload={(file) => uploadFile('wide', file)}
               onDelete={(fileId) => removeFile(fileId)}
             />
           </Row>
@@ -567,13 +584,43 @@ export default function CounselorForm() {
             />
           </Row>
         </Section>
-      )}
     </div>
   )
 
-  async function uploadFile(kind: 'profile' | 'contract', file: File) {
+  async function uploadFile(kind: 'profile' | 'contract' | 'wide', file: File) {
+    setError(null)
+
+    // 신규 등록 모드 — 아직 ID 없음 → 임시 보관 + 미리보기용 fake CounselorFile 생성
+    if (isNew) {
+      const blobUrl = URL.createObjectURL(file)
+      const fakeId = -Math.floor(Math.random() * 1_000_000) - 1 // 음수 ID로 임시 표시
+      setFiles((arr) => {
+        const isSingle = kind === 'profile' || kind === 'wide'
+        const next = isSingle ? arr.filter((f) => f.kind !== kind) : arr
+        return [
+          {
+            id: fakeId,
+            kind,
+            source_name: file.name,
+            stored_name: blobUrl,
+            filesize: file.size,
+            created_at: new Date().toISOString(),
+          },
+          ...next,
+        ]
+      })
+      setPendingFiles((p) => {
+        if (kind === 'profile') return { ...p, profile: file }
+        if (kind === 'wide') return { ...p, wide: file }
+        return { ...p, contracts: [...p.contracts, file] }
+      })
+      const label = kind === 'profile' ? '프로필 사진' : kind === 'wide' ? '와이드 사진' : '계약서'
+      setSuccess(`${label} 선택됨 — 등록 시 함께 업로드됩니다.`)
+      return
+    }
+
     if (!id) return
-    setError(null); setUploading(kind)
+    setUploading(kind)
     try {
       const fd = new FormData()
       fd.append('file', file)
@@ -587,10 +634,13 @@ export default function CounselorForm() {
       }
       const r = await res.json()
       setFiles((arr) => {
-        const next = kind === 'profile' ? arr.filter((f) => f.kind !== 'profile') : arr
+        // 단일 슬롯 (profile / wide) 은 같은 kind 의 기존 row 를 교체
+        const isSingle = kind === 'profile' || kind === 'wide'
+        const next = isSingle ? arr.filter((f) => f.kind !== kind) : arr
         return [{ id: r.id, kind, source_name: r.source_name, stored_name: r.stored_name, filesize: file.size, created_at: new Date().toISOString() }, ...next]
       })
-      setSuccess(`${kind === 'profile' ? '프로필 사진' : '계약서'} 업로드 완료`)
+      const label = kind === 'profile' ? '프로필 사진' : kind === 'wide' ? '와이드 사진' : '계약서'
+      setSuccess(`${label} 업로드 완료`)
     } catch (e) {
       setError(e instanceof Error ? e.message : '업로드 실패')
     } finally {
@@ -599,9 +649,27 @@ export default function CounselorForm() {
   }
 
   async function removeFile(fileId: number) {
+    setError(null)
+
+    // 신규 등록 시 임시 파일 (음수 ID) — 서버 호출 없이 로컬 제거만
+    if (fileId < 0) {
+      const target = files.find((f) => f.id === fileId)
+      setFiles((arr) => arr.filter((f) => f.id !== fileId))
+      if (target?.kind === 'profile') {
+        setPendingFiles((p) => ({ ...p, profile: undefined }))
+      } else if (target?.kind === 'wide') {
+        setPendingFiles((p) => ({ ...p, wide: undefined }))
+      } else if (target?.kind === 'contract') {
+        setPendingFiles((p) => ({
+          ...p,
+          contracts: p.contracts.filter((f) => f.name !== target.source_name),
+        }))
+      }
+      return
+    }
+
     if (!id) return
     if (!window.confirm('파일을 삭제하시겠습니까?')) return
-    setError(null)
     try {
       const res = await fetch(
         (import.meta.env.VITE_API_BASE ?? '/api') + `/admin/members/counselors/${id}/files/${fileId}`,
@@ -611,6 +679,29 @@ export default function CounselorForm() {
       setFiles((arr) => arr.filter((f) => f.id !== fileId))
     } catch (e) {
       setError(e instanceof Error ? e.message : '삭제 실패')
+    }
+  }
+
+  /** 신규 등록 직후 임시 파일들을 일괄 업로드 */
+  async function flushPendingFiles(newId: number): Promise<void> {
+    const tasks: Array<{ kind: string; file: File }> = []
+    if (pendingFiles.profile) tasks.push({ kind: 'profile', file: pendingFiles.profile })
+    if (pendingFiles.wide) tasks.push({ kind: 'wide', file: pendingFiles.wide })
+    pendingFiles.contracts.forEach((f) => tasks.push({ kind: 'contract', file: f }))
+    if (tasks.length === 0) return
+
+    for (const t of tasks) {
+      try {
+        const fd = new FormData()
+        fd.append('file', t.file)
+        await fetch(
+          (import.meta.env.VITE_API_BASE ?? '/api') +
+            `/admin/members/counselors/${newId}/files/${t.kind}`,
+          { method: 'POST', credentials: 'include', body: fd },
+        )
+      } catch {
+        // 업로드 실패는 무시 — 사용자가 수정 페이지에서 재시도 가능
+      }
     }
   }
 }
@@ -738,7 +829,7 @@ function FileSlot({
   onDelete,
   multipleSlot = false,
 }: {
-  kind: 'profile' | 'contract'
+  kind: 'profile' | 'contract' | 'wide'
   accept: string
   files: CounselorFile[]
   uploading: boolean
@@ -747,10 +838,17 @@ function FileSlot({
   multipleSlot?: boolean
 }) {
   const isImage = (name: string) => /\.(jpe?g|png|gif|webp)$/i.test(name)
-  const isProfile = kind === 'profile'
+  // 단일 슬롯 (1장만 존재 — 같은 kind 업로드 시 기존 row 교체)
+  const isSingleSlot = kind === 'profile' || kind === 'wide'
+  // 미리보기 크기 — 프로필 200×200 정사각, 와이드 1170×576 (16:7.86)
+  const preview =
+    kind === 'profile'
+      ? { width: 200, height: 200 }
+      : kind === 'wide'
+        ? { width: 390, height: 192 } // 1170×576 와이드 비율 유지하며 화면에 맞춤
+        : { width: 390, height: 192 }
 
-  // 프로필: 1장 단독 큰 카드 미리보기
-  if (isProfile) {
+  if (isSingleSlot) {
     const f = files[0]
     return (
       <div className="space-y-3">
@@ -792,7 +890,7 @@ function FileSlot({
             <img
               src={FILE_BASE + f.stored_name}
               alt={f.source_name}
-              style={{ width: 390, height: 192, objectFit: 'cover' }}
+              style={{ width: preview.width, height: preview.height, objectFit: 'cover' }}
               className="border border-gray-200 dark:border-gray-700"
             />
           </a>

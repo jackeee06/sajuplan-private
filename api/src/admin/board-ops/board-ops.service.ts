@@ -32,7 +32,7 @@ export class BoardOpsService {
 
     const items = await this.sql`
       SELECT s.id, s.keyword, s.search_ip, s.result_count, s.created_at,
-             s.member_id, m.login_id AS member_login_id, m.name AS member_name
+             s.member_id, m.mb_id AS member_mb_id, m.name AS member_name
       FROM search_log s
       LEFT JOIN member m ON m.id = s.member_id
       ${whereClause}
@@ -70,7 +70,7 @@ export class BoardOpsService {
     const conds: ReturnType<Sql>[] = [];
     if (filter.q) {
       const q = `%${filter.q}%`;
-      conds.push(this.sql`(c.content ILIKE ${q} OR m.login_id ILIKE ${q} OR m.name ILIKE ${q})`);
+      conds.push(this.sql`(c.content ILIKE ${q} OR m.mb_id ILIKE ${q} OR m.name ILIKE ${q})`);
     }
     if (filter.board_slug) conds.push(this.sql`c.board_slug = ${filter.board_slug}`);
     if (filter.fr_date) conds.push(this.sql`c.created_at >= ${filter.fr_date + ' 00:00:00'}::timestamptz`);
@@ -83,7 +83,7 @@ export class BoardOpsService {
     const items = await this.sql`
       SELECT c.id, c.board_slug, c.post_id, c.parent_id, c.member_id, c.content,
              c.like_count, c.dislike_count, c.is_secret, c.created_at,
-             m.login_id AS member_login_id, m.name AS member_name, m.nickname AS member_nickname,
+             m.mb_id AS member_mb_id, m.name AS member_name, m.nickname AS member_nickname,
              c.author_name
       FROM post_comment c
       LEFT JOIN member m ON m.id = c.member_id
@@ -145,8 +145,8 @@ export class BoardOpsService {
     const items = await this.sql`
       SELECT r.id, r.board_slug, r.post_id, r.reporter_id, r.target_member_id,
              r.mode, r.reason, r.status, r.created_at,
-             rep.login_id AS reporter_login_id, rep.name AS reporter_name,
-             tgt.login_id AS target_login_id, tgt.name AS target_name
+             rep.mb_id AS reporter_mb_id, rep.name AS reporter_name,
+             tgt.mb_id AS target_mb_id, tgt.name AS target_name
       FROM post_report r
       LEFT JOIN member rep ON rep.id = r.reporter_id
       LEFT JOIN member tgt ON tgt.id = r.target_member_id

@@ -7,7 +7,7 @@ import postgres from 'postgres';
  *
  * 사용:
  *   @Inject(SQL) private readonly sql: Sql
- *   const rows = await this.sql`SELECT id FROM member WHERE login_id = ${loginId}`
+ *   const rows = await this.sql`SELECT id FROM member WHERE mb_id = ${mbId}`
  */
 export const SQL = Symbol('postgres.sql');
 export type Sql = ReturnType<typeof postgres>;

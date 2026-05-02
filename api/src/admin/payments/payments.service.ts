@@ -17,7 +17,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  *   od_time (날짜)                           p.created_at
  *   PayMethod (결제방법)                     p.pay_method
  *   Membid (사용자코드)                      p.membid
- *   mb_id (아이디)                           m.login_id
+ *   mb_id (아이디)                           m.mb_id
  *   mb_nick (닉네임)                         m.nickname
  *   mb_hp (핸드폰)                           m.phone
  *   Amount (결제금액)                        p.amount
@@ -50,7 +50,7 @@ export interface PaymentRow {
   id: number;
   no: number | null;
   member_id: number | null;
-  login_id: string | null;
+  mb_id: string | null;
   member_name: string | null;
   member_nickname: string | null;
   member_phone: string | null;
@@ -95,7 +95,7 @@ export interface PaymentCancelLogRow {
   is_partial: boolean;
   cancel_method: string;
   actor_admin_id: number | null;
-  actor_admin_login_id: string | null;
+  actor_admin_mb_id: string | null;
   actor_ip: string | null;
 }
 
@@ -144,7 +144,7 @@ export class PaymentsService {
       const q = `%${stx}%`;
       switch (filter.sfl) {
         case 'mb_id':
-          conds.push(this.sql`(m.login_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
+          conds.push(this.sql`(m.mb_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
           break;
         case 'mb_name':
           conds.push(this.sql`m.name ILIKE ${q}`);
@@ -163,7 +163,7 @@ export class PaymentsService {
           conds.push(this.sql`m.level = ${Number(stx) || 0}`);
           break;
         default:
-          conds.push(this.sql`(m.login_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q} OR p.oid ILIKE ${q})`);
+          conds.push(this.sql`(m.mb_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q} OR p.oid ILIKE ${q})`);
       }
     }
     if (filter.fr_date) {
@@ -205,7 +205,7 @@ export class PaymentsService {
         p.status, p.req_result, p.result_message,
         p.bank_name, p.vr_account, p.deposit_name, p.deposit_time,
         p.cancelled_at, p.created_at,
-        m.login_id, m.name AS member_name, m.nickname AS member_nickname,
+        m.mb_id, m.name AS member_name, m.nickname AS member_nickname,
         m.phone AS member_phone
       FROM payment p
       LEFT JOIN member m ON m.id = p.member_id
@@ -270,7 +270,7 @@ export class PaymentsService {
         p.status, p.req_result, p.result_message,
         p.bank_name, p.vr_account, p.deposit_name, p.deposit_time,
         p.cancelled_at, p.created_at,
-        m.login_id, m.name AS member_name, m.nickname AS member_nickname,
+        m.mb_id, m.name AS member_name, m.nickname AS member_nickname,
         m.phone AS member_phone
       FROM payment p
       LEFT JOIN member m ON m.id = p.member_id
@@ -288,7 +288,7 @@ export class PaymentsService {
         l.oid, l.tid,
         l.refund_amount, l.refund_coin, l.refund_reason, l.is_partial, l.cancel_method,
         l.actor_admin_id, l.actor_ip,
-        a.login_id AS actor_admin_login_id
+        a.mb_id AS actor_admin_mb_id
       FROM payment_cancel_log l
       LEFT JOIN member a ON a.id = l.actor_admin_id
       WHERE l.payment_id = ${id}

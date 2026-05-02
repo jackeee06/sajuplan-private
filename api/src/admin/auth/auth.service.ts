@@ -4,7 +4,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
 
 interface AdminMemberRow {
   id: number;
-  login_id: string | null;
+  mb_id: string | null;
   password: string | null;
   name: string;
   nickname: string;
@@ -14,7 +14,7 @@ interface AdminMemberRow {
 
 export interface AdminLoginResult {
   id: number;
-  login_id: string;
+  mb_id: string;
   name: string;
   nickname: string;
   role: 'admin';
@@ -25,11 +25,11 @@ export interface AdminLoginResult {
 export class AdminAuthService {
   constructor(@Inject(SQL) private readonly sql: Sql) {}
 
-  async login(loginId: string, password: string): Promise<AdminLoginResult> {
+  async login(mbId: string, password: string): Promise<AdminLoginResult> {
     const rows = await this.sql<AdminMemberRow[]>`
-      SELECT id, login_id, password, name, nickname, role, level
+      SELECT id, mb_id, password, name, nickname, role, level
         FROM member
-       WHERE login_id = ${loginId}
+       WHERE mb_id = ${mbId}
          AND role = 'admin'
          AND left_at IS NULL
        LIMIT 1
@@ -52,7 +52,7 @@ export class AdminAuthService {
 
     return {
       id: admin.id,
-      login_id: admin.login_id ?? '',
+      mb_id: admin.mb_id ?? '',
       name: admin.name,
       nickname: admin.nickname,
       role: 'admin',

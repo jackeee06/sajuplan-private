@@ -10,7 +10,7 @@ import type { Request } from 'express';
 
 export interface UserJwtPayload {
   sub: number;
-  login_id: string | null;
+  mb_id: string | null;
   role: string;
   level: number;
 }

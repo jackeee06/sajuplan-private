@@ -18,7 +18,7 @@ interface Post {
   id: number
   wr_id: number | null
   member_id: number | null
-  login_id: string | null
+  mb_id: string | null
   member_name: string | null
   member_nickname: string | null
   title: string
@@ -158,8 +158,8 @@ export default function PostList() {
                       )}
                       {slug === 'review' && <td className="px-3 py-2 text-right">{p.rating ? `${p.rating}/5` : '-'}</td>}
                       <td className="px-3 py-2 whitespace-nowrap">
-                        {p.member_id && p.login_id ? (
-                          <Link to={`/members/customers/${p.member_id}`} className="text-brand-600 hover:underline">{p.login_id}</Link>
+                        {p.member_id && p.mb_id ? (
+                          <Link to={`/members/customers/${p.member_id}`} className="text-brand-600 hover:underline">{p.mb_id}</Link>
                         ) : (
                           <span className="text-gray-400">{p.member_nickname || p.member_name || '-'}</span>
                         )}

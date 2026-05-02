@@ -6,10 +6,10 @@ interface Item {
   board_slug: string
   post_id: number
   reporter_id: number | null
-  reporter_login_id: string | null
+  reporter_mb_id: string | null
   reporter_name: string | null
   target_member_id: number | null
-  target_login_id: string | null
+  target_mb_id: string | null
   target_name: string | null
   mode: string | null
   reason: string | null
@@ -85,8 +85,8 @@ export default function PostReports() {
                     <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{formatDT(r.created_at)}</td>
                     <td className="px-3 py-2 font-mono text-gray-600">{r.board_slug}</td>
                     <td className="px-3 py-2 text-right text-gray-500">#{r.post_id}</td>
-                    <td className="px-3 py-2">{r.reporter_login_id ?? '-'}</td>
-                    <td className="px-3 py-2">{r.target_login_id ?? '-'}</td>
+                    <td className="px-3 py-2">{r.reporter_mb_id ?? '-'}</td>
+                    <td className="px-3 py-2">{r.target_mb_id ?? '-'}</td>
                     <td className="px-3 py-2 text-gray-600 max-w-[280px] truncate">{r.reason ?? '-'}</td>
                     <td className="px-3 py-2 text-center"><span className={`text-[10px] px-1.5 py-0.5 rounded ${s.cls}`}>{s.label}</span></td>
                     <td className="px-3 py-2 text-right whitespace-nowrap">

@@ -31,11 +31,11 @@ export class AdminAuthController {
     @Body() body: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const admin = await this.authService.login(body.login_id, body.password);
+    const admin = await this.authService.login(body.mb_id, body.password);
 
     const token = await this.jwt.signAsync({
       sub: admin.id,
-      login_id: admin.login_id,
+      mb_id: admin.mb_id,
       role: admin.role,
       level: admin.level,
     });
@@ -62,7 +62,7 @@ export class AdminAuthController {
   me(@Req() req: AuthedRequest) {
     return {
       id: req.admin.sub,
-      login_id: req.admin.login_id,
+      mb_id: req.admin.mb_id,
       role: req.admin.role,
       level: req.admin.level,
     };

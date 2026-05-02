@@ -6,7 +6,6 @@ interface HistoryRow {
   id: number
   member_id: number | null
   mb_id: string | null
-  login_id: string | null
   member_name: string | null
   title: string
   content: string
@@ -121,7 +120,7 @@ export default function PushNotifications() {
                     <td className="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">{formatDT(h.created_at)}</td>
                     <td className="px-3 py-2 text-xs text-gray-600 text-center">{h.category ?? '-'}</td>
                     <td className="px-3 py-2 font-medium">{h.title}</td>
-                    <td className="px-3 py-2 text-xs text-gray-500">{h.login_id ?? h.mb_id ?? '-'}</td>
+                    <td className="px-3 py-2 text-xs text-gray-500">{h.mb_id ?? '-'}</td>
                     <td className="px-3 py-2 text-xs text-brand-600 max-w-[300px] truncate">
                       {h.link_url ? <a href={h.link_url} target="_blank" rel="noreferrer" className="hover:underline">{h.link_url}</a> : '-'}
                     </td>

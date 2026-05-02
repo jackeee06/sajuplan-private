@@ -58,7 +58,7 @@ interface RecentMember {
   id: number
   name: string
   nickname: string
-  login_id: string | null
+  mb_id: string | null
   role: string
   created_at: string | Date
 }
@@ -66,7 +66,7 @@ interface RecentMember {
 interface RecentPoint {
   id: number
   member_name: string | null
-  login_id: string | null
+  mb_id: string | null
   content: string | null
   earn_point: number
   use_point: number
@@ -466,7 +466,7 @@ export default function Dashboard() {
                       <span className="text-gray-500 dark:text-gray-400">{m.nickname}</span>
                     </div>
                     <div className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                      {m.login_id ?? '소셜 가입'} · {roleLabel(m.role)}
+                      {m.mb_id ?? '소셜 가입'} · {roleLabel(m.role)}
                     </div>
                   </div>
                 </div>
@@ -523,7 +523,7 @@ export default function Dashboard() {
                   </td>
                   <td className="px-2 py-2">
                     <div className="font-medium">{p.member_name ?? '-'}</div>
-                    {p.login_id && <div className="text-xs text-gray-400">{p.login_id}</div>}
+                    {p.mb_id && <div className="text-xs text-gray-400">{p.mb_id}</div>}
                   </td>
                   <td className="px-2 py-2">
                     <span className="inline-flex items-center gap-1.5">

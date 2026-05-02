@@ -11,7 +11,7 @@ import { api, ApiError } from './api'
 
 export interface AdminUser {
   id: number | string
-  login_id: string
+  mb_id: string
   role: 'admin'
   level: number
 }
@@ -24,7 +24,7 @@ export interface LoginResult {
 interface AuthState {
   admin: AdminUser | null
   status: 'loading' | 'authed' | 'guest'
-  login: (loginId: string, password: string) => Promise<void>
+  login: (mbId: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -53,15 +53,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const login = useCallback(async (loginId: string, password: string) => {
+  const login = useCallback(async (mbId: string, password: string) => {
     try {
       const result = await api<LoginResult>('/admin/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ login_id: loginId, password }),
+        body: JSON.stringify({ mb_id: mbId, password }),
       })
       setAdmin({
         id: result.admin.id,
-        login_id: result.admin.login_id,
+        mb_id: result.admin.mb_id,
         role: result.admin.role,
         level: result.admin.level,
       })

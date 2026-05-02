@@ -22,6 +22,8 @@ import { SocialAuthService, type SocialProvider } from './social-auth.service';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
 import { UserAuthGuard, type UserAuthedRequest } from './user-auth.guard';
+import { SmsService } from '../sms/sms.service';
+import { CaptchaService } from '../captcha/captcha.service';
 
 const STATE_COOKIE_NAME = 'sjm_oauth_state';
 const SOCIAL_PENDING_COOKIE = 'sjm_social_pending';
@@ -46,12 +48,14 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly social: SocialAuthService,
+    private readonly sms: SmsService,
+    private readonly captcha: CaptchaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
   ) {}
 
   // ─────────────────────────────────────────────
-  // 일반 로그인 (login_id + password)
+  // 일반 로그인 (mb_id + password)
   // ─────────────────────────────────────────────
   @Post('login')
   @HttpCode(200)
@@ -61,7 +65,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const member = await this.authService.loginByLocal(
-      body.login_id,
+      body.mb_id,
       body.password,
     );
     await this.issueLoginCookie(res, member, body.keep_login);
@@ -189,14 +193,15 @@ export class AuthController {
         nickname: profile.nickname,
         phone: profile.phone,
       } satisfies SocialPendingPayload,
-      { expiresIn: '15m' },
+      // 회원가입 폼은 SMS 인증/캡차/주소검색/약관까지 시간 걸리므로 60분 부여
+      { expiresIn: '60m' },
     );
     res.cookie(SOCIAL_PENDING_COOKIE, pendingToken, {
       httpOnly: true,
       secure: this.cookieSecure(),
       sameSite: 'lax',
       path: '/',
-      maxAge: 15 * 60 * 1000,
+      maxAge: 60 * 60 * 1000,
     });
     return res.redirect(`${siteUrl}/signup?social=${p}`);
   }
@@ -222,33 +227,74 @@ export class AuthController {
 
   // ─────────────────────────────────────────────
   // 아이디 중복확인
-  //   GET /api/user/auth/check-login-id?login_id=...
+  //   GET /api/user/auth/check-mb-id?mb_id=...
   //   - 가입 폼의 [중복확인] 버튼이 호출
   //   - 형식 검증(영문/숫자/._- 만, 3~60자)도 같이 수행
   // ─────────────────────────────────────────────
-  @Get('check-login-id')
-  async checkLoginId(@Query('login_id') loginId: string | undefined) {
-    const id = (loginId || '').trim();
+  // ─────────────────────────────────────────────
+  // 비밀번호 찾기 (휴대폰) — SMS 인증 통과 후 임시비밀번호 발급 + 알림톡 발송
+  //   POST /api/user/auth/find/phone  { phone, code }
+  // ─────────────────────────────────────────────
+  @Post('find/phone')
+  @HttpCode(200)
+  @Throttle({ login: { limit: 10, ttl: 60_000 } })
+  async findByPhone(@Body() body: { phone?: string; code?: string }) {
+    const phone = String(body.phone ?? '').replace(/[^0-9]/g, '');
+    const code = String(body.code ?? '').trim();
+    if (!/^01[0-9]{8,9}$/.test(phone)) {
+      throw new BadRequestException('휴대폰번호를 올바르게 입력해 주십시오.');
+    }
+    if (!code) {
+      throw new BadRequestException('인증번호를 입력해주세요.');
+    }
+    // 인증번호 5분 내 매칭 검증 (재검증 — 1회용 아님)
+    await this.sms.assertVerified(phone, code);
+    await this.authService.findPasswordByPhone(phone);
+    return { ok: true };
+  }
+
+  // ─────────────────────────────────────────────
+  // 비밀번호 찾기 (이메일) — 임시비밀번호 발급 + 메일 발송
+  //   POST /api/user/auth/find/email  { email }
+  // ─────────────────────────────────────────────
+  @Post('find/email')
+  @HttpCode(200)
+  @Throttle({ login: { limit: 10, ttl: 60_000 } })
+  async findByEmail(@Body() body: { email?: string }) {
+    await this.authService.findPasswordByEmail(String(body.email ?? ''));
+    return { ok: true };
+  }
+
+  @Get('check-mb-id')
+  async checkMbId(@Query('mb_id') mbId: string | undefined) {
+    const id = (mbId || '').trim();
     if (!id) {
       throw new BadRequestException('아이디를 입력해주세요.');
     }
-    if (id.length < 3 || id.length > 60) {
-      throw new BadRequestException('아이디는 3~60자여야 합니다.');
+    if (id.length < 3 || id.length > 20) {
+      throw new BadRequestException('아이디는 3~20자여야 합니다.');
     }
-    if (!/^[A-Za-z0-9._-]+$/.test(id)) {
+    if (!/^[A-Za-z0-9_]+$/.test(id)) {
       throw new BadRequestException(
-        '아이디는 영문/숫자/._- 만 사용 가능합니다.',
+        '아이디는 영문/숫자/_ 만 사용 가능합니다.',
       );
     }
-    const available = await this.authService.isLoginIdAvailable(id);
-    return { available, login_id: id };
+    if (/_[KN]$/.test(id)) {
+      throw new BadRequestException(
+        '소셜 가입 형식과 동일한 ID는 사용할 수 없습니다.',
+      );
+    }
+    // 금지 아이디 (admin security 설정) — 중복확인 시점에 즉시 거부
+    await this.authService.assertMbIdNotProhibited(id);
+    const available = await this.authService.isMbIdAvailable(id);
+    return { available, mb_id: id };
   }
 
   // ─────────────────────────────────────────────
   // 회원가입 — 로컬 / 소셜 둘 다 지원
   //   POST /api/user/auth/signup
-  //   - sjm_social_pending 쿠키가 있으면 → 소셜 가입 (login_id/password 무시, social UID 연결)
-  //   - 없으면 → 로컬 가입 (login_id + password 필수)
+  //   - sjm_social_pending 쿠키가 있으면 → 소셜 가입 (mb_id/password 무시, social UID 연결)
+  //   - 없으면 → 로컬 가입 (mb_id + password 필수)
   // ─────────────────────────────────────────────
   @Post('signup')
   @HttpCode(200)
@@ -264,6 +310,20 @@ export class AuthController {
 
     const pending = await this.readPendingPayload(req);
 
+    // 프론트가 'social=kakao|naver' 를 명시했는데 pending 이 없으면 (쿠키 만료/누락/위조)
+    // 사용자가 헷갈리지 않도록 즉시 명확한 에러로 알리고 카카오/네이버 재로그인 유도.
+    if (!pending && body.social) {
+      throw new BadRequestException(
+        '소셜 인증이 만료되었습니다. 카카오/네이버 로그인을 다시 시도해주세요.',
+      );
+    }
+    // (보조 케이스) 쿠키 자체는 있는데 검증 실패한 경우도 동일 안내
+    if (!pending && req.cookies?.[SOCIAL_PENDING_COOKIE]) {
+      throw new BadRequestException(
+        '소셜 인증이 만료되었습니다. 카카오/네이버 로그인을 다시 시도해주세요.',
+      );
+    }
+
     // ── 소셜 가입 분기 ─────────────────────────
     if (pending) {
       // 같은 (provider, uid) 가 이미 가입돼 있으면 중복 차단
@@ -274,6 +334,24 @@ export class AuthController {
       if (existing) {
         throw new BadRequestException('이미 가입된 소셜 계정입니다.');
       }
+
+      // 소셜 가입도 휴대폰 SMS 인증 + 캡차 필수 (sample 정책: 모든 가입 경로 통일)
+      await this.captcha.verify(
+        body.captcha_token ?? '',
+        body.captcha_input ?? '',
+      );
+      if (!body.phone) {
+        throw new BadRequestException('휴대폰번호를 입력해주세요.');
+      }
+      await this.sms.assertVerified(body.phone, body.phone_code ?? '');
+
+      // 같은 휴대폰번호로 다른 경로(카카오/네이버/일반) 가입 차단
+      await this.authService.assertPhoneAvailable(body.phone);
+
+      // 금지 이메일 도메인 검사 (소셜에도 동일 적용)
+      await this.authService.assertEmailNotProhibited(
+        body.email ?? pending.email,
+      );
 
       const created = await this.social.createSocialMember(
         pending.provider,
@@ -295,6 +373,17 @@ export class AuthController {
         },
       );
 
+      // m2net (AG9/PassCall) 외부 회원 등록 — 로컬과 동일하게 적용
+      // 실패 시 회원 row 롤백 + 사용자에게 알림 (sample 정책)
+      await this.authService.registerWithM2net(created.id);
+
+      // 회원가입 쿠폰 발급 (소셜 가입도 동일하게) — 발급 실패는 가입을 막지 않음
+      try {
+        await this.authService.issueSignupCoupon(created.id);
+      } catch {
+        // 로그는 service 내부에서. 회원가입은 계속 진행.
+      }
+
       const member = await this.authService.findActiveById(created.id);
       await this.issueLoginCookie(res, member, true);
       res.clearCookie(SOCIAL_PENDING_COOKIE, this.cookieOptions('lax'));
@@ -302,12 +391,25 @@ export class AuthController {
     }
 
     // ── 로컬 가입 분기 ─────────────────────────
-    if (!body.login_id || !body.password) {
+    if (!body.mb_id || !body.password) {
       throw new BadRequestException('아이디와 비밀번호를 입력해주세요.');
     }
+    if (!body.phone) {
+      throw new BadRequestException('휴대폰번호를 입력해주세요.');
+    }
 
+    // (1) 자동등록방지(캡차) 검증 — sample 의 chk_captcha() 동등
+    await this.captcha.verify(
+      body.captcha_token ?? '',
+      body.captcha_input ?? '',
+    );
+
+    // (2) 휴대폰 인증 검증 — sample register_form_update.php 의 sms_auth 흐름 동등
+    await this.sms.assertVerified(body.phone, body.phone_code ?? '');
+
+    // (3) DB 회원 생성 + m2net 외부 등록 (실패 시 롤백)
     const created = await this.authService.createLocalMember({
-      login_id: body.login_id,
+      mb_id: body.mb_id,
       password: body.password,
       name: body.name,
       nickname: body.nickname,
@@ -359,7 +461,7 @@ export class AuthController {
   ): Promise<void> {
     const token = await this.jwt.signAsync({
       sub: member.id,
-      login_id: member.login_id,
+      mb_id: member.mb_id,
       role: member.role,
       level: member.level,
     });

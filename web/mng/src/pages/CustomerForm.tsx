@@ -6,7 +6,7 @@ import { openPostcode } from '../lib/daumPostcode'
 import PointAdjustPanel from '../components/PointAdjustPanel'
 
 interface CustomerPayload {
-  login_id: string
+  mb_id: string
   password: string
   name: string
   nickname: string
@@ -25,7 +25,7 @@ interface CustomerPayload {
 }
 
 const empty = (): CustomerPayload => ({
-  login_id: '', password: '',
+  mb_id: '', password: '',
   name: '', nickname: '', email: '', phone: '',
   gender: '',
   birth_date: '',
@@ -53,7 +53,7 @@ export default function CustomerForm() {
       .then((r) => {
         setData((d) => ({
           ...d,
-          login_id: String(r.login_id ?? ''),
+          mb_id: String(r.mb_id ?? ''),
           name: String(r.name ?? ''),
           nickname: String(r.nickname ?? ''),
           email: String(r.email ?? ''),
@@ -81,7 +81,7 @@ export default function CustomerForm() {
     setError(null)
     setSuccess(null)
     if (isNew) {
-      if (!data.login_id) return setError('아이디를 입력하세요.')
+      if (!data.mb_id) return setError('아이디를 입력하세요.')
       if (!data.password) return setError('비밀번호를 입력하세요.')
     }
     if (!data.name) return setError('이름을 입력하세요.')
@@ -148,7 +148,7 @@ export default function CustomerForm() {
 
       <Section title="계정 정보">
         <Row label="아이디" required>
-          <input type="text" value={data.login_id} disabled={!isNew} onChange={(e) => set('login_id', e.target.value)} className={inputCls} />
+          <input type="text" value={data.mb_id} disabled={!isNew} onChange={(e) => set('mb_id', e.target.value)} className={inputCls} />
         </Row>
         <Row label="비밀번호" required={isNew} hint={!isNew ? '비워두면 변경 안 함' : undefined}>
           <input type="password" autoComplete="new-password" value={data.password} onChange={(e) => set('password', e.target.value)} className={inputCls} />

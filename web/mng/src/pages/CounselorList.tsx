@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 
 interface Counselor {
   id: number
-  login_id: string | null
+  mb_id: string | null
   name: string
   nickname: string
   phone: string | null
@@ -269,7 +269,7 @@ export default function CounselorList() {
                   </Td>
                   <Td className="text-gray-400">{c.id}</Td>
                   <Td className="text-xs">{fmtDate(c.created_at)}</Td>
-                  <Td><div className="font-medium">{c.login_id ?? '-'}</div></Td>
+                  <Td><div className="font-medium">{c.mb_id ?? '-'}</div></Td>
                   <Td>{c.name}</Td>
                   <Td>{c.nickname}</Td>
                   <Td>

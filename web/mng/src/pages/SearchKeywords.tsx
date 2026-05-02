@@ -8,7 +8,7 @@ interface Item {
   search_ip: string | null
   result_count: number | null
   member_id: number | null
-  member_login_id: string | null
+  member_mb_id: string | null
   member_name: string | null
   created_at: string
 }
@@ -67,7 +67,7 @@ export default function SearchKeywords() {
               <tr key={i.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                 <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{formatDT(i.created_at)}</td>
                 <td className="px-3 py-2 font-medium">{i.keyword}</td>
-                <td className="px-3 py-2 text-gray-500">{i.member_login_id ?? '-'}</td>
+                <td className="px-3 py-2 text-gray-500">{i.member_mb_id ?? '-'}</td>
                 <td className="px-3 py-2 text-right">{i.result_count ?? '-'}</td>
                 <td className="px-3 py-2 text-xs text-gray-400 font-mono">{i.search_ip ?? '-'}</td>
               </tr>

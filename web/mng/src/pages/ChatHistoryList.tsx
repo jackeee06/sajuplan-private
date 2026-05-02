@@ -7,10 +7,10 @@ interface Room {
   id: number
   roomid: string | null
   member_id: number | null
-  member_login_id: string | null
+  member_mb_id: string | null
   member_name: string | null
   counselor_id: number | null
-  counselor_login_id: string | null
+  counselor_mb_id: string | null
   counselor_name: string | null
   counselor_nickname: string | null
   status: string | null
@@ -91,13 +91,13 @@ export default function ChatHistoryList() {
                   <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                     <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{formatDT(r.started_at)}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {r.member_id && r.member_login_id ? (
-                        <Link to={`/members/customers/${r.member_id}`} className="text-brand-600 hover:underline">{r.member_login_id}</Link>
+                      {r.member_id && r.member_mb_id ? (
+                        <Link to={`/members/customers/${r.member_id}`} className="text-brand-600 hover:underline">{r.member_mb_id}</Link>
                       ) : <span className="text-gray-400">-</span>}
                     </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       {r.counselor_id ? (
-                        <Link to={`/members/counselors/${r.counselor_id}`} className="text-brand-600 hover:underline">{r.counselor_nickname || r.counselor_login_id || `#${r.counselor_id}`}</Link>
+                        <Link to={`/members/counselors/${r.counselor_id}`} className="text-brand-600 hover:underline">{r.counselor_nickname || r.counselor_mb_id || `#${r.counselor_id}`}</Link>
                       ) : <span className="text-gray-400">-</span>}
                     </td>
                     <td className="px-3 py-2 font-mono text-gray-500 whitespace-nowrap text-[10px]">{r.roomid || '-'}</td>

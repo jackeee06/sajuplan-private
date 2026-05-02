@@ -257,13 +257,26 @@ export class SocialAuthService {
   }
 
   /**
-   * (provider, social_uid) 로 가입된 회원 조회. 없으면 null.
-   * — sample/plugin/social의 social_get_data 와 동일 역할
+   * 소셜 가입자 조회. mb_id 단일 식별 정책에 따라 mb_id = '<uid>_K|N' 우선 매칭.
+   * 백필 안 된 옛 row 호환을 위해 (provider, social_uid) 도 fallback 매칭.
    */
   async findMember(
     provider: SocialProvider,
     uid: string,
   ): Promise<{ id: number } | null> {
+    const suffix = provider === 'kakao' ? '_K' : provider === 'naver' ? '_N' : '_S';
+    const mbId = `${uid}${suffix}`;
+
+    // (1) 신규 식별: mb_id
+    const byMbId = await this.sql<SocialMemberRow[]>`
+      SELECT id FROM member WHERE mb_id = ${mbId} LIMIT 1
+    `;
+    if (byMbId[0]) {
+      await this.sql`UPDATE member SET last_login_at = now() WHERE id = ${byMbId[0].id}`;
+      return { id: byMbId[0].id };
+    }
+
+    // (2) 폴백: (provider, social_uid) — 옛 데이터 호환
     const found = await this.sql<SocialMemberRow[]>`
       SELECT id FROM member
        WHERE social_provider = ${provider}
@@ -271,9 +284,10 @@ export class SocialAuthService {
        LIMIT 1
     `;
     if (!found[0]) return null;
-    // 마지막 로그인 갱신
+    // 호환 조회된 회원에게 mb_id 백필
     await this.sql`
-      UPDATE member SET last_login_at = now() WHERE id = ${found[0].id}
+      UPDATE member SET mb_id = ${mbId}, last_login_at = now()
+       WHERE id = ${found[0].id} AND mb_id IS NULL
     `;
     return { id: found[0].id };
   }
@@ -281,7 +295,7 @@ export class SocialAuthService {
   /**
    * 소셜 가입으로 신규 member row 생성.
    * — sample/register_member_update.php 의 신규 회원 INSERT 부분에 해당
-   * — login_id/password 는 NULL (소셜 전용 계정, 로컬 로그인 불가)
+   * — mb_id/password 는 NULL (소셜 전용 계정, 로컬 로그인 불가)
    * — name/nickname NOT NULL → 폼 값 우선, 없으면 프로필 fallback
    * — phone 중복은 application 로직 — 호출자가 사전 검사
    */
@@ -307,8 +321,14 @@ export class SocialAuthService {
     const nickname = await this.uniqueNickname(form.nickname);
     const name = form.name.slice(0, 50);
 
+    // mb_id 단일 컬럼 식별 정책: 소셜 가입자도 mb_id 자동 부여
+    //   카카오: <uid>_K / 네이버: <uid>_N
+    const suffix = provider === 'kakao' ? '_K' : provider === 'naver' ? '_N' : '_S';
+    const mbId = `${uid}${suffix}`;
+
     const inserted = await this.sql<SocialMemberRow[]>`
       INSERT INTO member (
+        mb_id,
         name, nickname, email, phone,
         birth_date, birth_time, gender, calendar_type,
         zip, addr1, addr2,
@@ -316,6 +336,7 @@ export class SocialAuthService {
         social_provider, social_uid, social_email, social_linked_at,
         signup_source, last_login_at
       ) VALUES (
+        ${mbId},
         ${name}, ${nickname}, ${form.email}, ${form.phone},
         ${form.birth_date}, ${form.birth_time}, ${form.gender}, ${form.calendar_type},
         ${form.zip}, ${form.addr1}, ${form.addr2},

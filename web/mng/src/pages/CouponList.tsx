@@ -14,7 +14,7 @@ interface Coupon {
   cp_id: string | null
   member_id: number | null
   mb_id: string | null
-  login_id: string | null
+  mb_id: string | null
   member_name: string | null
   title: string
   method: number
@@ -150,8 +150,8 @@ export default function CouponList() {
                     <td className="px-3 py-2 max-w-[260px] truncate">{c.title}</td>
                     <td className="px-3 py-2 whitespace-nowrap text-gray-500">{c.target || '-'}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
-                      {c.member_id && c.login_id ? (
-                        <Link to={`/members/customers/${c.member_id}`} className="text-brand-600 hover:underline">{c.login_id}</Link>
+                      {c.member_id && c.mb_id ? (
+                        <Link to={`/members/customers/${c.member_id}`} className="text-brand-600 hover:underline">{c.mb_id}</Link>
                       ) : <span className="text-gray-400">{c.mb_id || '-'}</span>}
                     </td>
                     <td className="px-3 py-2 text-gray-500 whitespace-nowrap text-[11px]">

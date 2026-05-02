@@ -10,7 +10,7 @@ import type { Request } from 'express';
 
 export interface AdminJwtPayload {
   sub: number;
-  login_id: string;
+  mb_id: string;
   role: 'admin';
   level: number;
 }

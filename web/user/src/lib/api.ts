@@ -74,7 +74,7 @@ export const api = {
 
 export interface UserMember {
   id: number
-  login_id: string
+  mb_id: string
   name: string
   nickname: string
   email: string | null
@@ -96,6 +96,16 @@ export interface SignupPayload {
   nickname: string
   agree_terms: boolean
   agree_privacy: boolean
+  /** 가입 경로 명시 — 'kakao'/'naver' 면 백엔드가 pending 쿠키 검증, 만료/누락 시 명확한 에러 반환 */
+  social?: 'kakao' | 'naver'
+  /** 로컬 가입에서만 필수 — 소셜 가입은 sjm_social_pending 쿠키로 본인확인 */
+  mb_id?: string
+  password?: string
+  /** 로컬 가입 시 휴대폰 인증번호 (sms_auth 5분 내 매칭) */
+  phone_code?: string
+  /** 로컬 가입 시 캡차 토큰 + 입력값 */
+  captcha_token?: string
+  captcha_input?: string
   email?: string
   phone?: string
   birth_date?: string // YYYY-MM-DD
@@ -111,9 +121,9 @@ export interface SignupPayload {
 }
 
 export const authApi = {
-  login: (login_id: string, password: string, keep_login: boolean) =>
+  login: (mb_id: string, password: string, keep_login: boolean) =>
     api.post<{ ok: true; member: UserMember }>('/user/auth/login', {
-      login_id,
+      mb_id,
       password,
       keep_login,
     }),
@@ -137,4 +147,80 @@ export const authApi = {
     api.get<{ pending: SocialPending | null }>('/user/auth/social/pending'),
   signup: (payload: SignupPayload) =>
     api.post<{ ok: true; member: UserMember }>('/user/auth/signup', payload),
+  /** 아이디 중복확인 — 서버가 형식 검증 + 사용 가능 여부 반환 */
+  checkMbId: (mbId: string) =>
+    api.get<{ available: boolean; mb_id: string }>(
+      `/user/auth/check-mb-id?mb_id=${encodeURIComponent(mbId)}`,
+    ),
+  /** 휴대폰으로 아이디/비밀번호 찾기 — SMS 인증 통과한 폰번호로 임시비밀번호 발송(알림톡) */
+  findByPhone: (phone: string, code: string) =>
+    api.post<{ ok: true }>('/user/auth/find/phone', { phone, code }),
+  /** 이메일로 아이디/비밀번호 찾기 — 임시비밀번호 발송(메일) */
+  findByEmail: (email: string) =>
+    api.post<{ ok: true }>('/user/auth/find/email', { email }),
+}
+
+// ─────────────────────────────────────────────
+// 휴대폰 인증번호 (회원가입용)
+// ─────────────────────────────────────────────
+
+export const smsApi = {
+  /** 인증번호 발송 — 알림톡(bizm) 우선, SMS(알리고) 폴백 */
+  send: (phone: string) =>
+    api.post<{ ok: true }>('/user/sms/send', { phone }),
+  /** 인증번호 검증 */
+  verify: (phone: string, code: string) =>
+    api.post<{ ok: true }>('/user/sms/verify', { phone, code }),
+}
+
+// ─────────────────────────────────────────────
+// 자동등록방지 (캡차)
+// ─────────────────────────────────────────────
+
+export const captchaApi = {
+  /** 새 캡차 발급 — 5분 유효한 token + SVG 이미지 (텍스트는 평문으로 노출 안 함) */
+  issue: () => api.get<{ token: string; svg: string }>('/user/captcha'),
+}
+
+// ─────────────────────────────────────────────
+// 배너 (어드민에서 등록한 위치별 배너 — 공개 조회)
+// ─────────────────────────────────────────────
+
+export interface PublicBanner {
+  id: number
+  position: string | null
+  title: string | null
+  link_url: string | null
+  image_url: string | null
+  display_order: number
+}
+
+export const bannersApi = {
+  /** 위치별 활성 배너 — 진행 기간 내 + is_active=true 만 반환. 정렬: display_order ASC */
+  listByPosition: (position: string) =>
+    api.get<{ items: PublicBanner[] }>(
+      `/user/banners?position=${encodeURIComponent(position)}`,
+    ),
+}
+
+// ─────────────────────────────────────────────
+// 메인 페이지 공개 통계 (최근 상담 건수 / 접속중 상담사)
+// ─────────────────────────────────────────────
+
+export const statsApi = {
+  main: () =>
+    api.get<{ recent_consultations: number; online_counselors: number }>(
+      '/user/stats/main',
+    ),
+}
+
+// ─────────────────────────────────────────────
+// 공개 setting (footer.* + site.kakao_channel_url 등)
+// ─────────────────────────────────────────────
+
+export type PublicSettings = Record<string, string>
+
+export const settingsApi = {
+  /** 푸터 회사정보 + 카카오 채널 URL 등 — `footer.company_name`, `site.kakao_channel_url` 형태 키 */
+  public: () => api.get<PublicSettings>('/user/settings/public'),
 }

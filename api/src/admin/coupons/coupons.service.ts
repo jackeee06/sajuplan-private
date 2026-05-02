@@ -26,7 +26,6 @@ export interface CouponRow {
   cp_id: string | null;
   member_id: number | null;
   mb_id: string | null;
-  login_id: string | null;
   member_name: string | null;
   title: string;
   method: number;
@@ -81,7 +80,7 @@ export class CouponsService {
       const q = `%${filter.stx}%`;
       switch (filter.sfl) {
         case 'mb_id':
-          conds.push(this.sql`(c.mb_id ILIKE ${q} OR m.login_id ILIKE ${q} OR m.name ILIKE ${q})`);
+          conds.push(this.sql`(c.mb_id ILIKE ${q} OR m.mb_id ILIKE ${q} OR m.name ILIKE ${q})`);
           break;
         case 'cp_id':
           conds.push(this.sql`c.cp_id ILIKE ${q}`);
@@ -90,7 +89,7 @@ export class CouponsService {
           conds.push(this.sql`c.title ILIKE ${q}`);
           break;
         default:
-          conds.push(this.sql`(c.cp_id ILIKE ${q} OR c.title ILIKE ${q} OR m.login_id ILIKE ${q})`);
+          conds.push(this.sql`(c.cp_id ILIKE ${q} OR c.title ILIKE ${q} OR m.mb_id ILIKE ${q})`);
       }
     }
     if (filter.fr_date) conds.push(this.sql`c.created_at >= ${filter.fr_date + ' 00:00:00'}::timestamptz`);
@@ -106,7 +105,7 @@ export class CouponsService {
         c.title, c.method, c.target,
         c.starts_at, c.ends_at, c.discount_value, c.discount_type,
         c.is_visible, c.created_at,
-        m.login_id, m.name AS member_name,
+        m.mb_id, m.name AS member_name,
         (SELECT count(*)::int FROM coupon_history h WHERE h.coupon_id = c.id) AS used_count
       FROM coupon c
       LEFT JOIN member m ON m.id = c.member_id
@@ -123,7 +122,7 @@ export class CouponsService {
   async getById(id: number): Promise<CouponRow> {
     const rows = await this.sql<CouponRow[]>`
       SELECT
-        c.*, m.login_id, m.name AS member_name,
+        c.*, m.mb_id, m.name AS member_name,
         (SELECT count(*)::int FROM coupon_history h WHERE h.coupon_id = c.id) AS used_count
       FROM coupon c
       LEFT JOIN member m ON m.id = c.member_id

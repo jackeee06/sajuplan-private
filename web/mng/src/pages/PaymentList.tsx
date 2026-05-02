@@ -24,7 +24,7 @@ interface Payment {
   id: number
   no: number | null
   member_id: number | null
-  login_id: string | null
+  mb_id: string | null
   member_name: string | null
   member_nickname: string | null
   member_phone: string | null
@@ -227,8 +227,8 @@ function Row({ p, num }: { p: Payment; num: number }) {
       <Td>{labelPayMethod(p.pay_method)}</Td>
       <Td className="text-gray-500 font-mono">{p.membid || '-'}</Td>
       <Td>
-        {p.member_id && p.login_id ? (
-          <Link to={`/members/customers/${p.member_id}`} className="text-brand-600 hover:underline">{p.login_id}</Link>
+        {p.member_id && p.mb_id ? (
+          <Link to={`/members/customers/${p.member_id}`} className="text-brand-600 hover:underline">{p.mb_id}</Link>
         ) : <span className="text-gray-400">-</span>}
       </Td>
       <Td>{p.member_nickname || '-'}</Td>

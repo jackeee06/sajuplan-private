@@ -26,7 +26,7 @@ const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
     title: '기본환경',
     fields: [
       { key: 'title', label: '홈페이지 제목', kind: 'text' },
-      { key: 'admin_login_id', label: '최고관리자 ID', kind: 'text', hint: 'member 테이블의 login_id' },
+      { key: 'admin_mb_id', label: '최고관리자 ID', kind: 'text', hint: 'member 테이블의 mb_id' },
       { key: 'admin_email', label: '관리자 메일 주소', kind: 'text' },
       { key: 'admin_email_name', label: '관리자 메일 발송이름', kind: 'text' },
       {
@@ -35,6 +35,20 @@ const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
         kind: 'text',
         placeholder: 'https://pf.kakao.com/_xxxxx/chat',
         hint: '사용자 화면의 카카오 1:1 상담 버튼이 이 URL로 연결됩니다.',
+      },
+      {
+        key: 'stat_recent_consultations_override',
+        label: '메인: 최근 상담 건수',
+        kind: 'text',
+        placeholder: '예: 2570923',
+        hint: '메인 페이지 카드에 표시될 숫자',
+      },
+      {
+        key: 'stat_online_counselors_override',
+        label: '메인: 현재 접속중인 상담사',
+        kind: 'text',
+        placeholder: '예: 241',
+        hint: '메인 페이지 카드에 표시될 숫자',
       },
       { key: 'add_meta', label: '추가 meta 태그', kind: 'textarea' },
       { key: 'add_script', label: '<head> 추가 스크립트', kind: 'textarea' },
@@ -97,11 +111,8 @@ const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
     fields: [
       { key: 'possible_ip', label: '접속 허용 IP', kind: 'textarea', hint: '개행 구분, 비우면 전체 허용' },
       { key: 'intercept_ip', label: '접속 차단 IP', kind: 'textarea' },
-      { key: 'prohibit_id', label: '금지 아이디', kind: 'textarea' },
-      { key: 'prohibit_email', label: '금지 이메일 도메인', kind: 'textarea' },
-      { key: 'use_captcha', label: '캡챠 사용', kind: 'bool' },
-      { key: 'recaptcha_site_key', label: 'reCAPTCHA Site Key', kind: 'text' },
-      { key: 'recaptcha_secret', label: 'reCAPTCHA Secret', kind: 'password' },
+      { key: 'prohibit_id', label: '금지 아이디', kind: 'textarea', hint: '콤마(,) 구분 — 예: admin, root, test. 회원가입 시 이 ID 거부' },
+      { key: 'prohibit_email', label: '금지 이메일 도메인', kind: 'textarea', hint: '콤마(,) 구분 — 예: spam.com, badmail.org. 회원가입 시 이 도메인 거부' },
     ],
   },
   footer: {

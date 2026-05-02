@@ -18,7 +18,6 @@ interface Item {
   no: number | null
   member_id: number | null
   mb_id: string | null
-  login_id: string | null
   member_name: string | null
   member_nickname: string | null
   free_royalty_pct: number | null
@@ -180,8 +179,8 @@ export default function SettlementList() {
                 data.items.map((s) => (
                   <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                     <Td>
-                      {s.member_id && s.login_id ? (
-                        <Link to={`/members/counselors/${s.member_id}`} className="text-brand-600 hover:underline">{s.login_id}</Link>
+                      {s.member_id && s.mb_id ? (
+                        <Link to={`/members/counselors/${s.member_id}`} className="text-brand-600 hover:underline">{s.mb_id}</Link>
                       ) : <span className="text-gray-500">{s.mb_id || '-'}</span>}
                     </Td>
                     <Td>{s.member_name || '-'}</Td>

@@ -7,7 +7,7 @@ interface Message {
   id: number
   chat_room_id: number | null
   sender_id: number | null
-  sender_login_id: string | null
+  sender_mb_id: string | null
   sender_name: string | null
   message: string | null
   message_type: number
@@ -18,10 +18,10 @@ interface Room {
   id: number
   roomid: string | null
   member_id: number | null
-  member_login_id: string | null
+  member_mb_id: string | null
   member_name: string | null
   counselor_id: number | null
-  counselor_login_id: string | null
+  counselor_mb_id: string | null
   counselor_name: string | null
   counselor_nickname: string | null
   status: string | null
@@ -61,14 +61,14 @@ export default function ChatHistoryDetail() {
         <Field label="회원">
           {room.member_id ? (
             <Link to={`/members/customers/${room.member_id}`} className="text-brand-600 hover:underline">
-              {room.member_name || room.member_login_id}
+              {room.member_name || room.member_mb_id}
             </Link>
           ) : '-'}
         </Field>
         <Field label="상담사">
           {room.counselor_id ? (
             <Link to={`/members/counselors/${room.counselor_id}`} className="text-brand-600 hover:underline">
-              {room.counselor_nickname || room.counselor_name || room.counselor_login_id}
+              {room.counselor_nickname || room.counselor_name || room.counselor_mb_id}
             </Link>
           ) : '-'}
         </Field>
@@ -91,7 +91,7 @@ export default function ChatHistoryDetail() {
               <div key={m.id} className={`flex ${isCounselor ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[70%] ${isCounselor ? 'items-end' : 'items-start'} flex flex-col`}>
                   <div className="text-[10px] text-gray-400 mb-0.5 px-1">
-                    {m.sender_name || m.sender_login_id || '?'} · {formatDT(m.created_at)}
+                    {m.sender_name || m.sender_mb_id || '?'} · {formatDT(m.created_at)}
                   </div>
                   <div className={`px-3 py-2 rounded-2xl text-sm whitespace-pre-wrap break-words ${
                     isCounselor

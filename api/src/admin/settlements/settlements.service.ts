@@ -8,7 +8,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  *   JOIN g5_member (회원정보)            →  LEFT JOIN member m ON m.id = s.member_id
  *
  *   컬럼:
- *     mb_id         → m.login_id (or s.mb_id)
+ *     mb_id         → m.mb_id (or s.mb_id)
  *     mb_name       → m.name
  *     mb_nick       → m.nickname
  *     mb_19         → m.free_royalty_pct  (무료R%)
@@ -32,7 +32,6 @@ export interface SettlementRow {
   no: number | null;
   member_id: number | null;
   mb_id: string | null;
-  login_id: string | null;
   member_name: string | null;
   member_nickname: string | null;
   free_royalty_pct: number | null;
@@ -80,7 +79,7 @@ export class SettlementsService {
           break;
         case 'mb_id':
         default:
-          conds.push(this.sql`(s.mb_id ILIKE ${q} OR m.login_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
+          conds.push(this.sql`(s.mb_id ILIKE ${q} OR m.mb_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
       }
     }
     if (filter.fr_date && filter.to_date) {
@@ -105,7 +104,7 @@ export class SettlementsService {
         s.price_free, s.price_paid, s.price_other, s.price_tot,
         s.vat_amount, s.withholding_tax, s.reply_fee, s.price,
         s.wr_datetime, s.created_at,
-        m.login_id, m.name AS member_name, m.nickname AS member_nickname,
+        m.mb_id, m.name AS member_name, m.nickname AS member_nickname,
         m.free_royalty_pct, m.paid_royalty_pct
       FROM settlement_monthly s
       LEFT JOIN member m ON m.id = s.member_id OR m.mb_id = s.mb_id

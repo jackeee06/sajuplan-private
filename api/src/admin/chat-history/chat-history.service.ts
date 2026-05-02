@@ -15,10 +15,10 @@ export interface ChatRoomRow {
   id: number;
   roomid: string | null;
   member_id: number | null;
-  member_login_id: string | null;
+  member_mb_id: string | null;
   member_name: string | null;
   counselor_id: number | null;
-  counselor_login_id: string | null;
+  counselor_mb_id: string | null;
   counselor_name: string | null;
   counselor_nickname: string | null;
   status: string | null;
@@ -32,7 +32,7 @@ export interface ChatMessageRow {
   id: number;
   chat_room_id: number | null;
   sender_id: number | null;
-  sender_login_id: string | null;
+  sender_mb_id: string | null;
   sender_name: string | null;
   message: string | null;
   message_type: number;
@@ -59,7 +59,7 @@ export class ChatHistoryService {
     const conds: ReturnType<Sql>[] = [];
     if (filter.q) {
       const q = `%${filter.q}%`;
-      conds.push(this.sql`(m.login_id ILIKE ${q} OR m.name ILIKE ${q} OR c.login_id ILIKE ${q} OR c.nickname ILIKE ${q} OR r.roomid ILIKE ${q})`);
+      conds.push(this.sql`(m.mb_id ILIKE ${q} OR m.name ILIKE ${q} OR c.mb_id ILIKE ${q} OR c.nickname ILIKE ${q} OR r.roomid ILIKE ${q})`);
     }
     if (filter.fr_date) conds.push(this.sql`r.started_at >= ${filter.fr_date + ' 00:00:00'}::timestamptz`);
     if (filter.to_date) conds.push(this.sql`r.started_at <= ${filter.to_date + ' 23:59:59'}::timestamptz`);
@@ -71,8 +71,8 @@ export class ChatHistoryService {
     const items = await this.sql<ChatRoomRow[]>`
       SELECT
         r.id, r.roomid, r.member_id, r.counselor_id, r.status, r.started_at,
-        m.login_id AS member_login_id, m.name AS member_name,
-        c.login_id AS counselor_login_id, c.name AS counselor_name, c.nickname AS counselor_nickname,
+        m.mb_id AS member_mb_id, m.name AS member_name,
+        c.mb_id AS counselor_mb_id, c.name AS counselor_name, c.nickname AS counselor_nickname,
         (SELECT count(*)::int FROM chat_message msg WHERE msg.chat_room_id = r.id) AS message_count,
         (SELECT msg.message FROM chat_message msg WHERE msg.chat_room_id = r.id ORDER BY msg.created_at DESC LIMIT 1) AS last_message
       FROM chat_room r
@@ -95,8 +95,8 @@ export class ChatHistoryService {
   async getRoomMessages(roomId: number) {
     const room = await this.sql<ChatRoomRow[]>`
       SELECT r.id, r.roomid, r.member_id, r.counselor_id, r.status, r.started_at, r.ended_at,
-             m.login_id AS member_login_id, m.name AS member_name,
-             c.login_id AS counselor_login_id, c.name AS counselor_name, c.nickname AS counselor_nickname
+             m.mb_id AS member_mb_id, m.name AS member_name,
+             c.mb_id AS counselor_mb_id, c.name AS counselor_name, c.nickname AS counselor_nickname
       FROM chat_room r
       LEFT JOIN member m ON m.id = r.member_id
       LEFT JOIN member c ON c.id = r.counselor_id
@@ -107,7 +107,7 @@ export class ChatHistoryService {
 
     const messages = await this.sql<ChatMessageRow[]>`
       SELECT msg.id, msg.chat_room_id, msg.sender_id, msg.message, msg.message_type, msg.created_at,
-             s.login_id AS sender_login_id, s.name AS sender_name
+             s.mb_id AS sender_mb_id, s.name AS sender_name
       FROM chat_message msg
       LEFT JOIN member s ON s.id = msg.sender_id
       WHERE msg.chat_room_id = ${roomId}

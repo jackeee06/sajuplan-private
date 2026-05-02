@@ -36,13 +36,14 @@ export class M2netService {
   private readonly headerKey: string;
 
   constructor(private readonly config: ConfigService) {
+    // M2NET_* 키는 .env (운영) → .env.defaults (sample 라이브 fallback) 순으로 자동 로드됨
     this.apiUrl = config.get<string>('M2NET_API_URL') ?? '';
     this.cpid = config.get<string>('M2NET_CPID') ?? '';
     this.headerKey = config.get<string>('M2NET_HEADER_KEY') ?? '';
     this.enabled = Boolean(this.apiUrl && this.cpid && this.headerKey);
-    if (!this.enabled) {
-      this.logger.warn('M2NET 환경변수 미설정 (M2NET_API_URL/CPID/HEADER_KEY) — 외부 호출 비활성');
-    }
+    this.logger.log(
+      `[M2netService] enabled=${this.enabled} apiUrl=${this.apiUrl} cpid=${this.cpid}`,
+    );
   }
 
   isEnabled(): boolean {

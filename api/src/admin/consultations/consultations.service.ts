@@ -19,13 +19,13 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  *   from (고객 전화)                  consultation.caller_phone
  *
  *   get_csrid(csrid):                LEFT JOIN member c ON c.csrid = cs.csrid
- *     g5_member.mb_id  → c.login_id
+ *     g5_member.mb_id  → c.mb_id
  *     g5_member.mb_nick → c.nickname
  *     g5_member.mb_4   → c.call_070_unit_cost  (환불 임계값)
  *     g5_write_counselor.ca_name → c.counselor_category (분야)
  *
  *   get_mbid(membid):                LEFT JOIN member m ON m.id = cs.member_id
- *     g5_member.mb_id  → m.login_id
+ *     g5_member.mb_id  → m.mb_id
  *     g5_member.mb_name → m.name
  *     (회원 정보 없으면 caller_phone 폴백)
  *
@@ -40,8 +40,8 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  *     채팅: reason='END_CHAT'
  *
  *   검색 (sfl=...):
- *     mb_id   : 회원아이디 → m.login_id 매칭
- *     cmb_id  : 상담사 아이디 → c.login_id 매칭
+ *     mb_id   : 회원아이디 → m.mb_id 매칭
+ *     cmb_id  : 상담사 아이디 → c.mb_id 매칭
  *     mb_hp   : 휴대폰번호 → cs.caller_phone (하이픈 제거 비교)
  *     mb_nick : 상담사닉네임 → c.nickname 매칭
  *     preflag : preflag='Y' (070) 또는 '' (060) 직접 비교
@@ -74,11 +74,11 @@ export interface ConsultationRow {
   skip_charge: boolean;
   // JOIN: 회원
   member_id: number | null;
-  member_login_id: string | null;
+  member_mb_id: string | null;
   member_name: string | null;
   // JOIN: 상담사
   counselor_id: number | null;
-  counselor_login_id: string | null;
+  counselor_mb_id: string | null;
   counselor_name: string | null;
   counselor_nickname: string | null;
   counselor_category: string | null;
@@ -117,11 +117,11 @@ export class ConsultationsService {
       switch (filter.sfl) {
         case 'mb_id':
           // 회원아이디 + 이름/닉네임도 함께 부분 매칭
-          conds.push(this.sql`(m.login_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
+          conds.push(this.sql`(m.mb_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
           break;
         case 'cmb_id':
           // 상담사 아이디 + 이름/닉네임도 함께
-          conds.push(this.sql`(c.login_id ILIKE ${q} OR c.name ILIKE ${q} OR c.nickname ILIKE ${q})`);
+          conds.push(this.sql`(c.mb_id ILIKE ${q} OR c.name ILIKE ${q} OR c.nickname ILIKE ${q})`);
           break;
         case 'mb_hp':
           // 휴대폰: 하이픈 제거 후 부분 매칭 (앞/뒤 % 모두)
@@ -140,8 +140,8 @@ export class ConsultationsService {
         default:
           // 전체 검색
           conds.push(this.sql`(
-            m.login_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q}
-            OR c.login_id ILIKE ${q} OR c.nickname ILIKE ${q}
+            m.mb_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q}
+            OR c.mb_id ILIKE ${q} OR c.nickname ILIKE ${q}
             OR cs.callid ILIKE ${q} OR cs.roomid ILIKE ${q}
           )`);
       }
@@ -189,8 +189,8 @@ export class ConsultationsService {
         cs.reason, cs.preflag, cs.usetm, cs.amt, cs.amt_free, cs.amt_pro,
         cs.is_paid, cs.is_settled, cs.is_absent_disconnect, cs.skip_charge,
         cs.member_id, cs.counselor_id,
-        m.login_id AS member_login_id, m.name AS member_name,
-        c.login_id AS counselor_login_id, c.name AS counselor_name,
+        m.mb_id AS member_mb_id, m.name AS member_name,
+        c.mb_id AS counselor_mb_id, c.name AS counselor_name,
         c.nickname AS counselor_nickname,
         c.counselor_category AS counselor_category,
         c.call_070_unit_cost AS counselor_unit_cost
@@ -260,8 +260,8 @@ export class ConsultationsService {
         cs.reason, cs.preflag, cs.usetm, cs.amt, cs.amt_free, cs.amt_pro,
         cs.is_paid, cs.is_settled, cs.is_absent_disconnect, cs.skip_charge,
         cs.member_id, cs.counselor_id,
-        m.login_id AS member_login_id, m.name AS member_name,
-        c.login_id AS counselor_login_id, c.name AS counselor_name,
+        m.mb_id AS member_mb_id, m.name AS member_name,
+        c.mb_id AS counselor_mb_id, c.name AS counselor_name,
         c.nickname AS counselor_nickname,
         c.counselor_category AS counselor_category,
         c.call_070_unit_cost AS counselor_unit_cost

@@ -28,14 +28,14 @@ interface CancelLog {
   is_partial: boolean
   cancel_method: string
   actor_admin_id: number | null
-  actor_admin_login_id: string | null
+  actor_admin_mb_id: string | null
   actor_ip: string | null
 }
 
 interface Detail {
   id: number
   member_id: number | null
-  login_id: string | null
+  mb_id: string | null
   member_name: string | null
   oid: string
   tid: string | null
@@ -180,7 +180,7 @@ export default function PaymentDetail() {
           <Field label="회원">
             {data.member_id ? (
               <Link to={`/members/customers/${data.member_id}`} className="text-brand-600 hover:underline">
-                {data.member_name || data.login_id || `#${data.member_id}`}
+                {data.member_name || data.mb_id || `#${data.member_id}`}
               </Link>
             ) : (
               <span className="text-gray-400">-</span>
@@ -349,7 +349,7 @@ export default function PaymentDetail() {
                       {l.refund_reason || '-'}
                     </td>
                     <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">
-                      {l.actor_admin_login_id || '-'}
+                      {l.actor_admin_mb_id || '-'}
                     </td>
                   </tr>
                 ))}

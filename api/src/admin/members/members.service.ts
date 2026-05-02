@@ -5,7 +5,7 @@ import { M2netService } from '../../shared/m2net/m2net.service';
 
 export interface MemberRow {
   id: number;
-  login_id: string | null;
+  mb_id: string | null;
   name: string;
   nickname: string;
   email: string | null;
@@ -23,7 +23,7 @@ export interface MemberRow {
 // ─────────────────────────────────────────────
 export interface CustomerRow {
   id: number;
-  login_id: string | null;
+  mb_id: string | null;
   name: string;
   nickname: string;
   phone: string | null;
@@ -47,7 +47,7 @@ export interface CustomerRow {
 
 export interface CounselorRow {
   id: number;
-  login_id: string | null;
+  mb_id: string | null;
   name: string;
   nickname: string;
   email: string | null;
@@ -98,7 +98,7 @@ export interface CounselorRow {
 }
 
 export interface ListFilter {
-  q?: string;          // login_id/name/nickname/phone 통합 검색
+  q?: string;          // mb_id/name/nickname/phone 통합 검색
   fr_date?: string;    // 가입일 시작
   to_date?: string;    // 가입일 종료
   status?: 'all' | 'active' | 'left' | 'blocked';
@@ -112,7 +112,7 @@ export interface ListFilter {
 // 고객 생성/수정 입력
 // ─────────────────────────────────────────────
 export interface CustomerInput {
-  login_id?: string;
+  mb_id?: string;
   password?: string;
   name: string;
   nickname?: string;
@@ -135,7 +135,7 @@ export interface CustomerInput {
 // ─────────────────────────────────────────────
 export interface CounselorInput {
   // 계정 (생성 시 필수, 수정 시 선택)
-  login_id?: string;
+  mb_id?: string;
   password?: string;
   // 기본 정보
   name: string;
@@ -194,7 +194,7 @@ export class MembersService {
     const offset = opts.offset ?? 0;
     if (opts.role) {
       return this.sql<MemberRow[]>`
-        SELECT id, login_id, name, nickname, email, phone, role, level, point, state, created_at, last_login_at
+        SELECT id, mb_id, name, nickname, email, phone, role, level, point, state, created_at, last_login_at
         FROM member
         WHERE role = ${opts.role}
         ORDER BY created_at DESC
@@ -202,7 +202,7 @@ export class MembersService {
       `;
     }
     return this.sql<MemberRow[]>`
-      SELECT id, login_id, name, nickname, email, phone, role, level, point, state, created_at, last_login_at
+      SELECT id, mb_id, name, nickname, email, phone, role, level, point, state, created_at, last_login_at
       FROM member
       ORDER BY created_at DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -218,7 +218,7 @@ export class MembersService {
 
   async findById(id: number): Promise<MemberRow | null> {
     const rows = await this.sql<MemberRow[]>`
-      SELECT id, login_id, name, nickname, email, phone, role, level, point, state, created_at, last_login_at
+      SELECT id, mb_id, name, nickname, email, phone, role, level, point, state, created_at, last_login_at
       FROM member WHERE id = ${id}
     `;
     return rows[0] ?? null;
@@ -232,7 +232,7 @@ export class MembersService {
     if (f.q) {
       const like = `%${f.q}%`;
       conds.push(this.sql`(
-        m.login_id ILIKE ${like}
+        m.mb_id ILIKE ${like}
         OR m.name ILIKE ${like}
         OR m.nickname ILIKE ${like}
         OR m.phone LIKE ${like}
@@ -267,7 +267,7 @@ export class MembersService {
     // 집계는 sub-query 로 회원당 1줄씩 미리 집계
     const items = await this.sql<CustomerRow[]>`
       SELECT
-        m.id, m.login_id, m.name, m.nickname, m.phone, m.gender, m.birth_date,
+        m.id, m.mb_id, m.name, m.nickname, m.phone, m.gender, m.birth_date,
         m.level, m.point, m.acquisition_source, m.social_provider,
         m.last_login_at, m.created_at, m.left_at, m.intercept_until,
         COALESCE(p.cnt, 0) AS pay_count,
@@ -360,7 +360,7 @@ export class MembersService {
           FROM consultation GROUP BY counselor_id
       )
       SELECT
-        m.id, m.login_id, m.name, m.nickname, m.phone, m.csrid, m.telno,
+        m.id, m.mb_id, m.name, m.nickname, m.phone, m.csrid, m.telno,
         m.counselor_category,
         m.counselor_priority,
         m.call_070_unit_cost, m.call_060_unit_cost, m.chat_unit_cost,
@@ -427,7 +427,7 @@ export class MembersService {
   // ─────────────────────────────────────────────
   async getCustomerDetail(id: number): Promise<CustomerRow> {
     const rows = await this.sql<CustomerRow[]>`
-      SELECT m.id, m.login_id, m.name, m.nickname, m.email, m.phone, m.gender, m.birth_date,
+      SELECT m.id, m.mb_id, m.name, m.nickname, m.email, m.phone, m.gender, m.birth_date,
              m.level, m.point, m.acquisition_source, m.social_provider,
              m.last_login_at, m.created_at, m.left_at, m.intercept_until,
              m.zip, m.addr1, m.addr2, m.addr_jibeon,
@@ -441,11 +441,11 @@ export class MembersService {
   }
 
   async createCustomer(input: CustomerInput): Promise<{ id: number }> {
-    if (!input.login_id) throw new BadRequestException('login_id는 필수입니다.');
+    if (!input.mb_id) throw new BadRequestException('mb_id는 필수입니다.');
     if (!input.password) throw new BadRequestException('password는 필수입니다.');
     if (!input.name) throw new BadRequestException('이름은 필수입니다.');
 
-    const exists = await this.sql<{ id: number }[]>`SELECT id FROM member WHERE login_id = ${input.login_id} LIMIT 1`;
+    const exists = await this.sql<{ id: number }[]>`SELECT id FROM member WHERE mb_id = ${input.mb_id} LIMIT 1`;
     if (exists.length > 0) throw new ConflictException('이미 사용 중인 아이디입니다.');
 
     const passwordHash = await bcrypt.hash(input.password, 10);
@@ -453,11 +453,11 @@ export class MembersService {
 
     const inserted = await this.sql<{ id: number }[]>`
       INSERT INTO member (
-        login_id, password, name, nickname, email, phone, gender, birth_date,
+        mb_id, password, name, nickname, email, phone, gender, birth_date,
         role, level, point, acquisition_source,
         zip, addr1, addr2, addr_jibeon
       ) VALUES (
-        ${input.login_id}, ${passwordHash}, ${input.name},
+        ${input.mb_id}, ${passwordHash}, ${input.name},
         ${input.nickname ?? input.name},
         ${input.email ?? null}, ${phone}, ${input.gender ?? null}, ${input.birth_date ?? null},
         'user', 2, ${input.point ?? 0}, ${input.acquisition_source ?? null},
@@ -497,7 +497,7 @@ export class MembersService {
   // ─────────────────────────────────────────────
   async getCounselorDetail(id: number): Promise<CounselorRow> {
     const rows = await this.sql<CounselorRow[]>`
-      SELECT m.id, m.login_id, m.name, m.nickname, m.email, m.phone, m.gender,
+      SELECT m.id, m.mb_id, m.name, m.nickname, m.email, m.phone, m.gender,
              m.csrid, m.dtmfno, m.telno,
              m.counselor_category, m.counselor_priority,
              m.call_unit_seconds, m.call_070_unit_cost, m.call_060_unit_cost,
@@ -538,13 +538,13 @@ export class MembersService {
   // 상담사 생성 — m2net (passcall) csr-mgr 등록까지 포함
   // ─────────────────────────────────────────────
   async createCounselor(input: CounselorInput): Promise<{ id: number; csrid: string | null; m2net: { ok: boolean; error?: string } }> {
-    if (!input.login_id) throw new BadRequestException('login_id는 필수입니다.');
+    if (!input.mb_id) throw new BadRequestException('mb_id는 필수입니다.');
     if (!input.password) throw new BadRequestException('password는 필수입니다.');
     if (!input.name) throw new BadRequestException('이름은 필수입니다.');
     if (!input.nickname) throw new BadRequestException('닉네임은 필수입니다.');
 
     // 중복 검사
-    const existing = await this.sql<{ id: number }[]>`SELECT id FROM member WHERE login_id = ${input.login_id} LIMIT 1`;
+    const existing = await this.sql<{ id: number }[]>`SELECT id FROM member WHERE mb_id = ${input.mb_id} LIMIT 1`;
     if (existing.length > 0) throw new ConflictException('이미 사용 중인 아이디입니다.');
 
     const passwordHash = await bcrypt.hash(input.password, 10);
@@ -555,7 +555,7 @@ export class MembersService {
     // 1) member insert (csrid 는 m2net 응답으로 추후 갱신)
     const inserted = await this.sql<{ id: number }[]>`
       INSERT INTO member (
-        login_id, password, name, nickname, email, phone, gender,
+        mb_id, password, name, nickname, email, phone, gender,
         role, level, state, counselor_category,
         dtmfno, telno, counselor_priority,
         call_unit_seconds, call_070_unit_cost, call_060_unit_cost,
@@ -564,7 +564,7 @@ export class MembersService {
         bank_name, bank_holder, bank_account,
         use_phone, use_chat, is_rising
       ) VALUES (
-        ${input.login_id}, ${passwordHash}, ${input.name}, ${input.nickname},
+        ${input.mb_id}, ${passwordHash}, ${input.name}, ${input.nickname},
         ${input.email ?? null}, ${phone}, ${input.gender ?? null},
         'counselor', 5, ${stateValue}, ${input.counselor_category ?? null},
         ${input.dtmfno ?? null}, ${telno}, ${input.counselor_priority ?? null},
@@ -675,9 +675,9 @@ export class MembersService {
     const exists = await this.sql<{ id: number }[]>`SELECT id FROM member WHERE id = ${memberId}`;
     if (exists.length === 0) throw new NotFoundException('회원을 찾을 수 없습니다.');
 
-    // 단일 슬롯(profile)인 경우 기존 row 교체
-    if (kind === 'profile') {
-      await this.sql`DELETE FROM member_file WHERE member_id = ${memberId} AND kind = 'profile'`;
+    // 단일 슬롯(profile, wide)인 경우 기존 row 교체
+    if (kind === 'profile' || kind === 'wide') {
+      await this.sql`DELETE FROM member_file WHERE member_id = ${memberId} AND kind = ${kind}`;
     }
 
     const next = await this.sql<{ next_no: number }[]>`

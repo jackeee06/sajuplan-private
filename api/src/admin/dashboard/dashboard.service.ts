@@ -237,12 +237,12 @@ export class DashboardService {
         id: string;
         name: string;
         nickname: string;
-        login_id: string | null;
+        mb_id: string | null;
         role: string;
         created_at: Date;
       }[]
     >`
-      SELECT id, name, nickname, login_id, role, created_at
+      SELECT id, name, nickname, mb_id, role, created_at
         FROM member
        ORDER BY created_at DESC
        LIMIT ${limit}
@@ -263,7 +263,7 @@ export class DashboardService {
       {
         id: string;
         member_name: string | null;
-        login_id: string | null;
+        mb_id: string | null;
         content: string | null;
         earn_point: number;
         use_point: number;
@@ -273,7 +273,7 @@ export class DashboardService {
     >`
       SELECT p.id,
              m.name AS member_name,
-             m.login_id,
+             m.mb_id,
              p.content,
              p.earn_point,
              p.use_point,
@@ -375,7 +375,7 @@ function dummyRecentMembers(n: number) {
     id: 1000 + i,
     name: names[i % names.length],
     nickname: `user_${1000 + i}`,
-    login_id: `user${1000 + i}`,
+    mb_id: `user${1000 + i}`,
     role: 'user',
     created_at: new Date(Date.now() - i * 3_600_000),
   }));
@@ -388,7 +388,7 @@ function dummyPoints(n: number) {
     return {
       id: 9000 + i,
       member_name: ['김민수', '이지영', '박서준', '정수아'][i % 4],
-      login_id: `user${100 + i}`,
+      mb_id: `user${100 + i}`,
       content: titles[i % titles.length],
       earn_point: isEarn ? dummy(i, 500, 5_000) : 0,
       use_point: !isEarn ? dummy(i + 1, 300, 3_000) : 0,

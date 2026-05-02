@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 
 interface Customer {
   id: number
-  login_id: string | null
+  mb_id: string | null
   name: string
   nickname: string
   phone: string | null
@@ -200,7 +200,7 @@ export default function CustomerList() {
                   <Td className="text-gray-400">{m.id}</Td>
                   <Td className="text-xs">{fmtDate(m.created_at)}</Td>
                   <Td>
-                    <div className="font-medium">{m.login_id ?? '-'}</div>
+                    <div className="font-medium">{m.mb_id ?? '-'}</div>
                     {m.social_provider && (
                       <div className="text-[10px] text-gray-400">via {m.social_provider}</div>
                     )}

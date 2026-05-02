@@ -16,7 +16,7 @@ import { api } from '../lib/api'
 interface Item {
   id: number
   member_id: number | null
-  login_id: string | null
+  mb_id: string | null
   member_name: string | null
   member_nickname: string | null
   member_level: number | null
@@ -30,7 +30,7 @@ interface Item {
   expire_date: string | null
   rel_table: string | null
   rel_id: string | null
-  actor_admin_login_id: string | null
+  actor_admin_mb_id: string | null
   actor_type: string
   created_at: string
 }
@@ -42,7 +42,7 @@ interface Resp {
   limit: number
   summary: {
     sum_point: number
-    searched_member: { login_id: string; nickname: string; point: number } | null
+    searched_member: { mb_id: string; nickname: string; point: number } | null
   }
 }
 
@@ -82,8 +82,8 @@ export default function PointHistoryList() {
   const [error, setError] = useState<string | null>(null)
 
   // 하단 조정 폼
-  const [adj, setAdj] = useState<{ loginId: string; reason: string; point: string; expireDays: string }>({
-    loginId: '', reason: '', point: '', expireDays: '',
+  const [adj, setAdj] = useState<{ mbId: string; reason: string; point: string; expireDays: string }>({
+    mbId: '', reason: '', point: '', expireDays: '',
   })
   const [adjBusy, setAdjBusy] = useState(false)
   const [adjError, setAdjError] = useState<string | null>(null)
@@ -123,24 +123,24 @@ export default function PointHistoryList() {
 
   const onAdjustSubmit = async () => {
     setAdjError(null); setAdjSuccess(null)
-    if (!adj.loginId.trim()) return setAdjError('회원아이디를 입력하세요.')
+    if (!adj.mbId.trim()) return setAdjError('회원아이디를 입력하세요.')
     if (!adj.reason.trim()) return setAdjError('포인트 내용을 입력하세요.')
     const point = Number(adj.point)
     if (!Number.isInteger(point) || point === 0) return setAdjError('포인트는 0이 아닌 정수여야 합니다.')
 
     setAdjBusy(true)
     try {
-      const res = await api<{ balanceAfter: number }>('/admin/points/adjust-by-login-id', {
+      const res = await api<{ balanceAfter: number }>('/admin/points/adjust-by-mb-id', {
         method: 'POST',
         body: JSON.stringify({
-          loginId: adj.loginId.trim(),
+          mbId: adj.mbId.trim(),
           reason: adj.reason.trim(),
           point,
           expireDays: adj.expireDays ? Number(adj.expireDays) : undefined,
         }),
       })
       setAdjSuccess(`적용 완료. 변경 후 잔액 ${res.balanceAfter.toLocaleString()}P`)
-      setAdj({ loginId: '', reason: '', point: '', expireDays: '' })
+      setAdj({ mbId: '', reason: '', point: '', expireDays: '' })
       // 리스트 새로고침
       setFilter((f) => ({ ...f }))
     } catch (e) {
@@ -178,7 +178,7 @@ export default function PointHistoryList() {
           <CountChip label="전체" count={data.total} />
           {sm ? (
             <CountChip
-              label={`${sm.login_id}님 포인트 합계`}
+              label={`${sm.mb_id}님 포인트 합계`}
               count={sm.point}
               suffix="점"
               tone="brand"
@@ -270,12 +270,12 @@ export default function PointHistoryList() {
                         {labelLevel(h.member_level, h.member_role)}
                       </td>
                       <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">
-                        {h.actor_admin_login_id || labelActor(h.actor_type)}
+                        {h.actor_admin_mb_id || labelActor(h.actor_type)}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap">
-                        {h.member_id && h.login_id ? (
+                        {h.member_id && h.mb_id ? (
                           <Link to={`/members/customers/${h.member_id}`} className="text-brand-600 hover:underline">
-                            {h.login_id}
+                            {h.mb_id}
                           </Link>
                         ) : (
                           <span className="text-gray-400">-</span>
@@ -325,7 +325,7 @@ export default function PointHistoryList() {
             {adjSuccess && <div className="p-3 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 text-sm">{adjSuccess}</div>}
             <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-y-3 gap-x-4 items-center">
               <label className="text-sm text-gray-700 dark:text-gray-200">회원아이디 *</label>
-              <input type="text" value={adj.loginId} onChange={(e) => setAdj({ ...adj, loginId: e.target.value })} className={`max-w-md ${inputCls}`} />
+              <input type="text" value={adj.mbId} onChange={(e) => setAdj({ ...adj, mbId: e.target.value })} className={`max-w-md ${inputCls}`} />
               <label className="text-sm text-gray-700 dark:text-gray-200">포인트 내용 *</label>
               <input type="text" value={adj.reason} onChange={(e) => setAdj({ ...adj, reason: e.target.value })} className={inputCls} />
               <label className="text-sm text-gray-700 dark:text-gray-200">포인트 *</label>

@@ -45,7 +45,7 @@ export default function Header() {
               className="flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               <span className="text-sm font-medium hidden md:block">
-                {admin?.login_id ?? '사주문 Admin'}
+                {admin?.mb_id ?? '사주문 Admin'}
               </span>
               <ChevronDown
                 className={`w-4 h-4 text-gray-500 dark:text-gray-400 transition-transform duration-200 hidden md:block ${menuOpen ? 'rotate-180' : ''}`}
@@ -56,7 +56,7 @@ export default function Header() {
               <div className="absolute right-0 mt-4 w-[240px] rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 shadow-lg z-[9999]">
                 <div className="px-1 pb-3 border-b border-gray-100 dark:border-gray-700 mb-3">
                   <span className="block text-sm font-medium text-gray-800 dark:text-white">
-                    {admin?.login_id ?? '사주문 Admin'}
+                    {admin?.mb_id ?? '사주문 Admin'}
                   </span>
                   <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     role: {admin?.role ?? '-'} / level: {admin?.level ?? '-'}

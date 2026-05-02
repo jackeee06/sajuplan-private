@@ -1,11 +1,13 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import MobileHeader from '../components/MobileHeader'
 import InputField from '../components/InputField'
 import PrimaryButton, { OutlineButton } from '../components/PrimaryButton'
 import { CalendarIcon, RefreshIcon } from '../components/icons'
 import TermsModal, { TermsKind } from '../components/TermsModal'
-import { ApiError, authApi } from '../lib/api'
+import AlertModal from '../components/AlertModal'
+import { ApiError, authApi, smsApi, captchaApi } from '../lib/api'
+import { embedDaumPostcode } from '../lib/daum-postcode'
 
 type Gender = 'M' | 'F' | ''
 type DateMode = 'solar' | 'lunar'
@@ -18,7 +20,7 @@ type SocialProvider = 'kakao' | 'naver'
  * 두 가지 모드:
  *  - 로컬: ?social 없음. 추후 휴대폰 인증/캡차 정책 합의 후 활성. 현재는 alert로 막아둠.
  *  - 소셜(?social=kakao|naver): 카카오/네이버 콜백에서 발급된 sjm_social_pending
- *    쿠키의 프로필을 prefill. loginId/password/captcha 필드는 숨김. 약관·이름·닉네임 필수.
+ *    쿠키의 프로필을 prefill. mbId/password/captcha 필드는 숨김. 약관·이름·닉네임 필수.
  */
 export default function Signup() {
   const navigate = useNavigate()
@@ -32,7 +34,7 @@ export default function Signup() {
   const [socialLoading, setSocialLoading] = useState<boolean>(!!initialSocial)
 
   const [form, setForm] = useState({
-    loginId: '',
+    mbId: '',
     password: '',
     passwordConfirm: '',
     name: '',
@@ -50,8 +52,11 @@ export default function Signup() {
     captcha: '',
   })
 
-  const update = <K extends keyof typeof form>(key: K, v: (typeof form)[K]) =>
+  const update = <K extends keyof typeof form>(key: K, v: (typeof form)[K]) => {
     setForm((p) => ({ ...p, [key]: v }))
+    // 해당 필드의 에러를 즉시 제거 — 사용자가 입력하면 경고 사라짐
+    setErrors((p) => (p[key as string] ? { ...p, [key as string]: '' } : p))
+  }
 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showPw, setShowPw] = useState(false)
@@ -66,7 +71,30 @@ export default function Signup() {
   const [agreeEmail, setAgreeEmail] = useState(false)
   const [agreeSms, setAgreeSms] = useState(false)
 
+  // 아이디 중복확인 결과 — null=미확인, true=사용가능(확인됨), false=중복
+  const [mbIdChecked, setMbIdChecked] = useState<null | boolean>(null)
+  const [checkingId, setCheckingId] = useState(false)
+
+  // 캡차 — 페이지 로드 시 발급, refresh 버튼으로 재발급. svg 는 백엔드 렌더 결과
+  const [captcha, setCaptcha] = useState<{ token: string; svg: string } | null>(null)
+
+  // Daum 우편번호 임베드 — 페이지 안에 펼쳤다 접힘 (모바일 웹뷰 친화)
+  const [postcodeOpen, setPostcodeOpen] = useState(false)
+  const postcodeRef = useRef<HTMLDivElement | null>(null)
+
   const [modal, setModal] = useState<TermsKind | null>(null)
+
+  // 알림 모달 — alert() 대체. onConfirm 이 있으면 닫힐 때 추가 동작 실행.
+  const [alertState, setAlertState] = useState<
+    { message: string; onConfirm?: () => void } | null
+  >(null)
+  const showAlert = (message: string, onConfirm?: () => void) =>
+    setAlertState({ message, onConfirm })
+  const closeAlert = () => {
+    const cb = alertState?.onConfirm
+    setAlertState(null)
+    if (cb) cb()
+  }
 
   // 휴대폰 인증 타이머 (3:00 = 180초)
   useEffect(() => {
@@ -75,6 +103,32 @@ export default function Signup() {
     const id = setInterval(() => setTimer((t) => t - 1), 1000)
     return () => clearInterval(id)
   }, [phoneSent, phoneVerified, timer])
+
+  // 캡차 — 모든 가입 경로(로컬·소셜)에서 페이지 로드 시 자동 발급 (sample 정책 통일)
+  useEffect(() => {
+    let alive = true
+    captchaApi.issue().then(
+      (r) => {
+        if (alive) setCaptcha(r)
+      },
+      () => {
+        // 발급 실패는 사용자에게 alert 표시하지 않음 (refresh 버튼으로 재시도 가능)
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const refreshCaptcha = async () => {
+    try {
+      const r = await captchaApi.issue()
+      setCaptcha(r)
+      update('captcha', '')
+    } catch {
+      showAlert('자동등록방지 발급에 실패했습니다. 잠시 후 다시 시도해주세요.')
+    }
+  }
 
   // 소셜 모드: 콜백에서 심어둔 pending 프로필 로드 → 폼 prefill.
   // pending 이 비어 있으면 (만료/직접 진입 등) 로그인 페이지로 돌려보냄.
@@ -85,8 +139,9 @@ export default function Signup() {
       (res) => {
         if (!alive) return
         if (!res.pending) {
-          alert('소셜 인증 정보가 없거나 만료되었습니다. 다시 시도해주세요.')
-          navigate('/login', { replace: true })
+          showAlert('소셜 인증 정보가 없거나 만료되었습니다.\n다시 시도해주세요.', () =>
+            navigate('/login', { replace: true }),
+          )
           return
         }
         const pp = res.pending
@@ -103,8 +158,9 @@ export default function Signup() {
       },
       () => {
         if (!alive) return
-        alert('소셜 정보 조회에 실패했습니다.')
-        navigate('/login', { replace: true })
+        showAlert('소셜 정보 조회에 실패했습니다.', () =>
+          navigate('/login', { replace: true }),
+        )
       },
     )
     return () => {
@@ -119,39 +175,97 @@ export default function Signup() {
   }
 
   // 핸들러
-  const onCheckId = () => {
-    // TODO: 아이디 중복확인 API
-    if (!form.loginId.trim()) {
-      setErrors((p) => ({ ...p, loginId: '아이디를 입력해주세요.' }))
+  const onCheckId = async () => {
+    const id = form.mbId.trim()
+    if (!id) {
+      setErrors((p) => ({ ...p, mbId: '아이디를 입력해주세요.' }))
       return
     }
-    alert(`'${form.loginId}' 사용 가능 여부 확인 (미구현)`)
+    if (checkingId) return
+    setCheckingId(true)
+    try {
+      const r = await authApi.checkMbId(id)
+      if (r.available) {
+        setMbIdChecked(true)
+        setErrors((p) => ({ ...p, mbId: '' }))
+        showAlert(`'${id}'는 사용 가능한 아이디입니다.`)
+      } else {
+        setMbIdChecked(false)
+        setErrors((p) => ({ ...p, mbId: '이미 사용 중인 아이디입니다.' }))
+      }
+    } catch (e) {
+      setMbIdChecked(false)
+      const msg = e instanceof ApiError ? e.message : '중복확인 중 오류가 발생했습니다.'
+      setErrors((p) => ({ ...p, mbId: msg }))
+    } finally {
+      setCheckingId(false)
+    }
   }
 
-  const onSendPhoneCode = () => {
-    // TODO: 휴대폰 인증번호 전송 API
-    if (!/^\d{10,11}$/.test(form.phone)) {
-      setErrors((p) => ({ ...p, phone: "'-' 없이 숫자만 입력해주세요." }))
+  const onSendPhoneCode = async () => {
+    // sample 정책: ^01[0-9]{8,9}$ — 010/011/016~019 + 8~9자리
+    if (!/^01[0-9]{8,9}$/.test(form.phone)) {
+      setErrors((p) => ({ ...p, phone: '휴대폰번호를 올바르게 입력해 주십시오.' }))
       return
     }
     setErrors((p) => ({ ...p, phone: '' }))
-    setPhoneSent(true)
-    setTimer(180)
+    try {
+      await smsApi.send(form.phone)
+      setPhoneSent(true)
+      setTimer(180)
+      showAlert('인증번호가 발송되었습니다.\n알림톡(또는 SMS)을 확인해주세요.')
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '인증번호 발송에 실패했습니다.'
+      setErrors((p) => ({ ...p, phone: msg }))
+    }
   }
 
-  const onVerifyPhoneCode = () => {
-    // TODO: 인증번호 검증 API
-    if (form.phoneCode.length !== 6) {
-      setErrors((p) => ({ ...p, phoneCode: '인증번호 6자리를 입력해주세요.' }))
+  const onVerifyPhoneCode = async () => {
+    if (form.phoneCode.length < 4) {
+      setErrors((p) => ({ ...p, phoneCode: '인증번호를 입력해주세요.' }))
       return
     }
-    setPhoneVerified(true)
-    setErrors((p) => ({ ...p, phoneCode: '' }))
+    try {
+      await smsApi.verify(form.phone, form.phoneCode)
+      setPhoneVerified(true)
+      setErrors((p) => ({ ...p, phoneCode: '' }))
+      showAlert('휴대폰 인증이 완료되었습니다.')
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '인증번호 확인에 실패했습니다.'
+      setErrors((p) => ({ ...p, phoneCode: msg }))
+      showAlert(msg)
+    }
   }
 
-  const onAddressSearch = () => {
-    // TODO: Daum 우편번호 서비스 연동
-    alert('주소 검색 (미구현)')
+  const onAddressSearch = async () => {
+    // 토글 — 이미 열려 있으면 닫기
+    if (postcodeOpen) {
+      setPostcodeOpen(false)
+      return
+    }
+    setPostcodeOpen(true)
+    // 다음 paint 에 ref 가 마운트된 후 embed
+    setTimeout(async () => {
+      const el = postcodeRef.current
+      if (!el) return
+      try {
+        await embedDaumPostcode(el, (data) => {
+          update('zipcode', data.zonecode)
+          // 도로명 우선, 없으면 지번
+          const base = data.roadAddress || data.address || data.jibunAddress
+          const withBuilding =
+            data.buildingName && data.addressType === 'R'
+              ? `${base} (${data.buildingName})`
+              : base
+          update('addr1', withBuilding)
+          update('addr2', '')
+          setPostcodeOpen(false)
+        })
+      } catch {
+        showAlert('주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+        setPostcodeOpen(false)
+      }
+    }, 0)
   }
 
   const onSubmit = async (e: FormEvent) => {
@@ -159,23 +273,32 @@ export default function Signup() {
     if (submitting) return
 
     const errs: Record<string, string> = {}
-    // 소셜 가입: loginId/password/captcha/휴대폰인증 검증 생략 (OAuth 통과 = 본인 인증)
+    // 로컬 가입에만 해당하는 검증 (아이디/비밀번호)
     if (!social) {
-      if (!form.loginId.trim()) errs.loginId = '아이디를 입력해주세요.'
-      else if (form.loginId.trim().length < 3) errs.loginId = '아이디는 3자 이상이어야 합니다.'
-      else if (!/^[A-Za-z0-9._-]+$/.test(form.loginId.trim()))
-        errs.loginId = '아이디는 영문/숫자/._- 만 사용 가능합니다.'
+      // sample 정책: 3~20자, 영문/숫자/_ 만 허용
+      if (!form.mbId.trim()) errs.mbId = '아이디를 입력해주세요.'
+      else if (form.mbId.trim().length < 3) errs.mbId = '아이디는 3자 이상이어야 합니다.'
+      else if (form.mbId.trim().length > 20) errs.mbId = '아이디는 20자 이하여야 합니다.'
+      else if (!/^[A-Za-z0-9_]+$/.test(form.mbId.trim()))
+        errs.mbId = '아이디는 영문/숫자/_ 만 사용 가능합니다.'
+      else if (mbIdChecked !== true)
+        errs.mbId = '아이디 중복확인을 해주세요.'
 
+      // sample 정책: 3~20자
       if (!form.password) errs.password = '비밀번호를 입력해주세요.'
-      else if (form.password.length < 8)
-        errs.password = '비밀번호는 8자 이상이어야 합니다.'
+      else if (form.password.length < 3)
+        errs.password = '비밀번호는 3자 이상이어야 합니다.'
 
       if (form.password !== form.passwordConfirm)
         errs.passwordConfirm = '비밀번호가 일치하지 않습니다.'
-
-      if (!phoneVerified) errs.phone = '휴대폰 인증을 완료해주세요.'
-      if (!form.captcha.trim()) errs.captcha = '자동등록방지를 입력해주세요.'
     }
+
+    // 휴대폰 + 자동등록방지 — sample 정책: 모든 가입 경로(로컬·소셜)에 동일 적용
+    if (!form.phone.trim()) errs.phone = '휴대폰번호를 입력해주세요.'
+    else if (!/^01[0-9]{8,9}$/.test(form.phone))
+      errs.phone = '휴대폰번호를 올바르게 입력해 주십시오.'
+    else if (!phoneVerified) errs.phone = '휴대폰 인증을 완료해주세요.'
+    if (!form.captcha.trim()) errs.captcha = '자동등록방지를 입력해주세요.'
     if (!form.name.trim()) errs.name = '이름을 입력해주세요.'
     if (!form.gender) errs.gender = '성별을 선택해주세요.'
     if (!form.nickname.trim()) errs.nickname = '닉네임을 입력해주세요.'
@@ -185,9 +308,6 @@ export default function Signup() {
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
         errs.email = '이메일 형식이 올바르지 않습니다.'
     }
-    // 휴대폰번호 — 소셜 모드에서 입력했다면 형식 검증 (선택값이지만 입력했으면 9~11자리)
-    if (social && form.phone && !/^[0-9]{9,11}$/.test(form.phone))
-      errs.phone = '휴대폰번호는 숫자 9~11자리로 입력해주세요.'
     // 생년월일 — 입력했다면 8자리 숫자(YYYYMMDD) 또는 'YYYY. MM. DD' 형식
     if (form.birth.trim() && !parseBirthYmd(form.birth))
       errs.birth = '생년월일은 YYYY. MM. DD 형식으로 입력해주세요.'
@@ -206,6 +326,10 @@ export default function Signup() {
       if (social) {
         // 소셜 가입 — 백엔드는 sjm_social_pending 쿠키와 폼을 합쳐 member 생성 + JWT 발급
         await authApi.signup({
+          social: social ?? undefined,
+          phone_code: form.phoneCode,
+          captcha_token: captcha?.token,
+          captcha_input: form.captcha,
           name: form.name.trim(),
           nickname: form.nickname.trim(),
           email: form.email.trim() || undefined,
@@ -225,12 +349,34 @@ export default function Signup() {
         navigate('/signup/complete', { replace: true })
         return
       }
-      // 로컬 가입은 추후 — 휴대폰 인증/캡차 API 합의 후
-      alert('일반 회원가입은 준비 중입니다. 카카오/네이버 가입을 이용해주세요.')
+      // 로컬 가입 — 백엔드가 sjm_social_pending 쿠키 없음을 감지해 로컬 분기로 처리
+      await authApi.signup({
+        mb_id: form.mbId.trim(),
+        password: form.password,
+        phone_code: form.phoneCode,
+        captcha_token: captcha?.token,
+        captcha_input: form.captcha,
+        name: form.name.trim(),
+        nickname: form.nickname.trim(),
+        email: form.email.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        birth_date: parseBirthYmd(form.birth) ?? undefined,
+        gender: (form.gender || undefined) as 'M' | 'F' | undefined,
+        calendar_type: form.dateMode === 'lunar' ? 'LUNAR' : 'SOLAR',
+        addr1: form.addr1 || undefined,
+        addr2: form.addr2 || undefined,
+        zip: form.zipcode || undefined,
+        acquisition_source: form.referrer.trim() || undefined,
+        agree_terms: agreeTerms,
+        agree_privacy: agreePrivacy,
+        agree_email: agreeEmail,
+        agree_sms: agreeSms,
+      })
+      navigate('/signup/complete', { replace: true })
     } catch (err) {
       const msg =
         err instanceof ApiError ? err.message : '회원가입 중 오류가 발생했습니다.'
-      alert(msg)
+      showAlert(msg)
     } finally {
       setSubmitting(false)
     }
@@ -258,37 +404,48 @@ export default function Signup() {
           {/* 아이디·비밀번호: 로컬 가입에서만 노출 — 소셜은 OAuth 로 본인확인 끝. */}
           {!social && (
             <>
-              <Field label="아이디" required error={errors.loginId}>
+              <Field label="아이디" required error={errors.mbId}>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <InputField
-                      value={form.loginId}
-                      onChange={(v) =>
-                        update('loginId', v.replace(/[^A-Za-z0-9._-]/g, '').slice(0, 60))
-                      }
-                      placeholder="아이디를 입력해주세요."
-                      onClear={() => update('loginId', '')}
-                      error={!!errors.loginId}
+                      value={form.mbId}
+                      onChange={(v) => {
+                        update('mbId', v.replace(/[^A-Za-z0-9_]/g, '').slice(0, 20))
+                        if (mbIdChecked !== null) setMbIdChecked(null)
+                      }}
+                      placeholder="영문/숫자/_ 3~20자"
+                      onClear={() => {
+                        update('mbId', '')
+                        setMbIdChecked(null)
+                      }}
+                      error={!!errors.mbId}
                       rightPadding="md"
-                      maxLength={60}
-                      pattern="[A-Za-z0-9._\\-]+"
+                      maxLength={20}
+                      pattern="[A-Za-z0-9_]+"
                     />
                   </div>
-                  <OutlineButton type="button" onClick={onCheckId}>중복확인</OutlineButton>
+                  <OutlineButton type="button" onClick={onCheckId} disabled={checkingId}>
+                    {checkingId ? '확인 중...' : '중복확인'}
+                  </OutlineButton>
                 </div>
+                {mbIdChecked === true && !errors.mbId && (
+                  <div className="text-[13px] text-[#10b981] mt-1.5 ml-2">
+                    ✓ 사용 가능한 아이디입니다.
+                  </div>
+                )}
               </Field>
 
               <Field label="비밀번호" required error={errors.password}>
                 <InputField
                   type={showPw ? 'text' : 'password'}
                   value={form.password}
-                  onChange={(v) => update('password', v.slice(0, 50))}
-                  placeholder="영문/숫자/특수문자 조합 8자 이상"
+                  onChange={(v) => update('password', v.slice(0, 20))}
+                  placeholder="비밀번호 3~20자"
                   autoComplete="new-password"
                   error={!!errors.password}
                   rightSlot={<EyeToggle on={showPw} onClick={() => setShowPw((v) => !v)} />}
                   rightPadding="md"
-                  maxLength={50}
+                  maxLength={20}
                 />
               </Field>
 
@@ -296,13 +453,13 @@ export default function Signup() {
                 <InputField
                   type={showPw2 ? 'text' : 'password'}
                   value={form.passwordConfirm}
-                  onChange={(v) => update('passwordConfirm', v.slice(0, 50))}
+                  onChange={(v) => update('passwordConfirm', v.slice(0, 20))}
                   placeholder="비밀번호를 한번 더 입력해주세요."
                   autoComplete="new-password"
                   error={!!errors.passwordConfirm}
                   rightSlot={<EyeToggle on={showPw2} onClick={() => setShowPw2((v) => !v)} />}
                   rightPadding="md"
-                  maxLength={50}
+                  maxLength={20}
                 />
               </Field>
             </>
@@ -332,15 +489,15 @@ export default function Signup() {
             </div>
           </Field>
 
-          {/* 닉네임 — DB varchar(40), 운영 정책상 30자로 제한 */}
+          {/* 닉네임 — sample 정책: 최대 20자 */}
           <Field label="닉네임" required error={errors.nickname}>
             <InputField
               value={form.nickname}
-              onChange={(v) => update('nickname', v.slice(0, 30))}
+              onChange={(v) => update('nickname', v.slice(0, 20))}
               placeholder="닉네임을 입력해주세요."
               error={!!errors.nickname}
               onClear={() => update('nickname', '')}
-              maxLength={30}
+              maxLength={20}
             />
           </Field>
 
@@ -352,59 +509,45 @@ export default function Signup() {
               <InputField
                 type="email"
                 value={form.email}
-                onChange={(v) => update('email', v)}
+                onChange={(v) => update('email', v.slice(0, 100))}
                 placeholder="이메일 주소를 입력해주세요."
                 autoComplete="email"
                 error={!!errors.email}
                 onClear={() => update('email', '')}
+                maxLength={100}
               />
             </Field>
           )}
 
-          {/* 휴대폰번호 — 소셜은 SMS 인증 생략 (OAuth로 본인확인 완료). 숫자만 11자리. */}
-          {social ? (
-            <Field label="휴대폰번호" error={errors.phone}>
-              <InputField
-                type="tel"
-                value={form.phone}
-                onChange={(v) => update('phone', v.replace(/[^0-9]/g, '').slice(0, 11))}
-                placeholder="'-' 없이 숫자만 입력해주세요."
-                autoComplete="tel"
-                error={!!errors.phone}
-                rightPadding="sm"
-                maxLength={11}
-                inputMode="numeric"
-                pattern="\d*"
-              />
-            </Field>
-          ) : (
-            <Field
-              label="휴대폰번호"
-              required
-              error={errors.phone}
-              rightLabel={phoneSent && !phoneVerified ? <span className="text-[#FF6467] font-medium">{fmtTime(timer)}</span> : null}
-            >
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <InputField
-                    type="tel"
-                    value={form.phone}
-                    onChange={(v) => update('phone', v.replace(/[^0-9]/g, '').slice(0, 11))}
-                    placeholder="'-' 없이 숫자만 입력해주세요."
-                    autoComplete="tel"
-                    error={!!errors.phone}
-                    rightPadding="sm"
-                    disabled={phoneVerified}
-                    maxLength={11}
-                    inputMode="numeric"
-                    pattern="\d*"
-                  />
-                </div>
-                <OutlineButton type="button" onClick={onSendPhoneCode} disabled={phoneVerified}>
-                  {phoneSent ? '재전송' : '인증번호 전송'}
-                </OutlineButton>
+          {/* 휴대폰번호 — sample 정책: 카카오는 휴대폰 안 줘서 모든 가입(로컬·소셜) SMS 인증 필수 */}
+          <Field
+            label="휴대폰번호"
+            required
+            error={errors.phone}
+            rightLabel={phoneSent && !phoneVerified ? <span className="text-[#FF6467] font-medium">{fmtTime(timer)}</span> : null}
+          >
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <InputField
+                  type="tel"
+                  value={form.phone}
+                  onChange={(v) => update('phone', v.replace(/[^0-9]/g, '').slice(0, 11))}
+                  placeholder="'-' 없이 숫자만 입력해주세요."
+                  autoComplete="tel"
+                  error={!!errors.phone}
+                  rightPadding="sm"
+                  disabled={phoneVerified}
+                  maxLength={11}
+                  inputMode="numeric"
+                  pattern="\d*"
+                />
               </div>
-              {phoneSent && !phoneVerified && (
+              <OutlineButton type="button" onClick={onSendPhoneCode} disabled={phoneVerified}>
+                {phoneSent ? '재전송' : '인증번호 전송'}
+              </OutlineButton>
+            </div>
+            {phoneSent && !phoneVerified && (
+              <>
                 <div className="flex gap-2 mt-2.5">
                   <div className="flex-1">
                     <InputField
@@ -420,12 +563,17 @@ export default function Signup() {
                   </div>
                   <OutlineButton type="button" onClick={onVerifyPhoneCode}>인증하기</OutlineButton>
                 </div>
-              )}
-              {phoneVerified && (
-                <div className="text-[13px] text-[#10b981] mt-1.5">✓ 휴대폰 인증이 완료되었습니다.</div>
-              )}
-            </Field>
-          )}
+                {errors.phoneCode && (
+                  <div className="text-[13px] text-[#FF6467] mt-1.5 ml-2">
+                    {errors.phoneCode}
+                  </div>
+                )}
+              </>
+            )}
+            {phoneVerified && (
+              <div className="text-[13px] text-[#10b981] mt-1.5">✓ 휴대폰 인증이 완료되었습니다.</div>
+            )}
+          </Field>
 
           {/* 생년월일 — 8자리 숫자만 받고 'YYYY. MM. DD' 로 자동 포맷 */}
           <Field label="생년월일" error={errors.birth}>
@@ -449,7 +597,7 @@ export default function Signup() {
             />
           </Field>
 
-          {/* 주소 */}
+          {/* 주소 — 주소검색으로 자동 채워지지만 사용자 수기 수정도 허용 */}
           <Field label="주소">
             <div className="flex gap-2 mb-2.5">
               <div className="flex-1">
@@ -458,20 +606,28 @@ export default function Signup() {
                   onChange={(v) => update('zipcode', v.replace(/[^0-9]/g, '').slice(0, 6))}
                   placeholder="우편번호"
                   rightPadding="sm"
-                  disabled
                   maxLength={6}
                   inputMode="numeric"
                 />
               </div>
-              <OutlineButton type="button" onClick={onAddressSearch}>주소검색</OutlineButton>
+              <OutlineButton type="button" onClick={onAddressSearch}>
+                {postcodeOpen ? '닫기' : '주소검색'}
+              </OutlineButton>
             </div>
+            {/* Daum 우편번호 임베드 영역 — 페이지 안에 펼쳐짐 (모바일 웹뷰 친화) */}
+            {postcodeOpen && (
+              <div
+                ref={postcodeRef}
+                className="w-full h-[420px] rounded-2xl border border-[#E5E7EB] overflow-hidden mb-2.5 bg-white"
+                aria-label="주소 검색"
+              />
+            )}
             <div className="flex flex-col gap-2.5">
               <InputField
                 value={form.addr1}
                 onChange={(v) => update('addr1', v.slice(0, 255))}
                 placeholder="기본주소"
                 rightPadding="sm"
-                disabled
                 maxLength={255}
               />
               <InputField
@@ -498,33 +654,36 @@ export default function Signup() {
 
           <hr className="my-2 border-[#e5e7eb]" />
 
-          {/* 자동등록방지 — 소셜은 OAuth 통과 = 사람 확인됨 → 생략 */}
-          {!social && (
-            <Field label="자동등록방지" required error={errors.captcha}>
-              <div className="flex gap-2 items-center">
-                <div className="w-[100px] h-10 rounded-md bg-white border border-[#e5e7eb] flex items-center justify-center font-mono text-[15px] tracking-widest text-[#1e2939]" aria-label="자동등록방지 캡차">
-                  5A7965
-                </div>
-                <div className="flex-1">
-                  <InputField
-                    value={form.captcha}
-                    onChange={(v) => update('captcha', v.slice(0, 6))}
-                    placeholder=""
-                    rightPadding="sm"
-                    maxLength={6}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => alert('캡차 새로고침 (미구현)')}
-                  className="w-10 h-10 rounded-full border border-[#e5e7eb] bg-white flex items-center justify-center hover:bg-gray-50 transition"
-                  aria-label="캡차 새로고침"
-                >
-                  <RefreshIcon className="w-5 h-5" />
-                </button>
+          {/* 자동등록방지 — sample 정책: 모든 가입 경로(로컬·소셜)에 동일 적용 */}
+          <Field label="자동등록방지" required error={errors.captcha}>
+            <div className="flex gap-2 items-center">
+              <div
+                className="w-[130px] h-11 rounded-md bg-[#f9fafb] border border-[#e5e7eb] overflow-hidden flex items-center justify-center select-none shrink-0"
+                aria-label="자동등록방지 캡차"
+                // 백엔드에서 변형/회전/노이즈 적용된 SVG 를 그대로 렌더 (XSS 위험 없음 — 서버 신뢰)
+                dangerouslySetInnerHTML={{
+                  __html: captcha?.svg ?? '<span style="color:#99a1af;font-size:12px">로딩...</span>',
+                }}
+              />
+              <div className="flex-1">
+                <InputField
+                  value={form.captcha}
+                  onChange={(v) => update('captcha', v.slice(0, 6))}
+                  placeholder=""
+                  rightPadding="sm"
+                  maxLength={6}
+                />
               </div>
-            </Field>
-          )}
+              <button
+                type="button"
+                onClick={refreshCaptcha}
+                className="w-10 h-10 rounded-full border border-[#e5e7eb] bg-white flex items-center justify-center hover:bg-gray-50 transition"
+                aria-label="캡차 새로고침"
+              >
+                <RefreshIcon className="w-5 h-5" />
+              </button>
+            </div>
+          </Field>
 
           {/* 약관 동의 */}
           <div className="flex flex-col gap-3 mt-2">
@@ -546,6 +705,11 @@ export default function Signup() {
       </main>
 
       <TermsModal kind={modal} onClose={() => setModal(null)} />
+      <AlertModal
+        open={!!alertState}
+        message={alertState?.message ?? ''}
+        onClose={closeAlert}
+      />
     </div>
   )
 }

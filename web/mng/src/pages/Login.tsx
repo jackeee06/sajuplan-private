@@ -89,7 +89,7 @@ export default function Login() {
           {status === 'authed' && admin && (
             <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-900/20 px-4 py-3">
               <div className="text-sm text-blue-800 dark:text-blue-200">
-                이미 <strong>{admin.login_id}</strong>로 로그인되어 있습니다.
+                이미 <strong>{admin.mb_id}</strong>로 로그인되어 있습니다.
               </div>
               <div className="mt-2 flex gap-2">
                 <button

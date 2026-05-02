@@ -24,7 +24,7 @@ export class NotificationsService {
     const conds: ReturnType<Sql>[] = [];
     if (filter.q) {
       const q = `%${filter.q}%`;
-      conds.push(this.sql`(t.mb_id ILIKE ${q} OR m.login_id ILIKE ${q} OR m.name ILIKE ${q})`);
+      conds.push(this.sql`(t.mb_id ILIKE ${q} OR m.mb_id ILIKE ${q} OR m.name ILIKE ${q})`);
     }
     if (filter.platform) conds.push(this.sql`t.platform = ${filter.platform}`);
     const whereClause = conds.length === 0 ? this.sql`` : conds.reduce(
@@ -34,7 +34,7 @@ export class NotificationsService {
     const items = await this.sql`
       SELECT t.id, t.member_id, t.mb_id, t.platform, t.token, t.device_phone,
              t.is_active, t.created_at, t.updated_at,
-             m.login_id, m.name AS member_name
+             m.mb_id, m.name AS member_name
       FROM member_push_token t
       LEFT JOIN member m ON m.id = t.member_id
       ${whereClause}
@@ -56,7 +56,7 @@ export class NotificationsService {
     const conds: ReturnType<Sql>[] = [];
     if (filter.q) {
       const q = `%${filter.q}%`;
-      conds.push(this.sql`(n.title ILIKE ${q} OR n.content ILIKE ${q} OR m.login_id ILIKE ${q})`);
+      conds.push(this.sql`(n.title ILIKE ${q} OR n.content ILIKE ${q} OR m.mb_id ILIKE ${q})`);
     }
     if (filter.category) conds.push(this.sql`n.category = ${filter.category}`);
     const whereClause = conds.length === 0 ? this.sql`` : conds.reduce(
@@ -65,7 +65,7 @@ export class NotificationsService {
 
     const items = await this.sql`
       SELECT n.id, n.member_id, n.mb_id, n.title, n.content, n.link_url, n.category, n.code, n.created_at,
-             m.login_id, m.name AS member_name
+             m.mb_id, m.name AS member_name
       FROM notification_log n
       LEFT JOIN member m ON m.id = n.member_id
       ${whereClause}

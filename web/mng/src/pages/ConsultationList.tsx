@@ -36,10 +36,10 @@ interface Consultation {
   is_absent_disconnect: boolean
   skip_charge: boolean
   member_id: number | null
-  member_login_id: string | null
+  member_mb_id: string | null
   member_name: string | null
   counselor_id: number | null
-  counselor_login_id: string | null
+  counselor_mb_id: string | null
   counselor_name: string | null
   counselor_nickname: string | null
   counselor_category: string | null
@@ -287,7 +287,7 @@ function Row({ c }: { c: Consultation }) {
 
   // 회원 표시 — sample: membid 있으면 회원, 없으면 from(전화) 폴백
   const memberIdCell =
-    c.member_login_id ?? (c.caller_phone ? '(전화 매칭 미연결)' : '회원정보가 없습니다.')
+    c.member_mb_id ?? (c.caller_phone ? '(전화 매칭 미연결)' : '회원정보가 없습니다.')
   const memberNameCell =
     c.member_name ?? (c.caller_phone ? formatKorPhone(c.caller_phone) : '-')
 
@@ -303,9 +303,9 @@ function Row({ c }: { c: Consultation }) {
     <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
       <Td className="text-gray-600">{formatDateTime(c.eventtm ?? c.created_at)}</Td>
       <Td>
-        {c.member_id && c.member_login_id ? (
+        {c.member_id && c.member_mb_id ? (
           <Link to={`/members/customers/${c.member_id}`} className="text-brand-600 hover:underline">
-            {c.member_login_id}
+            {c.member_mb_id}
           </Link>
         ) : (
           <span className="text-gray-400">{memberIdCell}</span>
@@ -313,9 +313,9 @@ function Row({ c }: { c: Consultation }) {
       </Td>
       <Td>{memberNameCell}</Td>
       <Td>
-        {c.counselor_id && c.counselor_login_id ? (
+        {c.counselor_id && c.counselor_mb_id ? (
           <Link to={`/members/counselors/${c.counselor_id}`} className="text-brand-600 hover:underline">
-            {c.counselor_login_id}
+            {c.counselor_mb_id}
           </Link>
         ) : (
           <span className="text-gray-400">-</span>

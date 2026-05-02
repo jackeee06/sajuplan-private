@@ -10,7 +10,13 @@ import { SharedModule } from './shared/shared.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, cache: true }),
+    // 운영 .env 가 우선, 없으면 .env.defaults (sample 라이브 fallback) 으로 자동 폴백.
+    // 외부 서비스 키 (BIZM/M2NET/ALIGO 등) 의 default 는 .env.defaults 한 곳에서 관리.
+    ConfigModule.forRoot({
+      isGlobal: true,
+      cache: true,
+      envFilePath: ['.env', '.env.defaults'],
+    }),
     // 관리자 페이지는 내부 사용 — 사실상 제한 해제. 로그인만 brute-force 방지 유지.
     ThrottlerModule.forRoot([
       { name: 'default', ttl: 60_000, limit: 1_000_000 }, // 사실상 무제한

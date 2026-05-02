@@ -5,9 +5,15 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { SocialAuthService } from './social-auth.service';
 import { UserAuthGuard } from './user-auth.guard';
+import { SmsModule } from '../sms/sms.module';
+import { CaptchaModule } from '../captcha/captcha.module';
+import { M2netModule } from '../../shared/m2net/m2net.module';
 
 @Module({
   imports: [
+    SmsModule,
+    CaptchaModule,
+    M2netModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

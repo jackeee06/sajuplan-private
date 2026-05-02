@@ -38,7 +38,6 @@ export interface PostRow {
   wr_id: number | null;
   member_id: number | null;
   mb_id: string | null;
-  login_id: string | null;
   member_name: string | null;
   member_nickname: string | null;
   title: string;
@@ -89,7 +88,7 @@ export class PostsService {
     if (filter.category && !cfg.forceCategory) conds.push(this.sql`p.category = ${filter.category}`);
     if (filter.q) {
       const q = `%${filter.q}%`;
-      conds.push(this.sql`(p.title ILIKE ${q} OR p.content ILIKE ${q} OR m.login_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
+      conds.push(this.sql`(p.title ILIKE ${q} OR p.content ILIKE ${q} OR m.mb_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
     }
     if (filter.fr_date) conds.push(this.sql`p.created_at >= ${filter.fr_date + ' 00:00:00'}::timestamptz`);
     if (filter.to_date) conds.push(this.sql`p.created_at <= ${filter.to_date + ' 23:59:59'}::timestamptz`);
@@ -109,7 +108,7 @@ export class PostsService {
                  p.view_count, p.like_count, p.dislike_count, p.is_secret, p.has_file,
                  p.ip, p.extras, p.created_at,
                  p.counselor_id, p.rating,
-                 m.login_id, m.name AS member_name, m.nickname AS member_nickname,
+                 m.mb_id, m.name AS member_name, m.nickname AS member_nickname,
                  c.name AS counselor_name
           FROM ${tableSql} p
           LEFT JOIN member m ON m.id = p.member_id
@@ -122,7 +121,7 @@ export class PostsService {
           SELECT p.id, p.wr_id, p.member_id, p.mb_id, p.title, p.content, p.category,
                  p.view_count, p.like_count, p.dislike_count, p.is_secret, p.has_file,
                  p.ip, p.extras, p.created_at,
-                 m.login_id, m.name AS member_name, m.nickname AS member_nickname
+                 m.mb_id, m.name AS member_name, m.nickname AS member_nickname
           FROM ${tableSql} p
           LEFT JOIN member m ON m.id = p.member_id
           ${whereClause}
@@ -144,7 +143,7 @@ export class PostsService {
     const cfg = this.resolveSlug(slug);
     const tableSql = this.sql.unsafe(cfg.table);
     const rows = await this.sql<PostRow[]>`
-      SELECT p.*, m.login_id, m.name AS member_name, m.nickname AS member_nickname
+      SELECT p.*, m.mb_id, m.name AS member_name, m.nickname AS member_nickname
       FROM ${tableSql} p
       LEFT JOIN member m ON m.id = p.member_id
       WHERE p.id = ${id}

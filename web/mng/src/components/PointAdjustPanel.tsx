@@ -11,7 +11,7 @@ interface PointHistoryItem {
   is_paid: boolean
   content: string | null
   rel_action: string | null
-  actor_admin_login_id: string | null
+  actor_admin_mb_id: string | null
   actor_type: string
   created_at: string
 }
@@ -290,7 +290,7 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
                         <ActorTypeBadge type={h.actor_type} />
                       </td>
                       <td className="px-4 py-2 text-xs text-gray-500 whitespace-nowrap">
-                        {h.actor_admin_login_id || '-'}
+                        {h.actor_admin_mb_id || '-'}
                       </td>
                     </tr>
                   )

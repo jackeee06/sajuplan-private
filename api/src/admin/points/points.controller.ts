@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { AdminAuthGuard, type AuthedRequest } from '../auth/admin-auth.guard';
 import { PointsService } from './points.service';
-import type { AdjustByLoginIdInput, AdjustInput, HistoryFilter, PointSfl } from './points.service';
+import type { AdjustByMbIdInput, AdjustInput, HistoryFilter, PointSfl } from './points.service';
 
 const ALLOWED_SFLS: PointSfl[] = ['mb_id', 'po_content'];
 
@@ -33,10 +33,10 @@ export class PointsController {
     });
   }
 
-  /** 포인트 관리 화면 하단 폼: POST /admin/points/adjust-by-login-id */
-  @Post('points/adjust-by-login-id')
-  adjustByLoginId(@Body() body: AdjustByLoginIdInput, @Req() req: AuthedRequest) {
-    return this.pointsService.adjustByLoginId(body, {
+  /** 포인트 관리 화면 하단 폼: POST /admin/points/adjust-by-mb-id */
+  @Post('points/adjust-by-mb-id')
+  adjustByMbId(@Body() body: AdjustByMbIdInput, @Req() req: AuthedRequest) {
+    return this.pointsService.adjustByMbId(body, {
       adminId: req.admin.sub,
       ip: req.ip ?? null,
     });

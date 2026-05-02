@@ -13,7 +13,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  *   ──────────────────────────────────────────────────────
  *   po_content (내용)                  point_history.content
  *   mb_level (구분)                    member.level (JOIN)
- *   mb_id (아이디)                     member.login_id (JOIN)
+ *   mb_id (아이디)                     member.mb_id (JOIN)
  *   mb_nick (닉네임)                   member.nickname (JOIN)
  *   po_point (포인트)                  earn_point - use_point
  *   po_datetime (일시)                 created_at
@@ -22,7 +22,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  *   po_rel_table / po_rel_id           rel_table / rel_id
  *
  *   검색 (sfl):
- *     mb_id      : member.login_id 정확 매칭
+ *     mb_id      : member.mb_id 정확 매칭
  *     po_content : content LIKE %stx%
  *
  *   기간: po_datetime → created_at
@@ -33,7 +33,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  *     - 검색 안 하면: "전체 합계 SUM(earn-use)점"
  *
  *   하단 폼: 개별회원 포인트 증감 (회원ID + 내용 + 포인트 + 유효기간)
- *           POST /admin/points/adjust-by-login-id
+ *           POST /admin/points/adjust-by-mb-id
  */
 
 export interface AdjustInput {
@@ -43,8 +43,8 @@ export interface AdjustInput {
   expireDate?: string | null;
 }
 
-export interface AdjustByLoginIdInput {
-  loginId: string;
+export interface AdjustByMbIdInput {
+  mbId: string;
   reason: string;
   point: number;
   expireDays?: number;
@@ -59,7 +59,7 @@ export interface ActorInfo {
 export interface PointHistoryRow {
   id: number;
   member_id: number | null;
-  login_id: string | null;
+  mb_id: string | null;
   member_name: string | null;
   member_nickname: string | null;
   member_level: number | null;
@@ -76,7 +76,7 @@ export interface PointHistoryRow {
   rel_id: string | null;
   rel_action: string | null;
   actor_admin_id: number | null;
-  actor_admin_login_id: string | null;
+  actor_admin_mb_id: string | null;
   actor_ip: string | null;
   actor_type: string;
   created_at: string;
@@ -232,10 +232,10 @@ export class PointsService {
     });
   }
 
-  /** sample 페이지 하단 폼 — 회원아이디(login_id) 직접 입력으로 조정 */
-  async adjustByLoginId(input: AdjustByLoginIdInput, actor: ActorInfo) {
-    const loginId = (input.loginId ?? '').trim();
-    if (!loginId) throw new BadRequestException('회원아이디를 입력해주세요.');
+  /** sample 페이지 하단 폼 — 회원아이디(mb_id) 직접 입력으로 조정 */
+  async adjustByMbId(input: AdjustByMbIdInput, actor: ActorInfo) {
+    const mbId = (input.mbId ?? '').trim();
+    if (!mbId) throw new BadRequestException('회원아이디를 입력해주세요.');
     const point = Math.trunc(Number(input.point));
     if (!Number.isFinite(point) || point === 0) {
       throw new BadRequestException('포인트는 0이 아닌 정수여야 합니다.');
@@ -244,10 +244,10 @@ export class PointsService {
     if (!reason) throw new BadRequestException('포인트 내용은 필수입니다.');
 
     const rows = await this.sql<{ id: number }[]>`
-      SELECT id FROM member WHERE login_id = ${loginId} LIMIT 1
+      SELECT id FROM member WHERE mb_id = ${mbId} LIMIT 1
     `;
     if (rows.length === 0) {
-      throw new NotFoundException(`회원아이디 '${loginId}'를 찾을 수 없습니다.`);
+      throw new NotFoundException(`회원아이디 '${mbId}'를 찾을 수 없습니다.`);
     }
 
     let expireDate: string | null = null;
@@ -279,13 +279,13 @@ export class PointsService {
       switch (filter.sfl) {
         case 'mb_id':
           // 부분 매칭으로 통일 (sample은 정확 매칭이지만 신규는 검색 편의를 위해 LIKE)
-          conds.push(this.sql`(m.login_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
+          conds.push(this.sql`(m.mb_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
           break;
         case 'po_content':
           conds.push(this.sql`ph.content ILIKE ${q}`);
           break;
         default:
-          conds.push(this.sql`(m.login_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q} OR ph.content ILIKE ${q})`);
+          conds.push(this.sql`(m.mb_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q} OR ph.content ILIKE ${q})`);
       }
     }
     if (filter.fr_date) {
@@ -310,9 +310,9 @@ export class PointsService {
         ph.rel_table, ph.rel_id, ph.rel_action,
         ph.actor_admin_id, ph.actor_ip, ph.actor_type,
         ph.created_at,
-        m.login_id, m.name AS member_name, m.nickname AS member_nickname,
+        m.mb_id, m.name AS member_name, m.nickname AS member_nickname,
         m.level AS member_level, m.role AS member_role, m.point AS member_point,
-        a.login_id AS actor_admin_login_id
+        a.mb_id AS actor_admin_mb_id
       FROM point_history ph
       LEFT JOIN member m ON m.id = ph.member_id
       LEFT JOIN member a ON a.id = ph.actor_admin_id
@@ -338,10 +338,10 @@ export class PointsService {
     `;
 
     // mb_id 검색 시 해당 회원 정보 + 잔액
-    let searched_member: { login_id: string; nickname: string; point: number } | null = null;
+    let searched_member: { mb_id: string; nickname: string; point: number } | null = null;
     if (filter.sfl === 'mb_id' && filter.stx) {
-      const mrows = await this.sql<{ login_id: string; nickname: string; point: number }[]>`
-        SELECT login_id, nickname, point FROM member WHERE login_id = ${filter.stx} LIMIT 1
+      const mrows = await this.sql<{ mb_id: string; nickname: string; point: number }[]>`
+        SELECT mb_id, nickname, point FROM member WHERE mb_id = ${filter.stx} LIMIT 1
       `;
       if (mrows.length > 0) searched_member = mrows[0];
     }

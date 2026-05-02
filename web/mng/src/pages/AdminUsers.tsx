@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 
 interface Admin {
   id: number
-  login_id: string | null
+  mb_id: string | null
   name: string | null
   nickname: string | null
   role: string | null
@@ -15,7 +15,7 @@ interface Admin {
   created_at: string
 }
 
-interface SearchResult { id: number; login_id: string; name: string; nickname: string; role: string }
+interface SearchResult { id: number; mb_id: string; name: string; nickname: string; role: string }
 
 export default function AdminUsers() {
   const [items, setItems] = useState<Admin[]>([])
@@ -81,7 +81,7 @@ export default function AdminUsers() {
             <tbody className="divide-y">
               {results.map((m) => (
                 <tr key={m.id}>
-                  <td className="px-2 py-1.5">{m.login_id}</td>
+                  <td className="px-2 py-1.5">{m.mb_id}</td>
                   <td className="px-2 py-1.5">{m.name}</td>
                   <td className="px-2 py-1.5 text-gray-500">{m.nickname}</td>
                   <td className="px-2 py-1.5 text-gray-500">{m.role}</td>
@@ -114,7 +114,7 @@ export default function AdminUsers() {
               : items.length === 0 ? <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">관리자가 없습니다.</td></tr>
               : items.map((a) => (
                 <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                  <td className="px-3 py-2 font-medium">{a.login_id}</td>
+                  <td className="px-3 py-2 font-medium">{a.mb_id}</td>
                   <td className="px-3 py-2">{a.name}</td>
                   <td className="px-3 py-2 text-gray-500">{a.nickname}</td>
                   <td className="px-3 py-2 text-center">

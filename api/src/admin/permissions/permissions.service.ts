@@ -22,7 +22,7 @@ export class PermissionsService {
   /** 관리자 목록 (member.role='admin' OR is_super=true) */
   async listAdmins() {
     const items = await this.sql`
-      SELECT id, login_id, name, nickname, role, level, is_super, last_login_at, created_at
+      SELECT id, mb_id, name, nickname, role, level, is_super, last_login_at, created_at
       FROM member
       WHERE role = 'admin' OR is_super = TRUE
       ORDER BY is_super DESC NULLS LAST, id ASC
@@ -79,9 +79,9 @@ export class PermissionsService {
   async searchMember(q: string) {
     if (!q?.trim()) return { items: [] };
     const items = await this.sql`
-      SELECT id, login_id, name, nickname, role
+      SELECT id, mb_id, name, nickname, role
       FROM member
-      WHERE login_id ILIKE ${'%' + q + '%'} OR name ILIKE ${'%' + q + '%'} OR nickname ILIKE ${'%' + q + '%'}
+      WHERE mb_id ILIKE ${'%' + q + '%'} OR name ILIKE ${'%' + q + '%'} OR nickname ILIKE ${'%' + q + '%'}
       ORDER BY id ASC
       LIMIT 20
     `;

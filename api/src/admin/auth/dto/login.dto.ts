@@ -4,9 +4,9 @@ export class LoginDto {
   @IsString()
   @Length(3, 60)
   @Matches(/^[A-Za-z0-9._-]+$/, {
-    message: 'login_id는 영문/숫자/._- 만 사용 가능합니다.',
+    message: 'mb_id는 영문/숫자/._- 만 사용 가능합니다.',
   })
-  login_id!: string;
+  mb_id!: string;
 
   @IsString()
   @Length(4, 200)

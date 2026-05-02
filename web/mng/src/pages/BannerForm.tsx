@@ -6,8 +6,7 @@ import { api } from '../lib/api'
 /** sample/adm/bannerform.php의 help 텍스트에서 추출 — 위치별 권장 사이즈 */
 const POSITION_SIZES: Record<string, { w: number; h: number | null; note?: string }> = {
   '회원가입완료':       { w: 1000, h: 520 },
-  '메인-비주얼':         { w: 1000, h: 520 },
-  '메인-상단띠배너':     { w: 1000, h: 80 },
+  '메인-상단배너':       { w: 1000, h: 520 },
   '메인-중앙배너':       { w: 1000, h: 160 },
   '로그인-상단띠배너':   { w: 1000, h: 80 },
   '마이페이지':           { w: 1000, h: 220 },
