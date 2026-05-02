@@ -29,6 +29,13 @@ const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
       { key: 'admin_login_id', label: '최고관리자 ID', kind: 'text', hint: 'member 테이블의 login_id' },
       { key: 'admin_email', label: '관리자 메일 주소', kind: 'text' },
       { key: 'admin_email_name', label: '관리자 메일 발송이름', kind: 'text' },
+      {
+        key: 'kakao_channel_url',
+        label: '카카오 1:1 채널 URL',
+        kind: 'text',
+        placeholder: 'https://pf.kakao.com/_xxxxx/chat',
+        hint: '사용자 화면의 카카오 1:1 상담 버튼이 이 URL로 연결됩니다.',
+      },
       { key: 'add_meta', label: '추가 meta 태그', kind: 'textarea' },
       { key: 'add_script', label: '<head> 추가 스크립트', kind: 'textarea' },
       { key: 'analytics', label: '애널리틱스 코드', kind: 'textarea', hint: 'GA / 네이버 등' },
