@@ -20,6 +20,7 @@ import { mkdirSync, unlink } from 'node:fs';
 import { AdminAuthGuard } from '../auth/admin-auth.guard';
 import { MembersService } from './members.service';
 import type { CounselorInput, CustomerInput, ListFilter } from './members.service';
+import { convertImageToWebp } from '../../shared/common/image-to-webp';
 
 const MEMBER_FILE_DIR = join(process.cwd(), 'uploads', 'member');
 mkdirSync(MEMBER_FILE_DIR, { recursive: true });
@@ -27,6 +28,7 @@ mkdirSync(MEMBER_FILE_DIR, { recursive: true });
 const FILE_KIND_LIMITS: Record<string, { exts: string[]; maxBytes: number }> = {
   profile: { exts: ['.jpg', '.jpeg', '.png', '.gif', '.webp'], maxBytes: 5 * 1024 * 1024 },
   thumbnail: { exts: ['.jpg', '.jpeg', '.png', '.gif', '.webp'], maxBytes: 5 * 1024 * 1024 },
+  wide: { exts: ['.jpg', '.jpeg', '.png', '.gif', '.webp'], maxBytes: 5 * 1024 * 1024 },
   contract: { exts: ['.pdf', '.jpg', '.jpeg', '.png'], maxBytes: 10 * 1024 * 1024 },
 };
 
@@ -49,6 +51,12 @@ export class MembersController {
       this.membersService.count(role),
     ]);
     return { items, total };
+  }
+
+  /** 포인트 정합성 점검 (운영 진단용): GET /admin/members/audit-points?mb_id=ubuub1234 */
+  @Get('audit-points')
+  auditPoints(@Query('mb_id') mbId: string) {
+    return this.membersService.auditPoints(mbId);
   }
 
   /** 고객 리스트: GET /admin/members/customers */
@@ -141,11 +149,19 @@ export class MembersController {
     @UploadedFile() file: Express.Multer.File,
   ) {
     if (!file) throw new BadRequestException('파일이 없습니다.');
+    // 이미지 종류만 webp 변환 — contract(pdf 가능)는 비대상
+    const isImageKind = kind === 'profile' || kind === 'thumbnail' || kind === 'wide';
+    let storedNameWebp: string | null = null;
+    if (isImageKind) {
+      const { webpFilename } = await convertImageToWebp(file.path);
+      storedNameWebp = webpFilename;
+    }
     return this.membersService.addMemberFile(id, kind, {
       originalname: file.originalname,
       filename: file.filename,
       size: file.size,
       mimetype: file.mimetype,
+      stored_name_webp: storedNameWebp,
     });
   }
 
@@ -155,9 +171,12 @@ export class MembersController {
     @Param('id', ParseIntPipe) id: number,
     @Param('fileId', ParseIntPipe) fileId: number,
   ) {
-    const { stored_name } = await this.membersService.deleteMemberFile(id, fileId);
+    const { stored_name, stored_name_webp } = await this.membersService.deleteMemberFile(id, fileId);
     if (stored_name) {
       unlink(join(MEMBER_FILE_DIR, stored_name), () => {});
+    }
+    if (stored_name_webp && stored_name_webp !== stored_name) {
+      unlink(join(MEMBER_FILE_DIR, stored_name_webp), () => {});
     }
     return { ok: true };
   }

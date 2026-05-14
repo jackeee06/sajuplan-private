@@ -188,7 +188,7 @@ export default function FaqList() {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-800/50 text-[11px] text-gray-500">
                       <tr>
-                        <th className="px-4 py-2 text-left font-medium w-12">번호</th>
+                        <th className="px-4 py-2 text-left font-medium w-16 whitespace-nowrap">번호</th>
                         <th className="px-4 py-2 text-left font-medium">질문</th>
                         <th className="px-4 py-2 text-left font-medium w-16">순서</th>
                         <th className="px-4 py-2 text-left font-medium w-16">노출</th>

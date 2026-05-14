@@ -14,7 +14,6 @@ interface Coupon {
   cp_id: string | null
   member_id: number | null
   mb_id: string | null
-  mb_id: string | null
   member_name: string | null
   title: string
   method: number

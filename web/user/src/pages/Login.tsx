@@ -2,8 +2,9 @@ import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { ApiError, authApi } from '../lib/api'
+import { useAuth } from '../lib/auth-context'
 
-type SocialProvider = 'kakao' | 'naver'
+type SocialProvider = 'kakao' | 'naver' | 'apple'
 
 /**
  * 로그인 페이지 — Figma node 6:2246 (01로그인_로그인 390x844)
@@ -22,6 +23,7 @@ type SocialProvider = 'kakao' | 'naver'
  */
 export default function Login() {
   const navigate = useNavigate()
+  const { refresh } = useAuth()
   const [searchParams] = useSearchParams()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -32,6 +34,7 @@ export default function Login() {
   const [enabledProviders, setEnabledProviders] = useState<SocialProvider[]>([
     'kakao',
     'naver',
+    'apple',
   ])
 
   // 로그인 후 복귀 경로 (?redirect=/...). open redirect 차단을 위해 내부 경로만 허용.
@@ -57,6 +60,7 @@ export default function Login() {
         const next: SocialProvider[] = []
         if (cfg.providers.includes('kakao')) next.push('kakao')
         if (cfg.providers.includes('naver')) next.push('naver')
+        if (cfg.providers.includes('apple')) next.push('apple')
         setEnabledProviders(next)
       },
       () => {
@@ -66,6 +70,103 @@ export default function Login() {
     return () => {
       alive = false
     }
+  }, [])
+
+  // ─────────────────────────────────────────────
+  // 앱(RN/네이티브) ↔ 웹 브릿지
+  //  — 웹→앱: window.AndroidBridge.postMessage / iOSBridge.postMessage
+  //           payload = { type: 'sns_login', data: { provider } }
+  //  — 앱→웹: window.dispatchEvent(new CustomEvent('native_sns_login_result',
+  //                                                  { detail: { provider, token, success } }))
+  //  네이티브 SDK 가 받은 access_token 을 백엔드 /user/auth/social/kakao/native 로 POST
+  //  → sjm_user (기존회원) 또는 sjm_social_pending (신규) 쿠키 발급 후 SPA 라우팅.
+  //
+  //  ※ 프로토콜은 브리지스톤 앱과 동일 — 같은 RN/네이티브 코드를 재사용 가능.
+  // ─────────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = async (e: Event) => {
+      const detail = (e as CustomEvent<{
+        provider?: string
+        token?: string
+        success?: boolean
+        error?: string
+      }>).detail
+      if (!detail || !['kakao', 'naver', 'apple'].includes(detail.provider ?? '')) return
+      // 네이티브 SDK 성공시엔 RN 이 webview 를 GET native_callback URL 로 이동시켜
+      // 서버가 쿠키를 발급한다 → 이 listener 는 실패/취소 케이스만 처리.
+      // (kakao 만 쓰던 시점의 POST /native API 호환을 위해 token 전달 분기는 보존.)
+      const provName =
+        detail.provider === 'naver' ? '네이버' :
+        detail.provider === 'apple' ? '애플' : '카카오'
+      if (!detail.success || !detail.token) {
+        setSubmitting(false)
+        if (detail.error) setError(`${provName} 로그인 실패: ${detail.error}`)
+        return
+      }
+      // apple: identityToken을 POST /apple/native 로 전달 (extra: name/email은 RN이 detail에 함께 넣어주면 OK)
+      if (detail.provider === 'apple') {
+        try {
+          const extra = detail as unknown as { name?: string; email?: string }
+          const r = await authApi.socialAppleNative(detail.token, {
+            name: extra.name,
+            email: extra.email,
+          })
+          if (r.needs_signup) {
+            navigate('/signup?social=apple', { replace: true })
+          } else {
+            await refresh()
+            const target =
+              redirect && redirect !== '/'
+                ? redirect
+                : r.member.role === 'counselor'
+                  ? '/counselor/mypage'
+                  : '/'
+            navigate(target, { replace: true })
+          }
+        } catch (err) {
+          setSubmitting(false)
+          const m =
+            err instanceof ApiError
+              ? err.message
+              : '애플 로그인 중 오류가 발생했습니다.'
+          setError(m)
+        }
+        return
+      }
+      // (legacy) kakao 만 POST /native 사용 — naver 는 GET native_callback 으로 처리되므로 여긴 안 옴
+      if (detail.provider !== 'kakao') {
+        setSubmitting(false)
+        return
+      }
+      try {
+        const r = await authApi.socialKakaoNative(detail.token)
+        if (r.needs_signup) {
+          navigate('/signup?social=kakao', { replace: true })
+        } else {
+          await refresh()
+          const target =
+            redirect && redirect !== '/'
+              ? redirect
+              : r.member.role === 'counselor'
+                ? '/counselor/mypage'
+                : '/'
+          navigate(target, { replace: true })
+        }
+      } catch (err) {
+        setSubmitting(false)
+        const m =
+          err instanceof ApiError
+            ? err.message
+            : '카카오 로그인 중 오류가 발생했습니다.'
+        setError(m)
+      }
+    }
+    window.addEventListener('native_sns_login_result', handler as EventListener)
+    return () =>
+      window.removeEventListener('native_sns_login_result', handler as EventListener)
+    // refresh / navigate / redirect 는 안정적 — 한 번만 등록
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const onSubmit = async (e: FormEvent) => {
@@ -81,8 +182,12 @@ export default function Login() {
 
     setSubmitting(true)
     try {
-      await authApi.login(id, password, keepLogin)
-      navigate(redirect, { replace: true })
+      const r = await authApi.login(id, password, keepLogin)
+      // AuthContext 갱신 → 다른 페이지에서 즉시 로그인 상태 인식
+      await refresh()
+      // 명시적 redirect 가 있으면 그 경로 (예: ?redirect=/charge), 없으면 role 기반 분기
+      const target = redirect && redirect !== '/' ? redirect : (r.member.role === 'counselor' ? '/counselor/mypage' : '/')
+      navigate(target, { replace: true })
     } catch (err) {
       const msg =
         err instanceof ApiError
@@ -95,6 +200,13 @@ export default function Login() {
   }
 
   const goSocial = (provider: SocialProvider) => {
+    // 앱(WebView) 안이면 네이티브 SDK 로 분기 — kauth/nid 가 webview 정책으로 막히는 문제 회피.
+    if (isInNativeApp()) {
+      setError(null)
+      setSubmitting(true)
+      callNativeSnsLogin(provider)
+      return
+    }
     window.location.href = authApi.socialStartUrl(provider, redirect)
   }
 
@@ -105,7 +217,7 @@ export default function Login() {
         <button
           type="button"
           aria-label="뒤로"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate('/', { replace: true })}
           className="w-[30px] h-[30px] flex items-center justify-center"
         >
           <img src="/img/ic_hd_back.svg" alt="" className="w-7 h-7" />
@@ -232,6 +344,17 @@ export default function Login() {
                   네이버 로그인
                 </button>
               )}
+              {enabledProviders.includes('apple') && (
+                <button
+                  type="button"
+                  onClick={() => goSocial('apple')}
+                  disabled={submitting}
+                  className="h-12 w-full flex items-center justify-center gap-2 rounded-full bg-black hover:brightness-110 active:brightness-90 text-white text-[15px] leading-[150%] font-semibold transition disabled:opacity-60"
+                >
+                  <img src="/img/icon-apple.svg" alt="" className="w-[15px] h-[19px] -mt-0.5" />
+                  Apple로 로그인
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -311,5 +434,36 @@ function ClearIcon() {
         strokeLinecap="round"
       />
     </svg>
+  )
+}
+
+/* ───────────────────────────────────────────────
+ * 네이티브 앱(RN webview) 브릿지
+ *  - 사주문은 react-native-webview 기반 — Web→RN 은 window.ReactNativeWebView.postMessage
+ *  - RN→Web 은 webView.injectJavaScript 로 'native_sns_login_result' CustomEvent dispatch
+ *  - 메시지 페이로드(JSON string):
+ *      Web→RN: { type: 'SNS_LOGIN', provider: 'kakao' }
+ *      RN→Web: window.dispatchEvent(new CustomEvent('native_sns_login_result',
+ *                                    { detail: { provider, token, success, error } }))
+ *
+ *  ※ 브리지스톤 앱은 동일한 'native_sns_login_result' 이벤트명을 쓰므로
+ *     RN/네이티브 측 로직만 그쪽 코드를 참고해 옮기면 됩니다.
+ * ─────────────────────────────────────────────── */
+
+interface NativeWindow {
+  ReactNativeWebView?: { postMessage: (msg: string) => void }
+}
+
+function isInNativeApp(): boolean {
+  if (typeof window === 'undefined') return false
+  return !!(window as unknown as NativeWindow).ReactNativeWebView
+}
+
+function callNativeSnsLogin(provider: 'kakao' | 'naver' | 'apple') {
+  if (typeof window === 'undefined') return
+  const w = window as unknown as NativeWindow
+  if (!w.ReactNativeWebView) return
+  w.ReactNativeWebView.postMessage(
+    JSON.stringify({ type: 'SNS_LOGIN', provider }),
   )
 }

@@ -6,6 +6,8 @@
 > `counsel_history.php`, `coin_counsel_history.php`, `coin_counsel_history_excel.php`,
 > `settlement_list.php`, `settlement_list_v2.php`, `settlement_list_excel.php`, `settlement_list_delete.php`.
 > 정산 계산의 실체 함수는 `lib/common.lib.php`의 `set_con_account()`/`set_con_account_v2()`/`set_con_account_v3()`이며 함께 분석함.
+>
+> **사용자향 채팅 마이그레이션은 별도 도메인**: 사용자가 진입하는 1:1 채팅 상담 화면(`web/user/src/pages/ChatRoom.tsx`) + m2net wss 직결 + webhook 수신 + 정산 반영 흐름은 [`domain-10-chat-messaging.md`](domain-10-chat-messaging.md) 에서 다룬다. 본 문서의 상담사 상태 머신·platform_consulting·정산 cron 은 도메인-10 의 webhook 처리와 강하게 결합되므로 두 문서를 같이 읽는다.
 
 ---
 

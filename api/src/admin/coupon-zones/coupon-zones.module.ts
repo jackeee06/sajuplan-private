@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { AdminAuthModule } from '../auth/auth.module';
+import { SmsModule } from '../../user/sms/sms.module';
 import { CouponZonesController } from './coupon-zones.controller';
 import { CouponZonesService } from './coupon-zones.service';
 
 @Module({
-  imports: [AdminAuthModule],
+  imports: [AdminAuthModule, SmsModule],
   controllers: [CouponZonesController],
   providers: [CouponZonesService],
   exports: [CouponZonesService],

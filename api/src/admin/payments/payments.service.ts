@@ -2,9 +2,13 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { SQL, type Sql } from '../../shared/db/db.module';
+import { M2netService } from '../../shared/m2net/m2net.service';
+import { runtimeEnv } from '../../shared/env/runtime-env';
 
 /**
  * sample/adm/coin_pay_history.php (메뉴 350420, "결제 내역") 정확 매핑.
@@ -135,7 +139,79 @@ export interface CancelActor {
 
 @Injectable()
 export class PaymentsService {
-  constructor(@Inject(SQL) private readonly sql: Sql) {}
+  private readonly logger = new Logger(PaymentsService.name);
+
+  constructor(
+    @Inject(SQL) private readonly sql: Sql,
+    private readonly m2net: M2netService,
+    private readonly config: ConfigService,
+  ) {}
+
+  // ============================================================
+  // 자동결제 push URL 일괄 갱신 (도메인 변경 등 대응)
+  //   - .env PG_AUTOPAY_PUSH_URL 을 새 도메인으로 바꾼 뒤 호출하면
+  //     활성 카드 + auto_enabled=true 회원 모두에게 m2net.updateAutoPayConfig 재PUT.
+  //   - auto_enabled=false 회원은 m2net에 push URL이 의미 없으므로 skip
+  //     (다음번 자동충전 ON 시 setAutoConfig가 자동으로 새 URL 적용함).
+  //   - 한 회원 실패해도 다른 회원 처리 계속, 결과를 요약 반환.
+  // ============================================================
+  async syncAutopayUrls() {
+    const newPushUrl = runtimeEnv().pgAutopayPushUrl;
+
+    type Row = {
+      pm_id: number;
+      member_id: number;
+      mb_1: string | null;
+      name: string | null;
+      phone: string | null;
+      billkey: string;
+      amount: number;
+      coin_amount: number;
+    };
+    const rows = await this.sql<Row[]>`
+      SELECT pm.id AS pm_id, pm.member_id,
+             m.csrid AS mb_1, m.name, m.phone,
+             pm.billkey, pm.amount, pm.coin_amount
+        FROM payment_method pm
+        JOIN member m ON m.id = pm.member_id
+       WHERE pm.is_active = TRUE
+         AND pm.auto_enabled = TRUE
+         AND m.csrid IS NOT NULL
+       ORDER BY pm.id
+    `;
+
+    const successes: number[] = [];
+    const failures: { memberId: number; error: string }[] = [];
+
+    for (const r of rows) {
+      const telno = (r.phone ?? '').replace(/-/g, '');
+      const result = await this.m2net.updateAutoPayConfig(r.mb_1!, {
+        membnm: r.name ?? '',
+        telno,
+        autopaypin: r.billkey,
+        autopayflag: 'Y',
+        autopayamt: Number(r.amount),
+        autopaycoinamt: Number(r.coin_amount),
+        autopaypushurl: newPushUrl,
+      });
+      if (result.ok) {
+        successes.push(r.member_id);
+      } else {
+        failures.push({ memberId: r.member_id, error: result.error ?? 'unknown' });
+        this.logger.warn(
+          `[syncAutopayUrls] member_id=${r.member_id} 실패: ${result.error}`,
+        );
+      }
+    }
+
+    return {
+      pushUrl: newPushUrl,
+      total: rows.length,
+      success: successes.length,
+      failed: failures.length,
+      failures, // [{memberId, error}] — 운영자가 수동 재시도 참고
+    };
+  }
 
   private buildWhere(filter: PaymentFilter, withSmode: boolean) {
     const conds: ReturnType<Sql>[] = [];

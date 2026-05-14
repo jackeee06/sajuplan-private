@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
 
-export type SocialProvider = 'kakao' | 'naver';
+export type SocialProvider = 'kakao' | 'naver' | 'apple';
 
 export interface SocialProfile {
   uid: string; // 소셜 측 사용자 식별자 (필수)
@@ -24,10 +24,19 @@ interface SocialSettings {
   kakao_client_secret: string;
   naver_client_id: string;
   naver_secret: string;
+  apple_service_id: string;   // Services ID (예: com.sajumoon.applogin) — 웹 OAuth용
+  apple_bundle_id: string;    // 앱 Bundle ID (com.dmonster.sajumoon) — iOS 네이티브용
+  apple_team_id: string;      // Apple Developer Team ID
+  apple_key_id: string;       // .p8 Key ID (예: 8FLSV5786T)
+  apple_private_key: string;  // .p8 파일 내용 (PEM)
 }
 
 interface SocialMemberRow {
   id: number;
+}
+
+interface AppleJwks {
+  keys: Array<{ kid: string; [k: string]: unknown }>;
 }
 
 @Injectable()
@@ -51,6 +60,11 @@ export class SocialAuthService {
       kakao_client_secret: map['kakao_client_secret'] || '',
       naver_client_id: map['naver_client_id'] || '',
       naver_secret: map['naver_secret'] || '',
+      apple_service_id: map['apple_service_id'] || '',
+      apple_bundle_id: map['apple_bundle_id'] || '',
+      apple_team_id: map['apple_team_id'] || '',
+      apple_key_id: map['apple_key_id'] || '',
+      apple_private_key: map['apple_private_key'] || '',
     };
   }
 
@@ -87,6 +101,25 @@ export class SocialAuthService {
       // — 콘솔 "동의항목" 에 OFF 인 항목을 명시 요청하면 invalid_scope 로 거부됨.
       // — 미지정 시 콘솔 동의항목 설정 (필수/선택) 에 따라 자동으로 동의창이 구성된다.
       // — 따라서 닉네임·이메일 수집 여부는 카카오 콘솔에서 켜고 끄면 됨 (코드 변경 불필요).
+      return u.toString();
+    }
+
+    if (provider === 'apple') {
+      // Apple Sign in with Apple — 웹용 OAuth (Services ID)
+      // 응답은 form_post(POST) 로 직접 redirect_uri 에 옴.
+      // scope=name email 요청 시 첫 동의에서만 받을 수 있고, 이후 로그인부터는 sub(uid)만 옴.
+      if (!settings.apple_service_id) {
+        throw new ServiceUnavailableException(
+          'Apple Services ID 가 등록되어 있지 않습니다. (관리자 → 시스템 설정 → 소셜 → apple_service_id)',
+        );
+      }
+      const u = new URL('https://appleid.apple.com/auth/authorize');
+      u.searchParams.set('client_id', settings.apple_service_id);
+      u.searchParams.set('redirect_uri', redirectUri);
+      u.searchParams.set('response_type', 'code id_token');
+      u.searchParams.set('response_mode', 'form_post');
+      u.searchParams.set('scope', 'name email');
+      u.searchParams.set('state', state);
       return u.toString();
     }
 
@@ -158,9 +191,24 @@ export class SocialAuthService {
       );
     }
 
+    return this.fetchKakaoProfileFromAccessToken(tokenJson.access_token);
+  }
+
+  /**
+   * RN 네이티브 SDK 가 발급한 access_token 으로 프로필 조회.
+   * 모바일 앱(webview + 네이티브 카카오 SDK) 경로에서 사용.
+   * — 인가코드→토큰 교환 단계가 SDK 안에서 끝나므로 /me 만 호출.
+   * — 토큰의 유효성/앱 일치는 /me 200 응답 자체로 확인됨 (잘못된 토큰이면 401).
+   */
+  async fetchKakaoProfileFromAccessToken(
+    accessToken: string,
+  ): Promise<SocialProfile> {
+    if (!accessToken) {
+      throw new BadRequestException('access_token 누락');
+    }
     const meRes = await fetch('https://kapi.kakao.com/v2/user/me', {
       method: 'GET',
-      headers: { Authorization: `Bearer ${tokenJson.access_token}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!meRes.ok) {
       throw new BadRequestException(`Kakao 프로필 조회 실패 (${meRes.status})`);
@@ -227,8 +275,21 @@ export class SocialAuthService {
       );
     }
 
+    return this.fetchNaverProfileFromAccessToken(tokenJson.access_token);
+  }
+
+  /**
+   * RN 네이티브 SDK 가 발급한 access_token 으로 네이버 프로필 조회.
+   * 모바일 앱(@react-native-seoul/naver-login) 경로에서 사용.
+   */
+  async fetchNaverProfileFromAccessToken(
+    accessToken: string,
+  ): Promise<SocialProfile> {
+    if (!accessToken) {
+      throw new BadRequestException('access_token 누락');
+    }
     const meRes = await fetch('https://openapi.naver.com/v1/nid/me', {
-      headers: { Authorization: `Bearer ${tokenJson.access_token}` },
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!meRes.ok) {
       throw new BadRequestException(`Naver 프로필 조회 실패 (${meRes.status})`);
@@ -257,14 +318,145 @@ export class SocialAuthService {
   }
 
   /**
-   * 소셜 가입자 조회. mb_id 단일 식별 정책에 따라 mb_id = '<uid>_K|N' 우선 매칭.
+   * Apple identityToken(JWT) 검증.
+   * — Apple JWKS(https://appleid.apple.com/auth/keys) 으로 RS256 서명 검증
+   * — iss = https://appleid.apple.com
+   * — aud = 네이티브: 앱 Bundle ID / 웹: Services ID
+   * — exp / iat 시간 검증
+   * 반환: SocialProfile (uid=sub, email)
+   *
+   * audType:
+   *   - 'native' → settings.apple_bundle_id 매칭 (RN AppleAuthentication)
+   *   - 'web'    → settings.apple_service_id 매칭 (Services ID, OAuth form_post)
+   */
+  async verifyAppleIdentityToken(
+    settings: SocialSettings,
+    identityToken: string,
+    audType: 'native' | 'web',
+    extra?: { name?: string | null; email?: string | null },
+  ): Promise<SocialProfile> {
+    if (!identityToken) {
+      throw new BadRequestException('identityToken 누락');
+    }
+    const expectedAud =
+      audType === 'web' ? settings.apple_service_id : settings.apple_bundle_id;
+    if (!expectedAud) {
+      throw new ServiceUnavailableException(
+        `Apple ${audType === 'web' ? 'Services ID' : 'Bundle ID'} 가 등록되어 있지 않습니다. (관리자 → 시스템 설정 → 소셜 → apple_${audType === 'web' ? 'service_id' : 'bundle_id'})`,
+      );
+    }
+
+    // JWT 헤더 파싱 (kid 추출)
+    const parts = identityToken.split('.');
+    if (parts.length !== 3) {
+      throw new BadRequestException('Apple identityToken 형식 오류');
+    }
+    let header: { kid?: string; alg?: string };
+    let payload: {
+      iss?: string;
+      aud?: string;
+      sub?: string;
+      email?: string;
+      email_verified?: boolean | string;
+      exp?: number;
+      iat?: number;
+      nonce?: string;
+    };
+    try {
+      header = JSON.parse(
+        Buffer.from(parts[0], 'base64url').toString('utf8'),
+      ) as typeof header;
+      payload = JSON.parse(
+        Buffer.from(parts[1], 'base64url').toString('utf8'),
+      ) as typeof payload;
+    } catch {
+      throw new BadRequestException('Apple identityToken 파싱 실패');
+    }
+    if (!header.kid || header.alg !== 'RS256') {
+      throw new BadRequestException('Apple identityToken 헤더가 올바르지 않습니다.');
+    }
+
+    // JWKS 조회 + 캐시
+    const jwk = await this.getApplePublicKey(header.kid);
+    // node:crypto 로 PEM 변환 후 검증
+    const { createPublicKey, createVerify } = await import('node:crypto');
+    const pubKey = createPublicKey({ key: jwk, format: 'jwk' });
+    const verify = createVerify('RSA-SHA256');
+    verify.update(`${parts[0]}.${parts[1]}`);
+    verify.end();
+    const sigBuf = Buffer.from(parts[2], 'base64url');
+    if (!verify.verify(pubKey, sigBuf)) {
+      throw new BadRequestException('Apple identityToken 서명 검증 실패');
+    }
+
+    // 클레임 검증
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.iss !== 'https://appleid.apple.com') {
+      throw new BadRequestException('Apple identityToken iss 불일치');
+    }
+    if (payload.aud !== expectedAud) {
+      throw new BadRequestException(
+        `Apple identityToken aud 불일치 (expected=${expectedAud}, got=${payload.aud})`,
+      );
+    }
+    if (!payload.exp || payload.exp < now - 60) {
+      throw new BadRequestException('Apple identityToken 만료됨');
+    }
+    if (!payload.sub) {
+      throw new BadRequestException('Apple identityToken sub 누락');
+    }
+
+    return {
+      uid: payload.sub,
+      email: extra?.email ?? payload.email ?? null,
+      name: extra?.name ?? null, // Apple은 첫 동의 이후 name을 보내지 않음 — 클라가 전달
+      nickname: extra?.name ?? null,
+      phone: null,
+    };
+  }
+
+  // Apple JWKS 캐시 (10분)
+  private appleJwks: AppleJwks | null = null;
+  private appleJwksAt = 0;
+  private async getApplePublicKey(kid: string): Promise<Record<string, unknown>> {
+    const TTL_MS = 10 * 60 * 1000;
+    const now = Date.now();
+    if (!this.appleJwks || now - this.appleJwksAt > TTL_MS) {
+      const res = await fetch('https://appleid.apple.com/auth/keys');
+      if (!res.ok) {
+        throw new ServiceUnavailableException('Apple JWKS 조회 실패');
+      }
+      this.appleJwks = (await res.json()) as AppleJwks;
+      this.appleJwksAt = now;
+    }
+    const k = this.appleJwks?.keys.find((x) => x.kid === kid);
+    if (!k) {
+      // 캐시 무효화하고 1회 재시도
+      this.appleJwks = null;
+      const res = await fetch('https://appleid.apple.com/auth/keys');
+      this.appleJwks = (await res.json()) as AppleJwks;
+      this.appleJwksAt = Date.now();
+      const k2 = this.appleJwks?.keys.find((x) => x.kid === kid);
+      if (!k2) {
+        throw new BadRequestException(`Apple JWKS 에 kid=${kid} 없음`);
+      }
+      return k2;
+    }
+    return k;
+  }
+
+  /**
+   * 소셜 가입자 조회. mb_id 단일 식별 정책에 따라 mb_id = '<uid>_K|N|A' 우선 매칭.
    * 백필 안 된 옛 row 호환을 위해 (provider, social_uid) 도 fallback 매칭.
    */
   async findMember(
     provider: SocialProvider,
     uid: string,
   ): Promise<{ id: number } | null> {
-    const suffix = provider === 'kakao' ? '_K' : provider === 'naver' ? '_N' : '_S';
+    const suffix =
+      provider === 'kakao' ? '_K' :
+      provider === 'naver' ? '_N' :
+      provider === 'apple' ? '_A' : '_S';
     const mbId = `${uid}${suffix}`;
 
     // (1) 신규 식별: mb_id
@@ -322,8 +514,11 @@ export class SocialAuthService {
     const name = form.name.slice(0, 50);
 
     // mb_id 단일 컬럼 식별 정책: 소셜 가입자도 mb_id 자동 부여
-    //   카카오: <uid>_K / 네이버: <uid>_N
-    const suffix = provider === 'kakao' ? '_K' : provider === 'naver' ? '_N' : '_S';
+    //   카카오: <uid>_K / 네이버: <uid>_N / 애플: <uid>_A
+    const suffix =
+      provider === 'kakao' ? '_K' :
+      provider === 'naver' ? '_N' :
+      provider === 'apple' ? '_A' : '_S';
     const mbId = `${uid}${suffix}`;
 
     const inserted = await this.sql<SocialMemberRow[]>`

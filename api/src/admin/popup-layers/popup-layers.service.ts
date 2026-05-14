@@ -15,6 +15,7 @@ export interface PopupLayerRow {
   content: string;
   is_html: boolean;
   image_url: string | null;
+  image_url_webp: string | null;
   link_url: string | null;
   is_active: boolean;
   created_at: Date;
@@ -34,6 +35,7 @@ export interface PopupLayerInput {
   content?: string;
   is_html?: boolean;
   image_url?: string | null;
+  image_url_webp?: string | null;
   link_url?: string | null;
   is_active?: boolean;
 }
@@ -46,7 +48,7 @@ export class PopupLayersService {
     return this.sql<PopupLayerRow[]>`
       SELECT id, device, starts_at, ends_at, disable_hours,
              pos_left, pos_top, size_width, size_height,
-             title, content, is_html, image_url, link_url, is_active,
+             title, content, is_html, image_url, image_url_webp, link_url, is_active,
              created_at, updated_at
         FROM popup_notice
        ORDER BY id DESC
@@ -57,7 +59,7 @@ export class PopupLayersService {
     const rows = await this.sql<PopupLayerRow[]>`
       SELECT id, device, starts_at, ends_at, disable_hours,
              pos_left, pos_top, size_width, size_height,
-             title, content, is_html, image_url, link_url, is_active,
+             title, content, is_html, image_url, image_url_webp, link_url, is_active,
              created_at, updated_at
         FROM popup_notice
        WHERE id = ${id}
@@ -71,7 +73,7 @@ export class PopupLayersService {
       INSERT INTO popup_notice (
         device, starts_at, ends_at, disable_hours,
         pos_left, pos_top, size_width, size_height,
-        title, content, is_html, image_url, link_url, is_active
+        title, content, is_html, image_url, image_url_webp, link_url, is_active
       ) VALUES (
         ${input.device ?? 'both'},
         ${input.starts_at}::timestamptz,
@@ -85,6 +87,7 @@ export class PopupLayersService {
         ${input.content ?? ''},
         ${input.is_html ?? true},
         ${input.image_url ?? null},
+        ${input.image_url_webp ?? null},
         ${input.link_url ?? null},
         ${input.is_active ?? true}
       )
@@ -109,6 +112,7 @@ export class PopupLayersService {
     if (input.content !== undefined) updates.content = input.content;
     if (input.is_html !== undefined) updates.is_html = input.is_html;
     if (input.image_url !== undefined) updates.image_url = input.image_url;
+    if (input.image_url_webp !== undefined) updates.image_url_webp = input.image_url_webp;
     if (input.link_url !== undefined) updates.link_url = input.link_url;
     if (input.is_active !== undefined) updates.is_active = input.is_active;
 
@@ -127,7 +131,11 @@ export class PopupLayersService {
     return { deleted: result.count };
   }
 
-  async setImage(id: number, imageUrl: string | null): Promise<PopupLayerRow> {
-    return this.update(id, { image_url: imageUrl });
+  async setImage(
+    id: number,
+    imageUrl: string | null,
+    imageUrlWebp: string | null = null,
+  ): Promise<PopupLayerRow> {
+    return this.update(id, { image_url: imageUrl, image_url_webp: imageUrlWebp });
   }
 }

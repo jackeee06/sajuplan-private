@@ -1,22 +1,139 @@
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import CounselorDetailLayout from '../components/CounselorDetailLayout'
-import { MOCK_DETAILS, MOCK_COUNSELOR_REVIEWS, type CounselorReview } from '../data/counselorDetails'
+import type { Badge, CounselorDetailData } from '../data/counselorDetails'
+import {
+  ApiError,
+  counselorsApi,
+  type PublicCounselorDetail,
+  type PublicCounselorReview,
+} from '../lib/api'
+import { useAuth } from '../lib/auth-context'
+import { FILE_BASE } from '../lib/runtime-env'
+
+function resolveImageUrl(u: string | null): string {
+  if (!u) return '/img/sample_img01.jpg'
+  if (/^https?:\/\//.test(u)) return u
+  if (u.startsWith('/')) return `${FILE_BASE}${u}`
+  return u
+}
+
+/** 백엔드 응답 → CounselorDetailLayout 이 받는 CounselorDetailData 어댑터 (CounselorDetail.tsx 와 동일) */
+function mapDetail(r: PublicCounselorDetail, total: number): CounselorDetailData {
+  const badge: Badge = (r.category === '기타' ? '사주' : r.category) as Badge
+  return {
+    id: r.id,
+    badge,
+    name: r.nickname || r.name,
+    code: r.dtmfno ?? r.csrid ?? String(r.id).padStart(6, '0'),
+    tagline: r.headline ?? '',
+    hashtags: r.hashtags,
+    pricePerHalfMin: r.unit_cost ?? 0,
+    likeCount: r.fan_count > 999 ? '999+' : String(r.fan_count),
+    liked: r.is_liked,
+    heroImg: resolveImageUrl(r.hero_image),
+    heroImgWebp: r.hero_image_webp ? resolveImageUrl(r.hero_image_webp) : null,
+    fields: r.fields.length > 0 ? r.fields : ['전문 상담'],
+    styles: r.traits.length > 0 ? r.traits : ['친절한'],
+    career: r.career.length > 0 ? r.career : ['상담사 약력 준비 중입니다.'],
+    noticeDate: formatDate(r.notice_date),
+    noticeContent: r.notice_content ?? '아직 등록된 공지가 없습니다.',
+    introText: r.intro ?? '상담사 소개가 준비 중입니다.',
+    liveViewers: r.live_viewers,
+    reviewTotal: total.toLocaleString(),
+    qnaTotal: '0',
+  }
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}.${m}.${day}`
+}
 
 /**
  * 상담사 상세 — 후기 탭 (Figma 84:4721)
  * 라우트: /counselors/:id/reviews
  *
- * 본문 구조:
- *  1) 안내 카드 (포인트 지급 안내, bg #F9FAFB radius 12)
- *  2) "후기 작성하기" outline-primary 버튼 (full-width, h40)
- *  3) "전체 N건" + "사진 후기만 보기" 체크 (border-b)
- *  4) 후기 카드 리스트 (이 상담사의 후기만)
- *  5) "상담 후기 더보기" outline-gray 버튼 (centered)
+ * 백엔드 연동:
+ *   GET /user/counselors/:id        → 상담사 정보
+ *   GET /user/counselors/:id/reviews → 후기 목록 + 총 건수
  */
 export default function CounselorReviews() {
-  const { id = '3' } = useParams<{ id: string }>()
-  const data = MOCK_DETAILS[id] ?? MOCK_DETAILS['3']
-  const reviews = MOCK_COUNSELOR_REVIEWS[id] ?? []
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const { member } = useAuth()
+  const [data, setData] = useState<CounselorDetailData | null>(null)
+  const [reviews, setReviews] = useState<PublicCounselorReview[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  // 후기 작성은 회원만. 상담사는 후기를 "받는" 쪽이라 작성 진입 노출 X.
+  const canWriteReview = !member || member.role !== 'counselor'
+
+  useEffect(() => {
+    if (!id) {
+      setError('상담사 ID가 없습니다.')
+      setLoading(false)
+      return
+    }
+    let alive = true
+    setLoading(true)
+    setError(null)
+
+    Promise.all([counselorsApi.detail(id), counselorsApi.reviews(id, { limit: 20 })])
+      .then(([detail, rv]) => {
+        if (!alive) return
+        setData(mapDetail(detail, rv.total))
+        setReviews(rv.items)
+      })
+      .catch((e) => {
+        if (!alive) return
+        if (e instanceof ApiError && e.status === 404) {
+          setError('해당 상담사를 찾을 수 없습니다.')
+        } else {
+          setError(e instanceof Error ? e.message : '상담사 정보를 불러오지 못했습니다.')
+        }
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+
+    return () => {
+      alive = false
+    }
+  }, [id])
+
+  if (loading) {
+    return (
+      <div className="mobile-frame flex flex-col">
+        <div className="w-full h-[192px] bg-[#F3F4F6] animate-pulse" />
+        <div className="px-4 py-6 flex flex-col gap-4">
+          <div className="h-5 w-1/2 bg-[#F3F4F6] animate-pulse rounded" />
+          <div className="h-4 w-2/3 bg-[#F3F4F6] animate-pulse rounded" />
+          <div className="h-4 w-1/3 bg-[#F3F4F6] animate-pulse rounded" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !data) {
+    return (
+      <div className="mobile-frame flex flex-col items-center justify-center min-h-screen px-6 text-center gap-4">
+        <p className="text-[15px] text-[#4A5565]">{error ?? '상담사 정보를 불러올 수 없습니다.'}</p>
+        <button
+          type="button"
+          onClick={() => navigate(-1)}
+          className="h-10 px-5 rounded-full border border-[#E5E7EB] text-[14px] text-[#364153]"
+        >
+          뒤로 가기
+        </button>
+      </div>
+    )
+  }
 
   return (
     <CounselorDetailLayout data={data} activeTab="reviews">
@@ -41,14 +158,17 @@ export default function CounselorReviews() {
           </a>
         </article>
 
-        {/* 후기 작성하기 — outline-primary, h40, full-width */}
-        <Link
-          to={`/counselors/${id}/reviews/new`}
-          className="h-10 rounded-full bg-white border border-[#9B7AF7] text-[#8259F5] text-[14px] font-medium flex items-center justify-center gap-1 transition hover:bg-[#F3EEFE]"
-        >
-          <PencilLineIcon />
-          후기 작성하기
-        </Link>
+        {/* 후기 작성하기 — 회원에게만 노출. 상담사 본인은 후기를 받는 쪽이라 숨김.
+            통합 상담내역에서 진입하면 consultation_id 도 함께 와서 특정 상담에 1:1 매핑된 후기로 저장된다. */}
+        {canWriteReview && (
+          <Link
+            to={`/mypage/my-reviews/new?counselor_id=${id}`}
+            className="h-10 rounded-full bg-white border border-[#9B7AF7] text-[#8259F5] text-[14px] font-medium flex items-center justify-center gap-1 transition hover:bg-[#F3EEFE]"
+          >
+            <PencilLineIcon />
+            후기 작성하기
+          </Link>
+        )}
       </div>
 
       {/* 카운터 + 사진 후기만 */}
@@ -95,16 +215,11 @@ function CounterRow({ total }: { total: string }) {
   )
 }
 
-/* ───────────── 후기 카드 (상담사 상세용 — 후기 메타에서 상담사 정보는 생략) ───────────── */
+/* ───────────── 후기 카드 (백엔드 연동) ───────────── */
 
-/**
- * 상담사 상세 후기 탭의 ReviewCard.
- * Figma 84:6647 (type=후기2)와 동일 — 작성자 프로필 아바타 없음, 메타는 하단.
- *
- * 순서: ✓이름 + ⋮메뉴 → 제목 → 본문+이미지 → 전화상담·날짜·시간
- */
-function ReviewCard({ review }: { review: CounselorReview }) {
-  const { reviewType, date, duration, customerName, reviewTitle, reviewContent, imgUrl, showLock, reply, id } = review
+function ReviewCard({ review }: { review: PublicCounselorReview }) {
+  const { id, title, content, is_secret, reviewer_name, created_at } = review
+  const dateText = formatDate(created_at)
 
   return (
     <Link
@@ -116,64 +231,26 @@ function ReviewCard({ review }: { review: CounselorReview }) {
         <div className="flex-1 flex items-center gap-1 min-w-0">
           <img src="/img/ic_reviewer.svg" alt="" className="w-4 h-4 shrink-0" />
           <span className="text-[14px] leading-[130%] font-medium text-[#1E2939] truncate">
-            {customerName}
+            {reviewer_name}
           </span>
         </div>
-        <button
-          type="button"
-          aria-label="더보기"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-          className="w-5 h-5 flex items-center justify-center shrink-0"
-        >
-          <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" aria-hidden>
-            <circle cx="10" cy="4.5" r="1.4" fill="#99A1AF" />
-            <circle cx="10" cy="10" r="1.4" fill="#99A1AF" />
-            <circle cx="10" cy="15.5" r="1.4" fill="#99A1AF" />
-          </svg>
-        </button>
       </div>
 
       {/* 2) 제목 */}
       <div className="flex items-center gap-1">
-        {showLock && <LockIcon />}
-        <h3 className="text-[14px] leading-[130%] font-medium text-[#1E2939]">
-          {reviewTitle}
-        </h3>
+        {is_secret && <LockIcon />}
+        <h3 className="text-[14px] leading-[130%] font-medium text-[#1E2939]">{title}</h3>
       </div>
 
-      {/* 3) 본문 + 첨부사진(60×60 우측) */}
-      <div className="flex gap-4 items-start">
-        <p className="flex-1 text-[14px] leading-[130%] text-[#4A5565] whitespace-pre-line">
-          {reviewContent}
-        </p>
-        {imgUrl && (
-          <img
-            src={imgUrl}
-            alt=""
-            className="w-[60px] h-[60px] rounded-[12px] object-cover border border-[#F3F4F6] shrink-0"
-          />
-        )}
-      </div>
+      {/* 3) 본문 */}
+      <p className="text-[14px] leading-[130%] text-[#4A5565] whitespace-pre-line line-clamp-3">
+        {is_secret ? '비밀 후기입니다' : content}
+      </p>
 
-      {/* 4) 메타 — 하단 */}
+      {/* 4) 날짜 */}
       <div className="flex items-center gap-1 text-[14px] leading-[130%] text-[#99A1AF]">
-        <span>{reviewType}</span>
-        <span aria-hidden>∙</span>
-        <span>{date}</span>
-        <span aria-hidden>∙</span>
-        <span>{duration}</span>
+        <span>{dateText}</span>
       </div>
-
-      {/* 5) 답변 (있을 때만) */}
-      {reply && (
-        <div className="rounded-[12px] bg-[#F9FAFB] p-3 flex flex-col gap-1 mt-1">
-          <p className="text-[14px] leading-[130%] font-medium text-[#1E2939]">{reply.name}</p>
-          <p className="text-[14px] leading-[130%] text-[#6A7282]">{reply.text}</p>
-        </div>
-      )}
     </Link>
   )
 }

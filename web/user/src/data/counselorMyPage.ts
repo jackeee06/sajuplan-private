@@ -64,9 +64,11 @@ export const COUNSELOR_MAIN_MENU: CounselorMenuItem[] = [
   { key: 'calls',         label: '전화상담내역',   icon: '/img/ic_my_phone.svg',   to: '/counselor/mypage/calls' },
   { key: 'chats',         label: '채팅상담내역',   icon: '/img/ic_my_chat.svg',    to: '/counselor/mypage/chats' },
   { key: 'reviews',       label: '후기 관리',      icon: '/img/ic_my_review.svg',  to: '/counselor/mypage/reviews' },
-  { key: 'products',      label: '서비스 상품',    icon: '/img/ic_my_book.svg',    to: '/counselor/mypage/products' },
+  // 서비스 상품 — 일시 비노출 (운영 요청). 라우트는 그대로 두고 메뉴에서만 제외.
+  // { key: 'products',      label: '서비스 상품',    icon: '/img/ic_my_book.svg',    to: '/counselor/mypage/products' },
   { key: 'notices',       label: '상담사 공지사항', icon: '/img/ic_my_notice.svg',  to: '/counselor/mypage/notices' },
-  { key: 'tips',          label: '알짜 정보',      icon: '/img/ic_my_light_bulb.svg', to: '/counselor/mypage/tips' },
+  // 알짜 정보 — 일시 비노출 (운영 요청, 추후 오픈). 라우트/페이지는 그대로 두고 메뉴에서만 제외.
+  // { key: 'tips',          label: '알짜 정보',      icon: '/img/ic_my_light_bulb.svg', to: '/counselor/mypage/tips' },
   { key: 'qnas',          label: '문의하기',       icon: '/img/ic_my_headset.svg', to: '/counselor/mypage/qnas' },
 ]
 
@@ -374,6 +376,15 @@ export interface ConsultLog {
   reviewStatus: ReviewStatus
   /** 후기 답변을 이미 작성했는지 — true면 "작성한 후기 답변 보기" */
   hasReply?: boolean
+  /** 회원이 작성한 후기 id (있으면 상담사 답변 라우팅의 키). */
+  reviewId?: number | null
+  /**
+   * 채팅상담 전용 — chat_room.status. 'STAY'/'CNCH' 면 "채팅방 입장" 보라 채움 버튼.
+   * DISCONNECT 또는 null 이면 "채팅 내역 보기" + 후기 답변 흐름.
+   */
+  chatStatus?: string | null
+  /** consultation row id — 메모 라우팅 키 (없으면 chat_room.id 사용) */
+  consultationId?: number | null
 }
 
 export const MOCK_COUNSELOR_CALLS: ConsultLog[] = [

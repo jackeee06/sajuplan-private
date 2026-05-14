@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ImageIcon, Pencil, Plus, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
+import UploadedImage from '../components/UploadedImage'
 
 interface PopupLayer {
   id: number
@@ -11,11 +12,10 @@ interface PopupLayer {
   disable_hours: number
   title: string
   image_url: string | null
+  image_url_webp: string | null
   is_active: boolean
   created_at: string
 }
-
-const API_BASE = (import.meta.env.VITE_API_BASE ?? '/api').replace(/\/api$/, '')
 
 export default function PopupLayerList() {
   const [items, setItems] = useState<PopupLayer[] | null>(null)
@@ -86,8 +86,9 @@ export default function PopupLayerList() {
                   <td className="px-3 py-2 text-gray-400">{p.id}</td>
                   <td className="px-3 py-2">
                     {p.image_url ? (
-                      <img
-                        src={`${API_BASE}${p.image_url}`}
+                      <UploadedImage
+                        src={p.image_url}
+                        srcWebp={p.image_url_webp}
                         alt=""
                         className="w-10 h-10 object-cover rounded border border-gray-200 dark:border-gray-700"
                       />

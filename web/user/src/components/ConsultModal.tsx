@@ -1,18 +1,25 @@
 import { useEffect, useState } from 'react'
-import { BADGE_BG, type CounselorDetailData } from '../data/counselorDetails'
+import { useNavigate } from 'react-router-dom'
+import UploadedImage from './UploadedImage'
+import { ApiError, consultApi } from '../lib/api'
+import { useAuth } from '../lib/auth-context'
+import { useLoginPrompt } from '../lib/login-prompt-context'
+import { useDismissOnBack } from '../lib/use-dismiss-on-back'
 
 /**
  * 상담 시작 모달 — Figma 92:6790 (전화 선불) / 92:6949 (전화 후불) / 92:7190 (채팅)
  *
- * 트리거: CounselorDetailLayout 하단 고정 CTA의 전화/채팅 버튼
+ * 트리거: 어디서든 ConsultModalContext 의 openConsult() 호출.
+ *  - 메인/리스트의 CounselorCard 의 전화/채팅 버튼
+ *  - 상세 페이지(CounselorDetailLayout) 하단 고정 CTA
  *
  * 구조 (공통):
- *  - backdrop rgba(0,0,0,0.5) 전체화면, padding 16/36
- *  - modal box: bg white, rounded 16, padding 20, 하단 정렬
+ *  - backdrop rgba(0,0,0,0.5) 전체화면
+ *  - modal box: bg white, rounded 16, padding 20
  *  - 헤더 row: title (18px semibold) + X close
  *  - divider line
  *  - 상담사 정보 row: 64×64 아바타 + (뱃지 + 이름 + 번호) / 가격(30초당)
- *  - [전화 모달만] 토글 탭: 선불상담 / 후불상담 (active=#9B7AF7 underline + #8259F5 text)
+ *  - [전화 모달만] 토글 탭: 선불상담 / 후불상담
  *  - [선불·채팅] 보유 포인트 box (#F9FAFB radius 12)
  *  - 안내 텍스트 row: 보라 원형 + 아이콘 + 텍스트 (전화/채팅 다름)
  *  - CTA 버튼: 전화는 "070-... 상담하기" / 채팅은 "채팅 상담하기"
@@ -20,24 +27,47 @@ import { BADGE_BG, type CounselorDetailData } from '../data/counselorDetails'
 
 export type ConsultModalVariant = 'phone' | 'chat'
 
+/** 통합 모달이 노출하는 데 필요한 최소 정보 — 메인 카드/상세 페이지 모두 이 모양으로 변환해 전달 */
+export interface ConsultCounselor {
+  id: number | string
+  name: string
+  badge?: string
+  code: string
+  /** 30초당 가격 (원) */
+  pricePerHalfMin: number
+  /** 아바타 이미지 — 없으면 placeholder */
+  avatarUrl?: string | null
+  avatarUrlWebp?: string | null
+}
+
+/** 뱃지 종류별 배경색 — Figma BADGE_BG 와 동일. 불일치 시 기본 보라 사용 */
+const BADGE_BG_MAP: Record<string, string> = {
+  타로: '#8259F5',
+  신점: '#00BBA7',
+  사주: '#FF6467',
+}
+
 interface Props {
   open: boolean
   onClose: () => void
   variant: ConsultModalVariant
-  counselor: CounselorDetailData
+  counselor: ConsultCounselor | null
 }
 
-/** mock 상담 정보 — 추후 백엔드에서 받아올 값 */
-const MOCK_USER_POINTS = 1000
-const MOCK_PHONE_PREPAID = '070-0000-1234'
-const MOCK_PHONE_POSTPAID = '070-0000-1235'
-
 export default function ConsultModal({ open, onClose, variant, counselor }: Props) {
+  const navigate = useNavigate()
+  const { member } = useAuth()
+  const { showLoginPrompt } = useLoginPrompt()
   const [phoneTab, setPhoneTab] = useState<'prepaid' | 'postpaid'>('prepaid')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useDismissOnBack(open, onClose)
 
   // ESC 닫기
   useEffect(() => {
     if (!open) return
+    setError(null)
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
@@ -45,15 +75,66 @@ export default function ConsultModal({ open, onClose, variant, counselor }: Prop
     return () => window.removeEventListener('keydown', handler)
   }, [open, onClose])
 
-  if (!open) return null
+  if (!open || !counselor) return null
 
   const isPhone = variant === 'phone'
   const isPrepaid = isPhone && phoneTab === 'prepaid'
   const showPointsBox = !isPhone || isPrepaid // 채팅은 항상, 전화는 선불일 때만
+  const userPoint = member?.point ?? 0
+  const minutesAvailable = counselor.pricePerHalfMin > 0
+    ? Math.floor((userPoint * 30) / counselor.pricePerHalfMin / 60)
+    : 0
 
-  const phoneNumber = phoneTab === 'prepaid' ? MOCK_PHONE_PREPAID : MOCK_PHONE_POSTPAID
-  const ctaText = isPhone ? `${phoneNumber} 상담하기` : '채팅 상담하기'
+  const ctaText = isPhone ? '상담하기' : '채팅 상담하기'
   const headerTitle = isPhone ? '전화상담 가능' : '채팅상담 가능'
+  const badgeBg = (counselor.badge && BADGE_BG_MAP[counselor.badge]) || '#8259F5'
+
+  const handleStart = async () => {
+    if (busy) return
+    // 비로그인 선차단 — 통합 로그인 안내 모달 노출
+    if (!member) {
+      onClose()
+      showLoginPrompt()
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      if (isPhone) {
+        const res = await consultApi.phone(counselor.id, phoneTab)
+        // 모달 닫고 dial — `tel:` 은 모바일에서 다이얼러, 데스크톱에선 일부 브라우저가 무시
+        onClose()
+        window.location.href = `tel:${res.phone_number.replace(/\D/g, '')}`
+      } else {
+        const res = await consultApi.chat(counselor.id)
+        onClose()
+        navigate(`/chat/${res.chat_room_id}`, {
+          state: {
+            roomid: res.roomid,
+            memberToken: res.member_token,
+            wssUrl: res.wss_url,
+            isRejoin: res.is_rejoin,
+            counselor: {
+              id: counselor.id,
+              name: counselor.name,
+              avatarUrl: counselor.avatarUrl ?? null,
+              avatarUrlWebp: counselor.avatarUrlWebp ?? null,
+            },
+          },
+        })
+      }
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        // 세션 만료 등 — 로그인 안내 모달
+        onClose()
+        showLoginPrompt()
+        return
+      }
+      setError(e instanceof Error ? e.message : '상담 시작에 실패했습니다.')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div
@@ -87,19 +168,26 @@ export default function ConsultModal({ open, onClose, variant, counselor }: Prop
 
           {/* 상담사 정보 */}
           <div className="flex items-center gap-3">
-            <img
-              src={counselor.heroImg}
-              alt=""
-              className="w-16 h-16 rounded-full object-cover shrink-0"
-            />
+            {counselor.avatarUrl ? (
+              <UploadedImage
+                src={counselor.avatarUrl}
+                srcWebp={counselor.avatarUrlWebp ?? null}
+                alt=""
+                className="w-16 h-16 rounded-full object-cover shrink-0"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-[#F3F4F6] shrink-0" aria-hidden />
+            )}
             <div className="flex-1 min-w-0 flex flex-col gap-1">
               <div className="flex items-center gap-1 flex-wrap">
-                <span
-                  className="text-white text-[12px] font-medium leading-[110%] px-[5px] py-[3px] rounded-full inline-flex items-center justify-center"
-                  style={{ backgroundColor: BADGE_BG[counselor.badge] }}
-                >
-                  {counselor.badge}
-                </span>
+                {counselor.badge && (
+                  <span
+                    className="text-white text-[12px] font-medium leading-[110%] px-[5px] py-[3px] rounded-full inline-flex items-center justify-center"
+                    style={{ backgroundColor: badgeBg }}
+                  >
+                    {counselor.badge}
+                  </span>
+                )}
                 <span className="text-[16px] leading-[120%] font-semibold text-[#030712]">
                   {counselor.name}
                 </span>
@@ -144,14 +232,18 @@ export default function ConsultModal({ open, onClose, variant, counselor }: Prop
               <div className="flex-1 flex flex-col gap-0.5">
                 <p className="text-[14px] leading-[110%] text-[#6A7282]">보유 포인트</p>
                 <p className="text-[22px] leading-[120%] font-semibold text-[#8259F5]">
-                  {MOCK_USER_POINTS.toLocaleString()}P
+                  {userPoint.toLocaleString()}P
                 </p>
                 <p className="text-[13px] leading-[120%] text-[#6A7282]">
-                  (약 <span className="font-medium text-[#1E2939]">{Math.floor(MOCK_USER_POINTS / counselor.pricePerHalfMin / 2)}</span>분 상담가능)
+                  (약 <span className="font-medium text-[#1E2939]">{minutesAvailable}</span>분 상담가능)
                 </p>
               </div>
               <button
                 type="button"
+                onClick={() => {
+                  onClose()
+                  navigate('/mypage/charge')
+                }}
                 className="h-9 px-4 rounded-full bg-white border border-[#9B7AF7] text-[#8259F5] text-[13px] font-medium shrink-0"
               >
                 포인트 충전
@@ -167,25 +259,30 @@ export default function ConsultModal({ open, onClose, variant, counselor }: Prop
             <p className="flex-1 text-[14px] leading-[140%] text-[#4A5565] pt-1">
               {isPhone ? (
                 <>
-                  통화 연결 후, 상담사{' '}
-                  <span className="font-medium text-[#8259F5]">{counselor.code}번</span>을 입력하여
-                  통화하세요.
+                  <span className="font-medium text-[#8259F5]">{counselor.name}</span> 상담사에게
+                  자동으로 연결됩니다.
                 </>
               ) : (
                 <>
-                  상담사 <span className="font-medium text-[#8259F5]">{counselor.code}번</span>과
+                  <span className="font-medium text-[#8259F5]">{counselor.name}</span> 상담사와
                   채팅을 시작합니다.
                 </>
               )}
             </p>
           </div>
 
+          {error && (
+            <p className="text-[13px] text-[#FB2C36] text-center -mt-2">{error}</p>
+          )}
+
           {/* CTA 버튼 */}
           <button
             type="button"
-            className="w-full h-12 rounded-full bg-[#9B7AF7] text-white text-[16px] font-medium flex items-center justify-center"
+            onClick={handleStart}
+            disabled={busy}
+            className="w-full h-12 rounded-full bg-[#9B7AF7] text-white text-[16px] font-medium flex items-center justify-center disabled:opacity-60"
           >
-            {ctaText}
+            {busy ? '연결 중…' : ctaText}
           </button>
         </div>
       </div>

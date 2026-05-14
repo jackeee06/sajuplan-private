@@ -1,30 +1,48 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { SecretCheckbox } from './CounselorReviewNew'
+import { ApiError, counselorQnaApi } from '../lib/api'
 
 /**
  * 상담 문의 작성 — Figma 163:19878
  * 라우트: /counselors/:id/qna/new
  *
- * 후기 작성과 동일한 패턴이지만 더 간단:
- *  - 안내 카드 없음
- *  - 사진 첨부 없음
- *  - 비밀글로 작성 + 제목 + 문의 내용 + 작성완료
+ * 백엔드: POST /api/user/counselors/:id/qna  (회원 인증 필요)
+ *
+ * 미로그인 시 401 → 로그인 페이지로 이동.
  */
-
 export default function CounselorQnaNew() {
-  const { id = '3' } = useParams<{ id: string }>()
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [secret, setSecret] = useState(false)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const canSubmit = title.trim().length > 0 && content.trim().length > 0
+  const canSubmit = title.trim().length > 0 && content.trim().length > 0 && !submitting
 
-  const onSubmit = () => {
-    if (!canSubmit) return
-    // TODO: 실제 API 연동 시 이 자리에 fetch
-    navigate(`/counselors/${id}/qna`)
+  const onSubmit = async () => {
+    if (!canSubmit || !id) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      await counselorQnaApi.create(id, {
+        title: title.trim(),
+        content: content.trim(),
+        is_secret: secret,
+      })
+      navigate(`/counselors/${id}/qna`)
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        // 미로그인 → 로그인으로
+        navigate('/login', { replace: true, state: { from: `/counselors/${id}/qna/new` } })
+        return
+      }
+      setError(e instanceof Error ? e.message : '문의 등록에 실패했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -58,6 +76,7 @@ export default function CounselorQnaNew() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="제목을 입력해주세요."
+            maxLength={255}
             className="w-full h-12 px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#9B7AF7]"
           />
         </section>
@@ -76,6 +95,8 @@ export default function CounselorQnaNew() {
           />
         </section>
 
+        {error && <p className="text-[13px] text-[#FF6467]">{error}</p>}
+
         {/* 작성완료 */}
         <button
           type="button"
@@ -85,7 +106,7 @@ export default function CounselorQnaNew() {
             canSubmit ? 'bg-[#9B7AF7] hover:bg-[#8259F5]' : 'bg-[#9B7AF7]/60 cursor-not-allowed'
           }`}
         >
-          작성완료
+          {submitting ? '등록 중…' : '작성완료'}
         </button>
       </main>
     </div>

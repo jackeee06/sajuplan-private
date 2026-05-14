@@ -80,7 +80,7 @@ export default function NoticesList() {
               ) : data.items.map((n) => (
                 <tr key={n.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                   <td className="px-3 py-2 text-center">
-                    <Link to={`/notices/${n.id}`} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <Link to={`/notices/${n.id}`} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap">
                       <Pencil className="w-3 h-3" /> 수정
                     </Link>
                   </td>

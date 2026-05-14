@@ -10,6 +10,7 @@ interface Counselor {
   nickname: string
   phone: string | null
   csrid: string | null
+  dtmfno: string | null
   telno: string | null
   counselor_category: string | null
   counselor_priority: number | null
@@ -233,6 +234,7 @@ export default function CounselorList() {
                 <Th>닉네임</Th>
                 <Th>분야</Th>
                 <Th>휴대폰</Th>
+                <Th>상담사번호</Th>
                 <Th>m2net</Th>
                 <Th>070번호</Th>
                 <Th align="right">단가(070)</Th>
@@ -282,6 +284,7 @@ export default function CounselorList() {
                     )}
                   </Td>
                   <Td className="font-mono text-xs">{fmtPhone(c.phone)}</Td>
+                  <Td className="font-mono text-xs">{c.dtmfno ?? '-'}</Td>
                   <Td className="font-mono text-xs">{c.csrid ?? '-'}</Td>
                   <Td className="font-mono text-xs">{fmtPhone(c.telno)}</Td>
                   <Td align="right" className="text-xs">{num(c.call_070_unit_cost)}</Td>

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "753669891113",
+    "project_id": "sajummon-5a4c0",
+    "storage_bucket": "sajummon-5a4c0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:753669891113:android:f78c1d3d6bd1c61a512838",
+        "android_client_info": {
+          "package_name": "com.dmonster.sajumoon"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAcxpIBnFjmy_i8VbN1gRz1z6aQliyyTpY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

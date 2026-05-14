@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Link2 } from 'lucide-react'
 import { api } from '../lib/api'
+import { API_BASE, FILE_BASE as FILE_ORIGIN } from '../lib/runtime-env'
 
 interface CounselorPayload {
   // 계정
@@ -79,11 +80,12 @@ interface CounselorFile {
   kind: string | null
   source_name: string
   stored_name: string
+  stored_name_webp: string | null
   filesize: number
   created_at: string
 }
 
-const FILE_BASE = (import.meta.env.VITE_API_BASE ?? '/api').replace(/\/api\/?$/, '') + '/uploads/member/'
+const FILE_BASE = `${FILE_ORIGIN}/uploads/member/`
 
 const SPECIALTY_OPTIONS = ['운세', '속마음', '연애', '짝사랑', '재회', '궁합', '금전', '건강', '취업', '합격', '사업', '택일', '이사', '작명/개명', '불륜/이혼', '삼재', '고민', '꿈해몽'] as const
 const TRAIT_OPTIONS = ['경청하는', '소통하는', '깊이있는', '공감하는', '긍정적인', '현실조언', '카리스마', '솔직담백', '부드러운', '친근한(반말체)', '차분한', '편안한', '조곤조곤', '또박또박'] as const
@@ -304,16 +306,17 @@ export default function CounselorForm() {
 
       {/* 3) 상담사 운영 */}
       <Section title="상담사 운영">
-        <Row label="상담사번호 (dtmfno)" hint="엠투넷에 dtmfno로 전송 — 숫자만">
+        <Row label="상담사연결번호 (dtmfno)" hint="회원이 ARS에서 누르는 상담사 연결 번호. 비워두면 1부터 비어있는 가장 작은 숫자로 자동 부여됩니다.">
           <input
             type="text"
             inputMode="numeric"
             value={data.dtmfno}
             onChange={(e) => set('dtmfno', digitsOnly(e.target.value))}
+            placeholder="비워두면 자동 부여"
             className={inputCls}
           />
         </Row>
-        <Row label="엠투넷 ID (csrid)" hint="엠투넷에서 자동 발급되며 수정 불가. 비어있으면 [엠투넷 연동하기]로 발급">
+        <Row label="상담사 ID (csrid)" hint="엠투넷이 자동 발급한 상담사 고유 ID. 등록/재연동 시 채워짐 — 수정 불가">
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -330,6 +333,24 @@ export default function CounselorForm() {
                 onClick={async () => {
                   setError(null); setSuccess(null); setLinkingM2net(true)
                   try {
+                    // 폼 dirty 값(dtmfno·telno·단가 등)을 먼저 PATCH 로 저장 → 그 다음 m2net-link.
+                    // 안 그러면 백엔드가 DB 의 옛 값으로 M2NET 에 등록 → dtmfno 가 빈값/구값으로 들어가는 버그.
+                    const payload = {
+                      ...data,
+                      counselor_priority: data.counselor_priority === '' ? null : Number(data.counselor_priority),
+                      call_unit_seconds: data.call_unit_seconds === '' ? null : Number(data.call_unit_seconds),
+                      call_070_unit_cost: data.call_070_unit_cost === '' ? null : Number(data.call_070_unit_cost),
+                      call_060_unit_cost: data.call_060_unit_cost === '' ? null : Number(data.call_060_unit_cost),
+                      chat_unit_seconds: data.chat_unit_seconds === '' ? null : Number(data.chat_unit_seconds),
+                      chat_unit_cost: data.chat_unit_cost === '' ? null : Number(data.chat_unit_cost),
+                      paid_royalty_pct: data.paid_royalty_pct === '' ? null : Number(data.paid_royalty_pct),
+                      free_royalty_pct: data.free_royalty_pct === '' ? null : Number(data.free_royalty_pct),
+                      password: !data.password ? undefined : data.password,
+                    }
+                    await api(`/admin/members/counselors/${id}`, {
+                      method: 'PATCH',
+                      body: JSON.stringify(payload),
+                    })
                     const res = await api<{ ok: boolean; csrid: string | null; error?: string }>(
                       `/admin/members/counselors/${id}/m2net-link`,
                       { method: 'POST' },
@@ -553,7 +574,7 @@ export default function CounselorForm() {
               onDelete={(fileId) => removeFile(fileId)}
             />
           </Row>
-          <Row label="와이드 사진" hint="JPG/PNG/GIF/WEBP · 5MB 이하 · 권장 사이즈 1170×576" fullWidth>
+          <Row label="와이드 사진" hint="JPG/PNG/GIF/WEBP · 5MB 이하 · 권장 사이즈 780×384 (실제 노출 390×192의 2배수, 비율 ≈ 65:32)" fullWidth>
             <FileSlot
               kind="wide"
               accept="image/*"
@@ -603,6 +624,7 @@ export default function CounselorForm() {
             kind,
             source_name: file.name,
             stored_name: blobUrl,
+            stored_name_webp: null,
             filesize: file.size,
             created_at: new Date().toISOString(),
           },
@@ -625,7 +647,7 @@ export default function CounselorForm() {
       const fd = new FormData()
       fd.append('file', file)
       const res = await fetch(
-        (import.meta.env.VITE_API_BASE ?? '/api') + `/admin/members/counselors/${id}/files/${kind}`,
+        API_BASE + `/admin/members/counselors/${id}/files/${kind}`,
         { method: 'POST', credentials: 'include', body: fd },
       )
       if (!res.ok) {
@@ -637,7 +659,7 @@ export default function CounselorForm() {
         // 단일 슬롯 (profile / wide) 은 같은 kind 의 기존 row 를 교체
         const isSingle = kind === 'profile' || kind === 'wide'
         const next = isSingle ? arr.filter((f) => f.kind !== kind) : arr
-        return [{ id: r.id, kind, source_name: r.source_name, stored_name: r.stored_name, filesize: file.size, created_at: new Date().toISOString() }, ...next]
+        return [{ id: r.id, kind, source_name: r.source_name, stored_name: r.stored_name, stored_name_webp: r.stored_name_webp ?? null, filesize: file.size, created_at: new Date().toISOString() }, ...next]
       })
       const label = kind === 'profile' ? '프로필 사진' : kind === 'wide' ? '와이드 사진' : '계약서'
       setSuccess(`${label} 업로드 완료`)
@@ -672,7 +694,7 @@ export default function CounselorForm() {
     if (!window.confirm('파일을 삭제하시겠습니까?')) return
     try {
       const res = await fetch(
-        (import.meta.env.VITE_API_BASE ?? '/api') + `/admin/members/counselors/${id}/files/${fileId}`,
+        API_BASE + `/admin/members/counselors/${id}/files/${fileId}`,
         { method: 'DELETE', credentials: 'include' },
       )
       if (!res.ok) throw new Error(`삭제 실패 (${res.status})`)
@@ -695,8 +717,7 @@ export default function CounselorForm() {
         const fd = new FormData()
         fd.append('file', t.file)
         await fetch(
-          (import.meta.env.VITE_API_BASE ?? '/api') +
-            `/admin/members/counselors/${newId}/files/${t.kind}`,
+          API_BASE + `/admin/members/counselors/${newId}/files/${t.kind}`,
           { method: 'POST', credentials: 'include', body: fd },
         )
       } catch {
@@ -840,12 +861,12 @@ function FileSlot({
   const isImage = (name: string) => /\.(jpe?g|png|gif|webp)$/i.test(name)
   // 단일 슬롯 (1장만 존재 — 같은 kind 업로드 시 기존 row 교체)
   const isSingleSlot = kind === 'profile' || kind === 'wide'
-  // 미리보기 크기 — 프로필 200×200 정사각, 와이드 1170×576 (16:7.86)
+  // 미리보기 크기 — 프로필 200×200 정사각, 와이드 390×192 (실제 노출 사이즈와 동일, ≈ 65:32)
   const preview =
     kind === 'profile'
       ? { width: 200, height: 200 }
       : kind === 'wide'
-        ? { width: 390, height: 192 } // 1170×576 와이드 비율 유지하며 화면에 맞춤
+        ? { width: 390, height: 192 }
         : { width: 390, height: 192 }
 
   if (isSingleSlot) {
@@ -887,12 +908,17 @@ function FileSlot({
             title="원본 보기 (새 탭)"
             className="inline-block"
           >
-            <img
-              src={FILE_BASE + f.stored_name}
-              alt={f.source_name}
-              style={{ width: preview.width, height: preview.height, objectFit: 'cover' }}
-              className="border border-gray-200 dark:border-gray-700"
-            />
+            <picture>
+              {f.stored_name_webp && (
+                <source srcSet={FILE_BASE + f.stored_name_webp} type="image/webp" />
+              )}
+              <img
+                src={FILE_BASE + f.stored_name}
+                alt={f.source_name}
+                style={{ width: preview.width, height: preview.height, objectFit: 'cover' }}
+                className="border border-gray-200 dark:border-gray-700"
+              />
+            </picture>
           </a>
         ) : f ? (
           // 이미지가 아닌 경우 (PDF 등 — profile은 보통 안 씀)
@@ -932,7 +958,12 @@ function FileSlot({
             <li key={f.id} className="flex items-center gap-2 px-2 py-1 rounded border border-gray-200 dark:border-gray-700 text-xs">
               {isImage(f.stored_name) ? (
                 <a href={FILE_BASE + f.stored_name} target="_blank" rel="noreferrer">
-                  <img src={FILE_BASE + f.stored_name} alt={f.source_name} className="w-12 h-12 object-cover rounded hover:opacity-80 transition" />
+                  <picture>
+                    {f.stored_name_webp && (
+                      <source srcSet={FILE_BASE + f.stored_name_webp} type="image/webp" />
+                    )}
+                    <img src={FILE_BASE + f.stored_name} alt={f.source_name} className="w-12 h-12 object-cover rounded hover:opacity-80 transition" />
+                  </picture>
                 </a>
               ) : (
                 <span className="px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 font-mono text-[10px]">PDF</span>

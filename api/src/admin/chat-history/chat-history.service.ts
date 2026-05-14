@@ -115,4 +115,21 @@ export class ChatHistoryService {
     `;
     return { room: room[0], messages };
   }
+
+  async getRoomMessagesByRoomid(roomid: string) {
+    // 1) 정확 일치 우선
+    let rows = await this.sql<{ id: number }[]>`
+      SELECT id FROM chat_room WHERE roomid = ${roomid} LIMIT 1
+    `;
+    // 2) 접미사(__c_<id>) 가공된 형태 / 레거시 `+'1'` 형태 보정
+    if (rows.length === 0) {
+      rows = await this.sql<{ id: number }[]>`
+        SELECT id FROM chat_room
+         WHERE roomid LIKE ${roomid + '%'}
+         ORDER BY id DESC LIMIT 1
+      `;
+    }
+    if (rows.length === 0) throw new NotFoundException('채팅방을 찾을 수 없습니다.');
+    return this.getRoomMessages(rows[0].id);
+  }
 }

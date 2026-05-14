@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useDismissOnBack } from '../lib/use-dismiss-on-back'
 
 /**
  * filter_select — Figma `84:3897` (active=off) / 활성 시 디자인 시스템 칩 활성 상태
@@ -31,6 +32,9 @@ export default function FilterDropdown({
 }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+
+  const close = useCallback(() => setOpen(false), [])
+  useDismissOnBack(open, close)
 
   useEffect(() => {
     if (!open) return

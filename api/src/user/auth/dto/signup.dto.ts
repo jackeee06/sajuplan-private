@@ -17,8 +17,8 @@ import {
 export class SignupDto {
   // 가입 경로 — 프론트가 명시적으로 보냄 (쿠키 누락/만료 시 명확한 에러 분기에 사용)
   @IsOptional()
-  @IsIn(['kakao', 'naver'])
-  social?: 'kakao' | 'naver';
+  @IsIn(['kakao', 'naver', 'apple'])
+  social?: 'kakao' | 'naver' | 'apple';
 
   // ── 필수 ──
   @IsString()
@@ -42,7 +42,7 @@ export class SignupDto {
   @IsOptional()
   @IsString()
   @Length(3, 20)
-  @Matches(/^(?!.*_[KN]$)[A-Za-z0-9_]+$/, {
+  @Matches(/^(?!.*_[KNA]$)[A-Za-z0-9_]+$/, {
     message: '아이디는 영문/숫자/_ 만 사용 가능합니다. (소셜 가입 형식과 동일한 ID는 사용할 수 없습니다)',
   })
   mb_id?: string;

@@ -7,7 +7,7 @@ import { api } from '../lib/api'
 // ───────────────────────────────────────────────
 type SettingsByNs = Record<string, Record<string, string>>
 
-type TabKey = 'site' | 'member' | 'social' | 'security' | 'footer'
+type TabKey = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer'
 type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'password' | 'select' | 'multiselect'
 interface FieldDef {
   key: string
@@ -26,7 +26,6 @@ const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
     title: '기본환경',
     fields: [
       { key: 'title', label: '홈페이지 제목', kind: 'text' },
-      { key: 'admin_mb_id', label: '최고관리자 ID', kind: 'text', hint: 'member 테이블의 mb_id' },
       { key: 'admin_email', label: '관리자 메일 주소', kind: 'text' },
       { key: 'admin_email_name', label: '관리자 메일 발송이름', kind: 'text' },
       {
@@ -85,6 +84,31 @@ const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
       { key: 'req_addr', label: '주소 필수', kind: 'bool' },
     ],
   },
+  review: {
+    title: '후기 포인트',
+    fields: [
+      {
+        key: 'payout_enabled',
+        label: '후기 포인트 지급',
+        kind: 'bool',
+        hint: '꺼두면 후기를 작성해도 포인트가 지급되지 않습니다.',
+      },
+      {
+        key: 'payout_amount',
+        label: '후기 작성 시 지급 포인트',
+        kind: 'number',
+        placeholder: '500',
+        hint: '후기 1건당 회원에게 적립할 포인트 (기본 500P).',
+      },
+      {
+        key: 'payout_min_used',
+        label: '지급 조건 — 최소 사용 포인트',
+        kind: 'number',
+        placeholder: '0',
+        hint: '해당 상담에서 사용한 포인트가 이 값 이상이어야 후기 포인트가 지급됩니다. 0이면 조건 없음.',
+      },
+    ],
+  },
   social: {
     title: '소셜로그인',
     fields: [
@@ -134,7 +158,7 @@ const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
   },
 }
 
-const TAB_ORDER: TabKey[] = ['site', 'member', 'social', 'security', 'footer']
+const TAB_ORDER: TabKey[] = ['site', 'member', 'review', 'social', 'security', 'footer']
 
 // ───────────────────────────────────────────────
 // 페이지

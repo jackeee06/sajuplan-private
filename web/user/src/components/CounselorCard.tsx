@@ -1,4 +1,8 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import UploadedImage from './UploadedImage'
+import { useConsultModal } from '../lib/consult-context'
+import { useLikeAction } from '../lib/like-context'
 
 export interface Counselor {
   id: number | string
@@ -16,11 +20,17 @@ export interface Counselor {
   reviewCount: number
   liked?: boolean
   imgUrl: string
+  /** WebP 변환본 — 있으면 <picture> source 로 우선 사용 (선택) */
+  imgUrlWebp?: string | null
 }
 
 interface Props {
   counselor: Counselor
-  onLikeToggle?: (id: Counselor['id']) => void
+  /**
+   * 부모가 좋아요 변경에 반응하고 싶을 때 — 카드 자체는 통합 LikeContext 로 API 호출까지 끝낸 뒤
+   * 이 콜백으로 결과(id, nextLiked)를 알려준다. (예: 단골 페이지가 목록에서 카드 제거)
+   */
+  onLikeToggle?: (id: Counselor['id'], nextLiked: boolean) => void
   /** 채팅 버튼을 숨기고 전화 버튼만 풀폭으로 노출 — Figma 카드 prop `btn2:false` 대응 */
   hideChat?: boolean
 }
@@ -47,8 +57,48 @@ const BADGE_BG: Record<string, string> = {
  *   └──────────────────────────────────┘
  */
 export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Props) {
-  const { id, name, badge, code, tagline, pricePerSec, phoneState, chatState, hashtags, rating, reviewCount, liked, imgUrl } = counselor
+  const { id, name, badge, code, tagline, pricePerSec, phoneState, chatState, hashtags, rating, reviewCount, liked: likedProp, imgUrl, imgUrlWebp } = counselor
   const badgeBg = (badge && BADGE_BG[badge]) || '#8259F5'
+  const { openConsult } = useConsultModal()
+  const { toggleLike } = useLikeAction()
+
+  // 카드 내부에서 토글 즉시 반영(optimistic), prop 으로 들어오는 새 값에도 동기화.
+  const [liked, setLiked] = useState<boolean>(!!likedProp)
+  const [likeBusy, setLikeBusy] = useState(false)
+  useEffect(() => {
+    setLiked(!!likedProp)
+  }, [likedProp])
+
+  const handleLikeClick = async () => {
+    if (likeBusy) return
+    const next = !liked
+    setLikeBusy(true)
+    setLiked(next) // optimistic
+    const res = await toggleLike(id, next)
+    if (res === null) {
+      // 실패/비로그인 — 원복
+      setLiked(!next)
+    } else {
+      // 부모에게 결과 통지 (예: Favorites 페이지에서 unlike 시 목록에서 제거)
+      onLikeToggle?.(id, res.is_liked)
+    }
+    setLikeBusy(false)
+  }
+
+  const onContact = (kind: 'phone' | 'chat') => {
+    openConsult(
+      {
+        id,
+        name,
+        badge,
+        code,
+        pricePerHalfMin: pricePerSec,
+        avatarUrl: imgUrl,
+        avatarUrlWebp: imgUrlWebp ?? null,
+      },
+      kind,
+    )
+  }
 
   return (
     <article className="bg-white border-b border-[#F3F4F6] p-4 flex flex-col gap-3">
@@ -56,7 +106,12 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
         {/* 이미지 + 뱃지 */}
         <div className="relative w-[100px] h-[100px] shrink-0">
           <Link to={`/counselors/${id}`}>
-            <img src={imgUrl} alt={name} className="w-[100px] h-[100px] rounded-2xl object-cover" />
+            <UploadedImage
+              src={imgUrl}
+              srcWebp={imgUrlWebp}
+              alt={name}
+              className="w-[100px] h-[100px] rounded-2xl object-cover"
+            />
           </Link>
           {badge && (
             <span
@@ -83,9 +138,11 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
               </Link>
               <button
                 type="button"
-                onClick={() => onLikeToggle?.(id)}
+                onClick={handleLikeClick}
+                disabled={likeBusy}
                 aria-label={liked ? '단골 해제' : '단골 추가'}
-                className="w-5 h-5 flex items-center justify-center shrink-0"
+                className="w-5 h-5 flex items-center justify-center shrink-0 bg-transparent border-0 outline-none focus:outline-none disabled:opacity-60"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
               >
                 <img
                   src={liked ? '/img/like_btn_icon_on.svg' : '/img/like_btn_icon_off.svg'}
@@ -108,8 +165,8 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
 
       {/* 상담 버튼 — Figma Frame 524 (row, gap 8). hideChat 일 때 전화 버튼만 풀폭 */}
       <div className={hideChat ? 'flex' : 'grid grid-cols-2 gap-2'}>
-        <ContactButton state={phoneState} kind="phone" fullWidth={hideChat} />
-        {!hideChat && <ContactButton state={chatState} kind="chat" />}
+        <ContactButton state={phoneState} kind="phone" fullWidth={hideChat} onClick={() => onContact('phone')} />
+        {!hideChat && <ContactButton state={chatState} kind="chat" onClick={() => onContact('chat')} />}
       </div>
 
       {/* 해시태그 + 평점·후기 — Figma Frame 514 (row, justify-between, gap-내부 10) */}
@@ -140,9 +197,10 @@ interface ContactButtonProps {
   state: 'available' | 'busy' | 'offline'
   kind: 'phone' | 'chat'
   fullWidth?: boolean
+  onClick?: () => void
 }
 
-function ContactButton({ state, kind, fullWidth }: ContactButtonProps) {
+function ContactButton({ state, kind, fullWidth, onClick }: ContactButtonProps) {
   const baseLabel = '상담하기'
   const label = state === 'available' ? baseLabel : state === 'busy' ? '상담중' : '오프라인'
   const disabled = state !== 'available'
@@ -155,6 +213,7 @@ function ContactButton({ state, kind, fullWidth }: ContactButtonProps) {
     <button
       type="button"
       disabled={disabled}
+      onClick={disabled ? undefined : onClick}
       className={[
         fullWidth ? 'w-full' : '',
         disabled

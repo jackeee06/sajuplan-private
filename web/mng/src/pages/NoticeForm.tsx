@@ -1,16 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Copy, ExternalLink } from 'lucide-react'
 import { api } from '../lib/api'
+import HtmlEditor, { type HtmlEditorHandle } from '../components/HtmlEditor'
+import { USER_SITE_URL } from '../lib/runtime-env'
 
 interface NoticePayload {
   title: string
-  content: string
   category: string
   is_pinned: boolean
 }
 
-const empty = (): NoticePayload => ({ title: '', content: '', category: '', is_pinned: false })
+const empty = (): NoticePayload => ({ title: '', category: '', is_pinned: false })
 
 export default function NoticeForm() {
   const { id } = useParams<{ id: string }>()
@@ -18,6 +19,10 @@ export default function NoticeForm() {
   const navigate = useNavigate()
 
   const [data, setData] = useState<NoticePayload>(empty())
+  // 본문 HTML — Toast UI Editor 는 ref 기반이라 state 와 별도로 mount 직후 초기값만 주입.
+  const [initialContent, setInitialContent] = useState<string>('')
+  const editorRef = useRef<HtmlEditorHandle>(null)
+
   const [loading, setLoading] = useState(!isNew)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,10 +36,10 @@ export default function NoticeForm() {
       .then((r) => {
         setData({
           title: r.title ?? '',
-          content: r.content ?? '',
           category: r.category ?? '',
           is_pinned: Boolean(r.is_pinned),
         })
+        setInitialContent(r.content ?? '')
         setPublicUrl(buildPublicUrl(Number(id)))
       })
       .catch((e) => setError(e.message))
@@ -49,13 +54,15 @@ export default function NoticeForm() {
     if (!data.title.trim()) return setError('제목을 입력하세요.')
     setSaving(true)
     try {
+      const content = editorRef.current?.getHTML() ?? ''
+      const body = { ...data, content }
       if (isNew) {
-        const r = await api<{ id: number; url: string }>('/admin/notices', { method: 'POST', body: JSON.stringify(data) })
+        const r = await api<{ id: number; url: string }>('/admin/notices', { method: 'POST', body: JSON.stringify(body) })
         setPublicUrl(buildPublicUrl(r.id))
         setSuccess('등록이 완료되었습니다. 아래 URL을 푸시 알림 주소에 붙여 넣으세요.')
         navigate(`/notices/${r.id}`, { replace: true })
       } else {
-        await api(`/admin/notices/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+        await api(`/admin/notices/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
         setPublicUrl(buildPublicUrl(Number(id)))
         setSuccess('수정이 완료되었습니다.')
       }
@@ -158,13 +165,13 @@ export default function NoticeForm() {
             <tr>
               <th className="text-left align-top px-4 py-3 font-medium bg-gray-50 dark:bg-gray-800/50">본문</th>
               <td className="px-4 py-3">
-                <textarea
-                  value={data.content}
-                  onChange={(e) => set('content', e.target.value)}
-                  rows={14}
-                  placeholder="공지 본문 (HTML 가능)"
-                  className={cls + ' w-full font-mono text-xs'}
+                <HtmlEditor
+                  ref={editorRef}
+                  initialHtml={initialContent}
+                  uploadEndpoint="/admin/notices/upload"
+                  height="520px"
                 />
+                <p className="mt-2 text-[11px] text-gray-500">툴바 이미지 버튼으로 본문 인라인 이미지 업로드 가능 · 자동 WebP 변환 · 마크다운 ↔ WYSIWYG 탭 전환</p>
               </td>
             </tr>
           </tbody>
@@ -177,8 +184,6 @@ export default function NoticeForm() {
 const cls = 'px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
 
 function buildPublicUrl(id: number): string {
-  // 운영: https://sajumoon.kr/notices/{id} ; 개발 dev시엔 같은 path 유지
-  const origin = (import.meta.env.VITE_API_BASE ?? '').replace(/\/api\/?$/, '').replace(/^https?:\/\/api\./, 'https://')
-  const baseHost = origin && origin.startsWith('http') ? origin : 'https://sajumoon.kr'
-  return `${baseHost}/notices/${id}`
+  // 사용자 SPA 도메인 (runtime-env 가 VITE_SAJUMOON_ENV 기반으로 결정).
+  return `${USER_SITE_URL}/notices/${id}`
 }

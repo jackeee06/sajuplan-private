@@ -87,7 +87,7 @@ export interface CounselorRow {
   profile_notice: string | null;
   profile_intro: string | null;
   // 첨부파일
-  files: { id: number; kind: string | null; source_name: string; stored_name: string; filesize: number; created_at: Date }[];
+  files: { id: number; kind: string | null; source_name: string; stored_name: string; stored_name_webp: string | null; filesize: number; created_at: Date }[];
   // 집계
   total_consult: string;
   total_usetm: string;
@@ -185,6 +185,33 @@ export class MembersService {
     @Inject(SQL) private readonly sql: Sql,
     private readonly m2net: M2netService,
   ) {}
+
+  /**
+   * 비어있는 가장 작은 양의 정수 dtmfno 를 반환.
+   *  - DB 의 모든 counselor.dtmfno (숫자형 문자열) 를 정수로 캐스팅 후 1 부터 순차 검사.
+   *  - 동시 호출 race 방지를 위해 advisory transaction lock 사용.
+   *  - excludeId 가 주어지면 해당 회원의 기존 dtmfno 는 후보에서 제외(자기 자신 충돌 방지).
+   *  - sample 동작과 달리 신규 정책: dtmfno 빈값 비허용, 입력 누락 시 자동 부여.
+   */
+  private async nextAvailableDtmfno(excludeId?: number): Promise<string> {
+    return this.sql.begin(async (tx) => {
+      // pg_advisory_xact_lock — counselor.dtmfno 할당 전역 직렬화
+      await tx`SELECT pg_advisory_xact_lock(7777001)`;
+      const rows = await tx<{ n: number }[]>`
+        SELECT (dtmfno)::int AS n
+          FROM member
+         WHERE role = 'counselor'
+           AND dtmfno IS NOT NULL
+           AND dtmfno ~ '^[0-9]+$'
+           ${excludeId !== undefined ? tx`AND id <> ${excludeId}` : tx``}
+         ORDER BY (dtmfno)::int ASC
+      `;
+      const used = new Set(rows.map((r) => r.n));
+      let candidate = 1;
+      while (used.has(candidate)) candidate += 1;
+      return String(candidate);
+    });
+  }
 
   // ─────────────────────────────────────────────
   // 기본 조회 (기존 호환)
@@ -360,7 +387,7 @@ export class MembersService {
           FROM consultation GROUP BY counselor_id
       )
       SELECT
-        m.id, m.mb_id, m.name, m.nickname, m.phone, m.csrid, m.telno,
+        m.id, m.mb_id, m.name, m.nickname, m.phone, m.csrid, m.dtmfno, m.telno,
         m.counselor_category,
         m.counselor_priority,
         m.call_070_unit_cost, m.call_060_unit_cost, m.chat_unit_cost,
@@ -518,7 +545,8 @@ export class MembersService {
              COALESCE(
                (SELECT json_agg(json_build_object(
                  'id', f.id, 'kind', f.kind, 'source_name', f.source_name,
-                 'stored_name', f.stored_name, 'filesize', f.filesize, 'created_at', f.created_at
+                 'stored_name', f.stored_name, 'stored_name_webp', f.stored_name_webp,
+                 'filesize', f.filesize, 'created_at', f.created_at
                ) ORDER BY f.created_at DESC)
                 FROM member_file f WHERE f.member_id = m.id),
                '[]'::json
@@ -532,6 +560,64 @@ export class MembersService {
     `;
     if (rows.length === 0) throw new NotFoundException('상담사를 찾을 수 없습니다.');
     return rows[0];
+  }
+
+  // ─────────────────────────────────────────────
+  // 상담사 생성 (사전 해시된 PW 사용) — 상담사 신청 승인 흐름 전용.
+  // createCounselor 는 평문 PW 를 받아 bcrypt 로 해시하지만, 가입 신청 시점에 이미 해싱된
+  // PW 를 extras 에 저장해두므로 그걸 그대로 INSERT 한다. m2net 연동은 호출처에서 별도 진행.
+  // ─────────────────────────────────────────────
+  async createCounselorWithHash(input: {
+    mb_id: string;
+    password_hash: string;
+    name: string;
+    nickname: string;
+    email: string | null;
+    phone: string | null;
+    telno: string | null;
+    counselor_category: string | null;
+    profile_intro: string | null;
+    profile_specialty: string[] | null;
+  }): Promise<number> {
+    if (!input.mb_id) throw new BadRequestException('mb_id는 필수입니다.');
+    if (!input.password_hash) throw new BadRequestException('password_hash는 필수입니다.');
+
+    const existing = await this.sql<{ id: number }[]>`SELECT id FROM member WHERE mb_id = ${input.mb_id} LIMIT 1`;
+    if (existing.length > 0) throw new ConflictException('이미 사용 중인 아이디입니다.');
+
+    const dtmfnoFinal = await this.nextAvailableDtmfno();
+    const stateValue = 'IDLE';
+    const telnoFinal = input.telno ? input.telno.replace(/[^0-9]/g, '') : null;
+
+    const inserted = await this.sql<{ id: number }[]>`
+      INSERT INTO member (
+        mb_id, password, name, nickname, email, phone, gender,
+        role, level, state, counselor_category,
+        dtmfno, telno, counselor_priority,
+        call_unit_seconds, call_070_unit_cost, call_060_unit_cost,
+        chat_unit_seconds, chat_unit_cost, preflag,
+        use_phone, use_chat, is_rising
+      ) VALUES (
+        ${input.mb_id}, ${input.password_hash}, ${input.name}, ${input.nickname},
+        ${input.email}, ${input.phone}, NULL,
+        'counselor', 5, ${stateValue}, ${input.counselor_category},
+        ${dtmfnoFinal}, ${telnoFinal}, 1,
+        30, 0, 0,
+        30, 0, 'P',
+        true, true, false
+      )
+      RETURNING id
+    `;
+    const memberId = inserted[0].id;
+
+    // post_counselor 프로필 — 신청서의 intro/specialty 만 채움
+    await this.upsertCounselorProfile(memberId, {
+      profile_intro: input.profile_intro ?? undefined,
+      profile_specialty: input.profile_specialty ?? undefined,
+      nickname: input.nickname,
+    });
+
+    return memberId;
   }
 
   // ─────────────────────────────────────────────
@@ -550,7 +636,24 @@ export class MembersService {
     const passwordHash = await bcrypt.hash(input.password, 10);
     const phone = input.phone ? input.phone.replace(/[^0-9]/g, '') : null;
     const telno = input.telno ? input.telno.replace(/[^0-9]/g, '') : null;
-    const stateValue = input.state ?? 'IDLE';
+
+    // sample/adm/member_form_update.php 동등: 신규 등록도 use_phone/use_chat 매트릭스로 state 결정.
+    // ABSE/CONN/RESV/CRDY 명시는 그대로, 그 외(IDLE 포함)는 매트릭스로 도출.
+    const usePhone = input.use_phone ?? true;
+    const useChat = input.use_chat ?? true;
+    const requestedState = input.state ?? 'IDLE';
+    const readyState = computeReadyState(usePhone, useChat);
+    const stateValue =
+      requestedState === 'ABSE' ||
+      requestedState === 'CONN' ||
+      requestedState === 'RESV' ||
+      requestedState === 'CRDY'
+        ? requestedState
+        : readyState;
+
+    // dtmfno: 빈값 비허용. 입력이 비어있거나 숫자 외 문자 포함이면 1부터 비어있는 가장 작은 번호로 자동 부여.
+    const dtmfnoInputRaw = (input.dtmfno ?? '').replace(/[^0-9]/g, '');
+    const dtmfnoFinal = dtmfnoInputRaw || (await this.nextAvailableDtmfno());
 
     // 1) member insert (csrid 는 m2net 응답으로 추후 갱신)
     const inserted = await this.sql<{ id: number }[]>`
@@ -567,18 +670,18 @@ export class MembersService {
         ${input.mb_id}, ${passwordHash}, ${input.name}, ${input.nickname},
         ${input.email ?? null}, ${phone}, ${input.gender ?? null},
         'counselor', 5, ${stateValue}, ${input.counselor_category ?? null},
-        ${input.dtmfno ?? null}, ${telno}, ${input.counselor_priority ?? null},
+        ${dtmfnoFinal}, ${telno}, ${input.counselor_priority ?? null},
         ${input.call_unit_seconds ?? 30}, ${input.call_070_unit_cost ?? 0}, ${input.call_060_unit_cost ?? 0},
         ${input.chat_unit_seconds ?? 30}, ${input.chat_unit_cost ?? 0}, ${input.preflag ?? 'P'},
         ${input.paid_royalty_pct ?? null}, ${input.free_royalty_pct ?? null},
         ${input.bank_name ?? null}, ${input.bank_holder ?? null}, ${input.bank_account ?? null},
-        ${input.use_phone ?? true}, ${input.use_chat ?? true}, ${input.is_rising ?? false}
+        ${usePhone}, ${useChat}, ${input.is_rising ?? false}
       )
       RETURNING id
     `;
     const memberId = inserted[0].id;
 
-    // 2) m2net csr-mgr POST (env 활성 + register_m2net !== false 일 때)
+    // 2) m2net csr-mgr POST + chat-mgr csrstat (env 활성 + register_m2net !== false 일 때)
     let m2netCsrid: string | null = input.csrid ?? null;
     let m2netStatus = { ok: false, error: '미수행' };
     const shouldRegister = input.register_m2net !== false && this.m2net.isEnabled();
@@ -587,7 +690,7 @@ export class MembersService {
         csrnm: input.nickname,
         state: stateValue,
         sortno: input.counselor_priority ?? 1,
-        dtmfno: input.dtmfno ?? '',
+        dtmfno: dtmfnoFinal,
         telno: telno ?? '',
         dectm: input.call_unit_seconds ?? 30,
         decamt: input.call_070_unit_cost ?? 0,
@@ -599,6 +702,8 @@ export class MembersService {
       if (result.ok && result.csrid) {
         m2netCsrid = result.csrid;
         await this.sql`UPDATE member SET csrid = ${m2netCsrid} WHERE id = ${memberId}`;
+        // chat-mgr csrstat 으로 즉시 상태 반영 (sample 의 set_crs_status_chg 동등)
+        await this.m2net.updateCounselorState(m2netCsrid, stateValue);
       }
     } else if (input.csrid) {
       // m2net 미수행이지만 사용자가 직접 csrid 입력한 경우 저장
@@ -670,12 +775,24 @@ export class MembersService {
   async addMemberFile(
     memberId: number,
     kind: string,
-    file: { originalname: string; filename: string; size: number; mimetype: string },
-  ): Promise<{ id: number; stored_name: string; kind: string; source_name: string }> {
+    file: {
+      originalname: string;
+      filename: string;
+      size: number;
+      mimetype: string;
+      stored_name_webp?: string | null;
+    },
+  ): Promise<{
+    id: number;
+    stored_name: string;
+    stored_name_webp: string | null;
+    kind: string;
+    source_name: string;
+  }> {
     const exists = await this.sql<{ id: number }[]>`SELECT id FROM member WHERE id = ${memberId}`;
     if (exists.length === 0) throw new NotFoundException('회원을 찾을 수 없습니다.');
 
-    // 단일 슬롯(profile, wide)인 경우 기존 row 교체
+    // 단일 슬롯(profile, wide)인 경우 기존 row + 파일 교체
     if (kind === 'profile' || kind === 'wide') {
       await this.sql`DELETE FROM member_file WHERE member_id = ${memberId} AND kind = ${kind}`;
     }
@@ -685,37 +802,51 @@ export class MembersService {
     `;
     const inserted = await this.sql<{ id: number }[]>`
       INSERT INTO member_file (
-        member_id, no, kind, source_name, stored_name, filesize, file_type
+        member_id, no, kind, source_name, stored_name, stored_name_webp, filesize, file_type
       ) VALUES (
         ${memberId}, ${next[0].next_no}, ${kind},
-        ${file.originalname}, ${file.filename}, ${file.size},
+        ${file.originalname}, ${file.filename}, ${file.stored_name_webp ?? null}, ${file.size},
         ${file.mimetype.startsWith('image/') ? 1 : 0}
       )
       RETURNING id
     `;
-    return { id: inserted[0].id, stored_name: file.filename, kind, source_name: file.originalname };
+    return {
+      id: inserted[0].id,
+      stored_name: file.filename,
+      stored_name_webp: file.stored_name_webp ?? null,
+      kind,
+      source_name: file.originalname,
+    };
   }
 
-  async deleteMemberFile(memberId: number, fileId: number): Promise<{ stored_name: string | null }> {
-    const rows = await this.sql<{ stored_name: string }[]>`
+  async deleteMemberFile(
+    memberId: number,
+    fileId: number,
+  ): Promise<{ stored_name: string | null; stored_name_webp: string | null }> {
+    const rows = await this.sql<{ stored_name: string; stored_name_webp: string | null }[]>`
       DELETE FROM member_file WHERE id = ${fileId} AND member_id = ${memberId}
-      RETURNING stored_name
+      RETURNING stored_name, stored_name_webp
     `;
-    return { stored_name: rows[0]?.stored_name ?? null };
+    return {
+      stored_name: rows[0]?.stored_name ?? null,
+      stored_name_webp: rows[0]?.stored_name_webp ?? null,
+    };
   }
 
-  // m2net 단독 연동 (csrid 발급 / 재연동) — 폼의 [엠투넷 연동하기] 버튼이 호출
+  // m2net 단독 연동 (csrid 발급 / 재연동) — 폼의 [엠투넷 연동하기] 버튼이 호출.
+  //   - csrid 가 이미 있으면 PUT /csr-mgr/{csrid} 로 기존 레코드 갱신 (M2NET 중복등록 방지)
+  //   - csrid 가 없으면 POST /csr-mgr/{cpid} 로 신규 발급 — 응답 csrid 를 DB 저장
   async linkCounselorToM2net(id: number): Promise<{ ok: boolean; csrid: string | null; error?: string }> {
     const rows = await this.sql<{
       id: number; nickname: string; dtmfno: string | null; telno: string | null;
       counselor_priority: number | null; call_unit_seconds: number | null;
       call_070_unit_cost: number | null; chat_unit_seconds: number | null;
       chat_unit_cost: number | null; preflag: 'P' | 'Y' | null; state: string;
-      role: string;
+      role: string; csrid: string | null;
     }[]>`
       SELECT id, nickname, dtmfno, telno, counselor_priority,
              call_unit_seconds, call_070_unit_cost, chat_unit_seconds, chat_unit_cost,
-             preflag, state, role
+             preflag, state, role, csrid
         FROM member WHERE id = ${id}
     `;
     if (rows.length === 0 || rows[0].role !== 'counselor') {
@@ -725,20 +856,55 @@ export class MembersService {
       return { ok: false, csrid: null, error: 'M2NET 환경변수 미설정' };
     }
     const m = rows[0];
-    const result = await this.m2net.registerCounselor({
+    // dtmfno 빈값 비허용 — DB 에 비어있으면 1부터 비어있는 번호로 자동 부여하고 DB 도 동시에 채움.
+    let dtmfnoFinal = (m.dtmfno ?? '').replace(/[^0-9]/g, '');
+    if (!dtmfnoFinal) {
+      dtmfnoFinal = await this.nextAvailableDtmfno(id);
+      await this.sql`UPDATE member SET dtmfno = ${dtmfnoFinal} WHERE id = ${id}`;
+    }
+    const payload = {
       csrnm: m.nickname,
       state: m.state || 'IDLE',
       sortno: m.counselor_priority ?? 1,
-      dtmfno: m.dtmfno ?? '',
+      dtmfno: dtmfnoFinal,
       telno: m.telno ?? '',
       dectm: m.call_unit_seconds ?? 30,
       decamt: m.call_070_unit_cost ?? 0,
       preflag: (m.preflag ?? 'P') as 'P' | 'Y' | '',
       chatdectm: m.chat_unit_seconds ?? 30,
       chatdecamt: m.chat_unit_cost ?? 0,
-    });
+    };
+
+    // 이미 csrid 가 발급된 상태면 PUT 으로 갱신 (M2NET req_result=25 중복등록 방지)
+    if (m.csrid) {
+      // sample/adm/member_form_update.php:474,487 동등 — PUT 시에도 dtmfno 포함.
+      // dtmfno 는 회원이 통화 연결 시 입력하는 상담사 식별 번호 (자유 입력, 빈값 허용).
+      // 변경 시 M2NET·AG9 쪽에도 반영되어야 콜백/연결 매칭이 일관성 있게 동작함.
+      const upd = await this.m2net.updateCounselorFull(m.csrid, payload);
+      if (upd.ok) {
+        await this.m2net.updateCounselorState(m.csrid, payload.state);
+        return { ok: true, csrid: m.csrid };
+      }
+      // req_result=23 (ID not found) — DB 의 csrid 가 M2NET 에 존재하지 않음.
+      // (M2NET DB 리셋·수동입력·테스트값 등). POST 로 신규 등록 폴백.
+      const code = String(upd.raw?.req_result ?? '');
+      if (code === '23') {
+        const reg = await this.m2net.registerCounselor(payload);
+        if (reg.ok && reg.csrid) {
+          await this.sql`UPDATE member SET csrid = ${reg.csrid} WHERE id = ${id}`;
+          await this.m2net.updateCounselorState(reg.csrid, payload.state);
+          return { ok: true, csrid: reg.csrid };
+        }
+        return { ok: false, csrid: null, error: reg.error ?? '신규 등록 실패' };
+      }
+      return { ok: false, csrid: m.csrid, error: upd.error ?? '알 수 없음' };
+    }
+
+    // 최초 등록 — POST 로 신규 csrid 발급
+    const result = await this.m2net.registerCounselor(payload);
     if (result.ok && result.csrid) {
       await this.sql`UPDATE member SET csrid = ${result.csrid} WHERE id = ${id}`;
+      await this.m2net.updateCounselorState(result.csrid, payload.state);
       return { ok: true, csrid: result.csrid };
     }
     return { ok: false, csrid: null, error: result.error ?? '알 수 없음' };
@@ -747,9 +913,12 @@ export class MembersService {
   // ─────────────────────────────────────────────
   // 상담사 수정 — 들어온 필드만 동적 업데이트
   // ─────────────────────────────────────────────
-  async updateCounselor(id: number, input: Partial<CounselorInput>): Promise<{ id: number; m2net?: { ok: boolean; error?: string } }> {
-    const exists = await this.sql<{ id: number; role: string; csrid: string | null; state: string }[]>`
-      SELECT id, role, csrid, state FROM member WHERE id = ${id}
+  async updateCounselor(id: number, input: Partial<CounselorInput>): Promise<{ id: number; m2net?: { csr_mgr?: { ok: boolean; error?: string }; csrstat?: { ok: boolean; error?: string } } }> {
+    const exists = await this.sql<{
+      id: number; role: string; csrid: string | null; state: string;
+      use_phone: boolean; use_chat: boolean;
+    }[]>`
+      SELECT id, role, csrid, state, use_phone, use_chat FROM member WHERE id = ${id}
     `;
     if (exists.length === 0 || exists[0].role !== 'counselor') {
       throw new NotFoundException('상담사를 찾을 수 없습니다.');
@@ -765,7 +934,11 @@ export class MembersService {
     setIf('email');
     setIf('gender');
     setIf('counselor_category');
-    setIf('dtmfno');
+    // dtmfno: 빈값 비허용. 입력이 명시되었지만 비어있으면 1부터 비어있는 번호로 자동 부여.
+    if (input.dtmfno !== undefined) {
+      const cleaned = (input.dtmfno ?? '').replace(/[^0-9]/g, '');
+      updates.dtmfno = cleaned || (await this.nextAvailableDtmfno(id));
+    }
     setIf('csrid');
     setIf('counselor_priority');
     setIf('call_unit_seconds');
@@ -779,7 +952,6 @@ export class MembersService {
     setIf('bank_name');
     setIf('bank_holder');
     setIf('bank_account');
-    setIf('state');
     setIf('use_phone');
     setIf('use_chat');
     setIf('is_rising');
@@ -788,6 +960,22 @@ export class MembersService {
     if (input.telno !== undefined) updates.telno = input.telno ? input.telno.replace(/[^0-9]/g, '') : null;
     if (input.password) updates.password = await bcrypt.hash(input.password, 10);
 
+    // ── state 결정: sample/adm/member_form_update.php:14-22, 169-199 동등 ──
+    // 매트릭스: phone+chat → RDVC / phone-only → IDLE / chat-only → RDCH / 둘 다 N → ABSE
+    // 입력 state 가 ABSE/CONN/RESV/CRDY 면 그대로, 그 외(IDLE 포함) 는 매트릭스로 도출.
+    const usePhone = input.use_phone !== undefined ? !!input.use_phone : before.use_phone;
+    const useChat = input.use_chat !== undefined ? !!input.use_chat : before.use_chat;
+    const readyState = computeReadyState(usePhone, useChat);
+    const requestedState = input.state !== undefined ? String(input.state) : before.state;
+    const stateFinal: string =
+      requestedState === 'ABSE' ||
+      requestedState === 'CONN' ||
+      requestedState === 'RESV' ||
+      requestedState === 'CRDY'
+        ? requestedState
+        : readyState;
+    updates.state = stateFinal;
+
     if (Object.keys(updates).length > 0) {
       await this.sql`UPDATE member SET ${this.sql(updates)}, updated_at = now() WHERE id = ${id}`;
     }
@@ -795,20 +983,264 @@ export class MembersService {
     // ── 프로필 (post_counselor) upsert ──
     await this.upsertCounselorProfile(id, input);
 
-    // ── m2net 상태 동기화 ──
-    // state가 입력되어 실제로 바뀐 경우에만 chat-mgr/csrstat 호출.
-    // csrid 없으면(엠투넷 미등록 상담사) skip.
-    let m2netResult: { ok: boolean; error?: string } | undefined;
-    if (
-      input.state !== undefined &&
-      input.state !== before.state &&
-      before.csrid &&
-      this.m2net.isEnabled()
-    ) {
-      const r = await this.m2net.updateCounselorState(before.csrid, String(input.state));
-      m2netResult = { ok: r.ok, error: r.error };
+    // ── m2net 동기화 (sample/adm/member_form_update.php:381-413, 466-496, 558-565 동등) ──
+    // 1) csrid 없으면 POST /csr-mgr/{cpid} 로 신규 발급 (저장 시 ag9 자동 등록)
+    // 2) csrid 있으면 PUT 으로 풀 레코드 갱신
+    // 3) chat-mgr csrstat — 즉시 상태 반영
+    const m2netResult: {
+      csr_mgr?: { ok: boolean; error?: string };
+      csrstat?: { ok: boolean; error?: string };
+    } = {};
+
+    if (this.m2net.isEnabled()) {
+      // 변경 후 최종 값 — input 우선, 없으면 before 그대로
+      const after = await this.sql<{
+        nickname: string;
+        dtmfno: string | null;
+        telno: string | null;
+        counselor_priority: number | null;
+        call_unit_seconds: number | null;
+        call_070_unit_cost: number | null;
+        chat_unit_seconds: number | null;
+        chat_unit_cost: number | null;
+        preflag: 'P' | 'Y' | null;
+      }[]>`
+        SELECT nickname, dtmfno, telno, counselor_priority,
+               call_unit_seconds, call_070_unit_cost,
+               chat_unit_seconds, chat_unit_cost, preflag
+          FROM member WHERE id = ${id}
+      `;
+      const a = after[0];
+      // sample/adm/member_form_update.php:474,487 동등 — PUT 시에도 dtmfno 포함.
+      // dtmfno 는 회원이 통화 연결 시 입력하는 상담사 식별 번호 (자유 입력, 빈값 허용).
+      // 변경 시 M2NET·AG9 쪽에도 반영되어야 콜백/연결 매칭이 일관성 있게 동작함.
+      const csrMgrPayload = {
+        csrnm: a.nickname,
+        state: stateFinal,
+        sortno: a.counselor_priority ?? 1,
+        dtmfno: a.dtmfno ?? '',
+        telno: a.telno ?? '',
+        dectm: a.call_unit_seconds ?? 30,
+        decamt: a.call_070_unit_cost ?? 0,
+        preflag: (a.preflag ?? 'P') as 'P' | 'Y' | '',
+        chatdectm: a.chat_unit_seconds ?? 30,
+        chatdecamt: a.chat_unit_cost ?? 0,
+      };
+      // csrid 가 이미 있으면 PUT, 없으면 POST 신규 발급 — 저장 시 ag9 자동 등록
+      if (before.csrid) {
+        const r1 = await this.m2net.updateCounselorFull(before.csrid, csrMgrPayload);
+        // req_result=23 (ID not found) → POST 신규 등록 폴백.
+        // DB 의 csrid 가 M2NET 에 존재하지 않는 케이스 (M2NET DB 리셋·수동입력·테스트값 등).
+        if (!r1.ok && String(r1.raw?.req_result ?? '') === '23') {
+          const reg = await this.m2net.registerCounselor(csrMgrPayload);
+          m2netResult.csr_mgr = { ok: reg.ok, error: reg.error };
+          if (reg.ok && reg.csrid) {
+            await this.sql`UPDATE member SET csrid = ${reg.csrid} WHERE id = ${id}`;
+            const r2 = await this.m2net.updateCounselorState(reg.csrid, stateFinal);
+            m2netResult.csrstat = { ok: r2.ok, error: r2.error };
+          }
+        } else {
+          m2netResult.csr_mgr = { ok: r1.ok, error: r1.error };
+          if (r1.ok) {
+            const r2 = await this.m2net.updateCounselorState(before.csrid, stateFinal);
+            m2netResult.csrstat = { ok: r2.ok, error: r2.error };
+          }
+        }
+      } else {
+        const r1 = await this.m2net.registerCounselor(csrMgrPayload);
+        m2netResult.csr_mgr = { ok: r1.ok, error: r1.error };
+        if (r1.ok && r1.csrid) {
+          await this.sql`UPDATE member SET csrid = ${r1.csrid} WHERE id = ${id}`;
+          const r2 = await this.m2net.updateCounselorState(r1.csrid, stateFinal);
+          m2netResult.csrstat = { ok: r2.ok, error: r2.error };
+        }
+      }
     }
 
     return { id, m2net: m2netResult };
   }
+
+  // ─────────────────────────────────────────────
+  // 포인트 정합성 점검 (운영 진단용)
+  // ─────────────────────────────────────────────
+  //
+  // 회원 1명에 대해 다음을 한 페이지에 모아 반환:
+  //   - member.point / point.{free_balance,paid_balance,total_earned,total_used}
+  //   - point_history 합계 (재계산)
+  //   - consultation 합계 (member_id 기준)
+  //   - m2net 측 실제 잔액 (member.csrid 가 있을 때) — sajumoon ↔ m2net 차이 계산
+  //   - 최근 point_history 30행 / 최근 consultation 20건
+  //
+  // 사용: GET /admin/members/audit-points?mb_id=ubuub1234
+  //       채팅·통화 재테스트 후 다시 호출해 변화를 비교.
+  async auditPoints(mbId: string): Promise<{
+    member: {
+      id: number; mb_id: string | null; name: string; nickname: string | null;
+      role: string; csrid: string | null; point: number; created_at: Date;
+    };
+    point: {
+      free_balance: number; paid_balance: number; total: number;
+      total_earned: number; total_used: number;
+      matches_member_point: boolean;
+    } | null;
+    point_history_agg: {
+      rows: number; sum_earn: number; sum_use: number; computed_balance: number;
+      matches_member_point: boolean;
+    };
+    consultation_agg: {
+      rows: number; sum_amt: number; sum_amt_free: number; sum_amt_pro: number;
+    };
+    history_consult_agg: {
+      rows: number; sum_use: number; matches_consultation_amt: boolean;
+    };
+    m2net: { ok: boolean; amt: number | null; diff: number | null; error?: string };
+    recent_history: Array<{
+      id: number; content: string | null;
+      earn_point: number; use_point: number; balance_after: number;
+      rel_table: string | null; rel_id: string | null; rel_action: string | null;
+      created_at: Date;
+    }>;
+    recent_consultation: Array<{
+      id: number; reason: string; amt: number; amt_free: number; amt_pro: number;
+      usetm: number; roomid: string | null; started_at: Date | null;
+      ended_at: Date | null; created_at: Date;
+    }>;
+  }> {
+    if (!mbId) throw new BadRequestException('mb_id 가 필요합니다.');
+
+    const memberRows = await this.sql<{
+      id: number; mb_id: string | null; name: string; nickname: string | null;
+      role: string; csrid: string | null; point: number; created_at: Date;
+    }[]>`
+      SELECT id, mb_id, name, nickname, role, csrid, point, created_at
+        FROM member WHERE mb_id = ${mbId} LIMIT 1
+    `;
+    if (memberRows.length === 0) throw new NotFoundException('회원을 찾을 수 없습니다.');
+    const member = memberRows[0];
+
+    const ptRows = await this.sql<{
+      free_balance: number; paid_balance: number; total_earned: string; total_used: string;
+    }[]>`
+      SELECT free_balance, paid_balance, total_earned::text, total_used::text
+        FROM point WHERE member_id = ${member.id}
+    `;
+    const point = ptRows.length === 0 ? null : {
+      free_balance: Number(ptRows[0].free_balance) || 0,
+      paid_balance: Number(ptRows[0].paid_balance) || 0,
+      total: (Number(ptRows[0].free_balance) || 0) + (Number(ptRows[0].paid_balance) || 0),
+      total_earned: Number(ptRows[0].total_earned) || 0,
+      total_used: Number(ptRows[0].total_used) || 0,
+      matches_member_point:
+        (Number(ptRows[0].free_balance) || 0) + (Number(ptRows[0].paid_balance) || 0)
+          === Number(member.point),
+    };
+
+    const phAgg = await this.sql<{ rows: string; sum_earn: string; sum_use: string }[]>`
+      SELECT COUNT(*)::text                       AS rows,
+             COALESCE(SUM(earn_point),0)::text    AS sum_earn,
+             COALESCE(SUM(use_point),0)::text     AS sum_use
+        FROM point_history WHERE member_id = ${member.id}
+    `;
+    const sumEarn = Number(phAgg[0].sum_earn);
+    const sumUse = Number(phAgg[0].sum_use);
+
+    const csAgg = await this.sql<{
+      rows: string; sum_amt: string; sum_amt_free: string; sum_amt_pro: string;
+    }[]>`
+      SELECT COUNT(*)::text                       AS rows,
+             COALESCE(SUM(amt),0)::text           AS sum_amt,
+             COALESCE(SUM(amt_free),0)::text      AS sum_amt_free,
+             COALESCE(SUM(amt_pro),0)::text       AS sum_amt_pro
+        FROM consultation
+       WHERE member_id = ${member.id} AND amt > 0
+    `;
+
+    const phConsultAgg = await this.sql<{ rows: string; sum_use: string }[]>`
+      SELECT COUNT(*)::text AS rows, COALESCE(SUM(use_point),0)::text AS sum_use
+        FROM point_history
+       WHERE member_id = ${member.id}
+         AND rel_table = 'consultation'
+         AND use_point > 0
+    `;
+
+    // m2net 잔액 조회 (선택)
+    let m2net: { ok: boolean; amt: number | null; diff: number | null; error?: string } = {
+      ok: false, amt: null, diff: null, error: 'csrid 없음',
+    };
+    if (member.csrid && this.m2net.isEnabled()) {
+      const r = await this.m2net.getMemberByMembid(member.csrid);
+      if (r.ok && typeof r.amt === 'number') {
+        m2net = { ok: true, amt: r.amt, diff: Number(member.point) - r.amt };
+      } else {
+        m2net = { ok: false, amt: null, diff: null, error: r.error ?? '응답 없음' };
+      }
+    }
+
+    const recentHistory = await this.sql<{
+      id: number; content: string | null; earn_point: number; use_point: number;
+      balance_after: number; rel_table: string | null; rel_id: string | null;
+      rel_action: string | null; created_at: Date;
+    }[]>`
+      SELECT id, content, earn_point, use_point, balance_after,
+             rel_table, rel_id, rel_action, created_at
+        FROM point_history
+       WHERE member_id = ${member.id}
+       ORDER BY created_at DESC, id DESC
+       LIMIT 30
+    `;
+
+    const recentConsult = await this.sql<{
+      id: number; reason: string; amt: number; amt_free: number; amt_pro: number;
+      usetm: number; roomid: string | null; started_at: Date | null;
+      ended_at: Date | null; created_at: Date;
+    }[]>`
+      SELECT id, reason, amt, amt_free, amt_pro, usetm, roomid,
+             started_at, ended_at, created_at
+        FROM consultation
+       WHERE member_id = ${member.id}
+       ORDER BY created_at DESC
+       LIMIT 20
+    `;
+
+    return {
+      member,
+      point,
+      point_history_agg: {
+        rows: Number(phAgg[0].rows),
+        sum_earn: sumEarn,
+        sum_use: sumUse,
+        computed_balance: sumEarn - sumUse,
+        matches_member_point: sumEarn - sumUse === Number(member.point),
+      },
+      consultation_agg: {
+        rows: Number(csAgg[0].rows),
+        sum_amt: Number(csAgg[0].sum_amt),
+        sum_amt_free: Number(csAgg[0].sum_amt_free),
+        sum_amt_pro: Number(csAgg[0].sum_amt_pro),
+      },
+      history_consult_agg: {
+        rows: Number(phConsultAgg[0].rows),
+        sum_use: Number(phConsultAgg[0].sum_use),
+        matches_consultation_amt:
+          Number(phConsultAgg[0].sum_use) === Number(csAgg[0].sum_amt),
+      },
+      m2net,
+      recent_history: recentHistory,
+      recent_consultation: recentConsult,
+    };
+  }
+}
+
+/**
+ * sample/adm/member_form_update.php:14-22 의 get_counselor_ready_state() 와 1:1 동등.
+ *  phone=Y, chat=Y → RDVC (전화+채팅 가능)
+ *  phone=Y, chat=N → IDLE (전화상담가능)
+ *  phone=N, chat=Y → RDCH (채팅상담가능)
+ *  둘 다 N         → ABSE (부재중)
+ */
+function computeReadyState(usePhone: boolean, useChat: boolean): string {
+  if (usePhone && useChat) return 'RDVC';
+  if (usePhone && !useChat) return 'IDLE';
+  if (!usePhone && useChat) return 'RDCH';
+  return 'ABSE';
 }

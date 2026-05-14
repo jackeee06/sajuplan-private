@@ -4,7 +4,31 @@
       "Bash(/Users/jin-yubi/dwork/AI/사주문1/deploy.sh)",
       "Bash(PGPASSWORD='xPuabObdxTWyhNeq1aDaVGZlW5yBxO' psql -h 172.235.211.75 -U sajumoon -d sajumoon -c \"SELECT id, login_id, name, phone FROM member WHERE role='user' ORDER BY id LIMIT 10;\")",
       "Bash(PGPASSWORD='xPuabObdxTWyhNeq1aDaVGZlW5yBxO' psql -h 172.235.211.75 -U sajumoon -d sajumoon -c \"SELECT COUNT\\(*\\) AS push_tokens FROM member_push_token; SELECT COUNT\\(*\\) AS notif_log FROM notification_log; SELECT COUNT\\(*\\) AS alimtalk FROM alimtalk_template;\")",
-      "Bash(PGPASSWORD='xPuabObdxTWyhNeq1aDaVGZlW5yBxO' psql -h 172.235.211.75 -U sajumoon -d sajumoon)"
+      "Bash(PGPASSWORD='xPuabObdxTWyhNeq1aDaVGZlW5yBxO' psql -h 172.235.211.75 -U sajumoon -d sajumoon)",
+      "Bash(rm -rf /Users/jin-yubi/dwork/AI/사주문1/mobile/.git *)",
+      "Bash(java -version 2>&1 *)",
+      "Read(//Library/Java/JavaVirtualMachines/**)",
+      "Bash(\"/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java\" -version)",
+      "Bash(rm -f '/Users/jin-yubi/dwork/AI/사주문1/mobile/ios/Sajumoon/Images.xcassets/AppIcon.appiconset/*.png' /Users/jin-yubi/dwork/AI/사주문1/mobile/ios/Sajumoon/Images.xcassets/AppIcon.appiconset/Contents.json)",
+      "Bash(cp '/Users/jin-yubi/dwork/AI/사주문1/store_img/앱 아이콘/AppIcons/Assets.xcassets/AppIcon.appiconset/*.png' /Users/jin-yubi/dwork/AI/사주문1/mobile/ios/Sajumoon/Images.xcassets/AppIcon.appiconset/)",
+      "Bash(PGPASSWORD=xPuabObdxTWyhNeq1aDaVGZlW5yBxO psql -h 172.235.211.75 -U sajumoon -d sajumoon -t -A -F '|' -c ' *)",
+      "Bash(PGPASSWORD=xPuabObdxTWyhNeq1aDaVGZlW5yBxO psql -h 172.235.211.75 -U sajumoon -d sajumoon -c ' *)",
+      "Bash(plutil -p /Users/jin-yubi/dwork/AI/사주문1/files/GoogleService-Info.plist)",
+      "Bash(PGPASSWORD='xPuabObdxTWyhNeq1aDaVGZlW5yBxO' psql -h 172.235.211.75 -U sajumoon -d sajumoon -c \"\\\\d member_push_token\")",
+      "Bash(PGPASSWORD='xPuabObdxTWyhNeq1aDaVGZlW5yBxO' psql -h 172.235.211.75 -U sajumoon -d sajumoon -t -A -F '|' -c \"SELECT COUNT\\(*\\) FROM member_push_token;\")",
+      "Bash(PGPASSWORD=xPuabObdxTWyhNeq1aDaVGZlW5yBxO psql -h 172.235.211.75 -U sajumoon -d sajumoon -t -A -c ' *)",
+      "Bash(PGPASSWORD='xPuabObdxTWyhNeq1aDaVGZlW5yBxO' psql -h 172.235.211.75 -U sajumoon -d sajumoon -c \"\\\\d post_apply\")",
+      "Bash(PGPASSWORD='xPuabObdxTWyhNeq1aDaVGZlW5yBxO' psql -h 172.235.211.75 -U sajumoon -d sajumoon -t -A -F '|' -c \"SELECT * FROM post_apply ORDER BY id DESC LIMIT 3;\")",
+      "Bash(PGPASSWORD='xPuabObdxTWyhNeq1aDaVGZlW5yBxO' psql -h 172.235.211.75 -U sajumoon -d sajumoon -t -A -c \"SELECT COUNT\\(*\\) FROM post_apply;\")",
+      "Bash(ruby -v)",
+      "Bash(bundle --version)",
+      "Bash(sudo gem install xcodeproj --no-document)",
+      "Bash(PGPASSWORD=xPuabObdxTWyhNeq1aDaVGZlW5yBxO psql -h 172.235.211.75 -U sajumoon -d sajumoon_db -c ' *)",
+      "Bash(PGPASSWORD='2864a3fe5f86d4ef9f0ab958fce8f576dff56c1f3f698382' psql -h 104.64.128.103 -U sajumoon -d sajumoon -c \"SELECT 1\")",
+      "Bash(PGPASSWORD=2864a3fe5f86d4ef9f0ab958fce8f576dff56c1f3f698382 psql -h 104.64.128.103 -U sajumoon -d sajumoon -c ' *)"
+    ],
+    "additionalDirectories": [
+      "/Users/jin-yubi/dwork/AI/사주문1/mobile/.git"
     ]
   }
 }

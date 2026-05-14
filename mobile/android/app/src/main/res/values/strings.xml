@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">사주문</string>
+    <!--
+      @react-native-seoul/kakao-login 은 R.string.kakao_app_key 만 읽어 KakaoSdk.init() 한다.
+      라이브러리 기본값(Dooboolab 테스트 앱) 을 우리 앱 키로 override 해야
+      카카오 동의창에 "사주문" 으로 노출되고, 콘솔에 등록된 패키지명/키해시 검증이 제대로 동작한다.
+      AndroidManifest 의 meta-data com.kakao.sdk.AppKey 는 이 RN 라이브러리에선 미사용.
+    -->
+    <string name="kakao_app_key">8b5909059003d5d5a75a7ca8db1341cc</string>
+</resources>

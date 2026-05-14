@@ -1,0 +1,208 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Android 13+ 푸시 알림 표시 권한 (런타임 요청 필요). 32 이하는 자동. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!--
+      Photo Picker 정책 (Google Play 검토 차단 회피):
+        - READ_MEDIA_IMAGES / READ_MEDIA_VIDEO 권한 제거.
+          → Play 정책상 "일회성/빈번하지 않은" 미디어 접근은 READ_MEDIA_* 권한 사용 금지.
+          → 프로필 사진 변경 + 채팅 이미지 첨부는 일회성 사용 패턴이라 시스템 Photo Picker 사용.
+        - react-native-image-picker 는 Android 13+ 에서 자동으로 시스템 Photo Picker(ACTION_PICK_IMAGES)
+          를 호출하며, 이 경우 READ_MEDIA_IMAGES 권한 자체가 필요 없다.
+        - 32 이하 디바이스 호환을 위해 READ_EXTERNAL_STORAGE 만 maxSdk=32 로 유지.
+    -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.PICK" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.GET_CONTENT" />
+        </intent>
+        <!--
+          Android 11+ 패키지 가시성 제한 대응.
+          이게 없으면 Kakao/Naver SDK 가 각 앱 설치 여부를 확인 못 해 웹 폴백한다
+          (앱 동의창 대신 in-app 브라우저로 열림).
+        -->
+        <package android:name="com.kakao.talk" />
+        <package android:name="com.nhn.android.search" />
+        <!-- 카카오페이 / 네이버페이 / 페이코 -->
+        <package android:name="com.kakao.kakaopay.app" />
+        <package android:name="com.nhn.android.naverpay" />
+        <package android:name="com.nhnent.payapp" />
+        <!-- 토스 / 차이 / 페이북 -->
+        <package android:name="viva.republica.toss" />
+        <package android:name="com.nhnpayments.payapp" />
+        <package android:name="com.danal.app.payment" />
+        <package android:name="com.tmoney.smartpay" />
+        <!-- 삼성페이 -->
+        <package android:name="com.samsung.android.spay" />
+        <package android:name="com.samsung.android.spaylite" />
+        <!-- KB국민 -->
+        <package android:name="com.kbcard.kbkookmincard" />
+        <package android:name="com.kbstar.kbbank" />
+        <package android:name="com.kbstar.liivbank" />
+        <package android:name="com.kbstar.reboot" />
+        <package android:name="com.kbcard.cxh.appcard" />
+        <!-- 신한 -->
+        <package android:name="com.shcard.smartpay" />
+        <package android:name="com.shinhan.sbanking" />
+        <package android:name="com.shinhancard.smartshinhan" />
+        <!-- 우리 -->
+        <package android:name="com.wooricard.wpay" />
+        <package android:name="com.wooribank.smart.npib" />
+        <package android:name="com.WooriBank.android.WB" />
+        <!-- 하나 -->
+        <package android:name="com.hanaskcard.paycla" />
+        <package android:name="com.hanaskcard.rocomo.potal" />
+        <package android:name="kr.co.hanamembers.hmscustomer" />
+        <package android:name="com.kebhana.hanapush" />
+        <!-- 농협 -->
+        <package android:name="nh.smart.nhallonepayansimclick" />
+        <package android:name="com.nh.cashcardapp" />
+        <package android:name="nh.smart.banking" />
+        <package android:name="com.nonghyup.banking" />
+        <!-- 롯데 -->
+        <package android:name="com.lcacApp" />
+        <package android:name="com.lotte.smartpay" />
+        <package android:name="kvp.jjy.MispAndroid320" />
+        <!-- 현대 -->
+        <package android:name="com.hyundaicard.appcard" />
+        <package android:name="com.hyundaicard.android.epcardmember" />
+        <!-- BC / 페이북 -->
+        <package android:name="com.bccard.smartpay" />
+        <package android:name="com.bcg.cardlite" />
+        <!-- 시티 / SC제일 -->
+        <package android:name="kr.co.citibank.citimobile" />
+        <package android:name="com.scb.scbeasy" />
+        <!-- 우체국 / 새마을 / 신협 / 수협 -->
+        <package android:name="com.epost.psf.sdsi" />
+        <package android:name="kr.co.kfcc.mobilebank" />
+        <package android:name="com.cu.cu" />
+        <package android:name="com.shsuhyup.SuHyup" />
+        <!-- 부산 / 대구 / 광주 / 전북 / 제주 / 경남 -->
+        <package android:name="com.kebhana.hanapush" />
+        <package android:name="com.busanbank.busanbank" />
+        <package android:name="com.dgb.smart" />
+        <package android:name="com.kjbank.android" />
+        <package android:name="com.jbbank.smart" />
+        <package android:name="kr.co.jejubank.smartbank" />
+        <package android:name="kr.co.knbank.smart" />
+        <!-- ISP/페이북 종합 -->
+        <package android:name="com.kbcard.kbcardapp" />
+        <package android:name="com.kbcard.cxh.appcard" />
+        <!-- ===== 카드사·간편결제 스킴 인텐트 필터 (Android 11+ visibility) ===== -->
+        <!-- 간편결제 -->
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="kakaopay" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="kakaotalk" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="naverpay" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="payco" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="supertoss" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="tosspay" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="chai" /></intent>
+        <!-- ISP/공통 -->
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="ispmobile" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="paybooc" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="mpocket.online.ansimclick" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="cloudpay" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="kftc-bankpay" /></intent>
+        <!-- KB -->
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="kb-acp" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="kb-bankpay" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="kbbank" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="liiv" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="liivbank" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="newliiv" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="kbstar" /></intent>
+        <!-- 신한 -->
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="shinhan-sr-ansimclick" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="shinhan-sr-ansimclick-naverpay" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="shinhan-sr-ansimclick-payco" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="shinhansaim" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="smshinhan" /></intent>
+        <!-- 우리 -->
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="wooripay" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="wooribank" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="wibee" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="wibeebank" /></intent>
+        <!-- 하나 (사용자 보고: 하나카드 결제창 안 떠서 스토어로 이동) -->
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="hanaskcardansimclick" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="hanaskcardapp" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="hanawalletmembers" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="hdcardappcardansimclick" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="hanabank" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="hana1qbank" /></intent>
+        <!-- 농협 -->
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="nonghyupcardansimclick" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="nhappcardansimclick" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="nhallonepayansimclick" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="nhsmartbank" /></intent>
+        <!-- 롯데 -->
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="lotteappcard" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="lottesmartpay" /></intent>
+        <!-- 현대 -->
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="hyundaicardapp" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="smhyundaiansimclick" /></intent>
+        <!-- 삼성 -->
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="samsungpay" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="scardcertiapp" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="mysmca" /></intent>
+        <!-- BC / 시티 / SC -->
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="bcservicemarket" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="citicardansimclick" /></intent>
+        <intent><action android:name="android.intent.action.VIEW" /><category android:name="android.intent.category.BROWSABLE" /><data android:scheme="scbankapp" /></intent>
+    </queries>
+
+    <application
+        android:name=".MainApplication"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:allowBackup="false"
+        android:theme="@style/AppTheme"
+        android:supportsRtl="true">
+        <activity
+            android:name=".MainActivity"
+            android:label="@string/app_name"
+            android:theme="@style/BootTheme"
+            android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <meta-data
+            android:name="com.kakao.sdk.AppKey"
+            android:value="8b5909059003d5d5a75a7ca8db1341cc" />
+
+        <activity
+            android:name="com.kakao.sdk.auth.AuthCodeHandlerActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="kakao8b5909059003d5d5a75a7ca8db1341cc"
+                    android:host="oauth" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -7,6 +7,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  *   footer.* (회사정보)
  *   site.kakao_channel_url (카카오 1:1 상담 링크)
  *   site.title (사이트 제목)
+ *   review.* (후기 작성 포인트 지급 정책 — 안내 문구에 사용)
  *
  * 절대 노출 금지: social_*, security_*, recaptcha_secret 등
  */
@@ -21,6 +22,7 @@ export class UserSettingsService {
        WHERE (
          namespace = 'footer'
          OR (namespace = 'site' AND key IN ('title', 'kakao_channel_url'))
+         OR namespace = 'review'
        )
     `;
     const out: Record<string, string> = {};

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { api } from '../lib/api'
 
@@ -25,11 +25,14 @@ interface Room {
   counselor_name: string | null
   counselor_nickname: string | null
   status: string | null
-  created_at: string
+  started_at: string | null
+  ended_at: string | null
 }
 
 export default function ChatHistoryDetail() {
   const { id } = useParams<{ id: string }>()
+  const [search] = useSearchParams()
+  const roomidParam = search.get('roomid') || ''
   const navigate = useNavigate()
   const [room, setRoom] = useState<Room | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
@@ -37,12 +40,16 @@ export default function ChatHistoryDetail() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    setLoading(true)
-    api<{ room: Room; messages: Message[] }>(`/admin/chat-history/rooms/${id}`)
+    const url =
+      roomidParam
+        ? `/admin/chat-history/rooms/by-roomid/${encodeURIComponent(roomidParam)}`
+        : `/admin/chat-history/rooms/${id}`
+    setLoading(true); setError(null)
+    api<{ room: Room; messages: Message[] }>(url)
       .then((r) => { setRoom(r.room); setMessages(r.messages) })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-  }, [id])
+  }, [id, roomidParam])
 
   if (loading) return <div className="p-6 text-sm text-gray-500">로딩...</div>
   if (error) return <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>
@@ -54,7 +61,7 @@ export default function ChatHistoryDetail() {
         <button onClick={() => navigate('/chat-history')} className="p-1.5 rounded hover:bg-gray-100 text-gray-500">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="text-xl font-semibold">채팅 상세 #{id}</h1>
+        <h1 className="text-xl font-semibold">채팅 상세 #{room.id}</h1>
       </div>
 
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5 grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
@@ -74,7 +81,8 @@ export default function ChatHistoryDetail() {
         </Field>
         <Field label="룸 ID"><span className="font-mono text-xs text-gray-500">{room.roomid || '-'}</span></Field>
         <Field label="상태"><span className="text-xs text-gray-500">{room.status || '-'}</span></Field>
-        <Field label="생성 시각"><span className="text-xs text-gray-500">{formatDT(room.created_at)}</span></Field>
+        <Field label="시작 시각"><span className="text-xs text-gray-500">{formatDT(room.started_at)}</span></Field>
+        <Field label="종료 시각"><span className="text-xs text-gray-500">{formatDT(room.ended_at)}</span></Field>
       </div>
 
       {/* 채팅 메시지 */}

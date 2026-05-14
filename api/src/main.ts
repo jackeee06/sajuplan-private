@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { AppModule } from './app.module';
+import { runtimeEnv } from './shared/env/runtime-env';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -16,6 +17,18 @@ async function bootstrap() {
   // helmet 기본값은 cross-origin resource 차단 — /uploads 이미지는 mng 도메인에서 접근하므로 완화
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(cookieParser());
+
+  // 모든 /api/* 응답에 강제 no-store — 모바일 WebView · 브라우저 · CDN · nginx 가
+  // 회원 정보(보유 포인트 등) 응답을 캐시해 옛 값을 노출하는 사고 방지.
+  // /uploads 정적 파일은 그대로 캐시 허용.
+  app.use((req: { path: string }, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {
+    if (req.path.startsWith('/api/')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+    next();
+  });
 
   // 업로드 정적 서빙 — /uploads/popup/xxx.png → ./uploads/popup/xxx.png
   const uploadsRoot = join(process.cwd(), 'uploads');
@@ -29,10 +42,8 @@ async function bootstrap() {
     }),
   );
 
-  const originsRaw = config.get<string>('CORS_ORIGINS') ?? '';
-  const origins = originsRaw.split(',').map((s) => s.trim()).filter(Boolean);
   app.enableCors({
-    origin: origins.length ? origins : true,
+    origin: runtimeEnv().corsOrigins,
     credentials: true,
   });
 

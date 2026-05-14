@@ -1,49 +1,71 @@
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import FloatingActions from '../components/FloatingActions'
-import { MOCK_COUNSELOR_QNAS, type CounselorQna } from '../data/counselorDetails'
+import UploadedImage from '../components/UploadedImage'
+import { ApiError, counselorQnaApi, type PublicCounselorQnaDetail } from '../lib/api'
+import { FILE_BASE } from '../lib/runtime-env'
+
+function resolveImageUrl(u: string | null): string | null {
+  if (!u) return null
+  if (/^https?:\/\//.test(u)) return u
+  if (u.startsWith('/')) return `${FILE_BASE}${u}`
+  return u
+}
+
+function formatDateTime(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${y}.${m}.${day} ${hh}:${mm}`
+}
 
 /**
  * 문의 상세 — Figma 92:6485 (답변 있음) / 92:6381 (답변 없음)
  * 라우트: /counselors/:id/qna/:qnaId
  *
- * 구조 (gap 40):
- *  [hd5 헤더: ← + 상담 문의]
- *  [본문 그룹 (gap 16)]
- *    1) 제목 (18px medium #1E2939)
- *    2) 작성자 · 날짜시간 (14px regular #99A1AF)
- *    3) 본문 14px line-150% #4A5565
- *  [답변 섹션 (gap 24)]
- *    · 카운터 "상담사 답변 N건" + border-b
- *    · 답변 있음: 답변 본문 → 작은 아바타(28) + 상담사명 · 시각 (Review와 동일 패턴)
- *    · 답변 없음: 60×60 연보라 원형 + 말풍선 + "등록된 답변이 없습니다."
- *  [목록으로 outline-primary, 가운데 정렬 — Review와 다름]
- *  [floating: go_top만]
+ * 백엔드: GET /api/user/counselors/:id/qna/:qnaId
+ *  - 비밀글이면 본인/상담사가 아닌 한 본문 빈 문자열로 노출.
  */
-
 export default function CounselorQnaDetail() {
-  const { id = '3', qnaId } = useParams<{ id: string; qnaId: string }>()
+  const { id, qnaId } = useParams<{ id: string; qnaId: string }>()
   const navigate = useNavigate()
-  const qnas = MOCK_COUNSELOR_QNAS[id] ?? []
-  const qna = qnas.find((q) => String(q.id) === qnaId) ?? qnas[0]
+  const [qna, setQna] = useState<PublicCounselorQnaDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!qna) {
-    return (
-      <div className="mobile-frame flex flex-col">
-        <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            aria-label="뒤로"
-            className="w-[30px] h-[30px] flex items-center justify-center"
-          >
-            <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
-          </button>
-          <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">상담 문의</h1>
-        </header>
-        <p className="text-center text-[14px] text-[#99A1AF] py-20">문의를 찾을 수 없습니다.</p>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!id || !qnaId) {
+      setError('잘못된 문의입니다.')
+      setLoading(false)
+      return
+    }
+    let alive = true
+    setLoading(true)
+    setError(null)
+    counselorQnaApi
+      .detail(id, qnaId)
+      .then((r) => {
+        if (alive) setQna(r)
+      })
+      .catch((e) => {
+        if (!alive) return
+        if (e instanceof ApiError && e.status === 404) {
+          setError('문의를 찾을 수 없습니다.')
+        } else {
+          setError(e instanceof Error ? e.message : '문의를 불러오지 못했습니다.')
+        }
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [id, qnaId])
 
   return (
     <div className="mobile-frame flex flex-col">
@@ -61,38 +83,52 @@ export default function CounselorQnaDetail() {
       </header>
 
       <main className="flex-1 flex flex-col pb-10">
-        {/* 본문 그룹 */}
-        <div className="px-4 pt-4 pb-4 flex flex-col gap-4">
-          {/* 제목 + 작성자/날짜 */}
-          <div className="flex flex-col gap-2">
-            <h2 className="text-[18px] leading-[130%] font-medium text-[#1E2939]">
-              {qna.title}
-            </h2>
-            <div className="flex items-center gap-1 text-[14px] leading-[130%] text-[#99A1AF]">
-              <span>{qna.customerName}</span>
-              <span aria-hidden>∙</span>
-              <span>{qna.postedAt}</span>
-            </div>
+        {loading && (
+          <div className="px-4 py-6 flex flex-col gap-4">
+            <div className="h-5 w-2/3 bg-[#F3F4F6] animate-pulse rounded" />
+            <div className="h-4 w-1/3 bg-[#F3F4F6] animate-pulse rounded" />
+            <div className="h-4 w-full bg-[#F3F4F6] animate-pulse rounded" />
+            <div className="h-4 w-5/6 bg-[#F3F4F6] animate-pulse rounded" />
           </div>
+        )}
 
-          {/* 본문 */}
-          <p className="text-[14px] leading-[150%] text-[#4A5565] whitespace-pre-line">
-            {qna.content}
-          </p>
-        </div>
+        {!loading && error && (
+          <p className="text-center text-[14px] text-[#FF6467] py-20">{error}</p>
+        )}
 
-        {/* 답변 섹션 */}
-        <ReplySection qna={qna} className="mt-6" />
+        {!loading && qna && (
+          <>
+            {/* 본문 그룹 */}
+            <div className="px-4 pt-4 pb-4 flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <h2 className="text-[18px] leading-[130%] font-medium text-[#1E2939]">
+                  {qna.title}
+                </h2>
+                <div className="flex items-center gap-1 text-[14px] leading-[130%] text-[#99A1AF]">
+                  <span>{qna.reviewer_name}</span>
+                  <span aria-hidden>∙</span>
+                  <span>{formatDateTime(qna.created_at)}</span>
+                </div>
+              </div>
 
-        {/* 목록으로 — 가운데 정렬 */}
-        <div className="px-4 mt-10 flex justify-center">
-          <Link
-            to={`/counselors/${id}/qna`}
-            className="inline-flex items-center justify-center w-[120px] h-10 px-4 rounded-full bg-white border border-[#9B7AF7] text-[#8259F5] text-[14px] font-medium"
-          >
-            목록으로
-          </Link>
-        </div>
+              <p className="text-[14px] leading-[150%] text-[#4A5565] whitespace-pre-line">
+                {qna.is_secret && !qna.content ? '비밀 문의입니다.' : qna.content}
+              </p>
+            </div>
+
+            <ReplySection qna={qna} className="mt-6" />
+
+            {/* 목록으로 — 가운데 정렬 */}
+            <div className="px-4 mt-10 flex justify-center">
+              <Link
+                to={`/counselors/${id}/qna`}
+                className="inline-flex items-center justify-center w-[120px] h-10 px-4 rounded-full bg-white border border-[#9B7AF7] text-[#8259F5] text-[14px] font-medium"
+              >
+                목록으로
+              </Link>
+            </div>
+          </>
+        )}
       </main>
 
       <FloatingActions bottomOffset={16} showKakao={false} />
@@ -102,33 +138,40 @@ export default function CounselorQnaDetail() {
 
 /* ───────────── 답변 섹션 ───────────── */
 
-function ReplySection({ qna, className = '' }: { qna: CounselorQna; className?: string }) {
-  const hasReply = !!qna.reply
+function ReplySection({ qna, className = '' }: { qna: PublicCounselorQnaDetail; className?: string }) {
+  const reply = qna.reply
+  const profileImg = resolveImageUrl(reply?.counselor_profile_image ?? null)
+  const profileImgWebp = resolveImageUrl(reply?.counselor_profile_image_webp ?? null)
 
   return (
     <section className={`flex flex-col gap-6 ${className}`}>
       <div className="px-4 pb-3 flex items-center border-b border-[#F3F4F6]">
         <p className="text-[15px] leading-[130%] text-[#364153]">
           상담사 답변{' '}
-          <span className="font-medium text-[#8259F5]">{hasReply ? 1 : 0}</span>건
+          <span className="font-medium text-[#8259F5]">{reply ? 1 : 0}</span>건
         </p>
       </div>
 
-      {hasReply ? (
+      {reply ? (
         <article className="px-4 flex flex-col gap-3">
           <p className="text-[14px] leading-[150%] text-[#4A5565] whitespace-pre-line">
-            {qna.reply!.text}
+            {reply.content}
           </p>
           <div className="flex items-center gap-2">
-            <img
-              src={qna.reply!.profileImg}
-              alt=""
-              className="w-7 h-7 rounded-full object-cover border border-[#F9FAFB] shrink-0"
-            />
+            {profileImg ? (
+              <UploadedImage
+                src={profileImg}
+                srcWebp={profileImgWebp}
+                alt=""
+                className="w-7 h-7 rounded-full object-cover border border-[#F9FAFB] shrink-0"
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-[#F3F4F6] shrink-0" aria-hidden />
+            )}
             <div className="flex items-center gap-1 text-[13px] leading-[130%] text-[#6A7282]">
-              <span className="font-medium text-[#1E2939]">{qna.reply!.name}</span>
+              <span className="font-medium text-[#1E2939]">{reply.counselor_nickname}</span>
               <span aria-hidden>∙</span>
-              <span>{qna.reply!.postedAt}</span>
+              <span>{formatDateTime(reply.created_at)}</span>
             </div>
           </div>
         </article>

@@ -93,19 +93,30 @@ export class SmsService {
     }
   }
 
-  /** 인증번호 검증 — 5분 내 발급된 코드와 일치하면 통과 */
+  /**
+   * 인증번호 검증 — 5분 내 발급되고 아직 소비되지 않은 코드와 일치하면 통과.
+   * 같은 (phone, code) 행을 atomic 하게 is_verified=true 로 마킹하여 1회성 처리.
+   * 동시 요청 / 재전송 / 재시도 모두 race 없이 처음 한 번만 통과.
+   */
   async verify(rawPhone: string, code: string): Promise<void> {
     const phone = this.normalize(rawPhone);
     const c = (code || '').trim();
     if (!phone || !c) {
       throw new BadRequestException('인증번호 입력값이 올바르지 않습니다.');
     }
+    // UPDATE … RETURNING 으로 한 번에 마킹+검증. 가장 최근 미소비 행 1개만 소비.
     const rows = await this.sql<{ id: number }[]>`
-      SELECT id FROM sms_auth
-       WHERE phone = ${phone}
-         AND auth_code = ${c}
-         AND expires_at > now()
-       ORDER BY id DESC LIMIT 1
+      UPDATE sms_auth
+         SET is_verified = TRUE
+       WHERE id = (
+         SELECT id FROM sms_auth
+          WHERE phone = ${phone}
+            AND auth_code = ${c}
+            AND expires_at > now()
+            AND is_verified = FALSE
+          ORDER BY id DESC LIMIT 1
+       )
+      RETURNING id
     `;
     if (!rows.length) {
       throw new BadRequestException('인증번호가 일치하지 않거나 만료되었습니다.');
@@ -115,6 +126,138 @@ export class SmsService {
   /** 회원가입 시 휴대폰 인증 검증 (sample register_form_update.php 흐름) */
   async assertVerified(rawPhone: string, code: string): Promise<void> {
     return this.verify(rawPhone, code);
+  }
+
+  /**
+   * 최근(기본 10분 이내) 인증된 휴대폰인지 확인. 코드 재입력 없이 최근 verify 여부만 검사.
+   * verify() 는 1회성 소비형이므로 상담사 신청처럼 인증→폼제출 두 단계 사이에 사용.
+   */
+  async isVerifiedRecently(rawPhone: string, withinMinutes = 10): Promise<boolean> {
+    const phone = this.normalize(rawPhone);
+    if (!phone) return false;
+    const rows = await this.sql<{ id: number }[]>`
+      SELECT id FROM sms_auth
+       WHERE phone = ${phone}
+         AND is_verified = TRUE
+         AND created_at > now() - (${withinMinutes} || ' minutes')::interval
+       ORDER BY id DESC
+       LIMIT 1
+    `;
+    return rows.length > 0;
+  }
+
+  /**
+   * 범용 알림톡 발송 — alimtalk_template 에서 template_code 로 본문을 가져와
+   * vars 의 키를 #{key} 로 치환 후 BizM v2 sender API 호출.
+   *
+   * 비즈엠은 템플릿 본문이 1글자라도 다르면 거부 → 친구톡 → SMS 강등됨.
+   * 그래서 본문은 DB(alimtalk_template) 등록값 그대로 가져오고, 변수만 치환한다.
+   *
+   * 사용처: 결제완료/입금확인 등 — sample 의 alimtalk_outbox + cron 패턴을 직접 발송으로 대체.
+   */
+  async sendAlimtalkByCode(
+    templateCode: string,
+    rawPhone: string,
+    vars: Record<string, string | number>,
+    smsTitle?: string,
+  ): Promise<{ ok: boolean; reason?: string; raw?: string }> {
+    const phone = this.normalize(rawPhone);
+    if (!phone) return { ok: false, reason: 'phone_invalid' };
+
+    const rows = await this.sql<{
+      template_code: string;
+      message: string;
+      primary_btn_name: string | null;
+      primary_btn_url: string | null;
+    }[]>`
+      SELECT template_code, message, primary_btn_name, primary_btn_url
+        FROM alimtalk_template
+       WHERE template_code = ${templateCode} AND is_active = true
+       LIMIT 1
+    `;
+    const tpl = rows[0];
+    if (!tpl) {
+      this.logger.error(`알림톡 템플릿 미등록: template_code=${templateCode}`);
+      return { ok: false, reason: 'template_not_found' };
+    }
+
+    const substitute = (s: string): string => {
+      let out = s;
+      for (const [k, v] of Object.entries(vars)) {
+        out = out.replace(new RegExp(`#\\{${k}\\}`, 'g'), String(v ?? ''));
+      }
+      return out;
+    };
+    const msg = substitute(tpl.message);
+    // BizM 콘솔에 등록된 버튼 — 누락 시 K108 NoMatchedTemplateButtonException 거부됨.
+    // primary_btn_url 의 #{url} 같은 변수도 vars 로 치환.
+    const btnUrl = tpl.primary_btn_url ? substitute(tpl.primary_btn_url) : '';
+    const btnName = tpl.primary_btn_name ?? '';
+
+    if (!this.bizmEnabled) {
+      this.logger.log(
+        `[ALIMTALK DEV] tpl=${templateCode} phone=${phone} msg=${msg.slice(0, 100)}...`,
+      );
+      return { ok: true, reason: 'dev_mode' };
+    }
+
+    const url = 'https://alimtalk-api.bizmsg.kr/v2/sender/send';
+    const phn = phone.startsWith('82') ? phone : `82${phone.replace(/^0/, '')}`;
+    const payload: Record<string, unknown> = {
+      message_type: 'at',
+      phn,
+      profile: this.bizmProfileKey,
+      tmplId: tpl.template_code,
+      msg,
+      // SMS 폴백 발신번호가 BizM 에 등록 안 된 경우 M107 DeniedSenderNumber 로 전체 거부됨.
+      // aligoSender 가 콘솔 등록 번호와 다르면 SMS 폴백 자체를 빼는 게 안전.
+      // smsKind 등 SMS 필드는 발신번호가 검증 통과될 때만 추가.
+    };
+    if (this.aligoSender) {
+      payload.smsKind = 'L';
+      payload.msgSms = msg;
+      payload.smsSender = this.aligoSender;
+      payload.smsLmsTit = smsTitle || '사주문 알림';
+    }
+    // 버튼 — BizM v2 표준: button1 = { name, type, url_mobile, url_pc }
+    if (btnName && btnUrl) {
+      payload.button1 = {
+        name: btnName,
+        type: 'WL', // 웹링크
+        url_mobile: btnUrl,
+        url_pc: btnUrl,
+      };
+    }
+    const body = [payload];
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-type': 'application/json', userId: this.bizmUserId },
+        body: JSON.stringify(body),
+      });
+      const text = await res.text();
+      let parsed: Array<{ code?: string; message?: string }> = [];
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        this.logger.error(`bizm 응답 파싱 실패 tpl=${templateCode}: ${text.slice(0, 400)}`);
+        return { ok: false, reason: 'parse_error', raw: text.slice(0, 400) };
+      }
+      const first = Array.isArray(parsed) ? parsed[0] : parsed;
+      const ok = String(first?.code) === 'success' || String(first?.message) === 'K000';
+      if (!ok) {
+        this.logger.error(
+          `bizm 거부 tpl=${templateCode} phone=${phone} body=${text.slice(0, 400)}`,
+        );
+        return { ok: false, reason: 'bizm_rejected', raw: text.slice(0, 400) };
+      }
+      this.logger.log(`[BIZM ok] tpl=${templateCode} phone=${phone}`);
+      return { ok: true, raw: text.slice(0, 400) };
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : String(e);
+      this.logger.error(`bizm 발송 예외 tpl=${templateCode}: ${reason}`);
+      return { ok: false, reason: 'network_error', raw: reason };
+    }
   }
 
   /**
@@ -185,7 +328,7 @@ export class SmsService {
         this.logger.error(`bizm find-pw 거부: ${text.slice(0, 400)}`);
         return false;
       }
-      this.logger.log(`[BIZM find-pw ok] phone=${phone} mb_id=${params.mbId}`);
+      this.logger.log(`[BIZM find-pw ok] phone=${phone} mb_id=${params.mbId} body=${text.slice(0, 200)}`);
       return true;
     } catch (e) {
       this.logger.error(

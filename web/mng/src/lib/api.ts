@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_BASE ?? '/api'
+import { API_BASE as BASE } from './runtime-env'
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {

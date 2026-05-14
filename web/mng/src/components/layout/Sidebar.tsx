@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   BarChart3, Bell, ChevronDown, CreditCard, FileText, Headphones,
-  LayoutDashboard, LogOut, MoreHorizontal, Settings, Shield, Users,
+  LayoutDashboard, LogOut, MoreHorizontal, Settings, Shield, Ticket, Users,
 } from 'lucide-react'
 
 /**
@@ -59,6 +59,7 @@ export default function Sidebar() {
                   <ul className="flex flex-col gap-1 mt-2 pl-9">
                     <li><NavLink to="/members/customers" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>고객 리스트</NavLink></li>
                     <li><NavLink to="/members/counselors" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담사 리스트</NavLink></li>
+                    <li><NavLink to="/members/counselor-apply" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담사 신청 내역</NavLink></li>
                   </ul>
                 )}
               </li>
@@ -79,6 +80,14 @@ export default function Sidebar() {
                     <li><NavLink to="/settlements" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>정산 이력</NavLink></li>
                   </ul>
                 )}
+              </li>
+
+              {/* 쿠폰존 관리 */}
+              <li>
+                <NavLink to="/coupon-zones" className={({ isActive }) => `menu-item ${isActive ? 'menu-item-active' : 'menu-item-inactive'}`}>
+                  <Ticket className="w-5 h-5 flex-shrink-0" />
+                  <span>쿠폰존 관리</span>
+                </NavLink>
               </li>
 
               {/* 상담관리 — 상담후기/채팅내역은 다음 단계에서 추가 (게시판 통합) */}
@@ -109,6 +118,7 @@ export default function Sidebar() {
                     <li><NavLink to="/search-popular" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>인기검색어 순위</NavLink></li>
                     <li><NavLink to="/faqs" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>FAQ 관리</NavLink></li>
                     <li><NavLink to="/notices" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>공지사항 관리</NavLink></li>
+                    <li><NavLink to="/events" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>이벤트 관리</NavLink></li>
                     <li><NavLink to="/post-reports" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>게시판 신고 관리</NavLink></li>
                   </ul>
                 )}
@@ -163,8 +173,7 @@ export default function Sidebar() {
                     <li><NavLink to="/banners" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>배너관리</NavLink></li>
                     <li><NavLink to="/popup-layers" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>팝업레이어 관리</NavLink></li>
                     <li><NavLink to="/saju-config" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>사주메인관리</NavLink></li>
-                    <li><NavLink to="/posts/wish" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>소원다락방</NavLink></li>
-                    <li><NavLink to="/posts/wish_event" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>소원다락방 EVENT</NavLink></li>
+                    {/* 소원다락방 / 소원다락방 EVENT — 퍼블리싱 미준비로 임시 숨김 */}
                     <li><NavLink to="/posts/qa" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담문의</NavLink></li>
                     <li><NavLink to="/posts/qa_counselor" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>1:1문의(상담사)</NavLink></li>
                   </ul>

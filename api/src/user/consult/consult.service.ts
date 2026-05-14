@@ -1,0 +1,978 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SQL, type Sql } from '../../shared/db/db.module';
+import { M2netService } from '../../shared/m2net/m2net.service';
+import { SmsService } from '../sms/sms.service';
+
+export interface PhoneConsultResult {
+  /** 사용자가 dial 해야 하는 대표번호 (선불=070, 후불=060) */
+  phone_number: string;
+  /** 통화 연결 후 입력할 상담사 번호 (csrid 또는 mb_no) */
+  counselor_code: string;
+  /** 'prepaid' | 'postpaid' */
+  variant: 'prepaid' | 'postpaid';
+}
+
+export interface ChatConsultResult {
+  /** 새로 생성됐거나 기존 채팅방 ID (DB PK) */
+  chat_room_id: number;
+  /** m2net 측 방 토큰 (wss URL 식별자, chat_room.roomid 와 동일) */
+  roomid: string;
+  /** 회원이 wss 접속 시 사용할 토큰 — `wss://{host}/wscp/{token}` */
+  member_token: string;
+  /** wss 베이스 URL (env M2NET_WSS_URL 또는 기본값) */
+  wss_url: string;
+  /** 재입장 여부 — true 면 기존 방 재사용, 처음 입장 시 false */
+  is_rejoin: boolean;
+}
+
+/**
+ * 전화/채팅 상담 시작 처리.
+ *  - 전화: m2net etc-mgr/drconn 으로 발신자 휴대폰을 미리 등록(예약) → 사용자가 대표번호로 발신 시 자동으로 상담사에게 라우팅
+ *  - 채팅: chat_room row 생성 (있으면 재사용) — 실제 메시징은 별도 채널
+ */
+@Injectable()
+export class UserConsultService {
+  private readonly logger = new Logger(UserConsultService.name);
+
+  constructor(
+    @Inject(SQL) private readonly sql: Sql,
+    private readonly m2net: M2netService,
+    private readonly config: ConfigService,
+    private readonly sms: SmsService,
+  ) {}
+
+  /** wss 접속 베이스 URL — env 미설정 시 sample/chat_test/cn.php 와 동일한 기본값 */
+  private wssUrl(): string {
+    return (
+      this.config.get<string>('M2NET_WSS_URL') ??
+      'wss://passcall.co.kr:28729/wscp'
+    ).replace(/\/$/, '');
+  }
+
+  /** 전화상담 시작 */
+  async startPhone(params: {
+    memberId: number;
+    counselorId: number;
+    variant: 'prepaid' | 'postpaid';
+  }): Promise<PhoneConsultResult> {
+    if (params.memberId === params.counselorId) {
+      throw new BadRequestException('본인에게 상담을 요청할 수 없습니다.');
+    }
+    // 회원/상담사 정보 조회
+    const meRows = await this.sql<{ phone: string | null }[]>`
+      SELECT phone FROM member WHERE id = ${params.memberId} AND left_at IS NULL LIMIT 1
+    `;
+    const me = meRows[0];
+    if (!me?.phone) {
+      throw new BadRequestException('휴대폰 번호가 등록되어 있지 않습니다. 마이페이지 > 회원 정보 수정에서 추가해주세요.');
+    }
+
+    const csrRows = await this.sql<{
+      id: number;
+      nickname: string;
+      csrid: string | null;
+      state: string;
+      use_phone: boolean;
+      use_chat: boolean;
+    }[]>`
+      SELECT id, nickname, csrid, state, use_phone, use_chat
+        FROM member
+       WHERE id = ${params.counselorId}
+         AND role = 'counselor'
+         AND left_at IS NULL
+       LIMIT 1
+    `;
+    const csr = csrRows[0];
+    if (!csr) {
+      throw new NotFoundException('상담사를 찾을 수 없습니다.');
+    }
+    if (!csr.use_phone) {
+      throw new ConflictException('해당 상담사는 전화상담을 운영하지 않습니다.');
+    }
+    if (!csr.csrid) {
+      throw new BadRequestException('상담사가 외부 콜시스템에 등록되어 있지 않습니다. 잠시 후 다시 시도해주세요.');
+    }
+    if (csr.state === 'CONN' || csr.state === 'CNCH') {
+      // stale 상태 자동 복구 — startChat 과 동일 로직 (orphan 보호)
+      const active = await this.sql<{ id: number }[]>`
+        SELECT 1 AS id FROM chat_room
+         WHERE counselor_id = ${params.counselorId}
+           AND status IN ('STAY', 'CNCH')
+         LIMIT 1
+        UNION ALL
+        SELECT 1 AS id FROM consultation
+         WHERE counselor_id = ${params.counselorId}
+           AND ended_at IS NULL
+           AND created_at > now() - interval '2 hours'
+         LIMIT 1
+      `;
+      if (active.length === 0) {
+        const target = csr.use_phone ? 'IDLE' : 'ABSE';
+        await this.sql`UPDATE member SET state = ${target}, updated_at = now() WHERE id = ${params.counselorId}`;
+        this.m2net.updateCounselorState(String(csr.csrid).padStart(5, '0'), target).catch(() => {});
+        this.logger.warn(`[startPhone] stale ${csr.state} 복구 (counselorId=${params.counselorId}) → ${target}`);
+        csr.state = target;
+      } else {
+        throw new ConflictException('현재 상담 중입니다. 잠시 후 다시 시도해주세요.');
+      }
+    }
+    if (csr.state === 'ABSE' || csr.state === 'RESV') {
+      throw new ConflictException('지금은 상담이 어렵습니다. 잠시 후 다시 시도해주세요.');
+    }
+
+    // 대표번호 조회 (selecting all consult.* settings — 한 번에)
+    const settingsRows = await this.sql<{ key: string; value: string | null }[]>`
+      SELECT key, value FROM setting
+       WHERE namespace = 'consult'
+         AND key IN ('phone_prepaid', 'phone_postpaid')
+    `;
+    const settingsMap: Record<string, string> = {};
+    for (const r of settingsRows) settingsMap[r.key] = r.value ?? '';
+    const phoneNumber =
+      params.variant === 'prepaid'
+        ? settingsMap['phone_prepaid']
+        : settingsMap['phone_postpaid'];
+    if (!phoneNumber) {
+      throw new BadRequestException('대표 전화번호가 설정되지 않았습니다. 관리자에게 문의해주세요.');
+    }
+
+    // sample(ajax.call_reserve.php) 은 drconn 직전 csrstat 을 호출하지 않는다.
+    // 우리도 강제 동기화를 제거 — m2net 측 단말 등록 상태와 drconn 의 단말 매칭은
+    // m2net 이 자체적으로 처리한다. (이전 csrstat preflight 가 오히려 상담사 단말
+    // state 를 잘못된 값으로 덮어쓰는 사례가 의심됨 → 콜이 안 울리는 증상.)
+
+    // m2net 에 발신자 → 상담사 라우팅 예약
+    const m = await this.m2net.reserveDirectConnect({
+      callerPhone: me.phone,
+      counselorCsrid: csr.csrid,
+    });
+    if (!m.ok) {
+      this.logger.warn(`[startPhone] m2net drconn 실패 — member=${params.memberId} counselor=${params.counselorId}: ${m.error}`);
+      // m2net 의 raw resultmessage 는 운영자 관점의 메시지(예: "해당 csrid는 없는 아이디",
+      // "등록된 단말 없음")라 사용자에게 그대로 노출하면 혼란스럽다. csrid/아이디 관련
+      // 에러는 상담사 등록 이슈로 매핑하고, 그 외는 일반 안내 문구로 통일.
+      const rawMsg =
+        m.raw && typeof m.raw === 'object' && 'resultmessage' in m.raw
+          ? String((m.raw as { resultmessage?: unknown }).resultmessage ?? '')
+          : '';
+      const looksLikeRegistrationIssue =
+        /csrid|아이디|등록|단말|미등록/i.test(rawMsg) ||
+        /csrid|registration|not\s*found/i.test(m.error ?? '');
+      throw new ConflictException(
+        looksLikeRegistrationIssue
+          ? '연결이나 등록이 되어있지 않은 상담사입니다. 잠시 후 다시 시도하시거나 다른 상담사를 이용해주세요.'
+          : '전화 연결 예약에 실패했습니다. 잠시 후 다시 시도해주세요.',
+      );
+    }
+
+    return {
+      phone_number: phoneNumber,
+      counselor_code: csr.csrid,
+      variant: params.variant,
+    };
+  }
+
+  /**
+   * 채팅상담 시작 — 규칙:
+   *  - 진행 중(STAY/CNCH, ended_at IS NULL) 방이 있으면 그 방을 재사용 = **재입장**
+   *  - 종료된(DISCONNECT 또는 ended_at NOT NULL) 방은 절대 재사용 안함 = 새 상담은 새 방
+   *  - 더블클릭/재시도 멱등성은 위 활성-방 재사용 규칙 + sql.begin 트랜잭션으로 보장
+   *  - m2net `chat-mgr csrchat` 호출로 진짜 roomid + membtoken 발급 (매뉴얼 §4.5).
+   *    재입장 시에도 토큰은 1회용이므로 매번 새로 받는다.
+   */
+  async startChat(params: {
+    memberId: number;
+    counselorId: number;
+  }): Promise<ChatConsultResult> {
+    if (params.memberId === params.counselorId) {
+      throw new BadRequestException('본인에게 상담을 요청할 수 없습니다.');
+    }
+
+    // 회원 m2net membid + 잔액 확인. snapshot_member_point + alloc_seconds 계산용.
+    const meRows = await this.sql<{ csrid: string | null; point: number }[]>`
+      SELECT csrid, point FROM member WHERE id = ${params.memberId} AND left_at IS NULL LIMIT 1
+    `;
+    const me = meRows[0];
+    if (!me?.csrid) {
+      throw new BadRequestException(
+        '채팅 시스템에 회원이 등록되어 있지 않습니다. 잠시 후 다시 시도해주세요.',
+      );
+    }
+    const memberPoint = Number(me.point) || 0;
+
+    const csrRows = await this.sql<{
+      id: number;
+      csrid: string | null;
+      state: string;
+      use_chat: boolean;
+      use_phone: boolean;
+      chat_unit_seconds: number | null;
+      chat_unit_cost: number | null;
+    }[]>`
+      SELECT id, csrid, state, use_chat, use_phone, chat_unit_seconds, chat_unit_cost
+        FROM member
+       WHERE id = ${params.counselorId}
+         AND role = 'counselor'
+         AND left_at IS NULL
+       LIMIT 1
+    `;
+    const csr = csrRows[0];
+    if (!csr) throw new NotFoundException('상담사를 찾을 수 없습니다.');
+    if (!csr.use_chat) {
+      throw new ConflictException('해당 상담사는 채팅상담을 운영하지 않습니다.');
+    }
+    if (!csr.csrid) {
+      throw new BadRequestException(
+        '상담사가 외부 채팅 시스템에 등록되어 있지 않습니다. 잠시 후 다시 시도해주세요.',
+      );
+    }
+    if (csr.state === 'CONN' || csr.state === 'CNCH') {
+      // stale 상태 자동 복구 — m2net 푸시 지연으로 CNCH/CONN 가 풀리지 않은 케이스.
+      // 실제 진행 중 chat_room/consultation 이 없으면 ready state 로 강제 복귀.
+      const active = await this.sql<{ id: number }[]>`
+        SELECT 1 AS id FROM chat_room
+         WHERE counselor_id = ${params.counselorId}
+           AND status IN ('STAY', 'CNCH')
+         LIMIT 1
+        UNION ALL
+        SELECT 1 AS id FROM consultation
+         WHERE counselor_id = ${params.counselorId}
+           AND ended_at IS NULL
+           AND created_at > now() - interval '2 hours'
+         LIMIT 1
+      `;
+      if (active.length === 0) {
+        // orphan 상태 — ready 로 복귀시키고 진행
+        const target = csr.use_phone && csr.use_chat
+          ? 'RDVC'
+          : !csr.use_phone && csr.use_chat
+            ? 'RDCH'
+            : csr.use_phone && !csr.use_chat
+              ? 'IDLE'
+              : 'ABSE';
+        await this.sql`UPDATE member SET state = ${target}, updated_at = now() WHERE id = ${params.counselorId}`;
+        // m2net 측에도 알림 (실패해도 진행 — 본 흐름에 영향 없음)
+        this.m2net.updateCounselorState(String(csr.csrid).padStart(5, '0'), target).catch(() => {});
+        this.logger.warn(`[startChat] stale ${csr.state} 복구 (counselorId=${params.counselorId}) → ${target}`);
+        csr.state = target;
+      } else {
+        throw new ConflictException('현재 상담 중입니다. 잠시 후 다시 시도해주세요.');
+      }
+    }
+    if (csr.state === 'ABSE' || csr.state === 'RESV') {
+      throw new ConflictException('지금은 상담이 어렵습니다. 잠시 후 다시 시도해주세요.');
+    }
+
+    // 단가 스냅샷 + 잔여시간 계산 — chat_room INSERT 에 채워야 tick 이 즉시 종료시키지 않는다.
+    const unitSec = Number(csr.chat_unit_seconds) > 0 ? Number(csr.chat_unit_seconds) : 30;
+    const unitCost = Number(csr.chat_unit_cost) > 0 ? Number(csr.chat_unit_cost) : 1500;
+    const allocSeconds = unitCost > 0 ? Math.floor(memberPoint / unitCost) * unitSec : 0;
+    if (allocSeconds < unitSec) {
+      throw new ConflictException('포인트가 부족합니다. 충전 후 다시 시도해주세요.');
+    }
+
+    // m2net 매뉴얼 §3.3 상태머신: csrchat 호출 전 상담사 m2net 측 상태가
+    // RDCH(채팅가능) 또는 RDVC(전화+채팅 가능) 여야 한다. IDLE/CRDY 등 다른 상태에선
+    // req_result=27 "채팅상담가능(RDCH)상태가 아님" 으로 거부됨.
+    //
+    // ⚠️ DB ↔ m2net 동기화 핵심 지점:
+    //  - 사주문 DB(member.state) 가 RDCH/RDVC 라도 m2net 측이 CNCH/CONN 로 stale 일 수 있다.
+    //    (반대 케이스도 발생 — 위쪽 stale 자동 복구에서 처리.)
+    //  - 따라서 csrchat 호출 직전에 m2net 측 상태를 명시적으로 RDCH/RDVC 로 동기 push (await).
+    //  - 실패 시 한 번 재시도 — 일시적 네트워크 오류 흡수.
+    const memberMembid = String(me.csrid).padStart(6, '0');
+    const counselorCsrid = String(csr.csrid).padStart(5, '0');
+    const chatTargetState = csr.use_phone ? 'RDVC' : 'RDCH';
+    let preflight = await this.m2net.updateCounselorState(counselorCsrid, chatTargetState);
+    if (!preflight.ok) {
+      this.logger.warn(
+        `[startChat] csrstat preflight 실패 (재시도) csrid=${counselorCsrid} target=${chatTargetState}: ${preflight.error ?? ''}`,
+      );
+      preflight = await this.m2net.updateCounselorState(counselorCsrid, chatTargetState);
+      if (!preflight.ok) {
+        this.logger.warn(
+          `[startChat] csrstat preflight 재시도 실패 csrid=${counselorCsrid} target=${chatTargetState}: ${preflight.error ?? ''}`,
+        );
+      }
+    }
+    // 사주문 DB 측도 ready state 로 명시적 정렬 (선반영 제거 후의 추가 보장)
+    await this.sql`
+      UPDATE member
+         SET state = ${chatTargetState}, updated_at = now()
+       WHERE id = ${params.counselorId}
+         AND state NOT IN ('CONN', 'CNCH')
+    `.catch(() => { /* 동기화 보강 — 실패해도 본 흐름 진행 */ });
+    const m = await this.m2net.createChatRoom({
+      membid: memberMembid,
+      csrid: counselorCsrid,
+    });
+    if (!m.ok || !m.roomid || !m.membtoken) {
+      const rawMsg =
+        m.raw && typeof m.raw === 'object' && 'resultmessage' in m.raw
+          ? String((m.raw as { resultmessage?: unknown }).resultmessage ?? '')
+          : '';
+      this.logger.warn(
+        `[startChat] m2net createChatRoom 실패 — member=${params.memberId}(membid=${memberMembid}) counselor=${params.counselorId}(csrid=${counselorCsrid}): err=${m.error} raw=${JSON.stringify(m.raw)}`,
+      );
+      // m2net 결과코드를 사용자 친화적 한글 메시지로 정규화.
+      // 매뉴얼 §5 결과코드 + raw resultmessage 한글 키워드 패턴 매칭.
+      const code = m.error?.match(/req_result=(\d+)/)?.[1];
+      const userMsg = mapM2netErrorToKorean(code, rawMsg);
+      throw new ConflictException(userMsg);
+    }
+    const m2netRoomid = m.roomid;
+    const memberToken = m.membtoken;
+
+    // 트랜잭션 내에서 활성 방 조회 → 있으면 재입장. 없으면 신규 INSERT.
+    //
+    // m2net 가 옛 roomid 를 재발급할 수 있어 종료된 chat_room 과 UNIQUE 충돌이 발생한다.
+    // 충돌 시: 충돌 row 가 종료방이면 그 roomid 를 suffix 붙여 무효화하고 다시 INSERT,
+    //         활성방이면 재입장(rejoin).
+    const result = await this.sql.begin(async (tx) => {
+      // 1) 본인의 활성 방 우선 조회 (m2net roomid 무관)
+      const existing = await tx<{ id: number; roomid: string; rejoin_count: number }[]>`
+        SELECT id, roomid, rejoin_count FROM chat_room
+         WHERE member_id = ${params.memberId}
+           AND counselor_id = ${params.counselorId}
+           AND status <> 'DISCONNECT'
+           AND ended_at IS NULL
+         ORDER BY id DESC
+         LIMIT 1
+         FOR UPDATE
+      `;
+      if (existing[0]) {
+        // 재입장 시에도 단가/잔여 스냅샷 갱신 (충전 반영)
+        await tx`
+          UPDATE chat_room
+             SET rejoin = TRUE,
+                 rejoin_count = rejoin_count + 1,
+                 rejoin_last_at = now(),
+                 unit_seconds = ${unitSec},
+                 unit_cost = ${unitCost},
+                 alloc_seconds_member = GREATEST(alloc_seconds_member, ${allocSeconds}),
+                 alloc_seconds_counselor = GREATEST(alloc_seconds_counselor, ${allocSeconds}),
+                 snapshot_member_point = ${memberPoint}
+           WHERE id = ${existing[0].id}
+        `;
+        // 재입장 — chat_room.roomid 는 절대 덮어쓰지 않는다. m2net 이 새 roomid 를 발급하더라도
+        // m2net-push (START_CHAT/END_CHAT) 와 자체 DB 가 같은 키로 라우팅돼야 메시지 동기화가 깨지지 않는다.
+        // chat.service.getRoom 의 동일 주석 참조.
+        if (existing[0].roomid !== m2netRoomid) {
+          this.logger.warn(
+            `[startChat rejoin] m2net csrchat 응답 roomid=${m2netRoomid} 가 DB roomid=${existing[0].roomid} 와 다름 — DB 유지`,
+          );
+        }
+        return { chat_room_id: existing[0].id, is_rejoin: true };
+      }
+
+      // 2) 신규 INSERT. roomid 충돌 시 → 충돌 row 가 종료방이면 무효화 후 재시도, 활성이면 rejoin.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const inserted = await tx<{ id: number }[]>`
+            INSERT INTO chat_room (
+              member_id, counselor_id, csrid, roomid, status, started_at,
+              unit_seconds, unit_cost,
+              alloc_seconds_member, alloc_seconds_counselor,
+              snapshot_member_point
+            ) VALUES (
+              ${params.memberId}, ${params.counselorId}, ${csr.csrid ?? ''}, ${m2netRoomid}, 'STAY', now(),
+              ${unitSec}, ${unitCost},
+              ${allocSeconds}, ${allocSeconds},
+              ${memberPoint}
+            )
+            RETURNING id
+          `;
+          return { chat_room_id: inserted[0].id, is_rejoin: false };
+        } catch (e) {
+          // UNIQUE 충돌 케이스만 처리, 그 외 예외는 그대로 throw
+          if (!(e instanceof Error) || !/duplicate key/i.test(e.message)) throw e;
+          const conflict = await tx<{ id: number; status: string }[]>`
+            SELECT id, status FROM chat_room WHERE roomid = ${m2netRoomid} LIMIT 1
+          `;
+          if (!conflict[0]) throw e;
+          if (conflict[0].status === 'DISCONNECT') {
+            // 종료방 → roomid 무효화 후 다시 INSERT 시도
+            await tx`
+              UPDATE chat_room SET roomid = roomid || '__c_' || id WHERE id = ${conflict[0].id}
+            `;
+            continue;
+          }
+          // 활성 방 (다른 회원/상담사 조합으로 사용중) — rejoin 처리
+          await tx`
+            UPDATE chat_room
+               SET rejoin = TRUE, rejoin_count = rejoin_count + 1, rejoin_last_at = now()
+             WHERE id = ${conflict[0].id}
+          `;
+          return { chat_room_id: conflict[0].id, is_rejoin: true };
+        }
+      }
+      throw new ConflictException('채팅방 생성 중 충돌이 반복되었습니다. 잠시 후 다시 시도해주세요.');
+    });
+
+    // ⚠️ 상담사 상태 'CNCH'(채팅상담중) 마킹은 여기서 하지 않는다.
+    //
+    // 회원이 채팅 시작을 "요청"한 시점일 뿐, 상담사가 실제로 채팅방에 입장한 것이 아니기 때문이다.
+    // 상담사가 입장하기 전에 DB/m2net 양쪽을 CNCH 로 바꿔버리면:
+    //  - 다른 회원의 '상담가능' 목록에서 사라져 영업 손실
+    //  - m2net 측은 RDCH/RDVC 상태인데 사주문 DB 만 CNCH 라 동기화 깨짐
+    //  - 상담사가 입장 거부/지연해도 영원히 CNCH 잠금
+    //
+    // 따라서 chat_room.status='STAY' 로만 두고, 상담사가 실제로 채팅방에 들어왔다는
+    // m2net 의 START_CHAT push 가 도착했을 때 m2net-push.service 가
+    // member.state='CNCH' + chat_room.status='CNCH' 로 동기 전환한다.
+    // (재입장 케이스 — 이미 status='CNCH' 인 방 — 는 그대로 둔다.)
+
+    // 채팅방 신규 개설 시 상담사에게 BizM 알림톡 발송 (sample 의 ajax.send_chat 동등).
+    // 템플릿: chat_counseling2  변수: 상담사명 / url
+    // 버튼 url 은 채팅방 직접 진입 경로 (chat/{chat_room_id}). 비로그인이면 ChatRoom 컴포넌트가
+    // /login?redirect=/chat/{id} 로 자동 라우팅 (가드 처리).
+    // 재입장(is_rejoin=true) 케이스는 발송하지 않는다 — 이미 진행 중인 방.
+    // void 로 띄워 응답 지연이 발생해도 채팅 시작 자체가 막히지 않도록.
+    if (!result.is_rejoin) {
+      void this.notifyCounselorChatRequest(params.counselorId, result.chat_room_id).catch((e) => {
+        this.logger.warn(
+          `[startChat] 상담사 알림톡 발송 실패 counselorId=${params.counselorId}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      });
+    }
+
+    return {
+      chat_room_id: result.chat_room_id,
+      roomid: m2netRoomid,
+      member_token: memberToken,
+      wss_url: this.wssUrl(),
+      is_rejoin: result.is_rejoin,
+    };
+  }
+
+  /**
+   * 상담사 BizM 알림톡 — "채팅 상담방 개설" 안내.
+   * 템플릿: chat_counseling2 (BizM 콘솔 승인)
+   *   ※ 사주문 긴급 상담 참여 요청 ※
+   *   #{상담사명}님, 고객이 채팅 상담 입장을 기다리고 있습니다.
+   *   지금 바로 상담에 참여해 주세요.
+   *   ※ 상담 연결이 늦어지면 고객 연결이 자동 취소될 수 있습니다.
+   */
+  private async notifyCounselorChatRequest(
+    counselorId: number,
+    chatRoomId: number,
+  ): Promise<void> {
+    const rows = await this.sql<{ phone: string | null; nickname: string | null; name: string | null }[]>`
+      SELECT phone, nickname, name FROM member WHERE id = ${counselorId} LIMIT 1
+    `;
+    const csr = rows[0];
+    if (!csr || !csr.phone) {
+      this.logger.warn(`[notifyCounselorChatRequest] 상담사 휴대폰 없음 counselorId=${counselorId}`);
+      return;
+    }
+    const displayName = (csr.nickname || csr.name || '상담사').trim();
+    // 버튼 url 의 #{url} 변수 → 채팅방 직접 진입 경로. ChatRoom 컴포넌트가 비로그인 시
+    // /login?redirect=/chat/{id} 로 자동 라우팅하고, 로그인 후 자동 복귀.
+    const r = await this.sms.sendAlimtalkByCode(
+      'chat_counseling2',
+      csr.phone,
+      { 상담사명: displayName, url: `chat/${chatRoomId}` },
+      '채팅 상담방 개설',
+    );
+    if (!r.ok) {
+      this.logger.warn(
+        `[notifyCounselorChatRequest] BizM 발송 실패 counselorId=${counselorId} reason=${r.reason}`,
+      );
+    }
+  }
+
+  // ============================================================
+  // 통합 상담내역 (sample/my/history.php 동등)
+  //
+  //  - 본인 회원의 종료된(DISCONNECT/END_CHAT) consultation 만 조회.
+  //  - 전화/채팅 통합. type='call' 이면 roomid IS NULL, type='chat' 이면 roomid 있음.
+  //  - 각 row 에 review_id 동봉 → "후기 작성하기" 또는 "후기 보러가기" 분기.
+  // ============================================================
+  async history(params: {
+    memberId: number;
+    page?: number;
+    limit?: number;
+    type?: 'all' | 'call' | 'chat';
+    /** 'counselor' 면 counselor_id = me 기준, 그 외엔 member_id = me 기준. */
+    role?: 'member' | 'counselor';
+  }): Promise<{
+    items: ConsultHistoryItem[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const page = Math.max(1, Math.trunc(params.page ?? 1));
+    const limit = Math.min(50, Math.max(1, Math.trunc(params.limit ?? 10)));
+    const offset = (page - 1) * limit;
+    const t = params.type ?? 'all';
+    const isCounselor = params.role === 'counselor';
+
+    const typeFilter =
+      t === 'call'
+        ? this.sql`AND (c.roomid IS NULL OR c.roomid = '')`
+        : t === 'chat'
+        ? this.sql`AND c.roomid IS NOT NULL AND c.roomid <> ''`
+        : this.sql``;
+
+    type Row = {
+      kind: 'ended' | 'active_chat';
+      id: number;
+      chat_room_id: number | null;
+      chat_status: string | null;
+      reason: string | null;
+      usetm: number;
+      amt: number;
+      roomid: string | null;
+      started_at: Date | null;
+      ended_at: Date | null;
+      created_at: Date | null;
+      /** member 시점에선 상담사 정보, counselor 시점에선 회원 정보를 담는다. */
+      counselor_id: number | null;
+      counselor_name: string | null;
+      counselor_nickname: string | null;
+      counselor_code: string | null;
+      counselor_profile_image: string | null;
+      counselor_profile_image_webp: string | null;
+      hashtag1: string | null;
+      hashtag2: string | null;
+      specialty: string | null;
+      review_id: number | null;
+      /** counselor 시점 — 상담사가 작성한 답변 id (없으면 null) */
+      reply_id: number | null;
+      sort_at: Date | null;
+      total: string;
+    };
+
+    // call 탭이면 active chat 행은 자동 제외, chat/전체면 포함.
+    const includeActiveChats = t !== 'call';
+
+    // role 별 owner / peer 컬럼 결정.
+    //  - member 시점: owner=member_id, peer=counselor_id (peer 가 상담사 → 뱃지/코드 노출)
+    //  - counselor 시점: owner=counselor_id, peer=member_id (peer 가 회원)
+    const ownerCol = isCounselor ? this.sql`counselor_id` : this.sql`member_id`;
+    const peerCol = isCounselor ? this.sql`member_id` : this.sql`counselor_id`;
+    const activeOwnerCol = isCounselor ? this.sql`counselor_id` : this.sql`member_id`;
+    const activePeerCol = isCounselor ? this.sql`member_id` : this.sql`counselor_id`;
+
+    // review 매칭: chat_room 종료 후 작성된 회원 후기 1건 (review.member_id = 상담받은 회원).
+    // counselor 시점이라도 후기는 회원(member_id) 이 작성한 것이므로 peer 가 회원 = 상담의 member_id.
+    // 단순화: review 매칭은 (member_id, counselor_id) 쌍 + created_at 기준으로 동일하게 유지.
+    // counselor 시점에서는 추가로 본인이 작성한 답변(reply_id) 도 LATERAL 로 함께 끌어온다.
+    const replyJoin = isCounselor
+      ? this.sql`
+          LEFT JOIN LATERAL (
+            SELECT id FROM post_review_reply
+             WHERE post_review_reply.review_id = pr.id
+               AND post_review_reply.counselor_id = ${params.memberId}
+             LIMIT 1
+          ) rep ON TRUE
+        `
+      : this.sql``;
+    const replySelect = isCounselor
+      ? this.sql`rep.id AS reply_id,`
+      : this.sql`NULL::bigint AS reply_id,`;
+    const replySelectActive = this.sql`NULL::bigint AS reply_id,`;
+
+    // 진행 중 방은 is_member_deleted 무시 — 사용자가 우연히 "삭제" 눌렀어도 재입장
+    // 경로가 살아있어야 정산이 정상 동작한다. (정산이 완료된 종료 상담만 삭제 의미 있음)
+    const activeChatBranch = includeActiveChats
+      ? this.sql`
+          UNION ALL
+          SELECT
+                 'active_chat'::text         AS kind,
+                 cr.id                        AS id,
+                 cr.id                        AS chat_room_id,
+                 cr.status                    AS chat_status,
+                 NULL::varchar                AS reason,
+                 cr.use_seconds               AS usetm,
+                 0                            AS amt,
+                 cr.roomid                    AS roomid,
+                 cr.started_at                AS started_at,
+                 NULL::timestamptz            AS ended_at,
+                 cr.started_at                AS created_at,
+                 pm.id                        AS counselor_id,
+                 pm.name                      AS counselor_name,
+                 pm.nickname                  AS counselor_nickname,
+                 pm.csrid                     AS counselor_code,
+                 (SELECT mf.stored_name      FROM member_file mf
+                   WHERE mf.member_id = pm.id AND mf.kind = 'profile'
+                   ORDER BY mf.id DESC LIMIT 1) AS counselor_profile_image,
+                 (SELECT mf.stored_name_webp FROM member_file mf
+                   WHERE mf.member_id = pm.id AND mf.kind = 'profile'
+                   ORDER BY mf.id DESC LIMIT 1) AS counselor_profile_image_webp,
+                 pc.hashtag1, pc.hashtag2, pc.specialty,
+                 NULL::bigint                 AS review_id,
+                 ${replySelectActive}
+                 COALESCE(cr.started_at, now()) AS sort_at
+            FROM chat_room cr
+            LEFT JOIN member pm           ON pm.id = cr.${activePeerCol}
+            LEFT JOIN post_counselor pc   ON pc.member_id = pm.id
+           WHERE cr.${activeOwnerCol} = ${params.memberId}
+             AND cr.status IN ('STAY', 'CNCH')
+        `
+      : this.sql``;
+
+    // sample/my/history.php 와 동일하게 reason 으로 종료건만 필터.
+    // post_review 와 LEFT JOIN 해서 후기 존재 여부도 한 번에 가져옴.
+    // 추가: 진행 중(STAY/CNCH) chat_room 은 active_chat 행으로 UNION — 후기/완료 카드 대신 "채팅방 입장하기" 노출.
+    const rows = await this.sql<Row[]>`
+      WITH unioned AS (
+        SELECT
+               'ended'::text                AS kind,
+               c.id                          AS id,
+               cr.id                         AS chat_room_id,
+               cr.status                     AS chat_status,
+               c.reason                      AS reason,
+               c.usetm                       AS usetm,
+               c.amt                         AS amt,
+               c.roomid                      AS roomid,
+               c.started_at                  AS started_at,
+               c.ended_at                    AS ended_at,
+               c.created_at                  AS created_at,
+               pm.id                         AS counselor_id,
+               pm.name                       AS counselor_name,
+               pm.nickname                   AS counselor_nickname,
+               pm.csrid                      AS counselor_code,
+               (SELECT mf.stored_name      FROM member_file mf
+                 WHERE mf.member_id = pm.id AND mf.kind = 'profile'
+                 ORDER BY mf.id DESC LIMIT 1) AS counselor_profile_image,
+               (SELECT mf.stored_name_webp FROM member_file mf
+                 WHERE mf.member_id = pm.id AND mf.kind = 'profile'
+                 ORDER BY mf.id DESC LIMIT 1) AS counselor_profile_image_webp,
+               pc.hashtag1, pc.hashtag2, pc.specialty,
+               pr.id                         AS review_id,
+               ${replySelect}
+               c.created_at                  AS sort_at
+          FROM consultation c
+          LEFT JOIN member pm           ON pm.id = c.${peerCol}
+          LEFT JOIN post_counselor pc   ON pc.member_id = c.counselor_id
+          -- chat_room.roomid 는 종료 시 __c_id suffix 가 붙고 consultation.roomid 는
+          -- m2net push 시점의 원본을 그대로 갖는 경우가 있어, suffix 를 정규화한 base
+          -- roomid 로 매칭한다. 매칭 안 되면 (member, counselor, started_at) 근사 매칭으로 폴백.
+          -- 같은 base roomid 로 여러 chat_room 이 있을 수 있어 LATERAL 로 1건만 선택.
+          LEFT JOIN LATERAL (
+            SELECT cr2.id, cr2.status, cr2.roomid
+              FROM chat_room cr2
+             WHERE c.roomid IS NOT NULL AND c.roomid <> ''
+               AND (
+                 regexp_replace(cr2.roomid, '__c_\d+$', '') = regexp_replace(c.roomid, '__c_\d+$', '')
+                 OR (
+                   cr2.member_id = c.member_id
+                   AND cr2.counselor_id = c.counselor_id
+                   AND cr2.started_at = c.started_at
+                 )
+               )
+             ORDER BY cr2.id DESC
+             LIMIT 1
+          ) cr ON TRUE
+          LEFT JOIN LATERAL (
+            -- 1순위: extras.consultation_id 로 정확 매칭 (현행 작성 경로가 항상 저장).
+            -- 폴백: (member_id, counselor_id) + 종료 후 + extras.consultation_id 미보유 인 후기만
+            --       시간 순으로 1건. 같은 상담사에게 여러 번 상담받았더라도, 이미 다른 상담에
+            --       매칭된 후기는 제외되어 카드별 review_id 가 중복되지 않는다.
+            SELECT id FROM post_review
+             WHERE post_review.member_id = c.member_id
+               AND post_review.counselor_id = c.counselor_id
+               AND (
+                 (
+                   (post_review.extras ->> 'consultation_id') ~ '^[0-9]+$'
+                   AND (post_review.extras ->> 'consultation_id')::bigint = c.id
+                 )
+                 OR (
+                   (post_review.extras ->> 'consultation_id') IS NULL
+                   AND post_review.created_at >= COALESCE(c.ended_at, c.created_at)
+                   AND NOT EXISTS (
+                     SELECT 1 FROM consultation c2
+                      WHERE c2.member_id = c.member_id
+                        AND c2.counselor_id = c.counselor_id
+                        AND c2.id <> c.id
+                        AND c2.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
+                        AND COALESCE(c2.ended_at, c2.created_at)
+                              BETWEEN COALESCE(c.ended_at, c.created_at)
+                                  AND post_review.created_at
+                   )
+                 )
+               )
+             ORDER BY
+               -- 정확 매칭이 우선
+               CASE
+                 WHEN (post_review.extras ->> 'consultation_id') ~ '^[0-9]+$'
+                  AND (post_review.extras ->> 'consultation_id')::bigint = c.id THEN 0
+                 ELSE 1
+               END,
+               post_review.id ASC
+             LIMIT 1
+          ) pr ON TRUE
+          ${replyJoin}
+         WHERE c.${ownerCol} = ${params.memberId}
+           AND c.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
+           -- 같은 상대와의 채팅방이 아직 진행 중(STAY/CNCH) 이면 ended 카드는 표시하지 않는다.
+           -- 진행 중 방은 active_chat 분기로만 "채팅방 재입장하기" 카드 1개만 노출.
+           -- 후기 작성하기는 채팅방이 완전히 종료된 후에만 가능해야 함.
+           AND NOT EXISTS (
+             SELECT 1 FROM chat_room cra
+              WHERE cra.${activeOwnerCol} = ${params.memberId}
+                AND cra.${activePeerCol} = c.${peerCol}
+                AND cra.status IN ('STAY', 'CNCH')
+           )
+           ${typeFilter}
+        ${activeChatBranch}
+      )
+      SELECT *, COUNT(*) OVER ()::text AS total
+        FROM unioned
+       ORDER BY
+         -- 진행 중(채팅방 입장 대기) 카드는 항상 목록 끝으로.
+         -- 종료된 상담을 시간 역순으로 우선 노출하고, 대기 중인 방은 그 뒤에 배치.
+         CASE WHEN kind = 'active_chat' THEN 1 ELSE 0 END ASC,
+         sort_at DESC
+       LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    const total = rows.length > 0 ? Number(rows[0].total) : 0;
+
+    const items: ConsultHistoryItem[] = rows.map((r) => {
+      const isActiveChat = r.kind === 'active_chat';
+      const isChat = isActiveChat || !!(r.roomid && r.roomid.trim().length > 0);
+      const startedAt = r.started_at ?? r.created_at;
+      const endedAt = r.ended_at;
+      return {
+        id: r.id,
+        consult_type: isChat ? 'chat' : 'call',
+        consult_type_label: isChat ? '채팅상담' : '전화상담',
+        started_at: startedAt instanceof Date ? startedAt.toISOString() : startedAt,
+        ended_at: endedAt instanceof Date ? endedAt.toISOString() : endedAt,
+        usetm_seconds: Number(r.usetm) || 0,
+        usetm_label: formatUsetm(Number(r.usetm) || 0),
+        amt: Number(r.amt) || 0,
+        counselor_id: r.counselor_id,
+        counselor_name: r.counselor_nickname || r.counselor_name || '상담사',
+        counselor_code: r.counselor_code,
+        counselor_avatar: r.counselor_profile_image
+          ? `/uploads/member/${r.counselor_profile_image}`
+          : null,
+        counselor_avatar_webp: r.counselor_profile_image_webp
+          ? `/uploads/member/${r.counselor_profile_image_webp}`
+          : null,
+        counselor_badge: inferBadge(r.specialty, r.hashtag1, r.hashtag2),
+        review_id: r.review_id,
+        reply_id: r.reply_id ?? null,
+        chat_room_id: r.chat_room_id ? Number(r.chat_room_id) : null,
+        chat_status: r.chat_status,
+        is_active_chat: isActiveChat,
+      };
+    });
+
+    return { items, total, page, limit };
+  }
+
+  // ─────────────────────────────────────────────
+  // 상담 메모 (상담사 전용) — sample c_history 동등
+  // ─────────────────────────────────────────────
+
+  /** GET — 본인이 상담사인 consultation 의 메모 조회 + 상담 헤더 정보 */
+  async getMemo(params: { counselorId: number; consultationId: number }): Promise<{
+    consultation: {
+      id: number;
+      member_name: string;
+      started_at: string | null;
+      ended_at: string | null;
+      amt: number;
+      reason: string;
+      is_chat: boolean;
+    } | null;
+    memo: { category: string | null; topic: string | null; memo: string | null } | null;
+  }> {
+    const rows = await this.sql<{
+      id: number;
+      counselor_id: number | null;
+      member_id: number | null;
+      member_name: string | null;
+      started_at: Date | null;
+      ended_at: Date | null;
+      amt: number;
+      reason: string | null;
+      roomid: string | null;
+    }[]>`
+      SELECT c.id, c.counselor_id, c.member_id, m.name AS member_name,
+             c.started_at, c.ended_at, c.amt, c.reason, c.roomid
+        FROM consultation c
+        LEFT JOIN member m ON m.id = c.member_id
+       WHERE c.id = ${params.consultationId}
+       LIMIT 1
+    `;
+    const c = rows[0];
+    if (!c) return { consultation: null, memo: null };
+    if (c.counselor_id !== params.counselorId) {
+      // 본인 상담이 아니면 403 대신 null 반환 (정보 노출 방지)
+      return { consultation: null, memo: null };
+    }
+    const memoRows = await this.sql<{ category: string | null; topic: string | null; memo: string | null }[]>`
+      SELECT category, topic, memo
+        FROM consult_memo
+       WHERE consultation_id = ${params.consultationId}
+       LIMIT 1
+    `;
+    return {
+      consultation: {
+        id: c.id,
+        member_name: c.member_name ?? '회원',
+        started_at: c.started_at?.toISOString() ?? null,
+        ended_at: c.ended_at?.toISOString() ?? null,
+        amt: Number(c.amt) || 0,
+        reason: c.reason ?? '',
+        is_chat: c.reason === 'END_CHAT' || c.reason === 'END_CHAT_LOCAL' || !!c.roomid,
+      },
+      memo: memoRows[0] ?? null,
+    };
+  }
+
+  /** POST — UPSERT 메모 (본인 상담만 작성 가능). */
+  async upsertMemo(params: {
+    counselorId: number;
+    consultationId: number;
+    category: string | null;
+    topic: string | null;
+    memo: string | null;
+  }): Promise<{ ok: true }> {
+    const check = await this.sql<{ counselor_id: number | null }[]>`
+      SELECT counselor_id FROM consultation WHERE id = ${params.consultationId} LIMIT 1
+    `;
+    if (!check[0]) {
+      throw new BadRequestException('상담 정보가 없습니다.');
+    }
+    if (check[0].counselor_id !== params.counselorId) {
+      throw new BadRequestException('본인 상담만 메모를 작성할 수 있습니다.');
+    }
+    const cat = params.category ? params.category.slice(0, 50) : null;
+    const topic = params.topic ? params.topic.slice(0, 50) : null;
+    const memo = params.memo ?? null;
+    await this.sql`
+      INSERT INTO consult_memo (consultation_id, counselor_id, category, topic, memo, created_at, updated_at)
+      VALUES (${params.consultationId}, ${params.counselorId}, ${cat}, ${topic}, ${memo}, now(), now())
+      ON CONFLICT (consultation_id) DO UPDATE
+         SET category = EXCLUDED.category,
+             topic    = EXCLUDED.topic,
+             memo     = EXCLUDED.memo,
+             updated_at = now()
+    `;
+    return { ok: true };
+  }
+}
+
+export interface ConsultHistoryItem {
+  id: number;
+  consult_type: 'call' | 'chat';
+  consult_type_label: string;
+  started_at: string | null;
+  ended_at: string | null;
+  /** 통화/채팅 진행 시간 (초). sample 의 usetm 동일. */
+  usetm_seconds: number;
+  /** "00시간17분30초" 포맷 */
+  usetm_label: string;
+  /** 사용 코인 (amt) */
+  amt: number;
+  counselor_id: number | null;
+  counselor_name: string;
+  counselor_code: string | null;
+  counselor_avatar: string | null;
+  counselor_avatar_webp: string | null;
+  counselor_badge: '사주' | '타로' | '신점' | '기타';
+  /** 후기 작성 완료된 경우 review id, 없으면 null */
+  review_id: number | null;
+  /** 상담사 시점에서만 채워짐 — 본인이 작성한 후기 답변 id, 없으면 null */
+  reply_id: number | null;
+  /** 채팅방 id (진행 중이거나 종료된 채팅 상담에 한해 매칭됨). 없으면 null. */
+  chat_room_id: number | null;
+  /** 채팅방 status — 'STAY' | 'CNCH' | 'DISCONNECT' | null */
+  chat_status: string | null;
+  /** 진행 중인 채팅(STAY/CNCH) 인지. true 면 "채팅방 입장하기" 버튼 노출 대상 */
+  is_active_chat: boolean;
+}
+
+/** sample 의 gmdate("H:i:s", $usetm) 와 유사하지만 한국어 라벨로. */
+function formatUsetm(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${String(h).padStart(2, '0')}시간${String(m).padStart(2, '0')}분${String(sec).padStart(2, '0')}초`;
+}
+
+function inferBadge(...vals: (string | null)[]): '사주' | '타로' | '신점' | '기타' {
+  const text = vals.filter(Boolean).join(' ');
+  if (text.includes('타로')) return '타로';
+  if (text.includes('신점')) return '신점';
+  if (text.includes('사주')) return '사주';
+  return '기타';
+}
+
+/**
+ * m2net 결과코드/메시지를 회원이 알아볼 수 있는 한글 안내로 정규화.
+ * 매뉴얼 §5 결과코드 + raw resultmessage 한글 키워드 매칭.
+ * 영어 코드(req_result, csrid 등) 는 회원에게 절대 노출하지 않는다.
+ */
+function mapM2netErrorToKorean(code: string | undefined, rawMsg: string): string {
+  // 1) 결과코드로 정확한 의미가 있는 경우 그 한글 안내를 사용
+  switch (code) {
+    case '01':
+      return '상담사 상태 정보가 누락되었습니다. 관리자에게 문의해주세요.';
+    case '02':
+    case '03':
+    case '04':
+    case '05':
+    case '06':
+    case '08':
+    case '09':
+    case '10':
+    case '11':
+    case '12':
+      return '상담사 정보 등록이 완전하지 않습니다. 관리자에게 문의해주세요.';
+    case '07':
+      return '상담 시스템에 일시적인 오류가 있습니다. 잠시 후 다시 시도해주세요.';
+    case '21':
+    case '22':
+      return '인증 정보 오류로 채팅을 시작할 수 없습니다. 관리자에게 문의해주세요.';
+    case '23':
+      return '회원 또는 상담사가 외부 채팅 시스템에 등록되어 있지 않습니다.';
+    case '24':
+      return '동일한 휴대폰 번호로 이미 등록된 회원이 있습니다.';
+    case '25':
+      return '상담사 연결 번호가 올바르지 않습니다. 관리자에게 문의해주세요.';
+    case '27':
+      // 27 은 채팅에서 "상태 아님" 거절도 사용. raw 메시지로 세분화.
+      if (rawMsg.includes('RDCH') || rawMsg.includes('채팅') || rawMsg.includes('상태')) {
+        return '상담사가 현재 채팅을 받을 수 없는 상태입니다. 잠시 후 다시 시도해주세요.';
+      }
+      return '채팅 시작 처리에 실패했습니다. 잠시 후 다시 시도해주세요.';
+  }
+
+  // 2) raw 메시지의 한글 키워드로 매칭
+  if (rawMsg) {
+    if (/부재중|ABSE/.test(rawMsg)) {
+      return '상담사가 현재 부재중입니다. 잠시 후 다시 시도해주세요.';
+    }
+    if (/상담중|통화중|CONN|CNCH/.test(rawMsg)) {
+      return '상담사가 다른 상담을 진행 중입니다. 잠시 후 다시 시도해주세요.';
+    }
+    if (/잔액|포인트|부족|INSUFFICIENT/i.test(rawMsg)) {
+      return '보유 포인트가 부족하여 채팅을 시작할 수 없습니다.';
+    }
+    if (/등록|미등록|존재하지|없는/.test(rawMsg)) {
+      return '회원 또는 상담사 정보가 외부 시스템에 등록되어 있지 않습니다.';
+    }
+    if (/상태|RDCH|RDVC/.test(rawMsg)) {
+      return '상담사가 현재 채팅을 받을 수 없는 상태입니다. 잠시 후 다시 시도해주세요.';
+    }
+  }
+
+  // 3) 그 외엔 일반 안내
+  return '채팅을 시작할 수 없습니다. 잠시 후 다시 시도해주세요.';
+}

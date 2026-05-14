@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { CloseIcon } from './icons'
+import { useDismissOnBack } from '../lib/use-dismiss-on-back'
 
 export type TermsKind = 'terms' | 'privacy'
 
@@ -23,6 +24,7 @@ const PLACEHOLDER_BODY = `(본문 준비 중)
  * 화면 위에 떠 있는 카드 (배경 dim, 카드 white, 우상단 X 버튼)
  */
 export default function TermsModal({ kind, onClose }: Props) {
+  useDismissOnBack(kind !== null, onClose)
   useEffect(() => {
     if (!kind) return
     document.body.style.overflow = 'hidden'

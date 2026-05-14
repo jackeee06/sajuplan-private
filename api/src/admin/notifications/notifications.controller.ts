@@ -29,6 +29,12 @@ export class NotificationsController {
     });
   }
 
+  /** 푸시 발송 이력 전체 삭제 */
+  @Delete('push-history')
+  clearPushHistory() {
+    return this.svc.clearPushHistory();
+  }
+
   /** 푸시 발송: target=all|user|counselor|member_id */
   @Post('push-send')
   pushSend(@Body() body: { target: string; title: string; content?: string; link_url?: string }) {
@@ -38,6 +44,36 @@ export class NotificationsController {
       content: body.content,
       link_url: body.link_url,
     });
+  }
+
+  /**
+   * 푸시 발송 테스트 — token 또는 topic 직접 지정.
+   * notification_log 에 기록하지 않으므로 운영 발송 이력에 노이즈가 남지 않음.
+   *
+   * Body (둘 중 하나):
+   *   { token: string,  title, content?, link_url? }   → 단일 토큰 직접 발송
+   *   { topic: string,  title, content?, link_url? }   → 토픽 발송 (예: 'chl_2', 'chl_5', 'chl_all')
+   */
+  @Post('push-test')
+  pushTest(
+    @Body() body: {
+      token?: string;
+      topic?: string;
+      title: string;
+      content?: string;
+      link_url?: string;
+    },
+  ) {
+    return this.svc.sendPushTest(body);
+  }
+
+  /**
+   * 알림톡 테스트 발송 — 등록 템플릿을 임의 폰으로 즉시 발송 (이력 적재 없음).
+   * Body: { template_code: string; phone: string; vars?: Record<string, string|number> }
+   */
+  @Post('alimtalk-test')
+  alimtalkTest(@Body() body: { template_code: string; phone: string; vars?: Record<string, string | number> }) {
+    return this.svc.sendAlimtalkTest(body);
   }
 
   // 알림톡 템플릿

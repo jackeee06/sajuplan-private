@@ -1,0 +1,99 @@
+# Resolve react_native_pods.rb with node to allow for hoisting
+require Pod::Executable.execute_command('node', ['-p',
+  'require.resolve(
+    "react-native/scripts/react_native_pods.rb",
+    {paths: [process.argv[1]]},
+  )', __dir__]).strip
+
+platform :ios, min_ios_version_supported
+prepare_react_native_project!
+
+linkage = ENV['USE_FRAMEWORKS']
+if linkage != nil
+  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+  use_frameworks! :linkage => linkage.to_sym
+end
+
+target 'Sajumoon' do
+  config = use_native_modules!
+
+  # FirebaseCoreInternal(Swift)이 GoogleUtilities를 import하려면 module map이 있어야 함.
+  # static lib 빌드에서 Swift pod 통합 위해 modular_headers 강제.
+  pod 'GoogleUtilities', :modular_headers => true
+  pod 'FirebaseCore', :modular_headers => true
+  pod 'FirebaseCoreInternal', :modular_headers => true
+  pod 'nanopb', :modular_headers => true
+  pod 'GoogleDataTransport', :modular_headers => true
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    # An absolute path to your application root.
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  post_install do |installer|
+    # https://github.com/facebook/react-native/blob/main/packages/react-native/scripts/react_native_pods.rb#L197-L202
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false,
+      # :ccache_enabled => true
+    )
+
+    # Xcode 16+/Clang 17+ 에서 fmt 11.x consteval 검사 실패(glog/RCT-Folly가 런타임 값으로
+    # 포맷 문자열을 넘기는 케이스) 회피. fmt/base.h 의 FMT_USE_CONSTEVAL 정의에는 ifndef
+    # 가드가 없어 -D 플래그로 덮을 수 없으므로 헤더 자체를 패치한다.
+    fmt_base_h = "#{installer.sandbox.root}/fmt/include/fmt/base.h"
+    if File.exist?(fmt_base_h)
+      content = File.read(fmt_base_h)
+      original_block = <<~ORIG
+        // Detect consteval, C++20 constexpr extensions and std::is_constant_evaluated.
+        #if !defined(__cpp_lib_is_constant_evaluated)
+        #  define FMT_USE_CONSTEVAL 0
+        #elif FMT_CPLUSPLUS < 201709L
+        #  define FMT_USE_CONSTEVAL 0
+        #elif FMT_GLIBCXX_RELEASE && FMT_GLIBCXX_RELEASE < 10
+        #  define FMT_USE_CONSTEVAL 0
+        #elif FMT_LIBCPP_VERSION && FMT_LIBCPP_VERSION < 10000
+        #  define FMT_USE_CONSTEVAL 0
+        #elif defined(__apple_build_version__) && __apple_build_version__ < 14000029L
+        #  define FMT_USE_CONSTEVAL 0  // consteval is broken in Apple clang < 14.
+        #elif FMT_MSC_VERSION && FMT_MSC_VERSION < 1929
+        #  define FMT_USE_CONSTEVAL 0  // consteval is broken in MSVC VS2019 < 16.10.
+        #elif defined(__cpp_consteval)
+        #  define FMT_USE_CONSTEVAL 1
+        #elif FMT_GCC_VERSION >= 1002 || FMT_CLANG_VERSION >= 1101
+        #  define FMT_USE_CONSTEVAL 1
+        #else
+        #  define FMT_USE_CONSTEVAL 0
+        #endif
+      ORIG
+      replacement = "// Patched: force FMT_USE_CONSTEVAL=0 (RN 0.78 + Xcode 16+/Clang 17+)\n#define FMT_USE_CONSTEVAL 0\n"
+      if content.include?(original_block)
+        File.write(fmt_base_h, content.sub(original_block, replacement))
+        Pod::UI.puts "Patched fmt/base.h to force FMT_USE_CONSTEVAL=0".green
+      end
+    end
+
+    # react-native-exit-app 2.0.0 이 RN 0.78 의 Codegen 모듈 이름 변경
+    # (React-Codegen → ReactCodegen) 을 따라가지 못해 빌드 실패.
+    # .h: <React-Codegen/RNExitAppSpec/...>  → <ReactCodegen/...>
+    # .mm: <RNExitAppSpec/...>               → <ReactCodegen/RNExitAppSpec/...>
+    # (Pods 헤더는 node_modules 원본의 symlink 이므로 원본을 직접 패치.)
+    [
+      '../node_modules/react-native-exit-app/ios/RNExitApp/RNExitApp.h',
+      '../node_modules/react-native-exit-app/ios/RNExitApp/RNExitApp.mm',
+    ].each do |rel|
+      f = File.expand_path(rel, __dir__)
+      next unless File.exist?(f)
+      content = File.read(f)
+      patched = content
+        .gsub('<React-Codegen/', '<ReactCodegen/')
+        .gsub('<RNExitAppSpec/', '<ReactCodegen/RNExitAppSpec/')
+      if patched != content
+        File.write(f, patched)
+        Pod::UI.puts "Patched #{File.basename(f)}: Codegen import path".green
+      end
+    end
+  end
+end

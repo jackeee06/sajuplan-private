@@ -1,3 +1,5 @@
+import { useDismissOnBack } from '../lib/use-dismiss-on-back'
+
 /**
  * ConfirmModal — Figma 06마이페이지(비회원) > 상담사 신청 모달 3종 (141:17189 / 142:21334 / 142:21292)
  *                + 07마이페이지(회원) > 로그아웃·비번컨펌·비번완료·회원탈퇴 모달
@@ -44,6 +46,7 @@ export default function ConfirmModal({
   onCancel,
   onConfirm,
 }: Props) {
+  useDismissOnBack(open, onCancel)
   if (!open) return null
 
   const accent = tone === 'danger' ? '#FB2C36' : '#9B7AF7'

@@ -2,28 +2,46 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   Req,
   Res,
   UnauthorizedException,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtService } from '@nestjs/jwt';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'node:path';
+import { mkdirSync, unlink } from 'node:fs';
 import { randomBytes } from 'node:crypto';
-import { AuthService, type UserLoginResult } from './auth.service';
+import { AuthService, type UpdateMeBody, type UserLoginResult } from './auth.service';
 import { SocialAuthService, type SocialProvider } from './social-auth.service';
+import { runtimeEnv } from '../../shared/env/runtime-env';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
 import { UserAuthGuard, type UserAuthedRequest } from './user-auth.guard';
+import { OptionalUserGuard, type OptionalUserRequest } from './optional-user.guard';
 import { SmsService } from '../sms/sms.service';
 import { CaptchaService } from '../captcha/captcha.service';
+import { convertImageToWebp } from '../../shared/common/image-to-webp';
+
+const MEMBER_FILE_DIR = join(process.cwd(), 'uploads', 'member');
+mkdirSync(MEMBER_FILE_DIR, { recursive: true });
+
+const PROFILE_IMG_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+const PROFILE_IMG_MAX_BYTES = 5 * 1024 * 1024;
 
 const STATE_COOKIE_NAME = 'sjm_oauth_state';
 const SOCIAL_PENDING_COOKIE = 'sjm_social_pending';
@@ -69,7 +87,21 @@ export class AuthController {
       body.password,
     );
     await this.issueLoginCookie(res, member, body.keep_login);
+    // 로그인 직후 m2net 잔액을 사주문 측 값으로 동기화 — 응답 지연 없도록 비동기 fire-and-forget.
+    void this.authService.syncM2netBalanceForMember(member.id);
     return { ok: true, member };
+  }
+
+  /**
+   * 사주문 측 잔액(point) 을 m2net 측 amt 로 강제 동기화.
+   * - 메인페이지 진입 시 1회 호출 (앱 켤 때마다 갱신).
+   * - 일반 회원만 대상. 상담사 호출 시 ok=false 반환.
+   */
+  @Post('sync-m2net-balance')
+  @HttpCode(200)
+  @UseGuards(UserAuthGuard)
+  async syncM2netBalance(@Req() req: UserAuthedRequest) {
+    return this.authService.syncM2netBalanceForMember(req.user.sub);
   }
 
   // ─────────────────────────────────────────────
@@ -79,6 +111,251 @@ export class AuthController {
   @UseGuards(UserAuthGuard)
   async me(@Req() req: UserAuthedRequest) {
     return this.authService.findActiveById(req.user.sub);
+  }
+
+  /**
+   * 클라이언트 접속 정보(IP 등) 조회. 로그인 불필요.
+   * 사용처: 특정 IP 차단/안내(예: 앱 심사 IP에서 결제 막기) 처리.
+   * X-Forwarded-For 가 있으면 첫 항목(원 클라이언트)을 반환.
+   */
+  @Get('whoami')
+  whoami(@Req() req: Request) {
+    const xff = (req.headers['x-forwarded-for'] as string | undefined) ?? '';
+    const ipFromXff = xff ? xff.split(',')[0].trim() : '';
+    const ip = ipFromXff || req.ip || '';
+    return { ip };
+  }
+
+  /** 마이페이지 회원정보 수정 폼 prefill — 풀 프로필 (휴대폰/주소/생년월일 등) */
+  @Get('me/profile')
+  @UseGuards(UserAuthGuard)
+  async getMeProfile(@Req() req: UserAuthedRequest) {
+    return this.authService.getMeProfile(req.user.sub);
+  }
+
+  /**
+   * 회원 정보 수정.
+   * Body: 부분 업데이트 (변경 필드만). 자동등록방지(captcha)는 폼에서 수집해 검증.
+   */
+  @Patch('me/profile')
+  @UseGuards(UserAuthGuard)
+  async updateMeProfile(
+    @Req() req: UserAuthedRequest,
+    @Body() body: UpdateMeBody & { captcha_token?: string; captcha_input?: string },
+  ) {
+    if (body.captcha_token || body.captcha_input) {
+      await this.captcha.verify(body.captcha_token ?? '', body.captcha_input ?? '');
+    }
+    return this.authService.updateMeProfile(req.user.sub, body);
+  }
+
+  /** 비밀번호 변경 — 현재 비밀번호 검증 후 새 비밀번호로 교체. */
+  @Post('me/password')
+  @UseGuards(UserAuthGuard)
+  async changePassword(
+    @Req() req: UserAuthedRequest,
+    @Body() body: { current_password?: string; new_password?: string },
+  ) {
+    if (!body.current_password || !body.new_password) {
+      throw new BadRequestException('현재 비밀번호와 새 비밀번호를 모두 입력해주세요.');
+    }
+    await this.authService.changePassword(
+      req.user.sub,
+      body.current_password,
+      body.new_password,
+    );
+    return { ok: true };
+  }
+
+  /** 회원탈퇴 — left_at 마킹 후 쿠키 정리. */
+  @Delete('me')
+  @UseGuards(UserAuthGuard)
+  async withdrawMe(
+    @Req() req: UserAuthedRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.authService.withdrawMe(req.user.sub);
+    res.clearCookie(this.cookieName(), this.cookieOptions());
+    return { ok: true };
+  }
+
+  /**
+   * 프로필 사진 업로드 — multipart/form-data, field name 'file'.
+   * 단일 슬롯 (회원당 1장). 기존 이미지는 자동 교체 + storage 정리.
+   */
+  @Post('me/profile-image')
+  @UseGuards(UserAuthGuard)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: MEMBER_FILE_DIR,
+        filename: (_req, file, cb) => {
+          const ext = extname(file.originalname).toLowerCase();
+          cb(null, `${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`);
+        },
+      }),
+      limits: { fileSize: PROFILE_IMG_MAX_BYTES },
+      fileFilter: (_req, file, cb) => {
+        const ext = extname(file.originalname).toLowerCase();
+        if (!PROFILE_IMG_EXTS.includes(ext)) {
+          return cb(new BadRequestException(`허용되지 않은 확장자: ${ext}. (${PROFILE_IMG_EXTS.join(', ')})`), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadProfileImage(
+    @Req() req: UserAuthedRequest,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('파일이 없습니다.');
+
+    // 기존 프로필 파일 목록 — DB 갱신 후 storage unlink 용
+    const oldFiles = await this.authService.getCurrentProfileFiles(req.user.sub);
+
+    // WebP 변환
+    const { webpFilename } = await convertImageToWebp(file.path);
+
+    // DB 갱신 (단일 슬롯이라 기존 row 자동 삭제 + 새 row INSERT)
+    const result = await this.authService.upsertProfileImage(req.user.sub, {
+      originalname: file.originalname,
+      filename: file.filename,
+      size: file.size,
+      mimetype: file.mimetype,
+      stored_name_webp: webpFilename,
+    });
+
+    // 이전 storage 파일 unlink (실패해도 무시)
+    for (const f of oldFiles) {
+      if (f.stored_name) unlink(join(MEMBER_FILE_DIR, f.stored_name), () => {});
+      if (f.stored_name_webp && f.stored_name_webp !== f.stored_name) {
+        unlink(join(MEMBER_FILE_DIR, f.stored_name_webp), () => {});
+      }
+    }
+
+    return result;
+  }
+
+  /** 프로필 사진 삭제 */
+  @Delete('me/profile-image')
+  @UseGuards(UserAuthGuard)
+  async deleteProfileImage(@Req() req: UserAuthedRequest) {
+    const removed = await this.authService.removeProfileImage(req.user.sub);
+    for (const f of removed) {
+      if (f.stored_name) unlink(join(MEMBER_FILE_DIR, f.stored_name), () => {});
+      if (f.stored_name_webp && f.stored_name_webp !== f.stored_name) {
+        unlink(join(MEMBER_FILE_DIR, f.stored_name_webp), () => {});
+      }
+    }
+    return { ok: true };
+  }
+
+  /**
+   * 앱 설정 — 푸시알림 전체 수신 ON/OFF.
+   * Body: { on: boolean }
+   *
+   * NOTE: 추후 모바일 앱 연동 시 이 토글이 OFF 면 FCM/APNs 토픽 unsubscribe,
+   * ON 이면 device 의 모든 토픽 재구독 처리 필요 (member_push_token 기준).
+   */
+  @Patch('me/push')
+  @UseGuards(UserAuthGuard)
+  async updatePush(
+    @Req() req: UserAuthedRequest,
+    @Body() body: { on?: boolean },
+  ) {
+    const on = body?.on === true;
+    return this.authService.updatePushAll(req.user.sub, on);
+  }
+
+  // ─────────────────────────────────────────────
+  // FCM 푸시 토큰 / 토픽 (모바일 앱 전용)
+  // ─────────────────────────────────────────────
+
+  /**
+   * POST /api/user/auth/push-token
+   * 앱 부팅 시 디바이스 토큰을 서버에 등록 / 갱신. 비로그인 상태에서도
+   * 호출 가능 (member_id 는 로그인된 경우에만 매핑). 로그인 직후 다시
+   * 호출되면 자동으로 회원에 매핑된다.
+   *
+   * Body: { token, platform: 'android'|'ios', mb_id?, device_phone? }
+   */
+  @Post('push-token')
+  @UseGuards(OptionalUserGuard)
+  async registerPushToken(
+    @Req() req: OptionalUserRequest,
+    @Body() body: {
+      token?: string;
+      platform?: 'android' | 'ios';
+      mb_id?: string;
+      device_phone?: string;
+    },
+  ) {
+    const token = (body?.token ?? '').trim();
+    if (!token) throw new BadRequestException('token required');
+    const platform: 'android' | 'ios' =
+      body?.platform === 'ios' ? 'ios' : 'android';
+    return this.authService.upsertPushToken({
+      token,
+      platform,
+      memberId: req.user?.sub ?? null,
+      mbId: body?.mb_id ?? null,
+      devicePhone: body?.device_phone ?? null,
+    });
+  }
+
+  /**
+   * POST /api/user/auth/push-token/bind
+   * 로그인된 사용자의 토큰을 회원에 매핑. /push-token 이 자동으로 처리하므로
+   * 명시적 매핑이 필요할 때만 호출 (예: 토큰은 그대로인데 다른 회원으로 재로그인).
+   */
+  @Post('push-token/bind')
+  @UseGuards(UserAuthGuard)
+  async bindPushToken(
+    @Req() req: UserAuthedRequest,
+    @Body() body: { token?: string },
+  ) {
+    const token = (body?.token ?? '').trim();
+    if (!token) throw new BadRequestException('token required');
+    await this.authService.bindPushTokenToMember(req.user.sub, token);
+    return { ok: true };
+  }
+
+  /**
+   * DELETE /api/user/auth/push-token
+   * 로그아웃 / 앱 삭제 등에 호출 — token 비활성화.
+   */
+  @Delete('push-token')
+  async deletePushToken(@Body() body: { token?: string }) {
+    const token = (body?.token ?? '').trim();
+    if (!token) throw new BadRequestException('token required');
+    await this.authService.deactivatePushToken(token);
+    return { ok: true };
+  }
+
+  /**
+   * POST /api/user/auth/push-topics
+   * 토픽 일괄 구독/해제. unsubscribe 먼저 처리되고 그 다음 subscribe.
+   *
+   * Body: { token, subscribe?: string[], unsubscribe?: string[] }
+   * 예시:
+   *  { token, subscribe: ['chl_2','chl_all'], unsubscribe: ['chl_5'] }
+   */
+  @Post('push-topics')
+  @UseGuards(OptionalUserGuard)
+  async updatePushTopics(
+    @Body() body: {
+      token?: string;
+      subscribe?: string[];
+      unsubscribe?: string[];
+    },
+  ) {
+    const token = (body?.token ?? '').trim();
+    if (!token) throw new BadRequestException('token required');
+    return this.authService.updatePushTopics({
+      token,
+      subscribe: body?.subscribe ?? [],
+      unsubscribe: body?.unsubscribe ?? [],
+    });
   }
 
   // ─────────────────────────────────────────────
@@ -114,10 +391,14 @@ export class AuthController {
       state,
     );
 
+    // Apple은 response_mode=form_post → 외부 도메인이 우리 콜백으로 cross-site POST 함.
+    // SameSite=Lax 쿠키는 cross-site POST 에 실리지 않으므로(Apple 콜백에서 state 누락) None+Secure 사용.
+    // kakao/naver 는 GET top-level redirect 라 Lax 로 충분.
+    const sameSite: 'lax' | 'none' = p === 'apple' ? 'none' : 'lax';
     res.cookie(STATE_COOKIE_NAME, state, {
       httpOnly: true,
       secure: this.cookieSecure(),
-      sameSite: 'lax',
+      sameSite,
       path: '/',
       maxAge: 5 * 60 * 1000,
     });
@@ -139,6 +420,10 @@ export class AuthController {
   ) {
     const p = this.assertProvider(provider);
     const siteUrl = this.siteUrl();
+    // apple은 GET callback을 쓰지 않고 POST form_post 로 받음 — 잘못된 진입은 로그인으로
+    if (p === 'apple') {
+      return res.redirect(`${siteUrl}/login`);
+    }
 
     if (error) {
       // provider 가 보낸 error (invalid_scope, access_denied 등) — 사용자에게는 노출하지 않고 로그인 페이지로
@@ -204,6 +489,328 @@ export class AuthController {
       maxAge: 60 * 60 * 1000,
     });
     return res.redirect(`${siteUrl}/signup?social=${p}`);
+  }
+
+  // ─────────────────────────────────────────────
+  // 소셜: 모바일 앱(RN) 네이티브 SDK — GET 콜백 흐름 (권장)
+  //   GET /api/user/auth/social/:provider/native_callback?token=...&ret=/...
+  //
+  // RN 앱 흐름:
+  //   1) 웹에서 버튼 클릭 → window.ReactNativeWebView.postMessage({type:'SNS_LOGIN',provider})
+  //   2) RN 이 네이티브 SDK (kakao/naver) 로 access_token 획득
+  //   3) RN 이 webView 를 이 URL 로 이동 → 서버가 쿠키 발급 후 SPA 로 302
+  //
+  // 동작:
+  //   - 기존 회원 → sjm_user 쿠키 발급 + ${USER_SITE_URL}${ret || '/'} 로 302
+  //   - 신규     → sjm_social_pending 쿠키 발급 + ${USER_SITE_URL}/signup?social=:provider 로 302
+  //   - 토큰 누락/검증 실패 → ${USER_SITE_URL}/login?error=:provider_xxx 로 302
+  //
+  // ※ 같은 토큰으로 짧은 시간 안에 여러 번 호출되어도 idempotent — findMember 가 동일 결과.
+  // ※ ret 은 normalizeRedirect 로 internal 경로만 허용 (open redirect 방지).
+  // ─────────────────────────────────────────────
+  @Get('social/:provider/native_callback')
+  async socialNativeCallback(
+    @Param('provider') provider: string,
+    @Query('token') token: string | undefined,
+    @Query('ret') ret: string | undefined,
+    @Res() res: Response,
+  ) {
+    const siteUrl = this.siteUrl();
+    const safeRet = this.normalizeRedirect(ret);
+    const p = this.assertProvider(provider);
+    // apple은 GET native_callback 미지원 — POST /apple/native (identity_token) 사용
+    if (p === 'apple') {
+      return res.redirect(`${siteUrl}/login?error=apple_use_post_native`);
+    }
+    const access = (token ?? '').trim();
+    if (!access) {
+      return res.redirect(`${siteUrl}/login?error=${p}_no_token`);
+    }
+
+    const settings = await this.social.getSettings();
+    if (!settings.use || !settings.service_list.includes(p)) {
+      return res.redirect(`${siteUrl}/login?error=${p}_disabled`);
+    }
+
+    let profile;
+    try {
+      profile =
+        p === 'kakao'
+          ? await this.social.fetchKakaoProfileFromAccessToken(access)
+          : await this.social.fetchNaverProfileFromAccessToken(access);
+    } catch {
+      return res.redirect(`${siteUrl}/login?error=${p}_token_invalid`);
+    }
+
+    const existing = await this.social.findMember(p, profile.uid);
+    if (existing) {
+      const member = await this.authService.findActiveById(existing.id);
+      await this.issueLoginCookie(res, member, true);
+      return res.redirect(`${siteUrl}${safeRet}`);
+    }
+
+    // 신규 → pending 쿠키 발급 후 가입 페이지로
+    const pendingToken = await this.jwt.signAsync(
+      {
+        type: 'social_pending',
+        provider: p,
+        uid: profile.uid,
+        email: profile.email,
+        name: profile.name,
+        nickname: profile.nickname,
+        phone: profile.phone,
+      } satisfies SocialPendingPayload,
+      { expiresIn: '60m' },
+    );
+    res.cookie(SOCIAL_PENDING_COOKIE, pendingToken, {
+      httpOnly: true,
+      secure: this.cookieSecure(),
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 1000,
+    });
+    return res.redirect(`${siteUrl}/signup?social=${p}`);
+  }
+
+  // ─────────────────────────────────────────────
+  // 소셜: 모바일 앱(RN) 네이티브 SDK — POST/JSON 흐름 (선택, AJAX 사용처용)
+  //   POST /api/user/auth/social/kakao/native  { access_token }
+  //
+  // GET 콜백과 동일 로직이지만 JSON 응답을 받는 클라이언트가 필요할 때 사용.
+  // 일반적인 RN webview 흐름에선 native_callback (GET) 이 권장됨.
+  // ─────────────────────────────────────────────
+  @Post('social/kakao/native')
+  @HttpCode(200)
+  @Throttle({ login: { limit: 30, ttl: 60_000 } })
+  async kakaoNative(
+    @Body() body: { access_token?: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = (body?.access_token ?? '').trim();
+    if (!token) {
+      throw new BadRequestException('access_token 이 누락되었습니다.');
+    }
+
+    const settings = await this.social.getSettings();
+    if (!settings.use) {
+      throw new ForbiddenException('소셜 로그인이 비활성화되어 있습니다.');
+    }
+    if (!settings.service_list.includes('kakao')) {
+      throw new ForbiddenException('카카오 로그인이 활성화되어 있지 않습니다.');
+    }
+
+    const profile = await this.social.fetchKakaoProfileFromAccessToken(token);
+
+    // 기존 회원이면 즉시 로그인
+    const existing = await this.social.findMember('kakao', profile.uid);
+    if (existing) {
+      const member = await this.authService.findActiveById(existing.id);
+      await this.issueLoginCookie(res, member, true);
+      return { ok: true, needs_signup: false, member };
+    }
+
+    // 신규 → pending 쿠키 발급 (가입 폼에서 소비)
+    const pendingToken = await this.jwt.signAsync(
+      {
+        type: 'social_pending',
+        provider: 'kakao',
+        uid: profile.uid,
+        email: profile.email,
+        name: profile.name,
+        nickname: profile.nickname,
+        phone: profile.phone,
+      } satisfies SocialPendingPayload,
+      { expiresIn: '60m' },
+    );
+    res.cookie(SOCIAL_PENDING_COOKIE, pendingToken, {
+      httpOnly: true,
+      secure: this.cookieSecure(),
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 1000,
+    });
+    return {
+      ok: true,
+      needs_signup: true,
+      pending: {
+        provider: 'kakao' as SocialProvider,
+        email: profile.email,
+        name: profile.name,
+        nickname: profile.nickname,
+        phone: profile.phone,
+      },
+    };
+  }
+
+  // ─────────────────────────────────────────────
+  // 소셜: Apple Sign in — 웹 OAuth form_post 콜백
+  //   POST /api/user/auth/social/apple/callback
+  //
+  // Apple은 response_mode=form_post 로 POST 본문에 code/id_token/state/user 를 보냄.
+  //   - id_token: identityToken (JWT, aud=Services ID)
+  //   - user: { name: { firstName, lastName }, email } — 첫 동의에서만 옴 (JSON 문자열)
+  //   - state: 우리가 보낸 nonce — cookie state 와 일치 검증
+  // ─────────────────────────────────────────────
+  @Post('social/apple/callback')
+  async appleWebCallback(
+    @Body()
+    body: {
+      code?: string;
+      id_token?: string;
+      state?: string;
+      error?: string;
+      user?: string;
+    },
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const siteUrl = this.siteUrl();
+    if (body?.error) {
+      res.clearCookie(STATE_COOKIE_NAME, this.cookieOptions('lax'));
+      return res.redirect(`${siteUrl}/login`);
+    }
+    if (!body?.id_token || !body?.state) {
+      return res.redirect(`${siteUrl}/login`);
+    }
+    const cookieState = req.cookies?.[STATE_COOKIE_NAME];
+    if (!cookieState || cookieState !== body.state) {
+      res.clearCookie(STATE_COOKIE_NAME, this.cookieOptions('lax'));
+      return res.redirect(`${siteUrl}/login`);
+    }
+    res.clearCookie(STATE_COOKIE_NAME, this.cookieOptions('lax'));
+
+    const settings = await this.social.getSettings();
+
+    // user 필드는 첫 동의에서만 옴 — 이메일/이름 백필
+    type AppleUser = { name?: { firstName?: string; lastName?: string }; email?: string };
+    let parsedUser: AppleUser | null = null;
+    if (body.user) {
+      try {
+        parsedUser = JSON.parse(body.user) as AppleUser;
+      } catch {
+        parsedUser = null;
+      }
+    }
+    const nameFromUser = parsedUser?.name
+      ? `${parsedUser.name.lastName ?? ''}${parsedUser.name.firstName ?? ''}`.trim() || null
+      : null;
+    const emailFromUser = parsedUser?.email ?? null;
+
+    let profile;
+    try {
+      profile = await this.social.verifyAppleIdentityToken(
+        settings,
+        body.id_token,
+        'web',
+        { name: nameFromUser, email: emailFromUser },
+      );
+    } catch {
+      return res.redirect(`${siteUrl}/login?error=apple_token_invalid`);
+    }
+
+    const existing = await this.social.findMember('apple', profile.uid);
+    const next = this.parseRedirectFromState(body.state) ?? '/';
+    if (existing) {
+      const member = await this.authService.findActiveById(existing.id);
+      await this.issueLoginCookie(res, member, true);
+      return res.redirect(`${siteUrl}${next}`);
+    }
+    const pendingToken = await this.jwt.signAsync(
+      {
+        type: 'social_pending',
+        provider: 'apple',
+        uid: profile.uid,
+        email: profile.email,
+        name: profile.name,
+        nickname: profile.nickname,
+        phone: profile.phone,
+      } satisfies SocialPendingPayload,
+      { expiresIn: '60m' },
+    );
+    res.cookie(SOCIAL_PENDING_COOKIE, pendingToken, {
+      httpOnly: true,
+      secure: this.cookieSecure(),
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 1000,
+    });
+    return res.redirect(`${siteUrl}/signup?social=apple`);
+  }
+
+  // ─────────────────────────────────────────────
+  // 소셜: Apple Sign in — 모바일 앱(RN) 네이티브 SDK
+  //   POST /api/user/auth/social/apple/native  { identity_token, name?, email? }
+  //
+  // RN @invertase/react-native-apple-authentication 로 받은 identityToken을 검증.
+  // aud = Bundle ID (com.dmonster.sajumoon).
+  // user.name / user.email 은 최초 1회 동의 직후에만 SDK 가 반환 → 클라가 같이 전송해주면 백필.
+  // ─────────────────────────────────────────────
+  @Post('social/apple/native')
+  @HttpCode(200)
+  @Throttle({ login: { limit: 30, ttl: 60_000 } })
+  async appleNative(
+    @Body() body: { identity_token?: string; name?: string; email?: string },
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const token = (body?.identity_token ?? '').trim();
+    if (!token) {
+      throw new BadRequestException('identity_token 이 누락되었습니다.');
+    }
+    const settings = await this.social.getSettings();
+    if (!settings.use) {
+      throw new ForbiddenException('소셜 로그인이 비활성화되어 있습니다.');
+    }
+    if (!settings.service_list.includes('apple')) {
+      throw new ForbiddenException('애플 로그인이 활성화되어 있지 않습니다.');
+    }
+
+    const profile = await this.social.verifyAppleIdentityToken(
+      settings,
+      token,
+      'native',
+      {
+        name: body?.name?.trim() || null,
+        email: body?.email?.trim() || null,
+      },
+    );
+
+    const existing = await this.social.findMember('apple', profile.uid);
+    if (existing) {
+      const member = await this.authService.findActiveById(existing.id);
+      await this.issueLoginCookie(res, member, true);
+      return { ok: true, needs_signup: false, member };
+    }
+
+    const pendingToken = await this.jwt.signAsync(
+      {
+        type: 'social_pending',
+        provider: 'apple',
+        uid: profile.uid,
+        email: profile.email,
+        name: profile.name,
+        nickname: profile.nickname,
+        phone: profile.phone,
+      } satisfies SocialPendingPayload,
+      { expiresIn: '60m' },
+    );
+    res.cookie(SOCIAL_PENDING_COOKIE, pendingToken, {
+      httpOnly: true,
+      secure: this.cookieSecure(),
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 1000,
+    });
+    return {
+      ok: true,
+      needs_signup: true,
+      pending: {
+        provider: 'apple' as SocialProvider,
+        email: profile.email,
+        name: profile.name,
+        nickname: profile.nickname,
+        phone: profile.phone,
+      },
+    };
   }
 
   // ─────────────────────────────────────────────
@@ -343,7 +950,10 @@ export class AuthController {
       if (!body.phone) {
         throw new BadRequestException('휴대폰번호를 입력해주세요.');
       }
-      await this.sms.assertVerified(body.phone, body.phone_code ?? '');
+      // 휴대폰 인증 검증: 프론트가 인증번호 입력 시점에 /sms/verify 를 1회 호출하여
+      // 코드 일치 + 만료 시간(3분) 검증을 완료. 가입 폼 제출 시점에 다시 시간 검사를 하면
+      // 사용자가 주소검색/약관 정독 등으로 시간을 보낸 후 "인증 만료" 로 막히는 문제 발생 →
+      // 1단계 verify 만으로 충분하다는 정책에 따라 여기선 추가 검증을 하지 않는다.
 
       // 같은 휴대폰번호로 다른 경로(카카오/네이버/일반) 가입 차단
       await this.authService.assertPhoneAvailable(body.phone);
@@ -404,8 +1014,9 @@ export class AuthController {
       body.captcha_input ?? '',
     );
 
-    // (2) 휴대폰 인증 검증 — sample register_form_update.php 의 sms_auth 흐름 동등
-    await this.sms.assertVerified(body.phone, body.phone_code ?? '');
+    // (2) 휴대폰 인증 검증은 프론트의 인증번호 입력 시점(/sms/verify, 3분 만료)에 완료됨.
+    // 가입 폼 제출 시점에 시간 검사를 다시 하면 주소검색/약관 정독 등으로 시간이 지난 사용자가
+    // "인증 만료" 로 막히는 문제가 있어, 여기선 추가 검증을 하지 않는다.
 
     // (3) DB 회원 생성 + m2net 외부 등록 (실패 시 롤백)
     const created = await this.authService.createLocalMember({
@@ -439,7 +1050,9 @@ export class AuthController {
     const s = await this.social.getSettings();
     return {
       use: s.use,
-      providers: s.service_list.filter((p) => p === 'kakao' || p === 'naver'),
+      providers: s.service_list.filter(
+        (p) => p === 'kakao' || p === 'naver' || p === 'apple',
+      ),
     };
   }
 
@@ -448,7 +1061,7 @@ export class AuthController {
   // ─────────────────────────────────────────────
 
   private assertProvider(p: string): SocialProvider {
-    if (p !== 'kakao' && p !== 'naver') {
+    if (p !== 'kakao' && p !== 'naver' && p !== 'apple') {
       throw new UnauthorizedException(`지원하지 않는 소셜 제공자: ${p}`);
     }
     return p;
@@ -480,7 +1093,7 @@ export class AuthController {
     return this.config.get<string>('USER_COOKIE_NAME') ?? 'sjm_user';
   }
   private cookieSecure(): boolean {
-    return this.config.get<string>('COOKIE_SECURE') === 'true';
+    return runtimeEnv().cookieSecure;
   }
   private cookieOptions(sameSite: 'strict' | 'lax' = 'lax') {
     return {
@@ -492,15 +1105,10 @@ export class AuthController {
   }
 
   private callbackUrl(provider: SocialProvider): string {
-    const base = (
-      this.config.get<string>('API_PUBLIC_URL') ?? 'http://localhost:3001'
-    ).replace(/\/+$/, '');
-    return `${base}/api/user/auth/social/${provider}/callback`;
+    return `${runtimeEnv().apiPublicUrl}/api/user/auth/social/${provider}/callback`;
   }
   private siteUrl(): string {
-    return (
-      this.config.get<string>('USER_SITE_URL') ?? 'http://localhost:5174'
-    ).replace(/\/+$/, '');
+    return runtimeEnv().userSiteUrl;
   }
 
   /** state = random + base64url(redirect path). CSRF 방어 + 로그인 후 복귀 경로 보존. */

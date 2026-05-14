@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Search, Send, Bell } from 'lucide-react'
+import { Search, Send, Bell, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface HistoryRow {
@@ -47,7 +47,26 @@ export default function PushNotifications() {
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">푸시알림 내역</h2>
-          {data && <span className="text-xs text-gray-500">총 {data.total.toLocaleString()}건</span>}
+          <div className="flex items-center gap-3">
+            {data && <span className="text-xs text-gray-500">총 {data.total.toLocaleString()}건</span>}
+            <button
+              onClick={async () => {
+                if (!data || data.total === 0) return
+                if (!window.confirm(`푸시알림 발송 내역 ${data.total.toLocaleString()}건을 모두 삭제하시겠습니까?\n\n삭제 후 복구할 수 없습니다.`)) return
+                try {
+                  const r = await api<{ ok: true; deleted: number }>('/admin/notifications/push-history', { method: 'DELETE' })
+                  alert(`${r.deleted.toLocaleString()}건 삭제되었습니다.`)
+                  setReload((x) => x + 1)
+                } catch (e) {
+                  alert(`삭제 실패: ${e instanceof Error ? e.message : ''}`)
+                }
+              }}
+              disabled={!data || data.total === 0}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md border border-rose-200 dark:border-rose-700 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 disabled:opacity-40"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> 내역 비우기
+            </button>
+          </div>
         </div>
 
         {/* 카테고리 필터 칩 */}

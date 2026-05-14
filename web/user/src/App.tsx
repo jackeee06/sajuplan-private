@@ -1,4 +1,10 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AuthProvider } from './lib/auth-context'
+import { ConsultProvider } from './lib/consult-context'
+import { LikeProvider } from './lib/like-context'
+import { LoginPromptProvider } from './lib/login-prompt-context'
+import NativeBackBridge from './components/NativeBackBridge'
+import MyPageEntry from './pages/MyPageEntry'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import SignupComplete from './pages/SignupComplete'
@@ -16,24 +22,30 @@ import CounselorQnaDetail from './pages/CounselorQnaDetail'
 import CounselorQnaNew from './pages/CounselorQnaNew'
 import CounselorReviewNew from './pages/CounselorReviewNew'
 import ChatRoom from './pages/ChatRoom'
+import ChatLog from './pages/ChatLog'
 import Favorites from './pages/Favorites'
 import Reviews from './pages/Reviews'
 import ReviewDetail from './pages/ReviewDetail'
-import MyPage from './pages/MyPage'
 import MemberMyPage from './pages/MemberMyPage'
 import MemberEdit from './pages/MemberEdit'
 import AppSettings from './pages/AppSettings'
 import MyCalls from './pages/MyCalls'
 import MyChats from './pages/MyChats'
+import MyHistory from './pages/MyHistory'
+import SettlementHistory from './pages/SettlementHistory'
 import MyReviews from './pages/MyReviews'
 import MyReviewDetail from './pages/MyReviewDetail'
 import MyReviewNew from './pages/MyReviewNew'
+import MyReviewEdit from './pages/MyReviewEdit'
 import MyQnas from './pages/MyQnas'
 import MyQnaDetail from './pages/MyQnaDetail'
 import Coupons from './pages/Coupons'
 import Payments from './pages/Payments'
 import Points from './pages/Points'
 import Charge from './pages/Charge'
+import ChargeCardRegister from './pages/ChargeCardRegister'
+import ChargeComplete from './pages/ChargeComplete'
+import ChargeVbankInfo from './pages/ChargeVbankInfo'
 import CounselorMyPage from './pages/CounselorMyPage'
 import CounselorMyTips from './pages/CounselorMyTips'
 import CounselorMyTipDetail from './pages/CounselorMyTipDetail'
@@ -67,6 +79,11 @@ import CounselorApplyDetail from './pages/CounselorApplyDetail'
 export default function App() {
   return (
     <BrowserRouter basename="/">
+      <AuthProvider>
+      <LoginPromptProvider>
+      <LikeProvider>
+      <ConsultProvider>
+      <NativeBackBridge />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
@@ -85,17 +102,21 @@ export default function App() {
         <Route path="/counselors/:id/qna/:qnaId" element={<CounselorQnaDetail />} />
         <Route path="/counselors/:id/qna/new" element={<CounselorQnaNew />} />
         <Route path="/chat/:id" element={<ChatRoom />} />
+        <Route path="/chat-log/:id" element={<ChatLog />} />
         <Route path="/favorites" element={<Favorites />} />
         <Route path="/reviews" element={<Reviews />} />
         <Route path="/reviews/:id" element={<ReviewDetail />} />
-        <Route path="/mypage" element={<MyPage />} />
+        <Route path="/mypage" element={<MyPageEntry />} />
         <Route path="/mypage/member" element={<MemberMyPage />} />
         <Route path="/mypage/member/edit" element={<MemberEdit />} />
         <Route path="/mypage/app-settings" element={<AppSettings />} />
         <Route path="/mypage/calls" element={<MyCalls />} />
         <Route path="/mypage/chats" element={<MyChats />} />
+        <Route path="/mypage/history" element={<MyHistory />} />
+        <Route path="/mypage/settlement/history" element={<SettlementHistory />} />
         <Route path="/mypage/my-reviews" element={<MyReviews />} />
         <Route path="/mypage/my-reviews/new" element={<MyReviewNew />} />
+        <Route path="/mypage/my-reviews/:id/edit" element={<MyReviewEdit />} />
         <Route path="/mypage/my-reviews/:id" element={<MyReviewDetail />} />
         <Route path="/mypage/my-qnas" element={<MyQnas />} />
         <Route path="/mypage/my-qnas/:id" element={<MyQnaDetail />} />
@@ -103,6 +124,9 @@ export default function App() {
         <Route path="/mypage/payments" element={<Payments />} />
         <Route path="/mypage/points" element={<Points />} />
         <Route path="/mypage/charge" element={<Charge />} />
+        <Route path="/mypage/charge/card-register" element={<ChargeCardRegister />} />
+        <Route path="/charge/complete" element={<ChargeComplete />} />
+        <Route path="/charge/vbank-info" element={<ChargeVbankInfo />} />
         <Route path="/counselor/mypage" element={<CounselorMyPage />} />
         <Route path="/counselor/mypage/tips" element={<CounselorMyTips />} />
         <Route path="/counselor/mypage/tips/:id" element={<CounselorMyTipDetail />} />
@@ -135,6 +159,10 @@ export default function App() {
         {/* 추후: /chat/:id, /bookmarks, /point, /mypage/inquiry/new */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </ConsultProvider>
+      </LikeProvider>
+      </LoginPromptProvider>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

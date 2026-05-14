@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
-import { MOCK_COUNSELOR_CHATS, type ConsultLog } from '../data/counselorMyPage'
+import { ApiError, historyApi, type ConsultHistoryItem as ApiConsultHistoryItem } from '../lib/api'
+import type { ConsultLog } from '../data/counselorMyPage'
 
 const PAGE_SIZE = 10
 
@@ -11,17 +12,53 @@ const PAGE_SIZE = 10
  * 08마이페이지_상담사_채팅상담내역
  * Figma node-id: 152:10138
  *
- * 카드: 이름·일자·길이 + 메모/휴지통 / 시작·완료·과금포인트·후기작성
- *  - 채팅 내역 보기 (보라 아웃라인 풀폭)
- *  - 후기작성 완료 + 미답변: "후기 답변 작성하기" 보라 풀
- *  - 후기작성 완료 + 답변 있음: "작성한 후기 답변 보기" 보라 아웃라인
+ * 데이터 소스: GET /user/consult/history?role=counselor&type=chat
+ *  - 본인이 상담사로 진행/종료한 채팅 상담 + 회원이 작성한 후기(review_id) + 본인이 작성한 답변(reply_id)
+ *    까지 한 번에 받아온다.
+ *  - 과금 포인트(amt) 는 consultation.amt 그대로.
+ *
+ * 과거 구현은 /user/chat/rooms?role=counselor 만 호출해 pointPaid/reviewStatus 가 모두
+ * 하드코딩(0 / '대기')이라 "후기 답변 작성하기" 버튼이 영원히 노출되지 않았다.
  */
 export default function CounselorMyChats() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [page, setPage] = useState(1)
-  const items = MOCK_COUNSELOR_CHATS
-  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE))
-  const pageItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const [total, setTotal] = useState(0)
+  const [items, setItems] = useState<ConsultLog[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  // 라우트로 다시 진입할 때마다 fresh fetch. location.key 가 매 navigate 마다 새로 발급되므로
+  // 동일 경로로 돌아와도 useEffect 가 재실행되어 최신 데이터로 갱신된다.
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    historyApi
+      .list({ role: 'counselor', type: 'chat', page, limit: PAGE_SIZE })
+      .then((res) => {
+        if (cancelled) return
+        setItems(res.items.map(mapHistoryToLog))
+        setTotal(res.total)
+        setError(null)
+      })
+      .catch((e) => {
+        if (cancelled) return
+        if (e instanceof ApiError && e.status === 401) {
+          navigate('/login')
+          return
+        }
+        setError(e instanceof Error ? e.message : '채팅 내역을 불러오지 못했습니다.')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [navigate, page, location.key])
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <div className="mobile-frame flex flex-col pb-[100px]">
@@ -38,15 +75,37 @@ export default function CounselorMyChats() {
       </header>
 
       <main className="flex-1">
+        {loading && <p className="py-10 text-center text-[14px] text-[#99A1AF]">불러오는 중…</p>}
+        {error && !loading && (
+          <p className="py-10 text-center text-[14px] text-[#FB2C36]">{error}</p>
+        )}
+        {!loading && !error && items.length === 0 && (
+          <p className="py-10 text-center text-[14px] text-[#99A1AF]">
+            아직 진행한 채팅상담 내역이 없습니다.
+          </p>
+        )}
         <ul className="flex flex-col">
-          {pageItems.map((it) => (
-            <li key={it.id} className="border-b border-[#F3F4F6]">
-              <ChatCard log={it} onMemo={() => navigate(`/counselor/mypage/chats/${it.id}/memo`)} />
+          {items.map((it) => (
+            <li key={`${it.id}-${it.startedAt}`} className="border-b border-[#F3F4F6]">
+              <ChatCard
+                log={it}
+                onMemo={() => {
+                  // 상담 메모는 consultation_id 기준. (chat_room.id ≠ consultation.id)
+                  const cid = it.consultationId ?? it.id
+                  navigate(`/counselor/mypage/chats/${cid}/memo`)
+                }}
+                onOpenChat={() => navigate(`/chat/${it.id}`)}
+                onWriteReply={() => {
+                  if (it.reviewId) navigate(`/counselor/mypage/reviews/${it.reviewId}`)
+                }}
+              />
             </li>
           ))}
         </ul>
 
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+        {!loading && total > 0 && (
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+        )}
       </main>
 
       <FloatingActions bottomOffset={100} />
@@ -55,8 +114,52 @@ export default function CounselorMyChats() {
   )
 }
 
-function ChatCard({ log, onMemo }: { log: ConsultLog; onMemo: () => void }) {
+function mapHistoryToLog(r: ApiConsultHistoryItem): ConsultLog {
+  const startedAt = formatKDateTime(r.started_at)
+  const endedAt = formatKDateTime(r.ended_at)
+  const reviewWritten = r.review_id != null
+  const replyWritten = r.reply_id != null
+  return {
+    id: r.chat_room_id ?? r.id,
+    type: 'chat',
+    // role=counselor 응답에서 counselor_* 필드는 사실 "회원(peer)" 정보를 담는다.
+    customerName: r.counselor_name || '회원',
+    date: startedAt.split(' ')[0] ?? '',
+    duration: r.usetm_label,
+    startedAt,
+    endedAt,
+    pointPaid: r.amt,
+    reviewStatus: reviewWritten ? '완료' : '대기',
+    hasReply: replyWritten,
+    reviewId: r.review_id,
+    chatStatus: r.is_active_chat ? r.chat_status ?? 'STAY' : 'DISCONNECT',
+    consultationId: r.id,
+  }
+}
+
+function formatKDateTime(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
+function ChatCard({
+  log,
+  onMemo,
+  onOpenChat,
+  onWriteReply,
+}: {
+  log: ConsultLog
+  onMemo: () => void
+  onOpenChat: () => void
+  onWriteReply: () => void
+}) {
   const reviewDone = log.reviewStatus === '완료'
+  // 종료 판정: 명시적 DISCONNECT 또는 endedAt 값이 채워진 경우. 그 외(STAY/CNCH/null) 모두 진행 중.
+  const chatEnded = log.chatStatus === 'DISCONNECT' || (log.endedAt != null && log.endedAt !== '')
+  const chatActive = !chatEnded
   return (
     <article className="px-4 py-4">
       <div className="flex items-start">
@@ -101,32 +204,42 @@ function ChatCard({ log, onMemo }: { log: ConsultLog; onMemo: () => void }) {
         </li>
       </ul>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          className={
-            reviewDone
-              ? 'h-[44px] rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]'
-              : 'col-span-2 h-[44px] rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]'
-          }
-        >
-          채팅 내역 보기
-        </button>
-        {reviewDone &&
-          (log.hasReply ? (
+        {chatActive ? (
+          <button
+            type="button"
+            onClick={onOpenChat}
+            className="col-span-2 h-[44px] rounded-full bg-[#9B7AF7] text-[14px] font-semibold text-white"
+          >
+            채팅방 입장하기
+          </button>
+        ) : (
+          <>
             <button
               type="button"
-              className="h-[44px] rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]"
+              onClick={onOpenChat}
+              className={
+                reviewDone
+                  ? 'h-[44px] rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]'
+                  : 'col-span-2 h-[44px] rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]'
+              }
             >
-              작성한 후기 답변 보기
+              채팅 내역 보기
             </button>
-          ) : (
-            <button
-              type="button"
-              className="h-[44px] rounded-full bg-[#9B7AF7] text-[14px] font-semibold text-white"
-            >
-              후기 답변 작성하기
-            </button>
-          ))}
+            {reviewDone && (
+              <button
+                type="button"
+                onClick={onWriteReply}
+                className={
+                  log.hasReply
+                    ? 'h-[44px] rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]'
+                    : 'h-[44px] rounded-full bg-[#9B7AF7] text-[14px] font-semibold text-white'
+                }
+              >
+                {log.hasReply ? '작성한 후기 답변 보기' : '후기 답변 작성하기'}
+              </button>
+            )}
+          </>
+        )}
       </div>
     </article>
   )

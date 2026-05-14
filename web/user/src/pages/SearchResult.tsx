@@ -1,46 +1,9 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
-import CounselorCard, { Counselor } from '../components/CounselorCard'
-
-// 더미 결과 — 백엔드 연동 전 퍼블리싱 검증용. 검색 API 붙으면 제거.
-const MOCK_DB: Counselor[] = [
-  {
-    id: 1, name: '김선녀', code: '224587', badge: '신점',
-    tagline: '마음을 읽는 신점', pricePerSec: 1500,
-    phoneState: 'available', chatState: 'available',
-    hashtags: ['삼재상담', '연애운'], rating: 4.8, reviewCount: 92,
-    liked: false, imgUrl: '/img/sample_img02.jpg',
-  },
-  {
-    id: 2, name: '사주선녀', code: '165791', badge: '사주',
-    tagline: '속 시원하게 풀어드립니다', pricePerSec: 1000,
-    phoneState: 'busy', chatState: 'busy',
-    hashtags: ['신년운세', '금전운'], rating: 4.7, reviewCount: 106,
-    liked: false, imgUrl: '/img/sample_img03.jpg',
-  },
-  {
-    id: 3, name: '달빛도사', code: '331204', badge: '타로',
-    tagline: '재회·궁합 전문 12년 경력', pricePerSec: 1200,
-    phoneState: 'available', chatState: 'available',
-    hashtags: ['재회', '궁합', '타로'], rating: 4.9, reviewCount: 248,
-    liked: false, imgUrl: '/img/sample_img04.jpg',
-  },
-  {
-    id: 4, name: '하늘선녀', code: '402915', badge: '신점',
-    tagline: '솔직하고 시원한 답변', pricePerSec: 1800,
-    phoneState: 'busy', chatState: 'available',
-    hashtags: ['재회', '직장운', '신점'], rating: 4.6, reviewCount: 53,
-    liked: false, imgUrl: '/img/sample_img01.jpg',
-  },
-  {
-    id: 5, name: '운명도사', code: '518273', badge: '사주',
-    tagline: '인연의 흐름을 읽어드립니다', pricePerSec: 900,
-    phoneState: 'offline', chatState: 'offline',
-    hashtags: ['궁합', '재회', '연애운'], rating: 4.5, reviewCount: 71,
-    liked: false, imgUrl: '/img/sample_img02.jpg',
-  },
-]
+import CounselorCard from '../components/CounselorCard'
+import { counselorsApi, type PublicCounselor } from '../lib/api'
+import { mapPublicCounselorToCard } from '../lib/counselor-mapper'
 
 /**
  * 검색 결과 — Figma 163:22619 (02홈_검색결과), 결과 없음 163:22750
@@ -57,35 +20,46 @@ export default function SearchResult() {
   const navigate = useNavigate()
   const initialQ = params.get('q') ?? ''
   const [q, setQ] = useState(initialQ)
-  const [counselors, setCounselors] = useState<Counselor[]>([])
+  const [counselors, setCounselors] = useState<PublicCounselor[]>([])
+  const [loading, setLoading] = useState(false)
   const [shownCount, setShownCount] = useState(2)
 
+  // URL의 q 가 바뀔 때마다 백엔드 검색 호출.
+  // 좋아요는 CounselorCard 내부 LikeContext 가 처리 → 응답 그대로 표시.
   useEffect(() => {
-    // TODO: 검색 API 연동 시 교체.
-    // 퍼블 검증용 임시 로직: term이 비어있으면 빈 결과(no-data 화면 확인용),
-    // 그 외엔 이름·태그라인·해시태그 부분 매칭. 매칭이 하나도 없으면 전체 노출(시안 확인용).
-    const term = (params.get('q') ?? '').trim().toLowerCase()
+    const term = (params.get('q') ?? '').trim()
+    setShownCount(2)
     if (!term) {
       setCounselors([])
       return
     }
-    const matched = MOCK_DB.filter((c) =>
-      c.name.toLowerCase().includes(term) ||
-      c.tagline.toLowerCase().includes(term) ||
-      c.hashtags.some((t) => t.toLowerCase().includes(term)),
+    let alive = true
+    setLoading(true)
+    counselorsApi.search(term, 30).then(
+      (r) => {
+        if (!alive) return
+        setCounselors(r?.items ?? [])
+        setLoading(false)
+      },
+      () => {
+        if (!alive) return
+        setCounselors([])
+        setLoading(false)
+      },
     )
-    setCounselors(matched.length > 0 ? matched : MOCK_DB)
+    return () => {
+      alive = false
+    }
   }, [params])
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
     const term = q.trim()
     if (!term) return
-    navigate(`/search/result?q=${encodeURIComponent(term)}`)
+    // replace 로 같은 페이지의 query 만 갈아치움 — 검색을 여러 번 해도
+    // 백키 history 가 쌓이지 않게.
+    navigate(`/search/result?q=${encodeURIComponent(term)}`, { replace: true })
   }
-
-  const onLikeToggle = (id: Counselor['id']) =>
-    setCounselors((prev) => prev.map((c) => (c.id === id ? { ...c, liked: !c.liked } : c)))
 
   const visible = counselors.slice(0, shownCount)
   const canShowMore = shownCount < counselors.length
@@ -133,13 +107,17 @@ export default function SearchResult() {
       </header>
 
       <main className="flex-1">
-        {counselors.length === 0 ? (
+        {loading ? (
+          <div className="pt-20 flex justify-center">
+            <div className="w-6 h-6 border-2 border-[#E5E7EB] border-t-[#8259F5] rounded-full animate-spin" />
+          </div>
+        ) : counselors.length === 0 ? (
           <EmptyState />
         ) : (
           <>
             <div className="px-4 py-3 flex flex-col gap-3">
               {visible.map((c) => (
-                <CounselorCard key={c.id} counselor={c} onLikeToggle={onLikeToggle} />
+                <CounselorCard key={c.id} counselor={mapPublicCounselorToCard(c)} />
               ))}
             </div>
             {canShowMore && (

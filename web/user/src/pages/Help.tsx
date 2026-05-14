@@ -1,40 +1,91 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
 import {
-  FAQ_CATEGORIES,
-  MOCK_FAQS,
-  type FaqCategory,
-} from '../data/myPageMockData'
+  faqsApi,
+  settingsApi,
+  type PublicFaqCategory,
+  type PublicFaqItem,
+} from '../lib/api'
+import { openExternalUrl } from '../lib/native-bridge'
 
 const PAGE_SIZE = 5
+const ALL_LABEL = '전체'
 
 /**
  * 이용안내 — Figma 06마이페이지(비회원) > 이용안내 (+ 빈 상태)
  *
- * 구조:
- *  - 고객센터 카드 (보라 전화 아이콘 + 운영시간 + 1:1 문의 버튼)
- *  - "자주 묻는 질문" + 카테고리 셀렉트(풀폭)
- *  - FAQ 아코디언 (Q 원형 + 질문 + chevron, 펼치면 답변)
- *  - 페이지네이션
- *  - 빈 상태: 채팅 아이콘 원형 + "등록된 질문이 없습니다." + 서브카피
+ * 데이터 소스:
+ *  - 카테고리: GET /user/faqs/categories
+ *  - 항목:    GET /user/faqs (선택 시 ?category_id=N)
+ *  - 카카오 채널: site.kakao_channel_url (어드민 사이트설정)
+ *
+ * 1:1 문의는 카카오 1:1 채널로 위임 (외부 URL).
+ * SSR 호환: window/document 직접 사용 금지 — 모든 fetch 는 useEffect 내부.
  */
 export default function Help() {
   const navigate = useNavigate()
-  const [category, setCategory] = useState<FaqCategory>('전체')
+
+  // 카테고리: '전체' + 서버에서 받은 활성 카테고리 (faq 가 1개 이상인 것만)
+  const [categories, setCategories] = useState<PublicFaqCategory[]>([])
+  const [faqs, setFaqs] = useState<PublicFaqItem[]>([])
+  const [kakaoUrl, setKakaoUrl] = useState<string>('')
+  const [loading, setLoading] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const [category, setCategory] = useState<string>(ALL_LABEL)
   const [catOpen, setCatOpen] = useState(false)
   const [page, setPage] = useState(1)
-  const [openId, setOpenId] = useState<number | null>(MOCK_FAQS[0]?.id ?? null)
+  const [openId, setOpenId] = useState<number | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    Promise.all([
+      faqsApi.categories(),
+      faqsApi.list(),
+      settingsApi.public().catch(() => ({}) as Record<string, string>),
+    ])
+      .then(([cats, items, settings]) => {
+        if (!alive) return
+        const visibleCats = cats.items.filter((c) => c.faq_count > 0)
+        setCategories(visibleCats)
+        setFaqs(items.items)
+        setOpenId(items.items[0]?.id ?? null)
+        setKakaoUrl(settings['site.kakao_channel_url'] ?? '')
+        setError(null)
+      })
+      .catch(() => {
+        if (!alive) return
+        setError('FAQ를 불러오지 못했습니다.')
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const filtered = useMemo(() => {
-    return category === '전체' ? MOCK_FAQS : MOCK_FAQS.filter((f) => f.category === category)
-  }, [category])
+    if (category === ALL_LABEL) return faqs
+    return faqs.filter((f) => f.category_title === category)
+  }, [category, faqs])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const isEmpty = filtered.length === 0
+  const isEmpty = !loading && filtered.length === 0
+
+  const handleInquiry = () => {
+    if (kakaoUrl) {
+      openExternalUrl(kakaoUrl)
+      return
+    }
+    // 어드민에 채널 URL 미등록 — 사주문 라이브 채널로 폴백
+    openExternalUrl('https://pf.kakao.com/_gLTVX')
+  }
 
   return (
     <div className="mobile-frame flex flex-col pb-[100px]">
@@ -70,11 +121,11 @@ export default function Help() {
           </div>
           <button
             type="button"
-            onClick={() => navigate('/mypage/inquiry/new')}
+            onClick={handleInquiry}
             className="mt-4 w-full h-[44px] rounded-full border border-[#9B7AF7] bg-white flex items-center justify-center gap-1.5 text-[15px] font-medium text-[#8259F5]"
           >
             <img src="/img/ic_write_p.svg" alt="" className="w-5 h-5" />
-            1:1 문의
+            카카오 1:1 문의
           </button>
         </section>
 
@@ -91,8 +142,8 @@ export default function Help() {
               aria-expanded={catOpen}
               className="w-full h-[48px] px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] flex items-center justify-between text-[15px] text-[#1E2939]"
             >
-              <span className={category === '전체' ? 'text-[#99A1AF]' : 'text-[#1E2939]'}>
-                {category === '전체' ? '카테고리 선택' : category}
+              <span className={category === ALL_LABEL ? 'text-[#99A1AF]' : 'text-[#1E2939]'}>
+                {category === ALL_LABEL ? '카테고리 선택' : category}
               </span>
               <svg
                 viewBox="0 0 16 16"
@@ -115,7 +166,7 @@ export default function Help() {
                 aria-label="카테고리"
                 className="absolute top-[calc(100%+4px)] left-0 right-0 z-50 max-h-[260px] overflow-y-auto bg-white rounded-[12px] border border-[#E5E7EB] shadow-[0_8px_20px_rgba(16,24,40,0.08)] py-1"
               >
-                {FAQ_CATEGORIES.map((c) => {
+                {[ALL_LABEL, ...categories.map((c) => c.title)].map((c) => {
                   const selected = c === category
                   return (
                     <li key={c}>
@@ -145,7 +196,15 @@ export default function Help() {
           </div>
         </section>
 
-        {isEmpty ? (
+        {loading ? (
+          <section className="pt-[64px] flex flex-col items-center">
+            <p className="text-[15px] text-[#6A7282]">불러오는 중…</p>
+          </section>
+        ) : error ? (
+          <section className="pt-[64px] flex flex-col items-center">
+            <p className="text-[15px] text-[#FF6467]">{error}</p>
+          </section>
+        ) : isEmpty ? (
           <section className="pt-[64px] flex flex-col items-center">
             <div className="w-[80px] h-[80px] rounded-full bg-[#F3EEFE] flex items-center justify-center">
               <img src="/img/ic_message_p.svg" alt="" className="w-9 h-9" />
@@ -203,7 +262,7 @@ export default function Help() {
           </ul>
         )}
 
-        {!isEmpty && (
+        {!loading && !error && !isEmpty && (
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
         )}
       </main>

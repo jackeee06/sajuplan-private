@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useDismissOnBack } from '../lib/use-dismiss-on-back'
 
 /**
  * 쿠폰번호로 사용하기 모달 — Figma 128:15905
@@ -17,11 +18,16 @@ interface Props {
   open: boolean
   onClose: () => void
   onSubmit: (code: string) => void
+  /** 등록 실패 시 모달 내 인라인 에러 메시지 */
+  error?: string | null
+  submitting?: boolean
 }
 
-export default function CouponRegisterModal({ open, onClose, onSubmit }: Props) {
+export default function CouponRegisterModal({ open, onClose, onSubmit, error, submitting }: Props) {
   const [parts, setParts] = useState<string[]>(['', '', '', ''])
   const refs = useRef<(HTMLInputElement | null)[]>([])
+
+  useDismissOnBack(open, onClose)
 
   useEffect(() => {
     if (!open) setParts(['', '', '', ''])
@@ -110,16 +116,20 @@ export default function CouponRegisterModal({ open, onClose, onSubmit }: Props) 
           </p>
         </div>
 
+        {error && (
+          <p className="mt-3 text-[13px] text-[#FB2C36] leading-[140%]">{error}</p>
+        )}
+
         <div className="mt-5 flex justify-center">
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!filled}
+            disabled={!filled || !!submitting}
             className={`h-11 px-12 rounded-full text-[15px] font-medium text-white transition ${
-              filled ? 'bg-[#9B7AF7]' : 'bg-[#9B7AF7]/60 cursor-not-allowed'
+              filled && !submitting ? 'bg-[#9B7AF7]' : 'bg-[#9B7AF7]/60 cursor-not-allowed'
             }`}
           >
-            사용
+            {submitting ? '처리 중…' : '사용'}
           </button>
         </div>
       </div>

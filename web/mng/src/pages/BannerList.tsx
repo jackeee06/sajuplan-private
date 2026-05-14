@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
+import UploadedImage from '../components/UploadedImage'
 
 /**
  * sample/adm/bannerlist.php (메뉴 350600 "배너관리") 정확 매핑.
@@ -10,13 +11,7 @@ import { api } from '../lib/api'
  * 필터: 위치(16종) / 상태(전체/진행중/종료)
  */
 
-const POSITIONS = [
-  '회원가입완료', '메인-상단배너', '메인-중앙배너',
-  '로그인-상단띠배너', '마이페이지', '일반-상담후기', '일반-이용안내',
-  '일반-상담사신청', '상담사-코인내역', '상담사-공지사항',
-  '이벤트1', '이벤트2', '이벤트3', '오늘의운세',
-  '소원다락방-상단', '소원다락방-하단', '사주문의길',
-]
+const POSITIONS = ['회원가입완료', '메인-상단배너', '메인-중앙배너']
 
 interface Banner {
   id: number
@@ -24,6 +19,7 @@ interface Banner {
   title: string | null
   link_url: string | null
   image_url: string | null
+  image_url_webp: string | null
   display_order: number
   starts_at: string | null
   ends_at: string | null
@@ -32,8 +28,6 @@ interface Banner {
 }
 
 interface Resp { items: Banner[]; total: number; page: number; limit: number }
-
-const FILE_BASE = (import.meta.env.VITE_API_BASE ?? '/api').replace(/\/api\/?$/, '')
 
 export default function BannerList() {
   const [filter, setFilter] = useState<{ position: string; status: string; page: number }>({ position: '', status: '', page: 1 })
@@ -120,7 +114,7 @@ export default function BannerList() {
                     <td className="px-3 py-2 whitespace-nowrap">{b.position || '-'}</td>
                     <td className="px-3 py-2">
                       {b.image_url ? (
-                        <img src={b.image_url.startsWith('http') ? b.image_url : FILE_BASE + b.image_url} alt={b.title || ''} className="h-12 max-w-[120px] object-contain" />
+                        <UploadedImage src={b.image_url} srcWebp={b.image_url_webp} alt={b.title || ''} className="h-12 max-w-[120px] object-contain" />
                       ) : <span className="text-gray-300">-</span>}
                     </td>
                     <td className="px-3 py-2 max-w-[280px] truncate">

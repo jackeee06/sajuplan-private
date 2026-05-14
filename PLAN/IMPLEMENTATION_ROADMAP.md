@@ -182,8 +182,11 @@ ETL 스크립트는 각 Phase에서 도메인별로 작성:
 | **E2** | 알림 (메일/푸시/알림톡) | 0020 마이그레이션, NotificationsModule (큐 기반), 알림 센터 페이지 3개 | - |
 | **F** | 통계/대시보드 강화 | StatsModule, Dashboard.tsx 더미 제거 + 실데이터 연결 | A~E 완료 (data source 필요) |
 | **G** | 시스템/권한/감사 | 0015/0016/0021 마이그레이션, PermissionsModule, AdminUsers/Permissions/AuditLog | 다른 모든 Phase의 변경 작업이 audit log에 기록되도록 통합 |
+| **도메인-10** | 채팅(1:1 상담) — 사용자향 트랙 | `user/chat` + `shared/m2net` webhook + `consult-charge` + `counselor-state`. 기존 `web/user/src/pages/ChatRoom.tsx` 의 mock → m2net wss 실연동 | 매뉴얼 `docs/상담서비스_API매뉴얼-V1.3.pdf` 정독 + m2net 운영팀 통한 React Native 샘플(`chat-ag9-demo-04.tar.gz`) 입수 + `etc-mgr/{cpid}/notiurl` 등록 1회 |
 
 **권장 시작점: Phase A** — 가장 시급한 이력화 + 다른 Phase에서 재사용할 패턴(트랜잭션 + actor 기록 + audit log 인터페이스)의 기준이 됨.
+
+**도메인-10(채팅)** 은 admin Phase A~G 와 별도 트랙. 사용자향 화면(`web/user`) + NestJS user/shared 모듈만 건드리며, admin Phase 와 의존성 낮음(domain-03 정산 패턴만 참조). Phase A 가 끝나 회원 포인트 이력화 패턴이 잡힌 직후 도메인-10 진입을 권장 — 채팅 종료 시 발생하는 포인트 차감/적립이 동일 패턴(`actor_type='m2net_webhook'`)을 재사용.
 
 ---
 

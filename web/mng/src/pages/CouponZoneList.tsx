@@ -29,10 +29,9 @@ interface Item {
 interface Resp { items: Item[]; total: number; page: number; limit: number }
 
 const CZ_TYPE_LABEL: Record<number, string> = {
-  1: '포인트차감쿠폰',
+  0: '다운로드 쿠폰',
   2: '포인트추가쿠폰',
   3: '코드입력쿠폰',
-  0: '다운로드 쿠폰',
 }
 
 const CP_METHOD_LABEL: Record<number, string> = {

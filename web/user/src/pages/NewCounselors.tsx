@@ -1,23 +1,26 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FilterDropdown from '../components/FilterDropdown'
 import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
-import { MOCK_NEW_COUNSELORS, type NewCounselorBadge } from '../data/myPageMockData'
+import UploadedImage from '../components/UploadedImage'
+import { ApiError, counselorsApi, type PublicCounselor } from '../lib/api'
 
 const PAGE_SIZE = 8
 
-const CATEGORY_OPTIONS: NewCounselorBadge[] = ['사주', '타로', '신점']
+const CATEGORY_OPTIONS = ['사주', '타로', '신점'] as const
 
-const BADGE_BG: Record<NewCounselorBadge, string> = {
+type Badge = '신규' | '사주' | '타로' | '신점'
+
+const BADGE_BG: Record<Badge, string> = {
   신규: '#F3EEFE',
   사주: '#FFE2E2',
   타로: '#EDE9FE',
   신점: '#CCFBF1',
 }
 
-const BADGE_TEXT: Record<NewCounselorBadge, string> = {
+const BADGE_TEXT: Record<Badge, string> = {
   신규: '#8259F5',
   사주: '#FF6467',
   타로: '#8259F5',
@@ -27,31 +30,62 @@ const BADGE_TEXT: Record<NewCounselorBadge, string> = {
 /**
  * 신규상담사 — Figma 120:6804 (목록) / 130:11024 (빈 상태)
  *
- * 구조:
- *  - 헤더: 뒤로가기 + "신규상담사"
- *  - 필터/검색 (filter_select "전체" + 검색 인풋)
- *  - "신규 선생님을 N명을 소개합니다!" (보라 강조 카운터)
- *  - 2열 카드 그리드 (사진 + 좌상단 칩 + 이름 + 코드 + 카피 + 가격)
- *  - 페이지네이션
- *  - 비어있으면 빈 상태(보라 원형 채팅 아이콘 + 메시지)
+ * 데이터: GET /api/user/counselors?tab=new&category=사주|타로|신점&limit=50
+ *  - 가입 최근순 정렬 (member.created_at DESC).
+ *  - sample 의 bo_table=new 게시판은 관리자가 직접 글을 올리는 구조였으나,
+ *    신규에선 최근 가입한 상담사 카드를 자동으로 노출.
+ *
+ * 카드 뱃지:
+ *  - 카테고리 추정 결과(사주/타로/신점)가 있으면 해당 색의 카테고리 칩.
+ *  - '기타' 면 '신규' 보라 칩.
  */
 export default function NewCounselors() {
   const navigate = useNavigate()
   const [category, setCategory] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
+  const [items, setItems] = useState<PublicCounselor[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    setError(null)
+    counselorsApi
+      .list({ tab: 'new', category: category ?? undefined, limit: 50 })
+      .then((res) => {
+        if (!alive) return
+        setItems(res.items)
+      })
+      .catch((e: unknown) => {
+        if (!alive) return
+        const msg =
+          e instanceof ApiError
+            ? e.message
+            : '신규상담사 목록을 불러오지 못했습니다.'
+        setError(msg)
+        setItems([])
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [category])
 
   const filtered = useMemo(() => {
-    return MOCK_NEW_COUNSELORS.filter((c) => {
-      if (category && c.badge !== category) return false
-      if (keyword && !c.name.includes(keyword)) return false
-      return true
-    })
-  }, [category, keyword])
+    const k = keyword.trim()
+    if (!k) return items
+    return items.filter(
+      (c) => c.name.includes(k) || c.nickname.includes(k),
+    )
+  }, [items, keyword])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-  const isEmpty = filtered.length === 0
+  const isEmpty = !loading && filtered.length === 0
 
   return (
     <div className="mobile-frame flex flex-col pb-[100px]">
@@ -99,7 +133,19 @@ export default function NewCounselors() {
           </div>
         </section>
 
-        {isEmpty ? (
+        {error ? (
+          <section className="pt-[64px] flex flex-col items-center px-6">
+            <p className="text-[15px] leading-[150%] text-[#6A7282] text-center">
+              {error}
+            </p>
+          </section>
+        ) : loading ? (
+          <section className="pt-[64px] flex flex-col items-center px-6">
+            <p className="text-[15px] leading-[150%] text-[#6A7282]">
+              불러오는 중...
+            </p>
+          </section>
+        ) : isEmpty ? (
           <section className="pt-[64px] flex flex-col items-center px-6">
             <div className="w-[80px] h-[80px] rounded-full bg-[#F3EEFE] flex items-center justify-center">
               <img src="/img/ic_message_p.svg" alt="" className="w-9 h-9" />
@@ -118,48 +164,67 @@ export default function NewCounselors() {
             </p>
 
             <ul className="px-4 grid grid-cols-2 gap-3">
-              {pageItems.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/counselors/${c.id}`)}
-                    className="w-full bg-white rounded-[12px] border border-[#F3F4F6] overflow-hidden text-left"
-                  >
-                    <div className="relative aspect-square bg-[#F9FAFB]">
-                      <img
-                        src={c.imgUrl}
-                        alt={c.name}
-                        className="w-full h-full object-cover"
-                      />
-                      <span
-                        className="absolute top-2 left-2 inline-flex items-center h-[22px] px-2 rounded-full text-[12px] leading-none font-medium"
-                        style={{ background: BADGE_BG[c.badge], color: BADGE_TEXT[c.badge] }}
-                      >
-                        {c.badge}
-                      </span>
-                    </div>
-                    <div className="p-2.5">
-                      <div className="flex items-center gap-1">
-                        <span className="text-[14px] leading-[140%] font-bold text-[#030712]">
-                          {c.name}
-                        </span>
-                        <span className="text-[12px] leading-[140%] text-[#99A1AF]">
-                          {c.code}
+              {pageItems.map((c) => {
+                const badge: Badge =
+                  c.category === '사주' || c.category === '타로' || c.category === '신점'
+                    ? c.category
+                    : '신규'
+                const tagline = c.headline || c.title || '속 시원하게 풀어드립니다'
+                const pricePer30s = priceFor30s(c.unit_seconds, c.unit_cost)
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/counselors/${c.id}`)}
+                      className="w-full bg-white rounded-[12px] border border-[#F3F4F6] overflow-hidden text-left"
+                    >
+                      <div className="relative aspect-square bg-[#F9FAFB]">
+                        {c.profile_image ? (
+                          <UploadedImage
+                            src={c.profile_image}
+                            srcWebp={c.profile_image_webp}
+                            alt={c.nickname || c.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-[#D1D5DC] text-[12px]">
+                            no image
+                          </div>
+                        )}
+                        <span
+                          className="absolute top-2 left-2 inline-flex items-center h-[22px] px-2 rounded-full text-[12px] leading-none font-medium"
+                          style={{ background: BADGE_BG[badge], color: BADGE_TEXT[badge] }}
+                        >
+                          {badge}
                         </span>
                       </div>
-                      <p className="mt-0.5 text-[12px] leading-[140%] text-[#6A7282] line-clamp-2">
-                        {c.tagline}
-                      </p>
-                      <p className="mt-1.5 text-[12px] leading-[140%] text-[#6A7282]">
-                        30초당{' '}
-                        <span className="text-[14px] font-bold text-[#030712]">
-                          {c.pricePer30s.toLocaleString()}원
-                        </span>
-                      </p>
-                    </div>
-                  </button>
-                </li>
-              ))}
+                      <div className="p-2.5">
+                        <div className="flex items-center gap-1">
+                          <span className="text-[14px] leading-[140%] font-bold text-[#030712]">
+                            {c.nickname || c.name}
+                          </span>
+                          {(c.dtmfno || c.csrid) && (
+                            <span className="text-[12px] leading-[140%] text-[#99A1AF]">
+                              {c.dtmfno || c.csrid}
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-[12px] leading-[140%] text-[#6A7282] line-clamp-2">
+                          {tagline}
+                        </p>
+                        {pricePer30s != null && (
+                          <p className="mt-1.5 text-[12px] leading-[140%] text-[#6A7282]">
+                            30초당{' '}
+                            <span className="text-[14px] font-bold text-[#030712]">
+                              {pricePer30s.toLocaleString()}원
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
 
             <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
@@ -171,4 +236,15 @@ export default function NewCounselors() {
       <BottomNav />
     </div>
   )
+}
+
+/**
+ * unit_seconds 동안 unit_cost 원 → 30초당 가격 환산.
+ * unit_seconds 가 0/null 이면 null (가격 미노출).
+ * 카드의 가격 표기 정책은 sample 메인 카드(30초당 X,XXX원) 와 동일.
+ */
+function priceFor30s(unitSeconds: number | null, unitCost: number | null): number | null {
+  if (!unitSeconds || !unitCost) return null
+  const per30 = (unitCost / unitSeconds) * 30
+  return Math.round(per30)
 }

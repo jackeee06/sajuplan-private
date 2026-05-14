@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useDismissOnBack } from '../lib/use-dismiss-on-back'
 
 interface Props {
   open: boolean
@@ -23,6 +24,7 @@ export default function AlertModal({
   confirmLabel = '확인',
   onClose,
 }: Props) {
+  useDismissOnBack(open, onClose)
   useEffect(() => {
     if (!open) return
     document.body.style.overflow = 'hidden'

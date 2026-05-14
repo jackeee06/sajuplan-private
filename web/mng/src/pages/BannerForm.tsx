@@ -1,38 +1,25 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Upload } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { api } from '../lib/api'
+import UploadedImage from '../components/UploadedImage'
+import { API_BASE } from '../lib/runtime-env'
 
 /** sample/adm/bannerform.php의 help 텍스트에서 추출 — 위치별 권장 사이즈 */
 const POSITION_SIZES: Record<string, { w: number; h: number | null; note?: string }> = {
   '회원가입완료':       { w: 1000, h: 520 },
   '메인-상단배너':       { w: 1000, h: 520 },
   '메인-중앙배너':       { w: 1000, h: 160 },
-  '로그인-상단띠배너':   { w: 1000, h: 80 },
-  '마이페이지':           { w: 1000, h: 220 },
-  '일반-상담후기':       { w: 1000, h: 240 },
-  '일반-이용안내':       { w: 1000, h: 270 },
-  '일반-상담사신청':     { w: 1000, h: 530 },
-  '상담사-코인내역':     { w: 1000, h: 270 },
-  '상담사-공지사항':     { w: 1000, h: 270 },
-  '이벤트1':              { w: 1000, h: 170 },
-  '이벤트2':              { w: 1000, h: 170 },
-  '이벤트3':              { w: 1000, h: 170 },
-  '오늘의운세':           { w: 1000, h: 520 },
-  '소원다락방-상단':     { w: 1000, h: 520 },
-  '소원다락방-하단':     { w: 1000, h: null, note: '높이 가변' },
-  '사주문의길':           { w: 1000, h: 1100 },
 }
 
 const POSITIONS = Object.keys(POSITION_SIZES)
-
-const FILE_BASE = (import.meta.env.VITE_API_BASE ?? '/api').replace(/\/api\/?$/, '')
 
 interface Payload {
   position: string
   title: string
   link_url: string
   image_url: string
+  image_url_webp: string
   display_order: number | ''
   starts_at: string
   ends_at: string
@@ -40,7 +27,7 @@ interface Payload {
 }
 
 const empty = (): Payload => ({
-  position: POSITIONS[0], title: '', link_url: '', image_url: '',
+  position: POSITIONS[0], title: '', link_url: '', image_url: '', image_url_webp: '',
   display_order: 0, starts_at: '', ends_at: '', is_active: true,
 })
 
@@ -60,7 +47,7 @@ export default function BannerForm() {
     try {
       const form = new FormData()
       form.append('file', file)
-      const apiBase = (import.meta.env.VITE_API_BASE ?? '/api')
+      const apiBase = API_BASE
       const res = await fetch(`${apiBase}/admin/banners/upload`, {
         method: 'POST',
         credentials: 'include',
@@ -70,9 +57,9 @@ export default function BannerForm() {
         const j = await res.json().catch(() => ({}))
         throw new Error(j.message ?? '업로드 실패')
       }
-      const j = (await res.json()) as { image_url: string }
-      setData((d) => ({ ...d, image_url: j.image_url }))
-      setSuccess('이미지 업로드 완료')
+      const j = (await res.json()) as { image_url: string; image_url_webp: string | null }
+      setData((d) => ({ ...d, image_url: j.image_url, image_url_webp: j.image_url_webp ?? '' }))
+      setSuccess(j.image_url_webp ? '이미지 업로드 완료 (WebP 변환됨)' : '이미지 업로드 완료')
     } catch (e) {
       setError(e instanceof Error ? e.message : '업로드 실패')
     } finally {
@@ -89,6 +76,7 @@ export default function BannerForm() {
         title: String(r.title ?? ''),
         link_url: String(r.link_url ?? ''),
         image_url: String(r.image_url ?? ''),
+        image_url_webp: String(r.image_url_webp ?? ''),
         display_order: Number(r.display_order ?? 0),
         starts_at: r.starts_at ? toLocal(String(r.starts_at)) : '',
         ends_at: r.ends_at ? toLocal(String(r.ends_at)) : '',
@@ -113,6 +101,7 @@ export default function BannerForm() {
         title: data.title || null,
         link_url: data.link_url || null,
         image_url: data.image_url || null,
+        image_url_webp: data.image_url_webp || null,
       }
       if (isNew) {
         const r = await api<{ id: number }>('/admin/banners', { method: 'POST', body: JSON.stringify(payload) })
@@ -178,12 +167,16 @@ export default function BannerForm() {
             </div>
             {data.image_url && (
               <div className="space-y-2">
-                <img
-                  src={data.image_url.startsWith('http') ? data.image_url : FILE_BASE + data.image_url}
+                <UploadedImage
+                  src={data.image_url}
+                  srcWebp={data.image_url_webp}
                   alt="미리보기"
                   className="max-w-full max-h-[300px] border border-gray-200 dark:border-gray-700"
                 />
-                <div className="text-[11px] text-gray-500 break-all">{data.image_url}</div>
+                <div className="text-[11px] text-gray-500 break-all">
+                  {data.image_url}
+                  {data.image_url_webp && <span className="ml-1 text-emerald-600">· webp ✓</span>}
+                </div>
               </div>
             )}
             <div className="text-[11px] text-gray-400">

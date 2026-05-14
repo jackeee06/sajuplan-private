@@ -7,6 +7,7 @@ export interface PublicBanner {
   title: string | null;
   link_url: string | null;
   image_url: string | null;
+  image_url_webp: string | null;
   display_order: number;
 }
 
@@ -21,7 +22,7 @@ export class UserBannersService {
   async listByPosition(position: string): Promise<PublicBanner[]> {
     if (!position?.trim()) return [];
     return this.sql<PublicBanner[]>`
-      SELECT id, position, title, link_url, image_url, display_order
+      SELECT id, position, title, link_url, image_url, image_url_webp, display_order
         FROM shop_banner
        WHERE position = ${position}
          AND is_active = true

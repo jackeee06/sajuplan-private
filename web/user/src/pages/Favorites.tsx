@@ -1,69 +1,107 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
-import CounselorCard, { Counselor } from '../components/CounselorCard'
+import CounselorCard, { type Counselor } from '../components/CounselorCard'
 import FilterDropdown from '../components/FilterDropdown'
 import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
+import { ApiError, counselorsApi, type PublicCounselor } from '../lib/api'
+import { mapPublicCounselorToCard } from '../lib/counselor-mapper'
 
 type Category = '전체' | '사주' | '타로' | '신점'
 const CATEGORIES: Category[] = ['전체', '사주', '타로', '신점']
 
-const FIELD_OPTIONS = ['연애운', '재물운', '신년운세', '직장운', '가족운', '종합운']
-const STYLE_OPTIONS = ['직설적', '따뜻한', '자세한', '명료한']
-const GENDER_OPTIONS = ['남성', '여성']
+// 분야 옵션은 DB 의 실제 hashtag 분포에서 동적으로 가져옴 (counselorsApi.filterOptions)
 
-interface CounselorMock extends Counselor {
-  hideChat?: boolean
-  style?: string
-  gender?: '남성' | '여성'
-}
+const PAGE_SIZE = 10
 
 /**
  * 단골 상담사 — Figma 163:16645 (03전체리스트_단골 상담사)
  *
- * 상담사 리스트와 동일한 인터랙션:
- *  - 카테고리 탭, filter_select × 3, 상담가능만 보기 체크
- *  차이점: 헤더 타이틀 "단골 상담사" / 모든 카드 liked=true / BottomNav active=단골
+ * 백엔드 연동:
+ *   GET /api/user/counselors/favorites?category=
+ *
+ * 좋아요 토글: 카드 하트 → counselorsApi.removeLike → 목록에서 제거 후 갱신.
  */
 
-const MOCK_FAVORITES: CounselorMock[] = [
-  { id: 1, name: '강타로',   code: '335912', badge: '타로', tagline: '상대방의 진심이 궁금하다면?', pricePerSec: 1200, phoneState: 'available', chatState: 'available', hashtags: ['연애궁합운', '재회'],   rating: 4.9, reviewCount: 326, liked: true, imgUrl: '/img/sample_img01.jpg', style: '직설적', gender: '여성' },
-  { id: 2, name: '김선녀',   code: '224587', badge: '신점', tagline: '마음을 읽는 신점',           pricePerSec: 1500, phoneState: 'available', chatState: 'available', hashtags: ['삼재상담', '연애운'],   rating: 4.8, reviewCount: 92,  liked: true, imgUrl: '/img/sample_img02.jpg', hideChat: true, style: '따뜻한', gender: '여성' },
-  { id: 3, name: '사주선녀', code: '165791', badge: '사주', tagline: '속 시원하게 풀어드립니다',  pricePerSec: 1000, phoneState: 'busy',      chatState: 'busy',      hashtags: ['신년운세', '금전운'],   rating: 4.7, reviewCount: 106, liked: true, imgUrl: '/img/sample_img03.jpg', style: '자세한', gender: '여성' },
-  { id: 4, name: '신비',     code: '863143', badge: '타로', tagline: '카드가 들려주는 이야기',     pricePerSec: 1400, phoneState: 'busy',      chatState: 'busy',      hashtags: ['오늘의운세', '가족운'], rating: 4.8, reviewCount: 237, liked: true, imgUrl: '/img/sample_img04.jpg', hideChat: true, style: '명료한', gender: '남성' },
-]
-
-const matchesField = (c: CounselorMock, field: string | null) => {
-  if (!field) return true
-  return c.hashtags.some((tag) => tag.includes(field))
-}
+// 카드 매핑은 src/lib/counselor-mapper.ts 통합 헬퍼 사용. 단골 페이지는 응답 자체가 is_liked=true.
 
 export default function Favorites() {
   const navigate = useNavigate()
   const [category, setCategory] = useState<Category>('전체')
   const [field, setField] = useState<string | null>(null)
-  const [style, setStyle] = useState<string | null>(null)
-  const [gender, setGender] = useState<string | null>(null)
   const [availableOnly, setAvailableOnly] = useState(false)
   const [page, setPage] = useState(1)
-  const [counselors, setCounselors] = useState(MOCK_FAVORITES)
+  const [counselors, setCounselors] = useState<PublicCounselor[]>([])
+  const [fieldOptions, setFieldOptions] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const onLikeToggle = (id: Counselor['id']) =>
-    setCounselors((prev) => prev.map((c) => (c.id === id ? { ...c, liked: !c.liked } : c)))
+  useEffect(() => {
+    counselorsApi.filterOptions().then((r) => setFieldOptions(r.fields)).catch(() => {})
+  }, [])
 
+  // 카테고리 변경 시 백엔드 재조회
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    setError(null)
+    setPage(1)
+    const cat = category === '전체' ? undefined : category
+    counselorsApi
+      .favorites({ category: cat, limit: 100 })
+      .then((r) => {
+        if (alive) setCounselors(r.items)
+      })
+      .catch((e) => {
+        if (!alive) return
+        if (e instanceof ApiError && e.status === 401) {
+          navigate('/login', { replace: true, state: { from: '/favorites' } })
+          return
+        }
+        setError(e instanceof Error ? e.message : '단골 상담사를 불러오지 못했습니다.')
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [category, navigate])
+
+  /**
+   * CounselorCard 내부에서 통합 LikeContext 가 API 를 호출하고 결과를 콜백으로 전달.
+   * 단골 페이지는 unlike 시 즉시 목록에서 제거.
+   */
+  const onLikeToggle = (id: Counselor['id'], nextLiked: boolean) => {
+    if (!nextLiked) {
+      setCounselors((list) => list.filter((c) => c.id !== id))
+    }
+  }
+
+  // 클라이언트 필터 (분야 = 해시태그 부분일치, 상담가능만)
   const filtered = useMemo(
     () =>
       counselors.filter((c) => {
-        if (category !== '전체' && c.badge !== category) return false
-        if (!matchesField(c, field)) return false
-        if (style && c.style !== style) return false
-        if (gender && c.gender !== gender) return false
-        if (availableOnly && c.phoneState !== 'available' && c.chatState !== 'available') return false
+        // 분야 필터 — hashtag1/2 에 키워드 포함
+        if (field) {
+          const tags = [c.hashtag1, c.hashtag2].filter((t): t is string => !!t)
+          if (!tags.some((tag) => tag.includes(field))) return false
+        }
+        // 상담가능만
+        if (availableOnly) {
+          const phoneOk = c.use_phone && ['IDLE', 'RDVC', 'CRDY'].includes(c.state)
+          const chatOk = c.use_chat && ['IDLE', 'RDCH', 'CRDY'].includes(c.state)
+          if (!phoneOk && !chatOk) return false
+        }
         return true
       }),
-    [counselors, category, field, style, gender, availableOnly],
+    [counselors, field, availableOnly],
   )
+
+  // 페이지네이션
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pagedItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const resetPage = () => setPage(1)
 
@@ -116,28 +154,10 @@ export default function Favorites() {
         <section className="px-4 pt-1 pb-3 flex gap-1 items-center">
           <FilterDropdown
             label="분야"
-            options={FIELD_OPTIONS}
+            options={fieldOptions}
             value={field}
             onChange={(v) => {
               setField(v)
-              resetPage()
-            }}
-          />
-          <FilterDropdown
-            label="스타일"
-            options={STYLE_OPTIONS}
-            value={style}
-            onChange={(v) => {
-              setStyle(v)
-              resetPage()
-            }}
-          />
-          <FilterDropdown
-            label="성별"
-            options={GENDER_OPTIONS}
-            value={gender}
-            onChange={(v) => {
-              setGender(v)
               resetPage()
             }}
           />
@@ -146,8 +166,6 @@ export default function Favorites() {
             aria-label="필터 초기화"
             onClick={() => {
               setField(null)
-              setStyle(null)
-              setGender(null)
               resetPage()
             }}
             className="w-9 h-9 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] flex items-center justify-center shrink-0"
@@ -169,30 +187,36 @@ export default function Favorites() {
             />
             <span className="text-[15px] leading-[120%] text-[#364153]">상담가능만 보기</span>
           </label>
-          <button type="button" className="flex items-center gap-1 text-[15px] leading-[130%] text-[#364153]">
-            <img src="/img/ic_filter.svg" alt="" className="w-4 h-4" />
-            최신순
-          </button>
+          <p className="text-[14px] text-[#6A7282]">
+            <span className="font-semibold text-[#8259F5]">{filtered.length}</span>명
+          </p>
         </section>
 
         <section className="flex flex-col">
-          {filtered.length === 0 ? (
-            <p className="text-center text-[14px] text-[#99A1AF] py-10">
-              해당 조건의 단골 상담사가 없습니다.
+          {loading ? (
+            <div className="py-20 text-center text-[14px] text-[#99A1AF]">불러오는 중…</div>
+          ) : error ? (
+            <div className="py-20 text-center text-[14px] text-[#FB2C36]">{error}</div>
+          ) : filtered.length === 0 ? (
+            <p className="text-center text-[14px] text-[#99A1AF] py-16 whitespace-pre-line">
+              {counselors.length === 0
+                ? '아직 단골 상담사가 없습니다.\n메인에서 마음에 드는 상담사를 단골로 등록해보세요.'
+                : '해당 조건의 단골 상담사가 없습니다.'}
             </p>
           ) : (
-            filtered.map((c) => (
+            pagedItems.map((c) => (
               <CounselorCard
                 key={c.id}
-                counselor={c}
+                counselor={mapPublicCounselorToCard(c)}
                 onLikeToggle={onLikeToggle}
-                hideChat={c.hideChat}
               />
             ))
           )}
         </section>
 
-        <Pagination currentPage={page} totalPages={1} onPageChange={setPage} />
+        {!loading && !error && filtered.length > PAGE_SIZE && (
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+        )}
       </main>
 
       <FloatingActions bottomOffset={100} />

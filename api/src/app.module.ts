@@ -7,6 +7,8 @@ import { AppService } from './app.service';
 import { AdminModule } from './admin/admin.module';
 import { UserModule } from './user/user.module';
 import { SharedModule } from './shared/shared.module';
+import { M2netPushModule } from './pg-callbacks/m2net-push.module';
+import { CronModule } from './cron/cron.module';
 
 @Module({
   imports: [
@@ -25,6 +27,8 @@ import { SharedModule } from './shared/shared.module';
     SharedModule,
     AdminModule,
     UserModule,
+    M2netPushModule,
+    CronModule,
   ],
   controllers: [AppController],
   providers: [

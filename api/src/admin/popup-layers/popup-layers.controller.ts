@@ -19,6 +19,7 @@ import { mkdirSync } from 'node:fs';
 import { AdminAuthGuard } from '../auth/admin-auth.guard';
 import { PopupLayersService } from './popup-layers.service';
 import type { PopupLayerInput } from './popup-layers.service';
+import { convertImageToWebp } from '../../shared/common/image-to-webp';
 
 const UPLOAD_DIR = join(process.cwd(), 'uploads', 'popup');
 mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -90,6 +91,8 @@ export class PopupLayersController {
   ) {
     if (!file) throw new BadRequestException('파일이 비어있습니다.');
     const url = `/uploads/popup/${file.filename}`;
-    return this.svc.setImage(id, url);
+    const { webpFilename } = await convertImageToWebp(file.path);
+    const webpUrl = webpFilename ? `/uploads/popup/${webpFilename}` : null;
+    return this.svc.setImage(id, url, webpUrl);
   }
 }

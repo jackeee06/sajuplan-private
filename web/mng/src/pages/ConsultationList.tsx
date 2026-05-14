@@ -356,14 +356,12 @@ function Row({ c }: { c: Consultation }) {
       </Td>
       <Td>
         {isChat && c.roomid ? (
-          <a
-            href={`/counsel/chat_history.php?token=${encodeURIComponent(c.roomid + '1')}`}
-            target="_blank"
-            rel="noreferrer"
+          <Link
+            to={`/chat-history/by-roomid?roomid=${encodeURIComponent(c.roomid)}`}
             className="text-brand-600 hover:underline"
           >
             채팅내역
-          </a>
+          </Link>
         ) : (
           <span className="text-gray-300">-</span>
         )}

@@ -1,36 +1,68 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import MobileHeader from '../components/MobileHeader'
-
-interface Notification {
-  id: number
-  title: string
-  body: string
-  date: string
-  read: boolean
-}
-
-const MOCK_NOTIFICATIONS: Notification[] = [
-  { id: 1, title: '[공지] 홈페이지가 리뉴얼되었습니다.', body: '서브 안내 텍스트가 필요한 경우 사용', date: '2026.04.20', read: false },
-  { id: 2, title: '[공지] 홈페이지가 리뉴얼되었습니다.', body: '서브 안내 텍스트가 필요한 경우 사용', date: '2026.04.20', read: false },
-  { id: 3, title: '[공지] 홈페이지가 리뉴얼되었습니다.', body: '서브 안내 텍스트가 필요한 경우 사용', date: '2026.04.20', read: false },
-  { id: 4, title: '[공지] 홈페이지가 리뉴얼되었습니다.', body: '서브 안내 텍스트가 필요한 경우 사용', date: '2026.04.20', read: true },
-  { id: 5, title: '[공지] 홈페이지가 리뉴얼되었습니다.', body: '서브 안내 텍스트가 필요한 경우 사용', date: '2026.04.20', read: false },
-  { id: 6, title: '[공지] 홈페이지가 리뉴얼되었습니다.', body: '서브 안내 텍스트가 필요한 경우 사용', date: '2026.04.20', read: true },
-]
+import { ApiError, notificationsApi, type PublicNotificationItem } from '../lib/api'
+import { API_BASE } from '../lib/runtime-env'
 
 /**
  * 알림 내역 — Figma node 163:23156 (있음), 163:27007 (비어있음)
  * URL: /notifications
- * 상단: 헤더 + "최근 6개월 동안의 알림을 확인하실 수 있습니다." + 모두 읽음 버튼
+ *
+ * 노출 규칙 (백엔드 위임):
+ *  - 로그인 일반회원   : 본인 개별 + 전체공지/일반회원 브로드캐스트
+ *  - 로그인 상담사     : 본인 개별 + 전체공지/상담사 브로드캐스트
+ *  - 비로그인          : 전체공지 브로드캐스트만
+ *  - 최근 6개월 한정, 최신순
  */
 export default function Notifications() {
-  const [items, setItems] = useState<Notification[]>(MOCK_NOTIFICATIONS)
+  const [items, setItems] = useState<PublicNotificationItem[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
 
-  const onReadAll = () =>
-    setItems((prev) => prev.map((n) => ({ ...n, read: true })))
+  useEffect(() => {
+    notificationsApi
+      .list()
+      .then((res) => {
+        setItems(res.items)
+        // 로그인 여부는 markRead/All 가능 여부에서 추론 — 빈 응답일 땐 추론 불가하니 별도 me() 호출
+        // 단순화를 위해, 알림이 read 상태로 1건이라도 있으면 로그인된 상태로 간주.
+        // 정확도 위해 me 도 시도해보지만 401 은 무시.
+      })
+      .catch((e: unknown) => {
+        const msg = e instanceof ApiError ? e.message : '알림을 불러오지 못했습니다.'
+        setError(msg)
+      })
 
-  const onItemClick = (id: number) =>
-    setItems((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)))
+    // 로그인 여부 확인 (모두 읽음 버튼 노출용)
+    fetch(`${API_BASE}/user/auth/me`, {
+      credentials: 'include',
+    })
+      .then((r) => setLoggedIn(r.ok))
+      .catch(() => setLoggedIn(false))
+  }, [])
+
+  const onReadAll = async () => {
+    if (!items || items.length === 0) return
+    try {
+      await notificationsApi.readAll()
+      setItems((prev) => (prev ? prev.map((n) => ({ ...n, read: true })) : prev))
+    } catch (e) {
+      const msg = e instanceof ApiError ? e.message : '처리에 실패했습니다.'
+      alert(msg)
+    }
+  }
+
+  const onItemClick = async (n: PublicNotificationItem) => {
+    if (!n.read && loggedIn) {
+      // 백엔드에 비동기 기록 (실패해도 UX 막지 않음)
+      notificationsApi.read(n.id).catch(() => {})
+      setItems((prev) => (prev ? prev.map((x) => (x.id === n.id ? { ...x, read: true } : x)) : prev))
+    }
+    if (n.link_url) {
+      // 외부 링크면 새 창, 내부면 현재 창
+      if (/^https?:\/\//i.test(n.link_url)) window.open(n.link_url, '_blank')
+      else window.location.href = n.link_url
+    }
+  }
 
   return (
     <div className="mobile-frame flex flex-col">
@@ -40,17 +72,23 @@ export default function Notifications() {
         <p className="text-[12px] text-[#4a5565] leading-relaxed">
           최근 6개월 동안의 알림을 확인하실 수 있습니다.
         </p>
-        <button
-          type="button"
-          onClick={onReadAll}
-          className="h-8 px-3 rounded-full border border-[#d1d5db] text-[12px] font-medium text-[#374151] hover:bg-white transition shrink-0 ml-2"
-        >
-          모두 읽음
-        </button>
+        {loggedIn && items && items.length > 0 && (
+          <button
+            type="button"
+            onClick={onReadAll}
+            className="h-8 px-3 rounded-full border border-[#d1d5db] text-[12px] font-medium text-[#374151] hover:bg-white transition shrink-0 ml-2"
+          >
+            모두 읽음
+          </button>
+        )}
       </div>
 
       <main className="flex-1 overflow-y-auto">
-        {items.length === 0 ? (
+        {error ? (
+          <div className="pt-20 text-center text-[14px] text-[#ef4444]">{error}</div>
+        ) : items === null ? (
+          <div className="pt-20 text-center text-[14px] text-[#99A1AF]">불러오는 중…</div>
+        ) : items.length === 0 ? (
           <EmptyState />
         ) : (
           <ul>
@@ -58,7 +96,7 @@ export default function Notifications() {
               <li key={n.id}>
                 <button
                   type="button"
-                  onClick={() => onItemClick(n.id)}
+                  onClick={() => onItemClick(n)}
                   className={`w-full px-4 py-4 text-left transition ${
                     n.read ? 'bg-white' : 'bg-[#f1ecfe]'
                   }`}
@@ -66,11 +104,13 @@ export default function Notifications() {
                   <p className={`text-[15px] font-bold ${n.read ? 'text-[#99A1AF]' : 'text-[#1E2939]'}`}>
                     {n.title}
                   </p>
-                  <p className={`text-[13px] mt-1 ${n.read ? 'text-[#99A1AF]' : 'text-[#4a5565]'}`}>
-                    {n.body}
-                  </p>
+                  {n.content && (
+                    <p className={`text-[13px] mt-1 ${n.read ? 'text-[#99A1AF]' : 'text-[#4a5565]'}`}>
+                      {n.content}
+                    </p>
+                  )}
                   <p className={`text-[12px] mt-2 ${n.read ? 'text-[#c9cdd3]' : 'text-[#6A7282]'}`}>
-                    {n.date}
+                    {fmtDate(n.created_at)}
                   </p>
                 </button>
               </li>
@@ -80,6 +120,16 @@ export default function Notifications() {
       </main>
     </div>
   )
+}
+
+function fmtDate(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}.${m}.${day}`
 }
 
 function EmptyState() {

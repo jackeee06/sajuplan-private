@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import ConsultModal, { type ConsultModalVariant } from './ConsultModal'
 import FloatingActions from './FloatingActions'
 import { BADGE_BG, type CounselorDetailData } from '../data/counselorDetails'
+import { useConsultModal } from '../lib/consult-context'
+import { useLikeAction } from '../lib/like-context'
 
 /**
  * 상담사 상세 공통 레이아웃 — Figma 76:4852 / 84:4721 / 92:4694 공유 골격
@@ -32,18 +33,56 @@ interface Props {
 
 export default function CounselorDetailLayout({ data, activeTab, children }: Props) {
   const navigate = useNavigate()
+  const { openConsult } = useConsultModal()
+  const { toggleLike } = useLikeAction()
   const [liked, setLiked] = useState(data.liked)
-  const [modalVariant, setModalVariant] = useState<ConsultModalVariant | null>(null)
+  const [likeCount, setLikeCount] = useState(data.likeCount)
+  const [likeBusy, setLikeBusy] = useState(false)
+
+  const triggerConsult = (variant: 'phone' | 'chat') => {
+    openConsult(
+      {
+        id: data.id,
+        name: data.name,
+        badge: data.badge,
+        code: data.code,
+        pricePerHalfMin: data.pricePerHalfMin,
+        avatarUrl: data.heroImg,
+        avatarUrlWebp: data.heroImgWebp ?? null,
+      },
+      variant,
+    )
+  }
+
+  // 통합 LikeContext 사용 — 401 시 자동으로 통합 로그인 안내 모달 노출
+  const onLikeToggle = async () => {
+    if (likeBusy) return
+    const next = !liked
+    setLikeBusy(true)
+    setLiked(next) // optimistic
+    const res = await toggleLike(data.id, next)
+    if (res === null) {
+      setLiked(!next) // 실패/비로그인 — 원복
+    } else {
+      setLikeCount(res.fan_count > 999 ? '999+' : String(res.fan_count))
+    }
+    setLikeBusy(false)
+  }
 
   return (
     <div className="mobile-frame flex flex-col pb-[64px]">
       {/* 히어로 + hd4 헤더 + 라이브뷰어 pill */}
       <div className="relative">
-        <div
-          className="w-full h-[192px] bg-cover bg-center"
-          style={{ backgroundImage: `url('${data.heroImg}')` }}
-          aria-hidden
-        />
+        {/* picture 로 webp 우선 노출 — 미지원 브라우저는 src(jpg/png) 폴백 */}
+        <picture>
+          {data.heroImgWebp && <source srcSet={data.heroImgWebp} type="image/webp" />}
+          <img
+            src={data.heroImg}
+            alt=""
+            className="w-full h-[192px] object-cover object-center block"
+            aria-hidden
+          />
+        </picture>
         <header
           className="absolute inset-x-0 top-0 h-[60px] px-4 flex items-center gap-3 z-10"
           style={{
@@ -114,9 +153,11 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
             </div>
             <button
               type="button"
-              onClick={() => setLiked((v) => !v)}
+              onClick={onLikeToggle}
+              disabled={likeBusy}
               aria-label={liked ? '좋아요 취소' : '좋아요'}
-              className="flex flex-col items-center shrink-0"
+              className="flex flex-col items-center shrink-0 bg-transparent border-0 outline-none focus:outline-none focus-visible:outline-none disabled:opacity-60"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               <img
                 src={liked ? '/img/like_btn_icon_on.svg' : '/img/like_btn_icon_off.svg'}
@@ -124,7 +165,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
                 className="w-5 h-5"
               />
               <span className="text-[14px] leading-[120%] text-[#6A7282] text-center">
-                {data.likeCount}
+                {likeCount}
               </span>
             </button>
           </div>
@@ -195,20 +236,12 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
       {/* 하단 고정 CTA */}
       <BottomFixedBar
         liked={liked}
-        onLikeToggle={() => setLiked((v) => !v)}
-        onPhoneClick={() => setModalVariant('phone')}
-        onChatClick={() => setModalVariant('chat')}
+        onLikeToggle={onLikeToggle}
+        onPhoneClick={() => triggerConsult('phone')}
+        onChatClick={() => triggerConsult('chat')}
       />
 
       <FloatingActions bottomOffset={80} showKakao={false} />
-
-      {/* 상담 모달 */}
-      <ConsultModal
-        open={modalVariant !== null}
-        onClose={() => setModalVariant(null)}
-        variant={modalVariant ?? 'phone'}
-        counselor={data}
-      />
     </div>
   )
 }
@@ -279,7 +312,7 @@ function BottomFixedBar({
         type="button"
         onClick={onLikeToggle}
         aria-label={liked ? '단골 등록 취소' : '단골 등록'}
-        className="w-10 h-10 rounded-full bg-white border border-[#F9FAFB] flex items-center justify-center shrink-0"
+        className="w-10 h-10 rounded-full bg-white border border-[#F9FAFB] flex items-center justify-center shrink-0 outline-none focus:outline-none focus-visible:outline-none"
       >
         <img
           src={liked ? '/img/like_btn_icon_on.svg' : '/img/like_btn_icon_off.svg'}

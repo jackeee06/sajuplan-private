@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import FloatingActions from '../components/FloatingActions'
 import {
-  MOCK_COUNSELOR_REVIEWS,
-  MOCK_COUNSELOR_REVIEW_REPLIES,
-} from '../data/counselorMyPage'
+  counselorMyReviewsApi,
+  type CounselorReviewDetail,
+} from '../lib/api'
 
 /**
  * 08마이페이지_상담사_후기 상세
@@ -15,26 +15,102 @@ import {
  */
 export default function CounselorMyReviewDetail() {
   const navigate = useNavigate()
-  const { id = '2' } = useParams<{ id: string }>()
-  const review =
-    MOCK_COUNSELOR_REVIEWS.find((r) => r.id === Number(id)) ?? MOCK_COUNSELOR_REVIEWS[0]
-  const reply = MOCK_COUNSELOR_REVIEW_REPLIES[review.id]
-  const hasReply = !!reply
-  const [draft, setDraft] = useState(hasReply ? '' : '안녕하세요 사')
+  const { id = '0' } = useParams<{ id: string }>()
+  const reviewId = Number(id)
+
+  const [review, setReview] = useState<CounselorReviewDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (!reviewId) return
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    counselorMyReviewsApi
+      .detail(reviewId)
+      .then((res) => {
+        if (cancelled) return
+        setReview(res)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        const message =
+          err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+            ? String((err as { message: string }).message)
+            : '후기를 불러오지 못했습니다.'
+        setError(message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [reviewId])
+
+  const handleSubmit = async () => {
+    const text = draft.trim()
+    if (!text || submitting) return
+    setSubmitting(true)
+    try {
+      const next = await counselorMyReviewsApi.createReply(reviewId, text)
+      setReview(next)
+      setDraft('')
+    } catch (err) {
+      const message =
+        err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+          ? String((err as { message: string }).message)
+          : '답변 등록에 실패했습니다.'
+      alert(message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!review?.reply) return
+    if (!confirm('답변을 삭제하시겠습니까?')) return
+    try {
+      await counselorMyReviewsApi.deleteReply(reviewId)
+      const next = await counselorMyReviewsApi.detail(reviewId)
+      setReview(next)
+    } catch (err) {
+      const message =
+        err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+          ? String((err as { message: string }).message)
+          : '답변 삭제에 실패했습니다.'
+      alert(message)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="mobile-frame flex flex-col pb-6">
+        <Header onBack={() => navigate(-1)} />
+        <p className="px-4 py-12 text-center text-[14px] text-[#6A7282]">불러오는 중...</p>
+      </div>
+    )
+  }
+  if (error || !review) {
+    return (
+      <div className="mobile-frame flex flex-col pb-6">
+        <Header onBack={() => navigate(-1)} />
+        <p className="px-4 py-12 text-center text-[14px] text-[#FF6467]">{error ?? '후기를 찾을 수 없습니다.'}</p>
+      </div>
+    )
+  }
+
+  const hasReply = !!review.reply
+  const replyPostedAt = review.reply?.posted_at
+    ? formatPostedAt(review.reply.posted_at)
+    : ''
 
   return (
     <div className="mobile-frame flex flex-col pb-6">
-      <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          aria-label="뒤로"
-          className="w-[30px] h-[30px] flex items-center justify-center"
-        >
-          <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
-        </button>
-        <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">상담 후기</h1>
-      </header>
+      <Header onBack={() => navigate(-1)} />
 
       <main className="flex-1 px-4 pt-2">
         <div className="flex items-start gap-2">
@@ -55,20 +131,20 @@ export default function CounselorMyReviewDetail() {
             <circle cx="8" cy="8" r="7" stroke="#9B7AF7" strokeWidth="1.4" />
             <path d="M5 8L7 10L11 6" stroke="#9B7AF7" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span className="text-[14px] font-medium text-[#1E2939]">{review.customerName}</span>
+          <span className="text-[14px] font-medium text-[#1E2939]">{review.customer_name}</span>
         </div>
 
         <p className="mt-1 text-[13px] leading-[140%] text-[#99A1AF]">
-          {review.consultType} · {review.date} · {review.duration}
+          {[review.consult_type, review.date, review.duration].filter(Boolean).join(' · ')}
         </p>
 
         <p className="mt-3 text-[15px] leading-[160%] text-[#1E2939] whitespace-pre-line">
           {review.content}
         </p>
 
-        {review.imgUrl && (
+        {review.img_url && (
           <div className="mt-4 w-full rounded-[16px] overflow-hidden bg-[#F3F4F6]">
-            <img src={review.imgUrl} alt="" className="w-full h-auto object-cover" />
+            <img src={review.img_url} alt="" className="w-full h-auto object-cover" />
           </div>
         )}
 
@@ -79,13 +155,18 @@ export default function CounselorMyReviewDetail() {
           <span className="text-[#8259F5]">{hasReply ? 1 : 0}</span>건
         </p>
 
-        {hasReply ? (
+        {hasReply && review.reply ? (
           <div className="py-4 border-b border-[#F3F4F6]">
             <div className="flex items-start gap-2">
               <p className="flex-1 text-[15px] leading-[160%] text-[#1E2939] whitespace-pre-line">
-                {reply.text}
+                {review.reply.text}
               </p>
-              <button type="button" aria-label="더보기" className="w-5 h-5 shrink-0">
+              <button
+                type="button"
+                aria-label="답변 삭제"
+                onClick={handleDelete}
+                className="w-5 h-5 shrink-0"
+              >
                 <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" aria-hidden>
                   <circle cx="12" cy="6" r="1.4" fill="#6A7282" />
                   <circle cx="12" cy="12" r="1.4" fill="#6A7282" />
@@ -94,9 +175,13 @@ export default function CounselorMyReviewDetail() {
               </button>
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <img src={reply.profileImg} alt="" className="w-7 h-7 rounded-full object-cover" />
+              {review.reply.profile_img ? (
+                <img src={review.reply.profile_img} alt="" className="w-7 h-7 rounded-full object-cover" />
+              ) : (
+                <div className="w-7 h-7 rounded-full bg-[#F3F4F6]" />
+              )}
               <p className="text-[13px] leading-[140%] text-[#99A1AF]">
-                {reply.author} · {reply.postedAt}
+                {review.reply.author} · {replyPostedAt}
               </p>
             </div>
           </div>
@@ -117,24 +202,35 @@ export default function CounselorMyReviewDetail() {
           </div>
         )}
 
-        <div className="mt-4 relative">
-          <input
-            type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="답변을 입력해주세요."
-            className="w-full h-[44px] pl-4 pr-14 rounded-full bg-[#F9FAFB] border border-[#9B7AF7] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none"
-          />
-          {draft && (
-            <button
-              type="button"
-              aria-label="보내기"
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#9B7AF7] flex items-center justify-center"
-            >
-              <img src="/img/ic_send.svg" alt="" className="w-4 h-4" />
-            </button>
-          )}
-        </div>
+        {!hasReply && (
+          <div className="mt-4 relative">
+            <input
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  void handleSubmit()
+                }
+              }}
+              placeholder="답변을 입력해주세요."
+              disabled={submitting}
+              className="w-full h-[44px] pl-4 pr-14 rounded-full bg-[#F9FAFB] border border-[#9B7AF7] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none disabled:opacity-60"
+            />
+            {draft.trim() && (
+              <button
+                type="button"
+                onClick={() => void handleSubmit()}
+                disabled={submitting}
+                aria-label="보내기"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#9B7AF7] flex items-center justify-center disabled:opacity-60"
+              >
+                <img src="/img/ic_send.svg" alt="" className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="mt-6 flex justify-center">
           <button
@@ -150,4 +246,31 @@ export default function CounselorMyReviewDetail() {
       <FloatingActions bottomOffset={24} />
     </div>
   )
+}
+
+function Header({ onBack }: { onBack: () => void }) {
+  return (
+    <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
+      <button
+        type="button"
+        onClick={onBack}
+        aria-label="뒤로"
+        className="w-[30px] h-[30px] flex items-center justify-center"
+      >
+        <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
+      </button>
+      <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">상담 후기</h1>
+    </header>
+  )
+}
+
+function formatPostedAt(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return iso
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mi = String(d.getMinutes()).padStart(2, '0')
+  return `${yyyy}.${mm}.${dd} ${hh}:${mi}`
 }

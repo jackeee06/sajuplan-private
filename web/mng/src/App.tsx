@@ -13,11 +13,17 @@ import ChatHistoryList from './pages/ChatHistoryList'
 import ConsultationList from './pages/ConsultationList'
 import ContentForm from './pages/ContentForm'
 import ContentList from './pages/ContentList'
+import CouponZoneForm from './pages/CouponZoneForm'
+import CouponZoneList from './pages/CouponZoneList'
+import CounselorApplyDetail from './pages/CounselorApplyDetail'
+import CounselorApplyList from './pages/CounselorApplyList'
 import CounselorForm from './pages/CounselorForm'
 import CounselorList from './pages/CounselorList'
 import CustomerForm from './pages/CustomerForm'
 import CustomerList from './pages/CustomerList'
 import Dashboard from './pages/Dashboard'
+import EventsList from './pages/EventsList'
+import EventForm from './pages/EventForm'
 import FaqList from './pages/FaqList'
 import Login from './pages/Login'
 import NoticesList from './pages/NoticesList'
@@ -55,6 +61,8 @@ export default function App() {
               <Route path="/members/counselors" element={<CounselorList />} />
               <Route path="/members/counselors/new" element={<CounselorForm />} />
               <Route path="/members/counselors/:id" element={<CounselorForm />} />
+              <Route path="/members/counselor-apply" element={<CounselorApplyList />} />
+              <Route path="/members/counselor-apply/:id" element={<CounselorApplyDetail />} />
 
               {/* 매출현황 */}
               <Route path="/consultations" element={<ConsultationList />} />
@@ -63,6 +71,11 @@ export default function App() {
               <Route path="/payments/:id" element={<PaymentDetail />} />
               <Route path="/points/history" element={<PointHistoryList />} />
               <Route path="/settlements" element={<SettlementList />} />
+
+              {/* 쿠폰존 관리 */}
+              <Route path="/coupon-zones" element={<CouponZoneList />} />
+              <Route path="/coupon-zones/new" element={<CouponZoneForm />} />
+              <Route path="/coupon-zones/:id" element={<CouponZoneForm />} />
 
               {/* 기타 */}
               <Route path="/banners" element={<BannerList />} />
@@ -82,6 +95,9 @@ export default function App() {
               <Route path="/notices" element={<NoticesList />} />
               <Route path="/notices/new" element={<NoticeForm />} />
               <Route path="/notices/:id" element={<NoticeForm />} />
+              <Route path="/events" element={<EventsList />} />
+              <Route path="/events/new" element={<EventForm />} />
+              <Route path="/events/:id" element={<EventForm />} />
 
               {/* 알림 */}
               <Route path="/push-notifications" element={<PushNotifications />} />
@@ -104,6 +120,7 @@ export default function App() {
 
               {/* 채팅내역 */}
               <Route path="/chat-history" element={<ChatHistoryList />} />
+              <Route path="/chat-history/by-roomid" element={<ChatHistoryDetail />} />
               <Route path="/chat-history/:id" element={<ChatHistoryDetail />} />
 
               {/* 환경설정 */}

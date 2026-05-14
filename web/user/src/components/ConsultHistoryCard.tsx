@@ -25,15 +25,41 @@ interface Props {
 }
 
 export default function ConsultHistoryCard({ item, type, onDelete }: Props) {
-  const { counselor, startedAt, endedAt, duration, point, reviewStatus, reviewId } = item
-  const writeHref = `/mypage/my-reviews/new?orderId=${item.id}&type=${type === '전화상담' ? 'phone' : 'chat'}`
+  const {
+    counselor,
+    startedAt,
+    endedAt,
+    duration,
+    point,
+    reviewStatus,
+    reviewId,
+    chatStatus,
+    consultationId,
+    counselorId,
+  } = item
+  // MyReviewNew.tsx 는 consultation_id / counselor_id 쿼리키를 읽는다.
+  // (과거: orderId / type → 잘못된 키라서 상담 정보가 전혀 prefill 되지 않음.)
+  const writeQs = new URLSearchParams()
+  if (consultationId) writeQs.set('consultation_id', String(consultationId))
+  writeQs.set('counselor_id', String(counselorId ?? counselor.id))
+  const writeHref = `/mypage/my-reviews/new?${writeQs.toString()}`
   const reviewHref = reviewId ? `/mypage/my-reviews/${reviewId}` : '#'
   const dateOnly = startedAt.split(' ')[0]
+  // "상담이 종료되지 않았다면" → "채팅방 입장하기" 단독 보라 버튼.
+  // 종료 판정 = chatStatus === 'DISCONNECT' (명시적 종료) OR endedAt 값이 있음.
+  // 그 외(STAY/CNCH/null/빈값 등) 는 모두 진행 중으로 본다.
+  const chatEnded = chatStatus === 'DISCONNECT' || (endedAt != null && endedAt !== '')
+  const chatActive = type === '채팅상담' && !chatEnded
 
   return (
     <article className="py-5 border-b border-[#F3F4F6]">
       <div className="flex items-center gap-2">
-        <img src={counselor.avatar} alt="" className="w-9 h-9 rounded-full object-cover" />
+        <img
+          src={counselor.avatar || '/img/avatar_default.svg'}
+          alt=""
+          className="w-9 h-9 rounded-full object-cover bg-[#E5E7EB]"
+          onError={(e) => { (e.target as HTMLImageElement).src = '/img/avatar_default.svg' }}
+        />
         <span
           className="px-2 h-[22px] inline-flex items-center text-[12px] font-medium text-white rounded"
           style={{ background: BADGE_BG[counselor.badge] }}
@@ -101,10 +127,30 @@ export default function ConsultHistoryCard({ item, type, onDelete }: Props) {
       )
     }
 
-    // 채팅상담
+    // 채팅상담 — item.id 는 chat_room.id (실제 API).
+    // 상담 미종료(STAY/CNCH/그 외) → 단독 "채팅방 입장하기" 보라 채움 버튼.
+    // 종료(DISCONNECT) → "채팅 내역 보기" + 후기 흐름.
+    if (chatActive) {
+      return (
+        <div className="mt-3 flex">
+          <Link
+            to={`/chat/${item.id}`}
+            className="flex-1 h-11 rounded-full bg-[#9B7AF7] flex items-center justify-center text-[14px] font-medium text-white"
+          >
+            채팅방 입장하기
+          </Link>
+        </div>
+      )
+    }
+
+    // 종료된 상담의 "채팅 내역 보기" 는 읽기 전용 페이지로 분리(/chat-log/...).
+    // 활성 채팅 흐름(/chat/:id)에 다시보기 케이스를 섞으면 rejoin/tick/wss 가 의도치 않게
+    // 발화될 수 있어, 종료 카드는 명시적으로 안전한 경로로만 이동시킨다.
+    // 백엔드 /user/chat/log/:id 가 consultation.id / chat_room.id 양쪽 모두 처리.
+    const chatLogId = consultationId ?? item.id
     const chatBtn = (
       <Link
-        to={`/chat/${counselor.id}`}
+        to={`/chat-log/${chatLogId}`}
         className="flex-1 h-11 rounded-full border border-[#E5E7EB] bg-white flex items-center justify-center text-[14px] font-medium text-[#4A5565]"
       >
         채팅 내역 보기

@@ -1,6 +1,7 @@
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
+import { counselorsApi } from '../lib/api'
 
 interface PopularKeyword {
   rank: number
@@ -8,13 +9,14 @@ interface PopularKeyword {
   isNew?: boolean
 }
 
-const POPULAR: PopularKeyword[] = [
-  { rank: 1, keyword: '재회', isNew: true },
-  { rank: 2, keyword: '2026' },
-  { rank: 3, keyword: '재물운' },
-  { rank: 4, keyword: '사주선녀', isNew: true },
-  { rank: 5, keyword: '사주' },
-  { rank: 6, keyword: '타로' },
+// 첫 로드 전엔 빈 리스트(스켈레톤). API 실패 시 정적 fallback 으로 빈 화면 회피.
+const FALLBACK_POPULAR: PopularKeyword[] = [
+  { rank: 1, keyword: '사주' },
+  { rank: 2, keyword: '타로' },
+  { rank: 3, keyword: '신점' },
+  { rank: 4, keyword: '연애운' },
+  { rank: 5, keyword: '재물운' },
+  { rank: 6, keyword: '궁합' },
 ]
 
 /**
@@ -31,6 +33,31 @@ const POPULAR: PopularKeyword[] = [
 export default function Search() {
   const navigate = useNavigate()
   const [q, setQ] = useState('')
+  const [popular, setPopular] = useState<PopularKeyword[]>([])
+
+  // 인기 검색어 = 활성 상담사들의 해시태그 빈도 상위 (백엔드 v1).
+  // API 실패 시 정적 fallback 으로 화면이 비지 않도록.
+  useEffect(() => {
+    let alive = true
+    counselorsApi.popularKeywords(6).then(
+      (r) => {
+        if (!alive) return
+        const items = (r?.items ?? []).map((it) => ({
+          rank: it.rank,
+          keyword: it.keyword,
+          isNew: it.isNew,
+        }))
+        setPopular(items.length > 0 ? items : FALLBACK_POPULAR)
+      },
+      () => {
+        if (!alive) return
+        setPopular(FALLBACK_POPULAR)
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [])
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -76,7 +103,7 @@ export default function Search() {
             인기 검색어
           </h2>
           <ul className="flex flex-col gap-5">
-            {POPULAR.map((item) => (
+            {popular.map((item) => (
               <li key={item.rank}>
                 <button
                   type="button"

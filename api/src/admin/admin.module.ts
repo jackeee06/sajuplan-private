@@ -6,7 +6,11 @@ import { BoardOpsModule } from './board-ops/board-ops.module';
 import { ChatHistoryModule } from './chat-history/chat-history.module';
 import { ConsultationsModule } from './consultations/consultations.module';
 import { ContentsModule } from './contents/contents.module';
+import { AdminCounselorApplyModule } from './counselor-apply/counselor-apply.module';
+import { CouponZonesModule } from './coupon-zones/coupon-zones.module';
+import { CouponsModule } from './coupons/coupons.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { EventsModule } from './events/events.module';
 import { FaqsModule } from './faqs/faqs.module';
 import { MembersModule } from './members/members.module';
 import { NoticesModule } from './notices/notices.module';
@@ -35,6 +39,7 @@ import { StatsModule } from './stats/stats.module';
     ChatHistoryModule,
     BoardOpsModule,
     NoticesModule,
+    EventsModule,
     NotificationsModule,
     StatsModule,
     PermissionsModule,
@@ -42,6 +47,9 @@ import { StatsModule } from './stats/stats.module';
     FaqsModule,
     SettingsModule,
     PopupLayersModule,
+    CouponsModule,
+    CouponZonesModule,
+    AdminCounselorApplyModule,
   ],
 })
 export class AdminModule {}

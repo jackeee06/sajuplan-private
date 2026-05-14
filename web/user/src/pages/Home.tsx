@@ -1,88 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus'
 import BottomNav from '../components/BottomNav'
-import CounselorCard, { Counselor } from '../components/CounselorCard'
-import { bannersApi, PublicBanner, statsApi, settingsApi, PublicSettings } from '../lib/api'
-
-/** 업로드 파일은 API 도메인에서 서빙됨 — image_url 이 '/uploads/...' 면 BASE 붙임 */
-const FILE_BASE = (import.meta.env.VITE_API_BASE as string | undefined ?? '/api').replace(/\/api\/?$/, '')
-
-/** image_url 이 절대(http/https) 면 그대로, 상대 (/uploads/...) 면 FILE_BASE 붙임 */
-function resolveImageUrl(u: string | null): string {
-  if (!u) return ''
-  if (/^https?:\/\//.test(u)) return u
-  if (u.startsWith('/')) return `${FILE_BASE}${u}`
-  return u
-}
+import CounselorCard from '../components/CounselorCard'
+import ReviewCardMain from '../components/ReviewCardMain'
+import UploadedImage from '../components/UploadedImage'
+import {
+  authApi,
+  bannersApi,
+  PublicBanner,
+  statsApi,
+  settingsApi,
+  PublicSettings,
+  counselorsApi,
+  PublicCounselor,
+  reviewsApi,
+  PublicRecentReview,
+} from '../lib/api'
+import { useAuth } from '../lib/auth-context'
+import { mapPublicCounselorToCard } from '../lib/counselor-mapper'
+import { openExternalUrl } from '../lib/native-bridge'
 
 type MainTab = 'all' | 'popular' | 'chat' | 'review'
 type ChipTab = '전체' | '사주' | '타로' | '신점'
 
-// 더미 데이터 — 백엔드 연동 시 API 결과로 교체
-const MOCK_COUNSELORS: Counselor[] = [
-  {
-    id: 1,
-    name: '강타로',
-    code: '335912',
-    badge: '타로',
-    tagline: '상대방의 진심이 궁금하다면?',
-    pricePerSec: 1200,
-    phoneState: 'available',
-    chatState: 'available',
-    hashtags: ['연애궁합운', '재회'],
-    rating: 4.9,
-    reviewCount: 326,
-    liked: false,
-    imgUrl: '/img/sample_img01.jpg',
-  },
-  {
-    id: 2,
-    name: '김선녀',
-    code: '224587',
-    badge: '신점',
-    tagline: '마음을 읽는 신점',
-    pricePerSec: 1500,
-    phoneState: 'available',
-    chatState: 'busy',
-    hashtags: ['삼재상담', '연애운'],
-    rating: 4.8,
-    reviewCount: 218,
-    liked: false,
-    imgUrl: '/img/sample_img02.jpg',
-  },
-  {
-    id: 3,
-    name: '사주선녀',
-    code: '165791',
-    badge: '사주',
-    tagline: '속 시원하게 풀어드립니다',
-    pricePerSec: 1000,
-    phoneState: 'available',
-    chatState: 'busy',
-    hashtags: ['신년운세', '금전운'],
-    rating: 4.7,
-    reviewCount: 106,
-    liked: false,
-    imgUrl: '/img/sample_img03.jpg',
-  },
-  {
-    id: 4,
-    name: '신비',
-    code: '063143',
-    badge: '타로',
-    tagline: '깊고 정확한 타로 상담',
-    pricePerSec: 1500,
-    phoneState: 'offline',
-    chatState: 'offline',
-    hashtags: ['타로', '연애운'],
-    rating: 4.6,
-    reviewCount: 78,
-    liked: false,
-    imgUrl: '/img/sample_img04.jpg',
-  },
-]
-
 const CHIPS: ChipTab[] = ['전체', '사주', '타로', '신점']
+
+// 카드 매핑 + state 도출은 src/lib/counselor-mapper.ts 에 통합. 모든 리스트 페이지가 같은 헬퍼 사용.
 
 /**
  * 홈(메인) — Figma 1:1269 (02홈_메인)
@@ -99,14 +43,31 @@ const CHIPS: ChipTab[] = ['전체', '사주', '타로', '신점']
  *  - BottomNav
  */
 export default function Home() {
+  const { isLoggedIn, member } = useAuth()
   const [tab, setTab] = useState<MainTab>('all')
   const [chip, setChip] = useState<ChipTab>('전체')
-  const [counselors, setCounselors] = useState(MOCK_COUNSELORS)
+  const [counselors, setCounselors] = useState<PublicCounselor[]>([])
+  const [reviews, setReviews] = useState<PublicRecentReview[]>([])
+  const [loading, setLoading] = useState(false)
+  const [listError, setListError] = useState<string | null>(null)
   // 메인 통계 — 어드민 dashboard 와 같은 데이터 소스 (consultation, member)
   const [stats, setStats] = useState<{ recent: number; online: number }>({
     recent: 0,
     online: 0,
   })
+  // 홈탭 재클릭/포커스 복귀 시 fetch useEffect 들을 재실행하기 위한 카운터.
+  // useRefreshOnFocus 가 호출되면 +1 → stats/list/banner 등 모든 fetch 가 갱신됨.
+  const [refreshKey, setRefreshKey] = useState(0)
+  useRefreshOnFocus(() => setRefreshKey((k) => k + 1))
+
+  // 메인페이지 진입 시(앱 켤 때마다) 사주문 → m2net 잔액 동기화.
+  // 일반 회원만 대상. 백엔드가 role 검증해서 상담사면 ok=false 로 무시.
+  useEffect(() => {
+    if (!isLoggedIn || member?.role !== 'user') return
+    void authApi.syncM2netBalance().catch(() => {
+      /* 동기화 실패는 회원에게 노출 안 함 — 운영 로그에만 남김 */
+    })
+  }, [isLoggedIn, member?.role])
 
   useEffect(() => {
     let alive = true
@@ -126,15 +87,50 @@ export default function Home() {
     return () => {
       alive = false
     }
-  }, [])
+  }, [refreshKey])
 
-  const onLikeToggle = (id: Counselor['id']) =>
-    setCounselors((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, liked: !c.liked } : c)),
-    )
+  // 탭/칩 변경 시 백엔드 재호출 — review 탭은 후기 API, 그 외는 상담사 API
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    setListError(null)
+    const category = chip === '전체' ? undefined : chip
 
-  const filtered =
-    chip === '전체' ? counselors : counselors.filter((c) => c.badge === chip)
+    if (tab === 'review') {
+      reviewsApi
+        .recent({ category, limit: 13 })
+        .then((r) => {
+          if (alive) {
+            setReviews(r.items)
+            setCounselors([])
+          }
+        })
+        .catch((e) => {
+          if (alive) setListError(e instanceof Error ? e.message : '후기를 불러오지 못했습니다.')
+        })
+        .finally(() => {
+          if (alive) setLoading(false)
+        })
+    } else {
+      counselorsApi
+        .list({ tab, category, limit: 13 })
+        .then((r) => {
+          if (alive) {
+            setCounselors(r.items)
+            setReviews([])
+          }
+        })
+        .catch((e) => {
+          if (alive) setListError(e instanceof Error ? e.message : '상담사를 불러오지 못했습니다.')
+        })
+        .finally(() => {
+          if (alive) setLoading(false)
+        })
+    }
+    return () => {
+      alive = false
+    }
+  }, [tab, chip, refreshKey])
 
   return (
     <div className="mobile-frame flex flex-col pb-[100px]">
@@ -199,30 +195,48 @@ export default function Home() {
           </div>
         </section>
 
-        {/* 카드 리스트 */}
-        <section className="px-4 py-3 flex flex-col gap-3">
-          {filtered.map((c) => (
-            <CounselorCard key={c.id} counselor={c} onLikeToggle={onLikeToggle} />
-          ))}
-          {filtered.length === 0 && (
-            <p className="text-center text-[13px] text-[#99A1AF] py-10">
-              해당 카테고리의 상담사가 없습니다.
-            </p>
+        {/* 카드 리스트 — 탭에 따라 상담사 / 후기 분기 */}
+        <section className={tab === 'review' ? 'flex flex-col' : 'px-4 py-3 flex flex-col gap-3'}>
+          {loading && <ListSkeleton kind={tab === 'review' ? 'review' : 'counselor'} />}
+          {!loading && listError && (
+            <p className="text-center text-[13px] text-[#FF6467] py-10">{listError}</p>
+          )}
+          {!loading && !listError && tab === 'review' && (
+            reviews.length > 0 ? (
+              reviews.map((r) => <ReviewCardMain key={r.id} review={r} />)
+            ) : (
+              <p className="text-center text-[13px] text-[#99A1AF] py-10">
+                아직 등록된 후기가 없습니다.
+              </p>
+            )
+          )}
+          {!loading && !listError && tab !== 'review' && (
+            counselors.length > 0 ? (
+              counselors.map((c) => (
+                <CounselorCard key={c.id} counselor={mapPublicCounselorToCard(c)} />
+              ))
+            ) : (
+              <p className="text-center text-[13px] text-[#99A1AF] py-10">
+                해당 카테고리의 상담사가 없습니다.
+              </p>
+            )
           )}
         </section>
 
-        {/* 상담사 더보기 */}
-        <div className="flex justify-center pt-2 pb-4">
-          <Link
-            to="/counselors"
-            className="inline-flex items-center gap-1 h-10 px-5 rounded-full border border-[#E5E7EB] bg-white text-[14px] text-[#364153] font-medium"
-          >
-            상담사 더보기
-            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 fill-[#364153]">
-              <path d="M5.7 3.3a1 1 0 0 0 0 1.4L9 8l-3.3 3.3a1 1 0 0 0 1.4 1.4l4-4a1 1 0 0 0 0-1.4l-4-4a1 1 0 0 0-1.4 0z" />
-            </svg>
-          </Link>
-        </div>
+        {/* 더보기 — 탭별 이동 (후기는 /reviews, 그 외는 /counselors) */}
+        {!loading && (
+          <div className="flex justify-center pt-2 pb-4">
+            <Link
+              to={tab === 'review' ? '/reviews' : '/counselors'}
+              className="inline-flex items-center gap-1 h-10 px-5 rounded-full border border-[#E5E7EB] bg-white text-[14px] text-[#364153] font-medium"
+            >
+              {tab === 'review' ? '후기 더보기' : '상담사 더보기'}
+              <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 fill-[#364153]">
+                <path d="M5.7 3.3a1 1 0 0 0 0 1.4L9 8l-3.3 3.3a1 1 0 0 0 1.4 1.4l4-4a1 1 0 0 0 0-1.4l-4-4a1 1 0 0 0-1.4 0z" />
+              </svg>
+            </Link>
+          </div>
+        )}
 
         {/* 푸터 — Figma 118:7126 (사업자 정보=열림) */}
         <Footer />
@@ -330,8 +344,9 @@ function BannerSlider() {
       >
         {banners.map((b, i) => {
           const img = (
-            <img
-              src={resolveImageUrl(b.image_url)}
+            <UploadedImage
+              src={b.image_url}
+              srcWebp={b.image_url_webp}
               alt={b.title ?? ''}
               className="w-full h-full object-cover pointer-events-none"
               draggable={false}
@@ -526,10 +541,11 @@ function Footer() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => {
-                // 모바일 웹뷰에서 target=_blank 가 차단될 때를 대비해 명시적 open
+                // 네이티브 앱에선 외부 브라우저/카카오 앱으로 위임,
+                // 일반 웹은 새 탭. WebView 안에서 그냥 open 하면 카카오가
+                // 내부 네비로 열려 사용자가 앱 밖으로 나가지 못함.
                 e.preventDefault()
-                const w = window.open(kakaoUrl, '_blank', 'noopener,noreferrer')
-                if (!w) window.location.href = kakaoUrl
+                openExternalUrl(kakaoUrl)
               }}
               className="text-[14px] font-medium text-[#FEE500] bg-[#3C1E1E] px-3 py-1 rounded-full leading-[110%] cursor-pointer"
             >
@@ -592,8 +608,7 @@ function FloatingButtons() {
           aria-label="카카오톡 문의"
           onClick={(e) => {
             e.preventDefault()
-            const w = window.open(kakaoUrl, '_blank', 'noopener,noreferrer')
-            if (!w) window.location.href = kakaoUrl
+            openExternalUrl(kakaoUrl)
           }}
           className="w-[50px] h-[50px] rounded-full bg-[#8259F5] flex items-center justify-center cursor-pointer"
           style={{ boxShadow: '0 4px 6px -2px rgba(130,89,245,0.1), 0 10px 15px -3px rgba(130,89,245,0.15)' }}
@@ -630,6 +645,54 @@ function ChipBtn({
     >
       {children}
     </button>
+  )
+}
+
+/**
+ * 리스트 로딩 스켈레톤 — 카드 자리 3개를 회색 박스로 노출.
+ * counselor: 100×100 이미지 + 우측 텍스트 라인 — 카드 1개 = 약 200px 높이
+ * review: 48 원형 + 텍스트 라인 — 카드 1개 = 약 130px 높이
+ */
+function ListSkeleton({ kind }: { kind: 'counselor' | 'review' }) {
+  const items = [0, 1, 2]
+  if (kind === 'review') {
+    return (
+      <>
+        {items.map((i) => (
+          <div key={i} className="px-4 py-4 flex flex-col gap-3 border-b border-[#F3F4F6]">
+            <div className="flex items-center gap-2">
+              <div className="w-12 h-12 rounded-full bg-[#F3F4F6] animate-pulse" />
+              <div className="flex-1 flex flex-col gap-2">
+                <div className="h-4 w-1/2 rounded bg-[#F3F4F6] animate-pulse" />
+                <div className="h-3 w-1/3 rounded bg-[#F3F4F6] animate-pulse" />
+              </div>
+            </div>
+            <div className="h-4 w-2/3 rounded bg-[#F3F4F6] animate-pulse" />
+            <div className="h-3 w-full rounded bg-[#F3F4F6] animate-pulse" />
+          </div>
+        ))}
+      </>
+    )
+  }
+  return (
+    <>
+      {items.map((i) => (
+        <div key={i} className="bg-white border-b border-[#F3F4F6] p-4 flex flex-col gap-3">
+          <div className="flex gap-3">
+            <div className="w-[100px] h-[100px] rounded-2xl bg-[#F3F4F6] animate-pulse shrink-0" />
+            <div className="flex-1 flex flex-col gap-2 pt-1">
+              <div className="h-4 w-1/2 rounded bg-[#F3F4F6] animate-pulse" />
+              <div className="h-3 w-2/3 rounded bg-[#F3F4F6] animate-pulse" />
+              <div className="h-3 w-1/3 rounded bg-[#F3F4F6] animate-pulse" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="h-10 rounded-full bg-[#F3F4F6] animate-pulse" />
+            <div className="h-10 rounded-full bg-[#F3F4F6] animate-pulse" />
+          </div>
+        </div>
+      ))}
+    </>
   )
 }
 

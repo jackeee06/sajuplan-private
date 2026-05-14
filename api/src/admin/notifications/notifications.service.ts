@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { PushService } from '../../shared/push/push.service';
+import { SmsService } from '../../user/sms/sms.service';
 
 /**
  * 알림 (푸시/알림톡/메일) 통합 service.
@@ -13,7 +14,24 @@ export class NotificationsService {
   constructor(
     @Inject(SQL) private readonly sql: Sql,
     private readonly push: PushService,
+    private readonly sms: SmsService,
   ) {}
+
+  // ─── 알림톡 테스트 발송 ─────────────────────
+  /**
+   * 운영 알림톡을 임의 폰으로 테스트 발송. notification_log 적재 안 함.
+   * Body: { template_code, phone, vars? }
+   */
+  async sendAlimtalkTest(body: { template_code: string; phone: string; vars?: Record<string, string | number> }) {
+    if (!body.template_code) throw new BadRequestException('template_code 누락');
+    if (!body.phone) throw new BadRequestException('phone 누락');
+    return this.sms.sendAlimtalkByCode(
+      body.template_code,
+      body.phone,
+      body.vars ?? {},
+      `[테스트] ${body.template_code}`,
+    );
+  }
 
   // ─── 푸시 토큰 ────────────────────────────
   async pushTokens(filter: { q?: string; platform?: string; page?: number; limit?: number }) {
@@ -78,17 +96,56 @@ export class NotificationsService {
     return { items, total: Number(totalRows[0].cnt), page, limit };
   }
 
+  /** 푸시 발송 이력 전체 삭제 — 관리자 화면의 '내역 비우기' 버튼용. */
+  async clearPushHistory(): Promise<{ ok: true; deleted: number }> {
+    const r = await this.sql`DELETE FROM notification_log`;
+    return { ok: true, deleted: r.count };
+  }
+
   // ─── 푸시 발송 ────────────────────────────
   /**
    * target:
-   *  - 'all'       전체 활동 회원
-   *  - 'user'      role=user
-   *  - 'counselor' role=counselor
-   *  - 숫자 문자열 → 단일 member_id
+   *  - 'all'       전체 공지        → FCM topic `chl_all`, category=`전체공지`
+   *  - 'user'      일반회원         → FCM topic `chl_2`,   category=`일반회원`
+   *  - 'counselor' 상담사            → FCM topic `chl_5`,   category=`상담사`
+   *  - 숫자 문자열 → 단일 member_id (개별), 토큰 직접발송, category=`개별`
    *
-   * NOTE: 실제 FCM/APNS 호출은 별도 worker에서 처리 (TODO).
-   *       여기선 notification_log에만 기록하여 발송 큐 역할.
+   * 브로드캐스트는 notification_log 에 단일 row(member_id=NULL, mb_id='all') 로
+   * 기록되며, 사용자측 조회에서 role + category 매칭으로 노출된다 (sample 충실 이식).
+   * 개별 발송은 회원당 1 row(member_id 지정) 로 기록한다.
    */
+  /**
+   * 단일 토큰 또는 토픽으로 직접 발송 — 테스트용.
+   * notification_log 에 기록하지 않아 운영 이력에 영향 없음.
+   */
+  async sendPushTest(input: {
+    token?: string;
+    topic?: string;
+    title: string;
+    content?: string;
+    link_url?: string;
+  }): Promise<{ ok: boolean; mode: 'token' | 'topic'; result: unknown; error?: string }> {
+    const title = (input.title ?? '').trim();
+    if (!title) throw new BadRequestException('title 은 필수입니다.');
+    if (!this.push.isEnabled()) {
+      return { ok: false, mode: input.token ? 'token' : 'topic', result: null, error: 'FCM 미설정' };
+    }
+    const payload = {
+      title,
+      body: input.content,
+      data: input.link_url ? { url: input.link_url } : undefined,
+    };
+    if (input.token && input.token.trim()) {
+      const r = await this.push.sendToTokens([input.token.trim()], payload);
+      return { ok: r.ok, mode: 'token', result: r };
+    }
+    if (input.topic && input.topic.trim()) {
+      const r = await this.push.sendToTopic(input.topic.trim(), payload);
+      return { ok: r.ok, mode: 'topic', result: r };
+    }
+    throw new BadRequestException('token 또는 topic 중 하나는 필수입니다.');
+  }
+
   async sendPush(input: { target: string; title: string; content?: string; link_url?: string }): Promise<{ ok: boolean; recipients: number; pushed: { success: number; failure: number; error?: string } }> {
     const { target, title } = input;
     const content = input.content ?? '';
@@ -96,63 +153,82 @@ export class NotificationsService {
     if (!title || !title.trim()) throw new BadRequestException('제목은 필수입니다.');
     if (!target) throw new BadRequestException('발송 대상을 선택하세요.');
 
-    // 대상 추출
-    let recipients: { id: number; mb_id: string | null }[] = [];
-    if (target === 'all') {
-      recipients = await this.sql<{ id: number; mb_id: string | null }[]>`
-        SELECT m.id, m.mb_id FROM member m
-         WHERE m.role IN ('user','counselor') AND m.left_at IS NULL
-      `;
-    } else if (target === 'user' || target === 'counselor') {
-      recipients = await this.sql<{ id: number; mb_id: string | null }[]>`
-        SELECT m.id, m.mb_id FROM member m
-         WHERE m.role = ${target} AND m.left_at IS NULL
-      `;
-    } else if (/^\d+$/.test(target)) {
-      const id = Number(target);
-      recipients = await this.sql<{ id: number; mb_id: string | null }[]>`
-        SELECT id, mb_id FROM member WHERE id = ${id}
-      `;
-      if (recipients.length === 0) throw new NotFoundException('회원을 찾을 수 없습니다.');
-    } else {
-      throw new BadRequestException(`알 수 없는 발송 대상: ${target}`);
-    }
+    const isBroadcast = target === 'all' || target === 'user' || target === 'counselor';
 
-    if (recipients.length === 0) return { ok: true, recipients: 0, pushed: { success: 0, failure: 0 } };
-
-    // notification_log에 일괄 INSERT (배치)
-    const category = target === 'all' ? '전체공지' : target === 'user' ? '일반회원' : target === 'counselor' ? '상담사' : '개별';
-    await this.sql`
-      INSERT INTO notification_log (member_id, mb_id, title, content, link_url, category)
-      SELECT v.member_id::bigint, v.mb_id, ${title}, ${content}, ${linkUrl}, ${category}
-        FROM unnest(
-          ${this.sql.array(recipients.map((r) => r.id))}::bigint[],
-          ${this.sql.array(recipients.map((r) => r.mb_id ?? ''))}::text[]
-        ) AS v(member_id, mb_id)
-    `;
-
-    // FCM 실제 발송 — 활성 토큰 조회해서 다중 발송
+    let category: string;
+    let topic: string | null = null;
+    let recipientCount = 0;
     let pushed = { success: 0, failure: 0 } as { success: number; failure: number; error?: string };
-    if (this.push.isEnabled()) {
-      const memberIds = recipients.map((r) => r.id);
-      const tokens = await this.sql<{ token: string }[]>`
-        SELECT token FROM member_push_token
-         WHERE is_active = true AND token <> '' AND member_id = ANY(${this.sql.array(memberIds)}::bigint[])
+
+    if (isBroadcast) {
+      // 카테고리/토픽 매핑 (sample/adm/push_update.php 와 동일)
+      if (target === 'all') { category = '전체공지'; topic = 'chl_all'; }
+      else if (target === 'user') { category = '일반회원'; topic = 'chl_2'; }
+      else { category = '상담사'; topic = 'chl_5'; }
+
+      // 대상 카운트 (참고용, 실제 발송은 토픽 구독자 기준)
+      const cnt = target === 'all'
+        ? await this.sql<{ cnt: string }[]>`SELECT count(*)::text AS cnt FROM member WHERE role IN ('user','counselor') AND left_at IS NULL`
+        : await this.sql<{ cnt: string }[]>`SELECT count(*)::text AS cnt FROM member WHERE role = ${target} AND left_at IS NULL`;
+      recipientCount = Number(cnt[0]?.cnt ?? '0');
+
+      // 단일 row 기록 (브로드캐스트)
+      await this.sql`
+        INSERT INTO notification_log (member_id, mb_id, title, content, link_url, category, code)
+        VALUES (NULL, 'all', ${title}, ${content}, ${linkUrl}, ${category}, 'alim_notice')
       `;
-      const tokenList = tokens.map((t) => t.token);
-      if (tokenList.length > 0) {
-        const r = await this.push.sendToTokens(tokenList, {
+
+      // FCM 토픽 발송
+      if (this.push.isEnabled() && topic) {
+        const r = await this.push.sendToTopic(topic, {
           title,
           body: content,
           data: linkUrl ? { url: linkUrl } : undefined,
         });
-        pushed = { success: r.success, failure: r.failure, error: r.error };
+        pushed = r.ok
+          ? { success: 1, failure: 0 }
+          : { success: 0, failure: 1, error: r.error };
+      } else {
+        pushed = { success: 0, failure: 0, error: 'FCM 미설정 — notification_log만 기록됨' };
+      }
+    } else if (/^\d+$/.test(target)) {
+      // 개별 발송
+      const id = Number(target);
+      const recipients = await this.sql<{ id: number; mb_id: string | null }[]>`
+        SELECT id, mb_id FROM member WHERE id = ${id}
+      `;
+      if (recipients.length === 0) throw new NotFoundException('회원을 찾을 수 없습니다.');
+      recipientCount = recipients.length;
+      category = '개별';
+
+      const r = recipients[0];
+      await this.sql`
+        INSERT INTO notification_log (member_id, mb_id, title, content, link_url, category, code)
+        VALUES (${r.id}, ${r.mb_id ?? ''}, ${title}, ${content}, ${linkUrl}, ${category}, 'alim_notice')
+      `;
+
+      if (this.push.isEnabled()) {
+        const tokens = await this.sql<{ token: string }[]>`
+          SELECT token FROM member_push_token
+           WHERE is_active = true AND token <> '' AND member_id = ${r.id}
+        `;
+        const tokenList = tokens.map((t) => t.token);
+        if (tokenList.length > 0) {
+          const sr = await this.push.sendToTokens(tokenList, {
+            title,
+            body: content,
+            data: linkUrl ? { url: linkUrl } : undefined,
+          });
+          pushed = { success: sr.success, failure: sr.failure, error: sr.error };
+        }
+      } else {
+        pushed = { success: 0, failure: 0, error: 'FCM 미설정 — notification_log만 기록됨' };
       }
     } else {
-      pushed = { success: 0, failure: 0, error: 'FCM 미설정 — notification_log만 기록됨' };
+      throw new BadRequestException(`알 수 없는 발송 대상: ${target}`);
     }
 
-    return { ok: true, recipients: recipients.length, pushed };
+    return { ok: true, recipients: recipientCount, pushed };
   }
 
   // ─── 알림톡 템플릿 ─────────────────────────

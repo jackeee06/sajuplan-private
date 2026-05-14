@@ -23,6 +23,8 @@ export interface CounselorDetailData {
   likeCount: string
   liked: boolean
   heroImg: string
+  /** 히어로 이미지 WebP — picture source 로 우선 사용 (없으면 jpg/png 만 노출) */
+  heroImgWebp?: string | null
   fields: string[]
   styles: string[]
   career: string[]

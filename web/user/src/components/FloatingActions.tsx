@@ -2,23 +2,59 @@
  * FloatingActions — go_top + kakao_btn 우측 하단 클러스터
  * Figma 84:6771 / 163:16669 / 84:6798 (Frame 1410129515)
  *
- * 구조: column, gap 8, width 50, x=324
- *  1) go_top_btn (50×50, rgba(243,244,246,0.8) bg, #F9FAFB border, blur 6)
- *  2) kakao_btn  (50×50, #8259F5 bg, 보라 shadow)
+ * 카카오 1:1 상담 URL은 어드민 site_setting의 `site.kakao_channel_url`에서 가져옴.
+ * 모듈 레벨 캐시로 한 번 fetch하면 페이지 이동해도 재요청 없음.
  *
  * bottomOffset: BottomNav 위에 띄우려면 100, 없으면 16 정도.
  */
+import { useEffect, useState } from 'react'
+import { settingsApi } from '../lib/api'
+import { openExternalUrl } from '../lib/native-bridge'
+
+let cachedKakaoUrl: string | null = null
+let kakaoUrlPromise: Promise<string> | null = null
+
+function loadKakaoUrl(): Promise<string> {
+  if (cachedKakaoUrl !== null) return Promise.resolve(cachedKakaoUrl)
+  if (kakaoUrlPromise) return kakaoUrlPromise
+  kakaoUrlPromise = settingsApi
+    .public()
+    .then((r) => {
+      cachedKakaoUrl = r['site.kakao_channel_url'] || ''
+      return cachedKakaoUrl
+    })
+    .catch(() => {
+      cachedKakaoUrl = ''
+      return ''
+    })
+  return kakaoUrlPromise
+}
 
 interface Props {
   /** 하단 여유. BottomNav 있으면 100, 없으면 16. 기본 100. */
   bottomOffset?: number
-  /** 카카오 채널 URL. 비우면 기본 sajumoon 채널로 새 탭 오픈. */
+  /** 카카오 채널 URL을 직접 지정(override). 비우면 어드민 site_setting에서 자동 로드. */
   kakaoUrl?: string
   /** 카카오 버튼 표시 여부. Figma 후기 상세 등 일부 페이지는 go_top만 노출. 기본 true. */
   showKakao?: boolean
 }
 
 export default function FloatingActions({ bottomOffset = 100, kakaoUrl, showKakao = true }: Props) {
+  const [resolvedUrl, setResolvedUrl] = useState<string>(kakaoUrl ?? cachedKakaoUrl ?? '')
+
+  useEffect(() => {
+    if (kakaoUrl) {
+      setResolvedUrl(kakaoUrl)
+      return
+    }
+    let mounted = true
+    loadKakaoUrl().then((u) => {
+      if (mounted) setResolvedUrl(u)
+    })
+    return () => {
+      mounted = false
+    }
+  }, [kakaoUrl])
   return (
     <div
       className="fixed right-4 z-40 flex flex-col gap-2"
@@ -36,11 +72,10 @@ export default function FloatingActions({ bottomOffset = 100, kakaoUrl, showKaka
           <path d="M5 12l7-7 7 7" />
         </svg>
       </button>
-      {showKakao && (
-        <a
-          href={kakaoUrl || 'https://pf.kakao.com/'}
-          target="_blank"
-          rel="noopener noreferrer"
+      {showKakao && resolvedUrl && (
+        <button
+          type="button"
+          onClick={() => openExternalUrl(resolvedUrl)}
           aria-label="카카오톡 문의"
           className="w-[50px] h-[50px] rounded-full bg-[#8259F5] flex items-center justify-center"
           style={{
@@ -56,7 +91,7 @@ export default function FloatingActions({ bottomOffset = 100, kakaoUrl, showKaka
               fill="white"
             />
           </svg>
-        </a>
+        </button>
       )}
     </div>
   )

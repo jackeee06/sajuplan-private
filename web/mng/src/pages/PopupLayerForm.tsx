@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Upload, X } from 'lucide-react'
 import { api } from '../lib/api'
+import UploadedImage from '../components/UploadedImage'
+import { FILE_BASE } from '../lib/runtime-env'
 
 interface PopupLayer {
   id: number
@@ -17,11 +19,12 @@ interface PopupLayer {
   content: string
   is_html: boolean
   image_url: string | null
+  image_url_webp: string | null
   link_url: string | null
   is_active: boolean
 }
 
-const API_BASE = (import.meta.env.VITE_API_BASE ?? '/api').replace(/\/api$/, '')
+const API_BASE = FILE_BASE
 
 const empty = (): PopupLayer => {
   const now = new Date()
@@ -40,6 +43,7 @@ const empty = (): PopupLayer => {
     content: '',
     is_html: true,
     image_url: null,
+    image_url_webp: null,
     link_url: '',
     is_active: true,
   }
@@ -74,7 +78,10 @@ export default function PopupLayerForm() {
   const set = <K extends keyof PopupLayer>(k: K, v: PopupLayer[K]) =>
     setData((d) => (d ? { ...d, [k]: v } : d))
 
-  const uploadImage = async (popupId: number, file: File): Promise<string | null> => {
+  const uploadImage = async (
+    popupId: number,
+    file: File,
+  ): Promise<{ image_url: string | null; image_url_webp: string | null }> => {
     const fd = new FormData()
     fd.append('file', file)
     const res = await fetch(`${API_BASE}/api/admin/popup-layers/${popupId}/image`, {
@@ -87,7 +94,7 @@ export default function PopupLayerForm() {
       throw new Error(j.message ?? `이미지 업로드 실패 (${res.status})`)
     }
     const updated = (await res.json()) as PopupLayer
-    return updated.image_url
+    return { image_url: updated.image_url, image_url_webp: updated.image_url_webp }
   }
 
   const onSave = async () => {
@@ -142,8 +149,9 @@ export default function PopupLayerForm() {
     if (data?.id) {
       setUploading(true)
       try {
-        const newUrl = await uploadImage(data.id, file)
-        set('image_url', newUrl)
+        const { image_url, image_url_webp } = await uploadImage(data.id, file)
+        set('image_url', image_url)
+        set('image_url_webp', image_url_webp)
         // 즉시 반영됐으니 pending 해제
         URL.revokeObjectURL(url)
         setPendingPreview(null)
@@ -163,6 +171,7 @@ export default function PopupLayerForm() {
       setPendingFile(null)
     }
     set('image_url', null)
+    set('image_url_webp', null)
   }
 
   if (!data) return <div className="p-6 text-sm text-gray-500">{error ?? '로딩...'}</div>
@@ -275,11 +284,20 @@ export default function PopupLayerForm() {
           <div className="flex items-start gap-4">
             {pendingPreview || data.image_url ? (
               <div className="relative">
-                <img
-                  src={pendingPreview ?? `${API_BASE}${data.image_url}`}
-                  alt=""
-                  className="w-32 h-32 object-cover rounded border border-gray-200 dark:border-gray-700"
-                />
+                {pendingPreview ? (
+                  <img
+                    src={pendingPreview}
+                    alt=""
+                    className="w-32 h-32 object-cover rounded border border-gray-200 dark:border-gray-700"
+                  />
+                ) : (
+                  <UploadedImage
+                    src={data.image_url}
+                    srcWebp={data.image_url_webp}
+                    alt=""
+                    className="w-32 h-32 object-cover rounded border border-gray-200 dark:border-gray-700"
+                  />
+                )}
                 <button
                   type="button"
                   onClick={removeImage}

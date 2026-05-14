@@ -101,28 +101,6 @@ export interface FaqItem {
   answer: string
 }
 
-/* ─────────── 신규상담사 ─────────── */
-
-export type NewCounselorBadge = '신규' | '사주' | '타로' | '신점'
-
-export interface NewCounselor {
-  id: number
-  name: string
-  code: string
-  badge: NewCounselorBadge
-  tagline: string
-  pricePer30s: number
-  imgUrl: string
-}
-
-/** 비어있으면 빈 상태(EmptyState) 노출 */
-export const MOCK_NEW_COUNSELORS: NewCounselor[] = [
-  { id: 1, name: '신비',     code: '165791', badge: '신규', tagline: '속 시원하게 풀어드립니다', pricePer30s: 1000, imgUrl: '/img/sample_img01.jpg' },
-  { id: 2, name: '사주선녀', code: '165791', badge: '사주', tagline: '속 시원하게 풀어드립니다', pricePer30s: 1000, imgUrl: '/img/sample_img02.jpg' },
-  { id: 3, name: '강타로',   code: '165791', badge: '타로', tagline: '속 시원하게 풀어드립니다', pricePer30s: 1000, imgUrl: '/img/sample_img03.jpg' },
-  { id: 4, name: '김선녀',   code: '165791', badge: '신점', tagline: '속 시원하게 풀어드립니다', pricePer30s: 1000, imgUrl: '/img/sample_img04.jpg' },
-]
-
 /* ─────────── 상담사 신청 게시판 ─────────── */
 
 export interface CounselorApplyPost {
@@ -154,8 +132,29 @@ export const MOCK_APPLY_POSTS: CounselorApplyPost[] = [
 
 /** 신청 작성 폼 — 신청 상태 옵션 */
 export const APPLY_STATUS_OPTIONS = ['상담사 지원', '상담사 문의', '기타 문의'] as const
-/** 지역 옵션 */
-export const APPLY_REGION_OPTIONS = ['서울', '경기', '인천', '강원', '충청', '전라', '경상', '제주'] as const
+/**
+ * 지역 옵션 — 17개 시·도 풀세트.
+ * 출처: sample/theme/basic/mobile/skin/board/apply/write.skin.php (라이브 그대로).
+ */
+export const APPLY_REGION_OPTIONS = [
+  '서울',
+  '부산',
+  '대구',
+  '인천',
+  '광주',
+  '대전',
+  '울산',
+  '세종특별자치시',
+  '경기도',
+  '강원도',
+  '충청북도',
+  '충청남도',
+  '전라북도',
+  '전라남도',
+  '경상북도',
+  '경상남도',
+  '제주특별자치도',
+] as const
 /** 상담분야 옵션 */
 export const APPLY_FIELD_OPTIONS = ['사주', '타로', '신점'] as const
 /** 전문 상담분야 칩 (다중 선택) */

@@ -31,20 +31,6 @@ export const BANNER_POSITIONS = [
   '회원가입완료',
   '메인-상단배너',
   '메인-중앙배너',
-  '로그인-상단띠배너',
-  '마이페이지',
-  '일반-상담후기',
-  '일반-이용안내',
-  '일반-상담사신청',
-  '상담사-코인내역',
-  '상담사-공지사항',
-  '이벤트1',
-  '이벤트2',
-  '이벤트3',
-  '오늘의운세',
-  '소원다락방-상단',
-  '소원다락방-하단',
-  '사주문의길',
 ] as const;
 
 export interface BannerRow {
@@ -54,6 +40,7 @@ export interface BannerRow {
   title: string | null;
   link_url: string | null;
   image_url: string | null;
+  image_url_webp: string | null;
   display_order: number;
   starts_at: string | null;
   ends_at: string | null;
@@ -67,6 +54,7 @@ export interface BannerInput {
   title?: string | null;
   link_url?: string | null;
   image_url?: string | null;
+  image_url_webp?: string | null;
   display_order?: number;
   starts_at?: string | null;
   ends_at?: string | null;
@@ -99,8 +87,8 @@ export class BannersService {
       : conds.reduce((acc, c, i) => (i === 0 ? this.sql`WHERE ${c}` : this.sql`${acc} AND ${c}`), this.sql``);
 
     const items = await this.sql<BannerRow[]>`
-      SELECT id, bn_id, position, title, link_url, image_url, display_order,
-             starts_at, ends_at, is_active, hit_count, created_at
+      SELECT id, bn_id, position, title, link_url, image_url, image_url_webp,
+             display_order, starts_at, ends_at, is_active, hit_count, created_at
       FROM shop_banner
       ${whereClause}
       ORDER BY display_order ASC, id DESC
@@ -121,9 +109,13 @@ export class BannersService {
   async create(input: BannerInput) {
     if (!input.position?.trim()) throw new BadRequestException('출력 위치는 필수입니다.');
     const rows = await this.sql<{ id: number }[]>`
-      INSERT INTO shop_banner (position, title, link_url, image_url, display_order, starts_at, ends_at, is_active)
+      INSERT INTO shop_banner (
+        position, title, link_url, image_url, image_url_webp,
+        display_order, starts_at, ends_at, is_active
+      )
       VALUES (
-        ${input.position}, ${input.title ?? null}, ${input.link_url ?? null}, ${input.image_url ?? null},
+        ${input.position}, ${input.title ?? null}, ${input.link_url ?? null},
+        ${input.image_url ?? null}, ${input.image_url_webp ?? null},
         ${input.display_order ?? 0}, ${input.starts_at ?? null}, ${input.ends_at ?? null}, ${input.is_active ?? true}
       ) RETURNING id
     `;
@@ -138,6 +130,7 @@ export class BannersService {
         title = ${input.title !== undefined ? input.title : cur.title},
         link_url = ${input.link_url !== undefined ? input.link_url : cur.link_url},
         image_url = ${input.image_url !== undefined ? input.image_url : cur.image_url},
+        image_url_webp = ${input.image_url_webp !== undefined ? input.image_url_webp : cur.image_url_webp},
         display_order = ${input.display_order ?? cur.display_order},
         starts_at = ${input.starts_at !== undefined ? input.starts_at : cur.starts_at},
         ends_at = ${input.ends_at !== undefined ? input.ends_at : cur.ends_at},

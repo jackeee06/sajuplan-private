@@ -5,15 +5,18 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { SocialAuthService } from './social-auth.service';
 import { UserAuthGuard } from './user-auth.guard';
+import { OptionalUserGuard } from './optional-user.guard';
 import { SmsModule } from '../sms/sms.module';
 import { CaptchaModule } from '../captcha/captcha.module';
 import { M2netModule } from '../../shared/m2net/m2net.module';
+import { PushModule } from '../../shared/push/push.module';
 
 @Module({
   imports: [
     SmsModule,
     CaptchaModule,
     M2netModule,
+    PushModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -36,7 +39,7 @@ import { M2netModule } from '../../shared/m2net/m2net.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, SocialAuthService, UserAuthGuard],
-  exports: [UserAuthGuard, JwtModule],
+  providers: [AuthService, SocialAuthService, UserAuthGuard, OptionalUserGuard],
+  exports: [UserAuthGuard, OptionalUserGuard, JwtModule],
 })
 export class AuthModule {}

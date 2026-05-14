@@ -15,6 +15,7 @@ import type { Request, Response } from 'express';
 import { AdminAuthService } from './auth.service';
 import { AdminAuthGuard, type AuthedRequest } from './admin-auth.guard';
 import { LoginDto } from './dto/login.dto';
+import { runtimeEnv } from '../../shared/env/runtime-env';
 
 @Controller('admin/auth')
 export class AdminAuthController {
@@ -41,7 +42,7 @@ export class AdminAuthController {
     });
 
     const cookieName = this.config.get<string>('ADMIN_COOKIE_NAME') ?? 'sjm_admin';
-    const secure = this.config.get<string>('COOKIE_SECURE') === 'true';
+    const secure = runtimeEnv().cookieSecure;
     const maxAgeMs = parseExpiresMs(
       this.config.get<string>('ADMIN_JWT_EXPIRES_IN') ?? '8h',
     );
@@ -72,7 +73,7 @@ export class AdminAuthController {
   @HttpCode(204)
   logout(@Res({ passthrough: true }) res: Response, @Req() req: Request) {
     const cookieName = this.config.get<string>('ADMIN_COOKIE_NAME') ?? 'sjm_admin';
-    const secure = this.config.get<string>('COOKIE_SECURE') === 'true';
+    const secure = runtimeEnv().cookieSecure;
     if (req.cookies?.[cookieName]) {
       res.clearCookie(cookieName, {
         httpOnly: true,

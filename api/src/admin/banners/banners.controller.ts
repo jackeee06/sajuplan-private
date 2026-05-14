@@ -9,6 +9,7 @@ import { mkdirSync } from 'node:fs';
 import { AdminAuthGuard } from '../auth/admin-auth.guard';
 import { BannersService } from './banners.service';
 import type { BannerFilter, BannerInput } from './banners.service';
+import { convertImageToWebp } from '../../shared/common/image-to-webp';
 
 const BANNER_DIR = join(process.cwd(), 'uploads', 'banner');
 mkdirSync(BANNER_DIR, { recursive: true });
@@ -52,11 +53,13 @@ export class BannersController {
       },
     }),
   )
-  uploadImage(@UploadedFile() file: Express.Multer.File) {
+  async uploadImage(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('파일이 없습니다.');
+    const { webpFilename } = await convertImageToWebp(file.path);
     return {
       ok: true,
       image_url: `/uploads/banner/${file.filename}`,
+      image_url_webp: webpFilename ? `/uploads/banner/${webpFilename}` : null,
       filename: file.filename,
       original_name: file.originalname,
       size: file.size,

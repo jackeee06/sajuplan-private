@@ -24,4 +24,9 @@ export class ChatHistoryController {
   detail(@Param('id', ParseIntPipe) id: number) {
     return this.svc.getRoomMessages(id);
   }
+
+  @Get('rooms/by-roomid/:roomid')
+  detailByRoomid(@Param('roomid') roomid: string) {
+    return this.svc.getRoomMessagesByRoomid(roomid);
+  }
 }

@@ -1,38 +1,81 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FilterDropdown from '../components/FilterDropdown'
 import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
-import { MOCK_NOTICES, NOTICE_CATEGORIES } from '../data/myPageMockData'
+import { noticesApi, type PublicNoticeListItem } from '../lib/api'
+import { useDebouncedValue } from '../lib/use-debounced-value'
 
 const PAGE_SIZE = 10
 
 /**
- * 공지사항 리스트 — Figma 06마이페이지(비회원) > 공지사항
+ * 공지사항 리스트 — 백엔드 연동.
  *
  *  - 상단: filter_select(전체/공지/이벤트/업데이트) + 검색 인풋
- *  - 카운터: "전체 N건 1페이지" (숫자 강조: #8259F5)
- *  - 고정 공지: 연보라 배경 + "공지" 칩(보라 outline) [+ "New" 빨간 뱃지 옵션]
- *  - 일반 공지: 흰 배경, 칩 없음
- *  - 페이지네이션 1~5
+ *  - 카운터: "전체 N건 P페이지" (숫자 강조: #8259F5)
+ *  - 고정 공지(is_pinned): 연보라 배경 + "공지" 칩(보라 outline)
+ *  - 신규(is_new = 7일 이내): "New" 빨간 뱃지
+ *  - 페이지네이션
  */
 export default function Notices() {
   const navigate = useNavigate()
   const [category, setCategory] = useState<string | null>(null)
   const [keyword, setKeyword] = useState('')
+  // 키 입력 폭주 방지 — 350ms 멈춘 뒤에만 API 호출
+  const debouncedKeyword = useDebouncedValue(keyword, 350)
   const [page, setPage] = useState(1)
+  const [items, setItems] = useState<PublicNoticeListItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [categories, setCategories] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filtered = useMemo(() => {
-    return MOCK_NOTICES.filter((n) => {
-      if (category && category !== '전체' && !(category === '공지' && n.pinned)) return false
-      if (keyword && !n.title.includes(keyword)) return false
-      return true
-    })
-  }, [category, keyword])
+  // 카테고리 옵션 한 번 로드
+  useEffect(() => {
+    let alive = true
+    noticesApi.categories().then(
+      (r) => {
+        if (alive) setCategories(r.items)
+      },
+      () => {
+        // 카테고리 로드 실패는 조용히 무시 — 필터 기능만 비활성
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  // 페이지/필터/(debounce된)검색어 변경 시 리스트 재요청
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    setError(null)
+    noticesApi
+      .list({
+        page,
+        limit: PAGE_SIZE,
+        category: category && category !== '전체' ? category : undefined,
+        q: debouncedKeyword.trim() || undefined,
+      })
+      .then((r) => {
+        if (!alive) return
+        setItems(r.items)
+        setTotal(r.total)
+      })
+      .catch((e) => {
+        if (alive) setError(e instanceof Error ? e.message : '공지를 불러오지 못했습니다.')
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [page, category, debouncedKeyword])
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   const onCategoryChange = (v: string | null) => {
     setCategory(v)
@@ -59,7 +102,7 @@ export default function Notices() {
         <section className="px-4 pt-4 pb-3 flex items-center gap-2">
           <FilterDropdown
             label="전체"
-            options={NOTICE_CATEGORIES.filter((c) => c !== '전체') as unknown as string[]}
+            options={categories}
             value={category}
             onChange={onCategoryChange}
           />
@@ -84,52 +127,85 @@ export default function Notices() {
 
         <section className="px-4 pb-2">
           <p className="text-[13px] leading-[140%] text-[#6A7282]">
-            전체 <span className="text-[#8259F5] font-medium">{filtered.length}</span>건{' '}
+            전체 <span className="text-[#8259F5] font-medium">{total.toLocaleString()}</span>건{' '}
             <span className="text-[#8259F5] font-medium">{page}</span>페이지
           </p>
         </section>
 
-        <ul className="flex flex-col">
-          {pageItems.map((n) => (
-            <li
-              key={n.id}
-              className={
-                n.pinned
-                  ? 'border-b border-[#F3F4F6] bg-[#F3EEFE]'
-                  : 'border-b border-[#F3F4F6] bg-white'
-              }
-            >
-              <Link to={`/mypage/notices/${n.id}`} className="block px-4 py-3">
-                <div className="flex items-start gap-2">
-                  <span className="flex-1 text-[15px] leading-[140%] font-semibold text-[#030712]">
-                    {n.title}
-                  </span>
-                  {n.isNew && (
-                    <span className="shrink-0 inline-flex items-center h-[22px] px-2 rounded-full bg-[#FF6467] text-[12px] leading-none font-medium text-white">
-                      New
+        {loading ? (
+          <ul className="flex flex-col">
+            {[0, 1, 2, 3].map((i) => (
+              <li key={i} className="border-b border-[#F3F4F6] px-4 py-3">
+                <div className="h-4 w-2/3 bg-[#F3F4F6] animate-pulse rounded" />
+                <div className="mt-2 h-3 w-1/3 bg-[#F3F4F6] animate-pulse rounded" />
+              </li>
+            ))}
+          </ul>
+        ) : error ? (
+          <p className="px-4 py-10 text-center text-[14px] text-[#FF6467]">{error}</p>
+        ) : items.length === 0 ? (
+          <p className="px-4 py-10 text-center text-[14px] text-[#99A1AF]">
+            등록된 공지사항이 없습니다.
+          </p>
+        ) : (
+          <ul className="flex flex-col">
+            {items.map((n) => (
+              <li
+                key={n.id}
+                className={
+                  n.is_pinned
+                    ? 'border-b border-[#F3F4F6] bg-[#F3EEFE]'
+                    : 'border-b border-[#F3F4F6] bg-white'
+                }
+              >
+                <Link to={`/mypage/notices/${n.id}`} className="block px-4 py-3">
+                  <div className="flex items-start gap-2">
+                    <span className="flex-1 text-[15px] leading-[140%] font-semibold text-[#030712]">
+                      {n.title}
                     </span>
-                  )}
-                </div>
-                <div className="mt-1 flex items-center gap-2">
-                  {n.pinned && (
-                    <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#9B7AF7] text-[12px] leading-none font-medium text-[#8259F5]">
-                      공지
+                    {n.is_new && (
+                      <span className="shrink-0 inline-flex items-center h-[22px] px-2 rounded-full bg-[#FF6467] text-[12px] leading-none font-medium text-white">
+                        New
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    {n.is_pinned && (
+                      <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#9B7AF7] text-[12px] leading-none font-medium text-[#8259F5]">
+                        공지
+                      </span>
+                    )}
+                    {n.category && !n.is_pinned && (
+                      <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-[#F9FAFB] text-[12px] leading-none font-medium text-[#6A7282]">
+                        {n.category}
+                      </span>
+                    )}
+                    <span className="text-[13px] leading-[140%] text-[#99A1AF]">
+                      {formatDate(n.created_at)}
                     </span>
-                  )}
-                  <span className="text-[13px] leading-[140%] text-[#99A1AF]">
-                    {n.author} · {n.date}
-                  </span>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
 
-        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+        {!loading && totalPages > 1 && (
+          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+        )}
       </main>
 
       <FloatingActions bottomOffset={100} />
       <BottomNav />
     </div>
   )
+}
+
+function formatDate(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}.${m}.${day}`
 }

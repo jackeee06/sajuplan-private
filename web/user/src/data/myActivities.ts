@@ -45,6 +45,15 @@ export interface ConsultHistoryItem {
   reviewStatus: ReviewWriteStatus
   /** 작성한 후기 ID — reviewStatus='written'일 때 상세 진입 */
   reviewId?: number
+  /**
+   * 채팅상담 전용 — chat_room.status ('STAY' | 'CNCH' | 'DISCONNECT' | null).
+   * STAY(상담사 대기) 또는 CNCH(진행 중) 이면 카드 액션이 "채팅방 입장" 으로 바뀐다.
+   * DISCONNECT(종료) 또는 null 이면 "채팅 내역 보기" + 후기 흐름.
+   */
+  chatStatus?: string | null
+  /** 후기 작성 라우팅(/mypage/my-reviews/new?consultation_id=N&counselor_id=M)에 필요. */
+  consultationId?: number
+  counselorId?: number
 }
 
 export const MOCK_CALL_HISTORY: ConsultHistoryItem[] = [

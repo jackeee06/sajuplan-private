@@ -7,5 +7,6 @@ import { MembersService } from './members.service';
   imports: [AdminAuthModule],
   controllers: [MembersController],
   providers: [MembersService],
+  exports: [MembersService],
 })
 export class MembersModule {}

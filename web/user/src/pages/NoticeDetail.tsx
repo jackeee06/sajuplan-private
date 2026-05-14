@@ -1,39 +1,49 @@
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
-import { MOCK_NOTICES } from '../data/myPageMockData'
+import { ApiError, noticesApi, type PublicNoticeDetail } from '../lib/api'
 
 /**
- * 공지사항 상세 — Figma 06마이페이지(비회원) > 공지사항 상세
+ * 공지사항 상세 — 백엔드 GET /api/user/notices/:id 연동.
+ * 진입 시 조회수 +1 (백엔드에서 처리).
  */
 export default function NoticeDetail() {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
-  const notice = MOCK_NOTICES.find((n) => String(n.id) === id)
+  const [notice, setNotice] = useState<PublicNoticeDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!notice) {
-    return (
-      <div className="mobile-frame flex flex-col pb-[100px]">
-        <header className="h-[60px] px-4 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            aria-label="뒤로"
-            className="w-[30px] h-[30px] flex items-center justify-center"
-          >
-            <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
-          </button>
-          <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">
-            공지사항
-          </h1>
-        </header>
-        <p className="text-center text-[14px] text-[#99A1AF] py-10">
-          존재하지 않는 공지사항입니다.
-        </p>
-        <BottomNav />
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (!id) {
+      setError('공지사항 ID가 없습니다.')
+      setLoading(false)
+      return
+    }
+    let alive = true
+    setLoading(true)
+    setError(null)
+    noticesApi
+      .detail(id)
+      .then((r) => {
+        if (alive) setNotice(r)
+      })
+      .catch((e) => {
+        if (!alive) return
+        if (e instanceof ApiError && e.status === 404) {
+          setError('존재하지 않는 공지사항입니다.')
+        } else {
+          setError(e instanceof Error ? e.message : '공지사항을 불러오지 못했습니다.')
+        }
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [id])
 
   return (
     <div className="mobile-frame flex flex-col pb-[100px]">
@@ -52,39 +62,83 @@ export default function NoticeDetail() {
       </header>
 
       <main className="flex-1 px-4 pt-2">
-        <h2 className="text-[18px] leading-[140%] font-bold text-[#030712]">
-          {notice.title}
-        </h2>
-        <p className="mt-1 text-[13px] leading-[140%] text-[#99A1AF]">
-          {notice.postedAt}
-        </p>
+        {loading ? (
+          <div className="pt-2 flex flex-col gap-3">
+            <div className="h-6 w-2/3 bg-[#F3F4F6] animate-pulse rounded" />
+            <div className="h-4 w-1/3 bg-[#F3F4F6] animate-pulse rounded" />
+            <div className="mt-4 h-32 w-full bg-[#F3F4F6] animate-pulse rounded" />
+          </div>
+        ) : error || !notice ? (
+          <div className="flex flex-col items-center gap-4 py-10">
+            <p className="text-[14px] text-[#99A1AF]">{error ?? '공지사항을 불러올 수 없습니다.'}</p>
+            <button
+              type="button"
+              onClick={() => navigate('/mypage/notices')}
+              className="h-[44px] px-7 rounded-full border border-[#9B7AF7] text-[15px] font-medium text-[#8259F5]"
+            >
+              목록으로
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 flex-wrap">
+              {notice.is_pinned && (
+                <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#9B7AF7] text-[12px] leading-none font-medium text-[#8259F5]">
+                  공지
+                </span>
+              )}
+              {notice.category && !notice.is_pinned && (
+                <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-[#F9FAFB] text-[12px] leading-none font-medium text-[#6A7282]">
+                  {notice.category}
+                </span>
+              )}
+            </div>
+            <h2 className="mt-2 text-[18px] leading-[140%] font-bold text-[#030712]">
+              {notice.title}
+            </h2>
+            <p className="mt-1 text-[13px] leading-[140%] text-[#99A1AF]">
+              {formatDateTime(notice.created_at)}
+            </p>
 
-        <div className="mt-4 border-t border-[#F3F4F6] pt-4">
-          <p className="text-[15px] leading-[160%] text-[#364153] whitespace-pre-line">
-            {notice.content}
-          </p>
-          {notice.bodyImg && (
-            <img
-              src={notice.bodyImg}
-              alt=""
-              className="mt-4 w-full rounded-[12px]"
-            />
-          )}
-        </div>
+            <div className="mt-4 border-t border-[#F3F4F6] pt-4">
+              {/^\s*</.test(notice.content) ? (
+                <div
+                  className="text-[15px] leading-[160%] text-[#364153] notice-html"
+                  dangerouslySetInnerHTML={{ __html: notice.content }}
+                />
+              ) : (
+                <p className="text-[15px] leading-[160%] text-[#364153] whitespace-pre-line">
+                  {notice.content || '본문이 비어있습니다.'}
+                </p>
+              )}
+            </div>
 
-        <div className="mt-8 flex justify-center">
-          <button
-            type="button"
-            onClick={() => navigate('/mypage/notices')}
-            className="h-[44px] px-7 rounded-full border border-[#9B7AF7] text-[15px] font-medium text-[#8259F5]"
-          >
-            목록으로
-          </button>
-        </div>
+            <div className="mt-8 flex justify-center">
+              <button
+                type="button"
+                onClick={() => navigate('/mypage/notices')}
+                className="h-[44px] px-7 rounded-full border border-[#9B7AF7] text-[15px] font-medium text-[#8259F5]"
+              >
+                목록으로
+              </button>
+            </div>
+          </>
+        )}
       </main>
 
       <FloatingActions bottomOffset={100} />
       <BottomNav />
     </div>
   )
+}
+
+function formatDateTime(iso: string): string {
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${y}.${m}.${day} ${hh}:${mm}`
 }

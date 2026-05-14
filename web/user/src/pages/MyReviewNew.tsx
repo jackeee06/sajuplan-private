@@ -1,50 +1,125 @@
-import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ApiError, reviewsApi } from '../lib/api'
 import { SecretCheckbox } from './CounselorReviewNew'
 
 /**
  * 상담 후기 작성 (마이페이지에서 진입) — Figma 147:12530
- * 라우트: /mypage/my-reviews/new
+ * 라우트: /mypage/my-reviews/new?consultation_id=38&counselor_id=77
  *
- * Figma 06배치 CounselorReviewNew와 동일한 폼 구조이며,
- * 마이페이지의 전화/채팅 내역 카드 "후기 작성하기"에서 진입한다.
- * 인라인 Tailwind 유틸로 input/textarea/버튼 스타일 표현
- * (이 프로젝트는 design.css 카탈로그 클래스가 적용돼 있지 않음).
+ * 진입 흐름:
+ *   1) 마이페이지 > 전화/채팅 내역 카드 "후기 작성하기"
+ *   2) 상담사 상세 페이지 "후기 작성" (consultation_id 없이 counselor_id 만 올 수도 있음)
+ *
+ * 사진은 한 장만 등록(MAX_PHOTOS=1).
+ * 백엔드 :
+ *   POST /api/user/reviews/upload-image  (multipart, optional)
+ *   POST /api/user/reviews                ({ counselor_id, title, content, photo_url, ... })
+ *   - 동일 consultation_id 후기 중복 작성 차단
+ *   - 본인 상담만 후기 가능 (서버 검증)
  */
 
 const MAX_PHOTOS = 1
 
 export default function MyReviewNew() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const counselorId = Number(searchParams.get('counselor_id') ?? '') || 0
+  const consultationId = Number(searchParams.get('consultation_id') ?? '') || 0
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [secret, setSecret] = useState(false)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [photos, setPhotos] = useState<string[]>(['/img/sample_img02.jpg'])
+  /** 화면 표시용 미리보기 URL (objectURL 또는 업로드된 서버 URL). 최대 1장. */
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  /** 서버 업로드 후 받은 URL — 제출 시 photo_url 로 전달. null 이면 사진 없음. */
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null)
+  /** WebP 사이블링 URL (있으면) */
+  const [uploadedWebpUrl, setUploadedWebpUrl] = useState<string | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    if (!files.length) return
-    const newUrls = files.slice(0, MAX_PHOTOS - photos.length).map((f) => URL.createObjectURL(f))
-    setPhotos((prev) => [...prev, ...newUrls])
+  // counselor_id 누락 — 잘못된 진입. 1초 후 뒤로.
+  useEffect(() => {
+    if (!counselorId) {
+      setError('상담사 정보가 없습니다.')
+      const t = setTimeout(() => navigate(-1), 1500)
+      return () => clearTimeout(t)
+    }
+  }, [counselorId, navigate])
+
+  // 화면 unmount 시 objectURL 해제 — 메모리 누수 방지.
+  useEffect(() => {
+    return () => {
+      if (photoPreview && photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview)
+    }
+  }, [photoPreview])
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
     e.target.value = ''
+    if (!file) return
+    // 기존 미리보기 정리
+    if (photoPreview && photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview)
+    const localUrl = URL.createObjectURL(file)
+    setPhotoPreview(localUrl)
+    setUploadedUrl(null)
+    setUploadedWebpUrl(null)
+    setPhotoUploading(true)
+    setError(null)
+    try {
+      const r = await reviewsApi.uploadImage(file)
+      setUploadedUrl(r.url)
+      setUploadedWebpUrl(r.url_webp)
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '사진 업로드에 실패했습니다.')
+      // 미리보기 되돌림
+      URL.revokeObjectURL(localUrl)
+      setPhotoPreview(null)
+    } finally {
+      setPhotoUploading(false)
+    }
   }
 
-  const removePhoto = (idx: number) => {
-    setPhotos((prev) => {
-      const next = [...prev]
-      const removed = next.splice(idx, 1)[0]
-      if (removed) URL.revokeObjectURL(removed)
-      return next
-    })
+  const removePhoto = () => {
+    if (photoPreview && photoPreview.startsWith('blob:')) URL.revokeObjectURL(photoPreview)
+    setPhotoPreview(null)
+    setUploadedUrl(null)
+    setUploadedWebpUrl(null)
   }
 
-  const canSubmit = title.trim().length > 0 && content.trim().length > 0
+  const canSubmit =
+    !!counselorId &&
+    title.trim().length > 0 &&
+    content.trim().length > 0 &&
+    !submitting &&
+    !photoUploading
 
-  const onSubmit = () => {
+  const onSubmit = async () => {
     if (!canSubmit) return
-    navigate('/mypage/my-reviews')
+    setSubmitting(true)
+    setError(null)
+    try {
+      await reviewsApi.create({
+        counselor_id: counselorId,
+        title: title.trim(),
+        content: content.trim(),
+        is_secret: secret,
+        photo_url: uploadedUrl,
+        photo_url_webp: uploadedWebpUrl,
+        consultation_id: consultationId || null,
+      })
+      navigate('/mypage/my-reviews', { replace: true })
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : '후기 작성에 실패했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
   }
+
+  const photoCount = photoPreview ? 1 : 0
 
   return (
     <div className="mobile-frame flex flex-col pb-10">
@@ -103,7 +178,7 @@ export default function MyReviewNew() {
               후기 사진
             </label>
             <span className="text-[14px] leading-[120%] text-[#6A7282]">
-              ({photos.length}/{MAX_PHOTOS})
+              ({photoCount}/{MAX_PHOTOS})
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -111,19 +186,25 @@ export default function MyReviewNew() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               aria-label="사진 등록"
-              disabled={photos.length >= MAX_PHOTOS}
+              disabled={photoCount >= MAX_PHOTOS || photoUploading}
               className="w-[84px] h-[84px] rounded-[12px] bg-[#F9FAFB] border border-[#F3F4F6] flex flex-col items-center justify-center gap-1 text-[#6A7282] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <UploadIcon />
               <span className="text-[13px] leading-[120%]">사진 등록</span>
             </button>
-            {photos.map((url, idx) => (
-              <div key={url} className="relative w-[84px] h-[84px]">
-                <img src={url} alt="" className="w-full h-full rounded-[12px] object-cover" />
+            {photoPreview && (
+              <div className="relative w-[84px] h-[84px]">
+                <img src={photoPreview} alt="" className="w-full h-full rounded-[12px] object-cover" />
+                {photoUploading && (
+                  <div className="absolute inset-0 rounded-[12px] bg-black/40 flex items-center justify-center">
+                    <span className="text-white text-[12px]">업로드 중…</span>
+                  </div>
+                )}
                 <button
                   type="button"
-                  onClick={() => removePhoto(idx)}
+                  onClick={removePhoto}
                   aria-label="사진 제거"
+                  disabled={photoUploading}
                   className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#1E2939]/70 flex items-center justify-center"
                 >
                   <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none" aria-hidden>
@@ -131,7 +212,7 @@ export default function MyReviewNew() {
                   </svg>
                 </button>
               </div>
-            ))}
+            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -142,15 +223,19 @@ export default function MyReviewNew() {
           </div>
         </section>
 
+        {error && (
+          <p className="text-[13px] text-[#FB2C36] text-center">{error}</p>
+        )}
+
         <button
           type="button"
-          onClick={onSubmit}
+          onClick={() => void onSubmit()}
           disabled={!canSubmit}
           className={`mt-3 h-12 rounded-full text-white text-[16px] font-medium transition ${
             canSubmit ? 'bg-[#9B7AF7] hover:bg-[#8259F5]' : 'bg-[#9B7AF7]/60 cursor-not-allowed'
           }`}
         >
-          작성완료
+          {submitting ? '작성 중…' : '작성완료'}
         </button>
       </main>
     </div>

@@ -18,6 +18,11 @@ export class CouponZonesController {
     return this.svc.getById(id);
   }
 
+  @Get(':id/members')
+  members(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.getMembers(id);
+  }
+
   @Post()
   create(@Body() body: CouponZoneInput) {
     return this.svc.create(body);

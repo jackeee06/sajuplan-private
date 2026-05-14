@@ -1,21 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ConfirmModal from '../components/ConfirmModal'
+import HtmlEditor, { type HtmlEditorHandle } from '../components/HtmlEditor'
+import UploadedImage from '../components/UploadedImage'
 import {
   APPLY_FIELD_OPTIONS,
   APPLY_REGION_OPTIONS,
   APPLY_SPECIALTY_OPTIONS,
   APPLY_STATUS_OPTIONS,
 } from '../data/myPageMockData'
+import { ApiError, captchaApi, counselorApplyApi, smsApi } from '../lib/api'
+import { useAuth } from '../lib/auth-context'
 
 /**
- * 상담사 신청 작성 — Figma 142:17256 (폼) / 142:21364 (작성완료 토스트 노출)
- *
- * 모달:
- *  - 작성취소(142:21334): "작성중인 글이 있습니다.\n이 페이지에서 나가겠습니까?" — 뒤로가기 시 입력값 있으면 노출
- *  - 작성완료(142:21292): "입력하신 내용으로 신청하시겠습니까?" — 작성완료 버튼 누르면 노출
- *
- * 토스트(142:21364): "상담사 신청이 완료되었습니다." — 작성완료 컨펌 후 표시 → 자동 닫힘 → 목록으로 이동
+ * 상담사 신청 작성 — 백엔드 연동 풀 구현.
+ *  - 사진: 프로필(정사각) 1장 — POST /user/counselor-apply/upload?kind=profile
+ *  - 휴대폰 인증: smsApi.send → smsApi.verify → 서버에서 isVerifiedRecently(10분 내) 검증
+ *  - 자동등록방지: captchaApi.issue 로 받은 SVG + token, 입력값을 그대로 서버에 전달
+ *  - 휴대폰 중복: counselorApplyApi.checkPhone 으로 onBlur 시 안내 + create 시 ConflictException 처리
  */
 
 type SimpleSelectProps = {
@@ -104,13 +106,22 @@ function SimpleSelect({ value, options, placeholder, onChange }: SimpleSelectPro
   )
 }
 
-const INTRO_MAX = 100
+const PHONE_TIMER_SEC = 180
 
 export default function CounselorApplyNew() {
   const navigate = useNavigate()
+  const { isLoggedIn } = useAuth()
 
   const [status, setStatus] = useState('')
   const [title, setTitle] = useState('')
+  // 계정 정보 — 승인 시 이걸 그대로 mb_id/password 로 가입.
+  const [accountId, setAccountId] = useState('')
+  const [accountIdStatus, setAccountIdStatus] = useState<
+    null | { available: boolean; reason?: string }
+  >(null)
+  const [accountIdChecking, setAccountIdChecking] = useState(false)
+  const [accountPw, setAccountPw] = useState('')
+  const [accountPwConfirm, setAccountPwConfirm] = useState('')
   const [name, setName] = useState('')
   const [penName, setPenName] = useState('')
   const [region, setRegion] = useState('')
@@ -118,16 +129,79 @@ export default function CounselorApplyNew() {
   const [email, setEmail] = useState('')
   const [field, setField] = useState('')
   const [birth, setBirth] = useState('')
-  const [specialties, setSpecialties] = useState<string[]>(['운세', '속마음', '연애', '취업'])
-  const [photo, setPhoto] = useState<string | null>('/img/sample_img04.jpg')
+  const [specialties, setSpecialties] = useState<string[]>([])
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null)
+  const [profilePhotoWebp, setProfilePhotoWebp] = useState<string | null>(null)
+  const [contractFiles, setContractFiles] = useState<
+    Array<{ url: string; original_name: string; size: number }>
+  >([])
   const [intro, setIntro] = useState('')
-  const [pw, setPw] = useState('')
-  const [pwVisible, setPwVisible] = useState(false)
-  const [captcha, setCaptcha] = useState('')
+  const profileFileRef = useRef<HTMLInputElement>(null)
+  const contractFileRef = useRef<HTMLInputElement>(null)
+  const introEditorRef = useRef<HtmlEditorHandle>(null)
+  const [uploading, setUploading] = useState<null | 'profile' | 'contract'>(null)
+
+  // 휴대폰 인증
+  const [phoneCode, setPhoneCode] = useState('')
+  const [phoneSent, setPhoneSent] = useState(false)
+  const [phoneVerified, setPhoneVerified] = useState(false)
+  const [phoneSending, setPhoneSending] = useState(false)
+  const [phoneVerifying, setPhoneVerifying] = useState(false)
+  const [phoneTimer, setPhoneTimer] = useState(0)
+  // 휴대폰 상태 — 'accepted' 면 폼 차단, 'pending' 이면 안내만 (새 신청이 기존 대체).
+  const [phoneStatus, setPhoneStatus] = useState<'accepted' | 'pending' | 'none'>('none')
+  const phoneTimerRef = useRef<number | null>(null)
+
+  // 자동등록방지
+  const [captchaToken, setCaptchaToken] = useState('')
+  const [captchaSvg, setCaptchaSvg] = useState('')
+  const [captchaInput, setCaptchaInput] = useState('')
+  const [captchaLoading, setCaptchaLoading] = useState(false)
 
   const [submitOpen, setSubmitOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [toastOpen, setToastOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  // 캡차 발급 — 마운트 시 1회 + 새로고침 버튼
+  const refreshCaptcha = async () => {
+    setCaptchaLoading(true)
+    try {
+      const r = await captchaApi.issue()
+      setCaptchaToken(r.token)
+      setCaptchaSvg(r.svg)
+      setCaptchaInput('')
+    } catch (e) {
+      setErrorMsg(`캡차 발급 실패: ${e instanceof Error ? e.message : '알 수 없음'}`)
+    } finally {
+      setCaptchaLoading(false)
+    }
+  }
+  useEffect(() => {
+    void refreshCaptcha()
+  }, [])
+
+  // 휴대폰 인증 타이머
+  useEffect(() => {
+    if (!phoneSent || phoneVerified) return
+    if (phoneTimer <= 0) {
+      if (phoneTimerRef.current) window.clearInterval(phoneTimerRef.current)
+      return
+    }
+    phoneTimerRef.current = window.setInterval(() => {
+      setPhoneTimer((t) => Math.max(0, t - 1))
+    }, 1000)
+    return () => {
+      if (phoneTimerRef.current) window.clearInterval(phoneTimerRef.current)
+    }
+  }, [phoneSent, phoneVerified, phoneTimer])
+
+  const phoneTimerLabel = (() => {
+    const m = Math.floor(phoneTimer / 60)
+    const s = phoneTimer % 60
+    return `${m}:${String(s).padStart(2, '0')}`
+  })()
 
   const toggleSpecialty = (v: string) => {
     setSpecialties((prev) =>
@@ -137,22 +211,190 @@ export default function CounselorApplyNew() {
 
   const isDirty =
     status || title || name || penName || region || phone || email || field || birth ||
-    specialties.length > 0 || photo || intro || pw || captcha
+    specialties.length > 0 || profilePhoto || contractFiles.length > 0 ||
+    intro || captchaInput || accountId || accountPw || accountPwConfirm
 
   const handleBack = () => {
     if (isDirty) setCancelOpen(true)
     else navigate(-1)
   }
 
-  const handleSubmitClick = () => setSubmitOpen(true)
+  // 휴대폰 상태 체크 — 11자리 입력 완료 시 자동 호출.
+  //   accepted → 폼 차단 (이미 가입된 상담사)
+  //   pending  → 차단 안 함, 안내만 (새 신청이 기존 건을 자동 대체)
+  const onPhoneBlur = async () => {
+    const digits = phone.replace(/[^0-9]/g, '')
+    if (digits.length < 10) {
+      setPhoneStatus('none')
+      return
+    }
+    try {
+      const r = await counselorApplyApi.checkPhone(digits)
+      setPhoneStatus(r.status)
+    } catch {
+      // 네트워크 일시 실패는 무시 — 제출 시 서버가 다시 검증
+    }
+  }
 
-  const handleSubmitConfirm = () => {
+  // 아이디 중복/형식 체크 — 4자 이상 입력 후 onBlur 시 호출
+  const onAccountIdBlur = async () => {
+    const trimmed = accountId.trim()
+    if (!trimmed) {
+      setAccountIdStatus(null)
+      return
+    }
+    setAccountIdChecking(true)
+    try {
+      const r = await counselorApplyApi.checkMbId(trimmed)
+      setAccountIdStatus(r)
+    } catch {
+      setAccountIdStatus(null)
+    } finally {
+      setAccountIdChecking(false)
+    }
+  }
+
+  const handleSendCode = async () => {
+    setErrorMsg(null)
+    const digits = phone.replace(/[^0-9]/g, '')
+    if (!/^01[016789]\d{7,8}$/.test(digits)) {
+      setErrorMsg('휴대폰 번호 형식이 올바르지 않습니다.')
+      return
+    }
+    if (phoneStatus === 'accepted') {
+      setErrorMsg('이미 같은 휴대폰으로 가입된 상담사가 있습니다. 로그인 후 이용해주세요.')
+      return
+    }
+    setPhoneSending(true)
+    try {
+      await smsApi.send(digits)
+      setPhoneSent(true)
+      setPhoneVerified(false)
+      setPhoneTimer(PHONE_TIMER_SEC)
+    } catch (e) {
+      setErrorMsg(`인증번호 발송 실패: ${e instanceof Error ? e.message : '알 수 없음'}`)
+    } finally {
+      setPhoneSending(false)
+    }
+  }
+
+  const handleVerifyCode = async () => {
+    setErrorMsg(null)
+    if (!/^\d{4,6}$/.test(phoneCode)) {
+      setErrorMsg('인증번호 4~6자리를 입력해주세요.')
+      return
+    }
+    setPhoneVerifying(true)
+    try {
+      const digits = phone.replace(/[^0-9]/g, '')
+      await smsApi.verify(digits, phoneCode)
+      setPhoneVerified(true)
+    } catch (e) {
+      setErrorMsg(`인증 실패: ${e instanceof Error ? e.message : '알 수 없음'}`)
+    } finally {
+      setPhoneVerifying(false)
+    }
+  }
+
+  const handleUpload = async (
+    kind: 'profile' | 'contract',
+    file: File | null | undefined,
+  ) => {
+    if (!file) return
+    setErrorMsg(null)
+    setUploading(kind)
+    try {
+      const r = await counselorApplyApi.uploadImage(file, kind)
+      if (kind === 'profile') {
+        setProfilePhoto(r.url)
+        setProfilePhotoWebp(r.url_webp)
+      } else {
+        setContractFiles((prev) => [
+          ...prev,
+          { url: r.url, original_name: r.original_name, size: r.size },
+        ])
+      }
+    } catch (e) {
+      setErrorMsg(`파일 업로드 실패: ${e instanceof Error ? e.message : '알 수 없음'}`)
+    } finally {
+      setUploading(null)
+    }
+  }
+
+  const handleSubmitClick = () => {
+    setErrorMsg(null)
+    if (!status) return setErrorMsg('신청상태를 선택해주세요.')
+    if (!title.trim()) return setErrorMsg('제목을 입력해주세요.')
+    if (!accountId.trim()) return setErrorMsg('아이디를 입력해주세요.')
+    if (!/^[a-zA-Z0-9_]{4,20}$/.test(accountId.trim())) {
+      return setErrorMsg('아이디는 영문/숫자/언더스코어 4~20자여야 합니다.')
+    }
+    if (accountIdStatus && !accountIdStatus.available) {
+      return setErrorMsg(accountIdStatus.reason ?? '사용할 수 없는 아이디입니다.')
+    }
+    if (accountPw.length < 6) return setErrorMsg('비밀번호는 6자 이상 입력해주세요.')
+    if (accountPw !== accountPwConfirm) return setErrorMsg('비밀번호가 일치하지 않습니다.')
+    if (!name.trim()) return setErrorMsg('이름을 입력해주세요.')
+    if (!penName.trim()) return setErrorMsg('예명을 입력해주세요.')
+    if (!region) return setErrorMsg('지역을 선택해주세요.')
+    if (!phoneVerified) return setErrorMsg('휴대폰 인증을 완료해주세요.')
+    if (!field) return setErrorMsg('상담분야를 선택해주세요.')
+    if (!birth.trim()) return setErrorMsg('생년월일을 입력해주세요.')
+    if (specialties.length === 0) return setErrorMsg('전문 상담분야를 1개 이상 선택해주세요.')
+    if (!profilePhoto) return setErrorMsg('프로필 사진을 등록해주세요.')
+    const introHtml = (introEditorRef.current?.getHTML() ?? intro).trim()
+    if (!introHtml || introHtml === '<p><br></p>') {
+      return setErrorMsg('본인 소개를 입력해주세요.')
+    }
+    setIntro(introHtml)
+    if (!captchaInput.trim()) return setErrorMsg('자동등록방지 문자를 입력해주세요.')
+    setSubmitOpen(true)
+  }
+
+  const handleSubmitConfirm = async () => {
     setSubmitOpen(false)
-    setToastOpen(true)
-    setTimeout(() => {
-      setToastOpen(false)
-      navigate('/mypage/counselor-apply')
-    }, 1600)
+    setSubmitting(true)
+    setErrorMsg(null)
+    try {
+      const introHtml = (introEditorRef.current?.getHTML() ?? intro).trim()
+      await counselorApplyApi.create({
+        title: title.trim(),
+        content: introHtml,
+        applicant_phone: phone.replace(/[^0-9]/g, ''),
+        applicant_email: email.trim() || undefined,
+        is_secret: true,
+        captcha_token: captchaToken,
+        captcha_input: captchaInput.trim(),
+        mb_id: accountId.trim(),
+        password: accountPw,
+        extras: {
+          status,
+          real_name: name.trim(),
+          pen_name: penName.trim(),
+          region,
+          field,
+          birth: birth.trim(),
+          specialties,
+          intro: introHtml,
+          profile_photo_url: profilePhoto,
+          profile_photo_url_webp: profilePhotoWebp,
+          contract_files: contractFiles,
+        },
+      })
+      setToastOpen(true)
+      setTimeout(() => {
+        setToastOpen(false)
+        // 로그인 회원은 본인 신청 내역 페이지로, 비회원은 홈으로 이동
+        navigate(isLoggedIn ? '/mypage/counselor-apply' : '/')
+      }, 1400)
+    } catch (e) {
+      // 캡차 실패면 자동 새로고침
+      if (e instanceof ApiError && /캡차|자동등록방지/.test(e.message)) {
+        void refreshCaptcha()
+      }
+      setErrorMsg(`신청 실패: ${e instanceof Error ? e.message : '알 수 없는 오류'}`)
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -197,6 +439,71 @@ export default function CounselorApplyNew() {
           <Field label="제목" required>
             <TextInput value={title} onChange={setTitle} placeholder="제목을 입력해주세요." />
           </Field>
+
+          {/* 계정 정보 — 승인 후 그대로 로그인용으로 사용됨 */}
+          <div className="rounded-[12px] border border-[#E5E7EB] bg-white px-4 py-4 space-y-3">
+            <p className="text-[13px] font-semibold text-[#030712]">
+              계정 정보 <span className="text-[12px] font-normal text-[#99A1AF]">— 승인 후 이 정보로 상담사 로그인</span>
+            </p>
+            <div>
+              <label className="block text-[13px] leading-[140%] font-medium text-[#030712] mb-1.5">
+                아이디<span className="text-[#FF6467] ml-0.5">*</span>
+              </label>
+              <input
+                type="text"
+                value={accountId}
+                onChange={(e) => {
+                  setAccountId(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20))
+                  setAccountIdStatus(null)
+                }}
+                onBlur={onAccountIdBlur}
+                placeholder="영문/숫자/언더스코어 4~20자"
+                autoComplete="off"
+                className="w-full h-[44px] px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none"
+              />
+              {accountIdChecking && (
+                <p className="mt-1 text-[12px] text-[#99A1AF]">중복 확인 중…</p>
+              )}
+              {!accountIdChecking && accountIdStatus && accountIdStatus.available && (
+                <p className="mt-1 text-[12px] text-[#10B981]">✓ 사용 가능한 아이디입니다.</p>
+              )}
+              {!accountIdChecking && accountIdStatus && !accountIdStatus.available && (
+                <p className="mt-1 text-[12px] text-[#FB2C36]">
+                  {accountIdStatus.reason ?? '사용할 수 없는 아이디입니다.'}
+                </p>
+              )}
+            </div>
+            <div>
+              <label className="block text-[13px] leading-[140%] font-medium text-[#030712] mb-1.5">
+                비밀번호<span className="text-[#FF6467] ml-0.5">*</span>
+              </label>
+              <input
+                type="password"
+                value={accountPw}
+                onChange={(e) => setAccountPw(e.target.value)}
+                placeholder="6자 이상"
+                autoComplete="new-password"
+                className="w-full h-[44px] px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-[13px] leading-[140%] font-medium text-[#030712] mb-1.5">
+                비밀번호 확인<span className="text-[#FF6467] ml-0.5">*</span>
+              </label>
+              <input
+                type="password"
+                value={accountPwConfirm}
+                onChange={(e) => setAccountPwConfirm(e.target.value)}
+                placeholder="비밀번호를 한 번 더 입력"
+                autoComplete="new-password"
+                className="w-full h-[44px] px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none"
+              />
+              {accountPwConfirm && accountPw !== accountPwConfirm && (
+                <p className="mt-1 text-[12px] text-[#FB2C36]">비밀번호가 일치하지 않습니다.</p>
+              )}
+            </div>
+          </div>
+
           <Field label="이름" required>
             <TextInput value={name} onChange={setName} placeholder="이름을 입력해주세요." />
           </Field>
@@ -206,9 +513,85 @@ export default function CounselorApplyNew() {
           <Field label="지역" required>
             <SimpleSelect value={region} options={APPLY_REGION_OPTIONS} placeholder="지역 선택" onChange={setRegion} />
           </Field>
+
+          {/* 휴대폰 + 인증번호 */}
           <Field label="휴대폰번호" required>
-            <TextInput value={phone} onChange={setPhone} placeholder="'-' 없이 숫자만 입력해주세요." inputMode="numeric" />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={phone}
+                onChange={(e) => {
+                  setPhone(e.target.value.replace(/[^0-9]/g, '').slice(0, 11))
+                  setPhoneVerified(false)
+                  setPhoneSent(false)
+                  setPhoneCode('')
+                  setPhoneStatus('none')
+                }}
+                onBlur={onPhoneBlur}
+                placeholder="'-' 없이 숫자만 입력해주세요."
+                disabled={phoneVerified}
+                className="flex-1 h-[48px] px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none disabled:bg-[#F3F4F6]"
+              />
+              <button
+                type="button"
+                onClick={handleSendCode}
+                disabled={phoneSending || phoneVerified || phoneStatus === 'accepted'}
+                className={`shrink-0 h-[48px] px-4 rounded-full text-[14px] font-medium ${
+                  phoneVerified
+                    ? 'bg-[#10B981] text-white'
+                    : phoneSending || phoneStatus === 'accepted'
+                    ? 'bg-[#D1D5DB] text-white'
+                    : 'bg-[#9B7AF7] text-white'
+                }`}
+              >
+                {phoneVerified ? '인증완료' : phoneSent ? '재전송' : '인증번호'}
+              </button>
+            </div>
+            {phoneStatus === 'accepted' && !phoneVerified && (
+              <p className="mt-1.5 text-[12px] text-[#FB2C36]">
+                이미 같은 휴대폰으로 가입된 상담사가 있습니다. 로그인 후 이용해주세요.
+              </p>
+            )}
+            {phoneStatus === 'pending' && !phoneVerified && (
+              <p className="mt-1.5 text-[12px] text-[#8259F5]">
+                같은 휴대폰으로 검토중인 신청이 있습니다 — 새 신청 시 기존 신청은 자동으로 대체됩니다.
+              </p>
+            )}
+            {phoneSent && !phoneVerified && (
+              <div className="mt-2 flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={phoneCode}
+                    onChange={(e) => setPhoneCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                    placeholder="인증번호 입력"
+                    className="w-full h-[48px] px-4 pr-14 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] text-[#1E2939] focus:outline-none"
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-[#FB2C36]">
+                    {phoneTimerLabel}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleVerifyCode}
+                  disabled={phoneVerifying || phoneTimer === 0}
+                  className={`shrink-0 h-[48px] px-4 rounded-full text-[14px] font-medium ${
+                    phoneVerifying || phoneTimer === 0
+                      ? 'bg-[#D1D5DB] text-white'
+                      : 'bg-[#9B7AF7] text-white'
+                  }`}
+                >
+                  확인
+                </button>
+              </div>
+            )}
+            {phoneVerified && (
+              <p className="mt-1.5 text-[13px] text-[#10B981]">✓ 휴대폰 인증이 완료되었습니다.</p>
+            )}
           </Field>
+
           <Field label="이메일">
             <TextInput value={email} onChange={setEmail} placeholder="이메일 주소를 입력해주세요." />
           </Field>
@@ -245,98 +628,81 @@ export default function CounselorApplyNew() {
             </ul>
           </div>
 
-          <Field label="본인 사진" required>
-            <div className="flex items-start gap-2">
-              <button
-                type="button"
-                onClick={() => setPhoto(photo ? null : '/img/sample_img04.jpg')}
-                className="w-[80px] h-[80px] rounded-[12px] border border-dashed border-[#9B7AF7] bg-white flex flex-col items-center justify-center gap-1"
-              >
-                <img src="/img/ic_upload.svg" alt="" className="w-5 h-5" />
-                <span className="text-[12px] leading-none text-[#8259F5]">사진 등록</span>
-              </button>
-              {photo && (
-                <div className="relative w-[80px] h-[80px] rounded-[12px] overflow-hidden bg-[#F3F4F6]">
-                  <img src={photo} alt="첨부 사진" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => setPhoto(null)}
-                    aria-label="사진 삭제"
-                    className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 flex items-center justify-center"
-                  >
-                    <img src="/img/ic_close_sm.svg" alt="" className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-            </div>
-          </Field>
+          {/* 프로필 사진 — 관리자 페이지와 동일 (정사각 200×200, JPG/PNG/GIF/WEBP) */}
+          <FileUploadField
+            label="프로필 사진"
+            required
+            hint="JPG/PNG/GIF/WEBP · 30MB 이하 · 권장 사이즈 200×200 (정사각 인물)"
+            inputRef={profileFileRef}
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            uploading={uploading === 'profile'}
+            currentFileName={profilePhoto ? extractFileName(profilePhoto) : null}
+            onPick={(f) => handleUpload('profile', f)}
+            onRemove={() => {
+              setProfilePhoto(null)
+              setProfilePhotoWebp(null)
+            }}
+            preview={
+              profilePhoto ? (
+                <UploadedImage
+                  src={profilePhoto}
+                  srcWebp={profilePhotoWebp}
+                  alt="프로필 미리보기"
+                  className="block"
+                  style={{ width: 200, height: 200, objectFit: 'cover' }}
+                />
+              ) : null
+            }
+          />
+
+          {/* 사업자 / 계약 관련 파일 — PDF 또는 이미지, 여러 장 */}
+          <ContractUploadField
+            label="사업자 / 계약 관련 파일"
+            hint="PDF/JPG/PNG/WEBP · 각 30MB 이하 · 여러 장 가능 (사업자등록증, 신분증, 계약서 등)"
+            inputRef={contractFileRef}
+            uploading={uploading === 'contract'}
+            files={contractFiles}
+            onPick={(f) => handleUpload('contract', f)}
+            onRemove={(idx) =>
+              setContractFiles((prev) => prev.filter((_, i) => i !== idx))
+            }
+          />
 
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[14px] leading-[140%] font-semibold text-[#030712]">
-                본인 소개<span className="text-[#FF6467] ml-0.5">*</span>
-              </p>
-              <span className="text-[12px] leading-[140%] text-[#99A1AF]">
-                ({intro.length}/{INTRO_MAX})
-              </span>
+            <p className="text-[14px] leading-[140%] font-semibold text-[#030712] mb-2">
+              본인 소개<span className="text-[#FF6467] ml-0.5">*</span>
+            </p>
+            <p className="text-[12px] leading-[140%] text-[#99A1AF] mb-2">
+              관리자/상담사 상세 페이지의 소개 본문으로 노출됩니다. 이미지·서식 포함 가능.
+            </p>
+            <div className="rounded-[12px] overflow-hidden border border-[#F3F4F6]">
+              <HtmlEditor
+                ref={introEditorRef}
+                initialHtml={intro}
+                height="360px"
+              />
             </div>
-            <textarea
-              value={intro}
-              onChange={(e) => setIntro(e.target.value.slice(0, INTRO_MAX))}
-              placeholder="본인 소개를 입력해주세요."
-              rows={4}
-              className="w-full px-4 py-3 rounded-[12px] bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] leading-[150%] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none resize-none"
-            />
           </div>
 
-          <Field label="비밀번호" required>
-            <div className="relative">
-              <input
-                type={pwVisible ? 'text' : 'password'}
-                value={pw}
-                onChange={(e) => setPw(e.target.value)}
-                placeholder="비밀번호를 입력해주세요."
-                className="w-full h-[48px] px-4 pr-11 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none"
-              />
-              <button
-                type="button"
-                aria-label={pwVisible ? '비밀번호 숨기기' : '비밀번호 보기'}
-                onClick={() => setPwVisible((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5"
-              >
-                <img
-                  src={pwVisible ? '/img/ic_input_eye.svg' : '/img/ic_input_eye_closed.svg'}
-                  alt=""
-                  className="w-5 h-5"
-                />
-              </button>
-            </div>
-          </Field>
-
+          {/* 자동등록방지 — 실제 SVG 캡차 */}
           <Field label="자동등록방지" required>
             <div className="flex gap-2 items-center">
               <div
-                className="h-[48px] px-4 rounded-[8px] bg-[#FFE0EC] flex items-center justify-center"
-                style={{
-                  fontFamily: 'serif',
-                  fontStyle: 'italic',
-                  fontWeight: 700,
-                  fontSize: 18,
-                  letterSpacing: 4,
-                  color: '#8259F5',
-                  textDecoration: 'line-through',
-                }}
-              >
-                547365
-              </div>
+                className="h-[48px] px-3 rounded-[8px] bg-white border border-[#E5E7EB] flex items-center justify-center min-w-[120px]"
+                aria-label="자동등록방지 이미지"
+                dangerouslySetInnerHTML={{ __html: captchaSvg }}
+              />
               <input
                 type="text"
-                value={captcha}
-                onChange={(e) => setCaptcha(e.target.value)}
+                value={captchaInput}
+                onChange={(e) => setCaptchaInput(e.target.value)}
+                placeholder="입력"
                 className="flex-1 h-[48px] px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] text-[#1E2939] focus:outline-none"
               />
               <button
                 type="button"
+                onClick={refreshCaptcha}
+                disabled={captchaLoading}
                 aria-label="새로고침"
                 className="w-[48px] h-[48px] rounded-full bg-[#F9FAFB] border border-[#F3F4F6] flex items-center justify-center"
               >
@@ -346,13 +712,22 @@ export default function CounselorApplyNew() {
           </Field>
         </div>
 
+        {errorMsg && (
+          <div className="mt-4 px-3 py-2.5 rounded-[12px] bg-[#FEEBEE] border border-[#FFC9CB]">
+            <p className="text-[13px] text-[#FF6467] leading-[140%] break-keep">{errorMsg}</p>
+          </div>
+        )}
+
         <div className="mt-8">
           <button
             type="button"
             onClick={handleSubmitClick}
-            className="w-full h-[52px] rounded-full bg-[#9B7AF7] text-[16px] font-medium text-white"
+            disabled={submitting}
+            className={`w-full h-[52px] rounded-full text-[16px] font-medium text-white ${
+              submitting ? 'bg-[#D1D5DB]' : 'bg-[#9B7AF7]'
+            }`}
           >
-            작성완료
+            {submitting ? '신청 중...' : '작성완료'}
           </button>
           <button
             type="button"
@@ -427,5 +802,203 @@ function TextInput({
       inputMode={inputMode}
       className="w-full h-[48px] px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none"
     />
+  )
+}
+
+/** URL 끝의 파일명만 추출 — 사용자에게 노출할 표시용. */
+function extractFileName(url: string): string {
+  const m = url.match(/[^/]+$/)
+  return m ? m[0] : url
+}
+
+/** 파일 크기를 사람이 읽기 좋은 문자열로 — 사업자 파일 목록 표시용. */
+function formatBytes(size: number): string {
+  if (size < 1024) return `${size}B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)}KB`
+  return `${(size / (1024 * 1024)).toFixed(1)}MB`
+}
+
+/**
+ * 관리자 페이지와 동일한 형태의 단일 슬롯 파일 업로더.
+ * 좌측에 라벨/힌트가 있는 Field 와 달리, 이 컴포넌트는 자체적으로
+ *  - 상단 헤더: "[파일 선택]  선택된 파일 없음  [삭제]"
+ *  - 하단 미리보기
+ * 의 2단 구성으로 노출된다. (관리자 CounselorForm.tsx FileSlot 과 동일.)
+ */
+function FileUploadField({
+  label,
+  required,
+  hint,
+  inputRef,
+  accept,
+  uploading,
+  currentFileName,
+  onPick,
+  onRemove,
+  preview,
+}: {
+  label: string
+  required?: boolean
+  hint?: string
+  inputRef: React.RefObject<HTMLInputElement | null>
+  accept: string
+  uploading: boolean
+  currentFileName: string | null
+  onPick: (file: File) => void
+  onRemove: () => void
+  preview: React.ReactNode
+}) {
+  return (
+    <div>
+      <label className="block text-[14px] leading-[140%] font-semibold text-[#030712] mb-1.5">
+        {label}
+        {required && <span className="text-[#FF6467] ml-0.5">*</span>}
+      </label>
+      {hint && (
+        <p className="text-[12px] leading-[140%] text-[#99A1AF] mb-2 whitespace-pre-line">
+          {hint}
+        </p>
+      )}
+
+      <div className="flex items-center gap-3 mb-2 flex-wrap">
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) onPick(f)
+            e.target.value = ''
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="h-[36px] px-4 rounded-[8px] bg-[#9B7AF7] text-white text-[14px] font-medium disabled:opacity-60"
+        >
+          파일 선택
+        </button>
+        <span className="text-[13px] text-[#6A7282] flex-1 truncate min-w-0">
+          {uploading ? '업로드 중…' : currentFileName ?? '선택된 파일 없음'}
+        </span>
+        {currentFileName && !uploading && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="text-[13px] text-[#FB2C36] font-medium"
+          >
+            삭제
+          </button>
+        )}
+      </div>
+
+      {preview && <div className="mt-1">{preview}</div>}
+    </div>
+  )
+}
+
+/**
+ * 사업자/계약 관련 파일 — 여러 장 + PDF 가능.
+ * 관리자 CounselorForm.tsx 의 contract FileSlot (multipleSlot) 과 동일한 동작.
+ */
+function ContractUploadField({
+  label,
+  hint,
+  inputRef,
+  uploading,
+  files,
+  onPick,
+  onRemove,
+}: {
+  label: string
+  hint: string
+  inputRef: React.RefObject<HTMLInputElement | null>
+  uploading: boolean
+  files: Array<{ url: string; original_name: string; size: number }>
+  onPick: (file: File) => void
+  onRemove: (idx: number) => void
+}) {
+  return (
+    <div>
+      <label className="block text-[14px] leading-[140%] font-semibold text-[#030712] mb-1.5">
+        {label}
+      </label>
+      <p className="text-[12px] leading-[140%] text-[#99A1AF] mb-2 whitespace-pre-line">
+        {hint}
+      </p>
+
+      <div className="flex items-center gap-3 mb-2 flex-wrap">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) onPick(f)
+            e.target.value = ''
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="h-[36px] px-4 rounded-[8px] bg-[#9B7AF7] text-white text-[14px] font-medium disabled:opacity-60"
+        >
+          파일 추가
+        </button>
+        <span className="text-[13px] text-[#6A7282]">
+          {uploading
+            ? '업로드 중…'
+            : files.length === 0
+            ? '선택된 파일 없음'
+            : `${files.length}개 첨부됨`}
+        </span>
+      </div>
+
+      {files.length > 0 && (
+        <ul className="mt-1 space-y-2">
+          {files.map((f, i) => {
+            const isImage = /\.(jpe?g|png|gif|webp)$/i.test(f.original_name)
+            const isPdf = /\.pdf$/i.test(f.original_name)
+            return (
+              <li
+                key={`${f.url}-${i}`}
+                className="flex items-center gap-3 px-3 py-2 rounded-[10px] bg-[#F9FAFB] border border-[#F3F4F6]"
+              >
+                {isImage ? (
+                  <UploadedImage
+                    src={f.url}
+                    alt={f.original_name}
+                    style={{ width: 48, height: 48, objectFit: 'cover' }}
+                    className="rounded-[6px] border border-[#E5E7EB]"
+                  />
+                ) : (
+                  <span className="w-12 h-12 rounded-[6px] bg-white border border-[#E5E7EB] flex items-center justify-center text-[10px] font-mono text-[#6A7282]">
+                    {isPdf ? 'PDF' : 'FILE'}
+                  </span>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] text-[#1E2939] truncate" title={f.original_name}>
+                    {f.original_name}
+                  </p>
+                  <p className="text-[11px] text-[#99A1AF]">{formatBytes(f.size)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRemove(i)}
+                  aria-label="삭제"
+                  className="text-[13px] text-[#FB2C36] font-medium px-2"
+                >
+                  삭제
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
   )
 }

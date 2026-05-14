@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
-import { MOCK_COUNSELOR_REVIEWS } from '../data/counselorMyPage'
+import {
+  counselorMyReviewsApi,
+  type CounselorReviewListItem,
+} from '../lib/api'
 
 const PAGE_SIZE = 10
 
@@ -21,17 +24,39 @@ export default function CounselorMyReviews() {
   const [unansweredOnly, setUnansweredOnly] = useState(false)
   const [photoOnly, setPhotoOnly] = useState(false)
   const [page, setPage] = useState(1)
+  const [items, setItems] = useState<CounselorReviewListItem[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const filtered = useMemo(() => {
-    return MOCK_COUNSELOR_REVIEWS.filter((r) => {
-      if (unansweredOnly && r.reply) return false
-      if (photoOnly && !r.imgUrl) return false
-      return true
-    })
-  }, [unansweredOnly, photoOnly])
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    counselorMyReviewsApi
+      .list({ page, limit: PAGE_SIZE, unansweredOnly, photoOnly })
+      .then((res) => {
+        if (cancelled) return
+        setItems(res.items)
+        setTotal(res.total)
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return
+        const message =
+          err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
+            ? String((err as { message: string }).message)
+            : '후기를 불러오지 못했습니다.'
+        setError(message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [page, unansweredOnly, photoOnly])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <div className="mobile-frame flex flex-col pb-[100px]">
@@ -75,7 +100,7 @@ export default function CounselorMyReviews() {
 
         <section className="px-4 pt-3 pb-2 flex items-center justify-between">
           <p className="text-[13px] leading-[140%] text-[#6A7282]">
-            전체 <span className="text-[#8259F5] font-medium">9,999</span>건
+            전체 <span className="text-[#8259F5] font-medium">{total.toLocaleString()}</span>건
           </p>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -91,72 +116,80 @@ export default function CounselorMyReviews() {
           </label>
         </section>
 
-        <ul className="flex flex-col">
-          {pageItems.map((r) => (
-            <li key={r.id} className="border-b border-[#F3F4F6]">
-              <div className="px-4 py-3">
-                <div className="flex items-center gap-1.5">
-                  <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
-                    <circle cx="8" cy="8" r="7" stroke="#9B7AF7" strokeWidth="1.4" />
-                    <path d="M5 8L7 10L11 6" stroke="#9B7AF7" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  <span className="flex-1 text-[14px] font-medium text-[#1E2939]">{r.customerName}</span>
-                  <button type="button" aria-label="더보기" className="w-5 h-5">
-                    <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" aria-hidden>
-                      <circle cx="12" cy="6" r="1.4" fill="#6A7282" />
-                      <circle cx="12" cy="12" r="1.4" fill="#6A7282" />
-                      <circle cx="12" cy="18" r="1.4" fill="#6A7282" />
+        {loading ? (
+          <p className="px-4 py-12 text-center text-[14px] text-[#6A7282]">불러오는 중...</p>
+        ) : error ? (
+          <p className="px-4 py-12 text-center text-[14px] text-[#FF6467]">{error}</p>
+        ) : items.length === 0 ? (
+          <p className="px-4 py-12 text-center text-[14px] text-[#6A7282]">표시할 후기가 없습니다.</p>
+        ) : (
+          <ul className="flex flex-col">
+            {items.map((r) => (
+              <li key={r.id} className="border-b border-[#F3F4F6]">
+                <div className="px-4 py-3">
+                  <div className="flex items-center gap-1.5">
+                    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
+                      <circle cx="8" cy="8" r="7" stroke="#9B7AF7" strokeWidth="1.4" />
+                      <path d="M5 8L7 10L11 6" stroke="#9B7AF7" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                  </button>
-                </div>
+                    <span className="flex-1 text-[14px] font-medium text-[#1E2939]">{r.customer_name}</span>
+                    <button type="button" aria-label="더보기" className="w-5 h-5">
+                      <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" aria-hidden>
+                        <circle cx="12" cy="6" r="1.4" fill="#6A7282" />
+                        <circle cx="12" cy="12" r="1.4" fill="#6A7282" />
+                        <circle cx="12" cy="18" r="1.4" fill="#6A7282" />
+                      </svg>
+                    </button>
+                  </div>
 
-                <Link to={`/counselor/mypage/reviews/${r.id}`} className="mt-2 flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      {r.isPrivate && (
-                        <svg viewBox="0 0 16 16" className="w-4 h-4 shrink-0" fill="none" aria-hidden>
-                          <rect x="3.5" y="7.5" width="9" height="6" rx="1" stroke="#1E2939" strokeWidth="1.4" />
-                          <path d="M5 7.5V5C5 3.34 6.34 2 8 2C9.66 2 11 3.34 11 5V7.5" stroke="#1E2939" strokeWidth="1.4" strokeLinecap="round" />
-                        </svg>
-                      )}
-                      <p className="text-[16px] font-bold text-[#030712] truncate">{r.title}</p>
+                  <Link to={`/counselor/mypage/reviews/${r.id}`} className="mt-2 flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        {r.is_private && (
+                          <svg viewBox="0 0 16 16" className="w-4 h-4 shrink-0" fill="none" aria-hidden>
+                            <rect x="3.5" y="7.5" width="9" height="6" rx="1" stroke="#1E2939" strokeWidth="1.4" />
+                            <path d="M5 7.5V5C5 3.34 6.34 2 8 2C9.66 2 11 3.34 11 5V7.5" stroke="#1E2939" strokeWidth="1.4" strokeLinecap="round" />
+                          </svg>
+                        )}
+                        <p className="text-[16px] font-bold text-[#030712] truncate">{r.title}</p>
+                      </div>
+                      <p className="mt-1 text-[14px] leading-[140%] text-[#4A5565] line-clamp-2 break-keep">
+                        {r.content}
+                      </p>
+                      <p className="mt-2 text-[13px] leading-[140%] text-[#99A1AF]">
+                        {[r.consult_type, r.date, r.duration].filter(Boolean).join(' · ')}
+                      </p>
                     </div>
-                    <p className="mt-1 text-[14px] leading-[140%] text-[#4A5565] line-clamp-2 break-keep">
-                      {r.content}
-                    </p>
-                    <p className="mt-2 text-[13px] leading-[140%] text-[#99A1AF]">
-                      {r.consultType} · {r.date} · {r.duration}
-                    </p>
-                  </div>
-                  {r.imgUrl && (
-                    <img
-                      src={r.imgUrl}
-                      alt=""
-                      className="w-[60px] h-[60px] rounded-[8px] object-cover shrink-0"
-                    />
-                  )}
-                </Link>
+                    {r.img_url && (
+                      <img
+                        src={r.img_url}
+                        alt=""
+                        className="w-[60px] h-[60px] rounded-[8px] object-cover shrink-0"
+                      />
+                    )}
+                  </Link>
 
-                {r.reply ? (
-                  <div className="mt-3 rounded-[12px] bg-[#F9FAFB] px-4 py-3">
-                    <p className="text-[14px] font-semibold text-[#1E2939]">{r.reply.author}</p>
-                    <p className="mt-1 text-[14px] leading-[140%] text-[#4A5565] line-clamp-2 break-keep">
-                      {r.reply.text}
-                    </p>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/counselor/mypage/reviews/${r.id}`)}
-                    className="mt-3 w-full h-[44px] rounded-full bg-[#9B7AF7] text-white text-[14px] font-semibold"
-                  >
-                    답변 작성하기
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+                  {r.reply ? (
+                    <div className="mt-3 rounded-[12px] bg-[#F9FAFB] px-4 py-3">
+                      <p className="text-[14px] font-semibold text-[#1E2939]">{r.reply.author}</p>
+                      <p className="mt-1 text-[14px] leading-[140%] text-[#4A5565] line-clamp-2 break-keep">
+                        {r.reply.text}
+                      </p>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/counselor/mypage/reviews/${r.id}`)}
+                      className="mt-3 w-full h-[44px] rounded-full bg-[#9B7AF7] text-white text-[14px] font-semibold"
+                    >
+                      답변 작성하기
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
       </main>

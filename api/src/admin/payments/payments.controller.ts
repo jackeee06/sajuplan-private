@@ -50,6 +50,16 @@ export class PaymentsController {
     return this.paymentsService.getDetail(id);
   }
 
+  /**
+   * 자동결제 push URL 일괄 갱신.
+   * 도메인 변경(예: api.sajumoon.kr → api.새도메인.kr) 후 .env 변경 + API 재배포 한 뒤 한 번 호출.
+   * 활성 카드 + auto_enabled=true 회원의 m2net 자동결제 push URL 을 새 도메인으로 갱신함.
+   */
+  @Post('sync-autopay-urls')
+  syncAutopayUrls() {
+    return this.paymentsService.syncAutopayUrls();
+  }
+
   @Post(':id/cancel')
   cancel(
     @Param('id', ParseIntPipe) id: number,

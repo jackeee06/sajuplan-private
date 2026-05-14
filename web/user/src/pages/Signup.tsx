@@ -11,7 +11,7 @@ import { embedDaumPostcode } from '../lib/daum-postcode'
 
 type Gender = 'M' | 'F' | ''
 type DateMode = 'solar' | 'lunar'
-type SocialProvider = 'kakao' | 'naver'
+type SocialProvider = 'kakao' | 'naver' | 'apple'
 
 /**
  * 회원가입 페이지 — Figma node 13:3112 (01로그인_회원가입)
@@ -19,7 +19,7 @@ type SocialProvider = 'kakao' | 'naver'
  *
  * 두 가지 모드:
  *  - 로컬: ?social 없음. 추후 휴대폰 인증/캡차 정책 합의 후 활성. 현재는 alert로 막아둠.
- *  - 소셜(?social=kakao|naver): 카카오/네이버 콜백에서 발급된 sjm_social_pending
+ *  - 소셜(?social=kakao|naver|apple): provider 콜백에서 발급된 sjm_social_pending
  *    쿠키의 프로필을 prefill. mbId/password/captcha 필드는 숨김. 약관·이름·닉네임 필수.
  */
 export default function Signup() {
@@ -27,7 +27,9 @@ export default function Signup() {
   const [searchParams] = useSearchParams()
   const socialParam = searchParams.get('social')
   const initialSocial: SocialProvider | null =
-    socialParam === 'kakao' || socialParam === 'naver' ? socialParam : null
+    socialParam === 'kakao' || socialParam === 'naver' || socialParam === 'apple'
+      ? socialParam
+      : null
 
   // 소셜 모드: pending 프로필 로드
   const [social, setSocial] = useState<SocialProvider | null>(initialSocial)
@@ -395,7 +397,7 @@ export default function Signup() {
         {social && !socialLoading && (
           <div className="mb-3 rounded-2xl border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-3 text-[14px] text-[#374151]">
             <strong className="font-semibold">
-              {social === 'kakao' ? '카카오' : '네이버'}
+              {social === 'kakao' ? '카카오' : social === 'naver' ? '네이버' : '애플'}
             </strong>{' '}
             계정으로 가입을 진행합니다. 추가 정보를 입력해주세요.
           </div>

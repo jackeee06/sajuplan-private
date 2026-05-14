@@ -101,6 +101,14 @@
 - 참고 sample: [sample/adm/auth_list.php](../sample/adm/auth_list.php), [sample/adm/admin.lib.php](../sample/adm/admin.lib.php)
 - IP 화이트리스트는 환경변수/setting 테이블로 (코드 하드코딩 금지)
 
+### 도메인 10: 채팅(1:1 상담) — 사용자향 트랙
+
+`sample/`(PHP)의 채팅 시스템(m2net/PassCall WebSocket 연동)을 신규 NestJS API + 기존 React 화면으로 마이그레이션. 본 도메인은 admin Phase A~G 와 별도의 트랙(주로 `web/user` + `api/src/user|shared`).
+
+- 상세: [domain-10-chat-messaging.md](domain-10-chat-messaging.md)
+- 참고 sample: [sample/chat_test/](../sample/chat_test/), [sample/counsel/](../sample/counsel/), [sample/mtonet/mtonet_rcv.php](../sample/mtonet/mtonet_rcv.php), [sample/cron/counselor_abse.php](../sample/cron/counselor_abse.php)
+- 기존 React 화면(디자인 정답): [web/user/src/pages/ChatRoom.tsx](../web/user/src/pages/ChatRoom.tsx), [MyChats.tsx](../web/user/src/pages/MyChats.tsx), [CounselorMyChats.tsx](../web/user/src/pages/CounselorMyChats.tsx)
+
 ### ~~Phase H: 쇼핑몰~~ (제외 확정)
 
 `sample/adm/shop_admin/` 112개 파일 — **사주문1에서 실제 운영 안 함, 완전 제외**. 신규 mng로 옮기지 않음.
@@ -165,7 +173,8 @@ PLAN/
 ├── domain-06-statistics.md                # 통계/방문/매출 정밀 분석
 ├── domain-07-infra-common.md              # 인프라/공통 정밀 분석
 ├── domain-08-auth-permission.md           # 인증/권한 정밀 분석
-└── domain-09-system-settings.md           # 시스템/설정/소원다락방 정밀 분석
+├── domain-09-system-settings.md           # 시스템/설정/소원다락방 정밀 분석
+└── domain-10-chat-messaging.md            # 채팅(1:1 상담) 마이그레이션 — 사용자향 트랙
 ```
 
 ## 분석 완료 — 다음 단계
