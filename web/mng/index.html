@@ -19,6 +19,8 @@
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap"
       rel="stylesheet"
     />
+    <!-- 런타임 환경 결정: deploy.sh 가 sed 로 __SAJUMOON_ENV__ → test|prod 치환. -->
+    <script>window.__SAJUMOON_CONFIG = { env: '__SAJUMOON_ENV__' };</script>
   </head>
   <body>
     <div id="root"></div>

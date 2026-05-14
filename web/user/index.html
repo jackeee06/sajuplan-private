@@ -14,6 +14,9 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
     />
+    <!-- 런타임 환경 결정: deploy.sh 가 sed 로 __SAJUMOON_ENV__ → test|prod 치환.
+         앱 부팅 전에 실행되어 runtime-env.ts 가 window.__SAJUMOON_CONFIG 를 읽음. -->
+    <script>window.__SAJUMOON_CONFIG = { env: '__SAJUMOON_ENV__' };</script>
   </head>
   <body>
     <div id="root"></div>

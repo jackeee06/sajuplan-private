@@ -1,9 +1,11 @@
 /**
- * 단일 환경 플래그 VITE_SAJUMOON_ENV (test|prod) 한 곳에서만 도메인 결정.
- * localhost 는 어디서도 fallback 으로 쓰지 않는다.
+ * 단일 환경 플래그 (test|prod) 한 곳에서만 도메인 결정. 런타임 결정 — /config.js 가
+ * React 번들보다 먼저 로드되어 window.__SAJUMOON_CONFIG.env 를 셋팅한다.
  *
- *   VITE_SAJUMOON_ENV=test → sajumoon.kr     / api.sajumoon.kr     (테스트)
- *   VITE_SAJUMOON_ENV=prod → sajumoon.co.kr  / api.sajumoon.co.kr  (운영)
+ *   test → sajumoon.kr     / api.sajumoon.kr     (테스트)
+ *   prod → sajumoon.co.kr  / api.sajumoon.co.kr  (운영)
+ *
+ * dist 번들이 환경 독립적이라 한 번 빌드로 test/prod 양쪽 배포 가능.
  */
 type SajumoonEnv = 'test' | 'prod'
 
@@ -12,10 +14,16 @@ const MAP: Record<SajumoonEnv, { userDomain: string; apiDomain: string }> = {
   prod: { userDomain: 'sajumoon.co.kr', apiDomain: 'api.sajumoon.co.kr' },
 }
 
+declare global {
+  interface Window {
+    __SAJUMOON_CONFIG?: { env?: string }
+  }
+}
+
 function resolve(): { env: SajumoonEnv; userDomain: string; apiDomain: string; userSiteUrl: string; apiBase: string; fileBase: string } {
-  const raw = String(import.meta.env.VITE_SAJUMOON_ENV ?? '').trim().toLowerCase()
-  // 미설정이면 test 로 폴백 (운영용 빌드는 반드시 VITE_SAJUMOON_ENV=prod 로 빌드).
-  // throw 하지 않는 이유: 옛 빌드/캐시에서 환경변수 누락 시 흰 화면 사고 방지.
+  const runtimeEnv = typeof window !== 'undefined' ? window.__SAJUMOON_CONFIG?.env : undefined
+  const buildEnv = import.meta.env.VITE_SAJUMOON_ENV
+  const raw = String(runtimeEnv ?? buildEnv ?? '').trim().toLowerCase()
   const env: SajumoonEnv = raw === 'prod' ? 'prod' : 'test'
   const { userDomain, apiDomain } = MAP[env]
   const userSiteUrl = `https://${userDomain}`
