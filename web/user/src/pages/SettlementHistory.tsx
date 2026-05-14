@@ -253,7 +253,7 @@ function IncomeTab() {
       <section className="-mx-4">
         <div className="grid grid-cols-[1.4fr_1.3fr_1fr_0.6fr_0.9fr] gap-2 px-4 py-2 bg-[#F9FAFB] border-y border-[#F3F4F6] text-[12px] font-semibold text-[#8259F5]">
           <span>일자</span>
-          <span>상담유형</span>
+          <span>내역</span>
           <span>고객명</span>
           <span className="text-center">구분</span>
           <span className="text-right">획득코인</span>
@@ -280,7 +280,7 @@ function IncomeTab() {
                 <span className="text-[12px] text-[#1E2939] tabular-nums">
                   {formatDateTime(it.created_at)}
                 </span>
-                <span className="text-[13px] text-[#1E2939] truncate">{it.content || '-'}</span>
+                <span className="text-[13px] text-[#1E2939] truncate">{shortContent(it.content)}</span>
                 <span className="text-[13px] text-[#1E2939] truncate">{it.customer_name ?? '-'}</span>
                 <span className="text-center">
                   {it.preflag === 'Y' && (
@@ -626,4 +626,13 @@ function formatDateTime(iso: string): string {
   if (isNaN(dt.getTime())) return iso
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`
+}
+
+// point_history.content 를 간결한 표시값으로 단축.
+//  [전화/채팅] prefix 는 유지, "상담코인 증가/차감" 부분만 줄임.
+function shortContent(s: string | null | undefined): string {
+  if (!s) return '-'
+  return s
+    .replace('상담코인 증가', '코인')
+    .replace('상담코인 차감', '차감')
 }

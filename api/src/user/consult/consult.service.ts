@@ -865,6 +865,162 @@ export class UserConsultService {
     `;
     return { ok: true };
   }
+
+  // ─────────────────────────────────────────────
+  // 상담사 "나의 상담 통계" — 기간별 집계 + 상세 리스트
+  //   - 집계: 상담건/부재건/상담시간 + 파생지표(평균/일평균/부재율)
+  //   - 분류: reason='DISCONNECT' → call, reason in ('END_CHAT','END_CHAT_LOCAL') → chat
+  //   - 부재: is_absent_disconnect = true
+  // ─────────────────────────────────────────────
+  async myStats(params: {
+    counselorId: number;
+    from: string;  // YYYY-MM-DD (포함)
+    to: string;    // YYYY-MM-DD (포함, 종일)
+    type?: 'all' | 'call' | 'chat';
+    page?: number;
+    limit?: number;
+  }): Promise<ConsultMyStats> {
+    const type = params.type ?? 'all';
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.min(50, Math.max(1, params.limit ?? 20));
+    const offset = (page - 1) * limit;
+
+    // [from, to+1day) 구간으로 종일 포함.
+    const fromTs = `${params.from} 00:00:00+09`;
+    const toTsExcl = `${params.to} 00:00:00+09`;
+    const typeWhere =
+      type === 'call'
+        ? this.sql`AND reason = 'DISCONNECT'`
+        : type === 'chat'
+          ? this.sql`AND reason IN ('END_CHAT','END_CHAT_LOCAL')`
+          : this.sql`AND reason IN ('DISCONNECT','END_CHAT','END_CHAT_LOCAL')`;
+
+    // 집계 1쿼리 (filtered count) + 리스트 1쿼리 — 병렬.
+    const [aggRows, items] = await Promise.all([
+      this.sql<
+        {
+          total_count: string;
+          missed_count: string;
+          total_seconds: string;
+        }[]
+      >`
+        SELECT
+          COUNT(*) FILTER (WHERE is_absent_disconnect = false)             AS total_count,
+          COUNT(*) FILTER (WHERE is_absent_disconnect = true)              AS missed_count,
+          COALESCE(SUM(usetm) FILTER (WHERE is_absent_disconnect = false), 0)
+                                                                          AS total_seconds
+          FROM consultation
+         WHERE counselor_id = ${params.counselorId}
+           AND created_at >= ${fromTs}::timestamptz
+           AND created_at <  (${toTsExcl}::timestamptz + INTERVAL '1 day')
+           ${typeWhere}
+      `,
+      this.sql<
+        {
+          id: string;
+          reason: string;
+          usetm: number;
+          started_at: string | null;
+          ended_at: string | null;
+          created_at: string;
+          is_absent_disconnect: boolean;
+          mb_id: string | null;
+          member_no: string | null;
+        }[]
+      >`
+        SELECT
+          c.id::text                                AS id,
+          c.reason                                  AS reason,
+          c.usetm                                   AS usetm,
+          c.started_at                              AS started_at,
+          c.ended_at                                AS ended_at,
+          c.created_at                              AS created_at,
+          c.is_absent_disconnect                    AS is_absent_disconnect,
+          c.mb_id                                   AS mb_id,
+          m.mb_id                                   AS member_no
+          FROM consultation c
+          LEFT JOIN member m ON m.id = c.member_id
+         WHERE c.counselor_id = ${params.counselorId}
+           AND c.created_at >= ${fromTs}::timestamptz
+           AND c.created_at <  (${toTsExcl}::timestamptz + INTERVAL '1 day')
+           ${typeWhere}
+         ORDER BY COALESCE(c.ended_at, c.started_at, c.created_at) DESC, c.id DESC
+         LIMIT ${limit} OFFSET ${offset}
+      `,
+    ]);
+
+    const total = Number(aggRows[0]?.total_count ?? 0);
+    const missed = Number(aggRows[0]?.missed_count ?? 0);
+    const totalSec = Number(aggRows[0]?.total_seconds ?? 0);
+
+    // 일수: from~to 포함 일수 (최소 1)
+    const dayMs = 24 * 60 * 60 * 1000;
+    const days = Math.max(
+      1,
+      Math.round(
+        (new Date(`${params.to}T00:00:00+09:00`).getTime() -
+          new Date(`${params.from}T00:00:00+09:00`).getTime()) /
+          dayMs,
+      ) + 1,
+    );
+
+    const avgSec = total > 0 ? Math.round(totalSec / total) : 0;
+    const dailyAvg = +(total / days).toFixed(2);
+    const missedRate =
+      total + missed > 0 ? +((missed / (total + missed)) * 100).toFixed(1) : 0;
+
+    const formatted: ConsultStatsItem[] = items.map((r) => ({
+      id: Number(r.id),
+      consult_type: r.reason === 'DISCONNECT' ? 'call' : 'chat',
+      started_at: r.started_at,
+      ended_at: r.ended_at,
+      created_at: r.created_at,
+      is_missed: !!r.is_absent_disconnect,
+      usetm_seconds: Number(r.usetm) || 0,
+      usetm_label: formatUsetm(Number(r.usetm) || 0),
+      customer_no: r.member_no ?? r.mb_id ?? '',
+    }));
+
+    return {
+      total_count: total,
+      missed_count: missed,
+      total_seconds: totalSec,
+      avg_seconds: avgSec,
+      daily_avg: dailyAvg,
+      missed_rate_pct: missedRate,
+      days,
+      page,
+      limit,
+      items: formatted,
+      has_more: formatted.length === limit,
+    };
+  }
+}
+
+export interface ConsultStatsItem {
+  id: number;
+  consult_type: 'call' | 'chat';
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+  is_missed: boolean;
+  usetm_seconds: number;
+  usetm_label: string;
+  customer_no: string;
+}
+
+export interface ConsultMyStats {
+  total_count: number;
+  missed_count: number;
+  total_seconds: number;
+  avg_seconds: number;
+  daily_avg: number;
+  missed_rate_pct: number;
+  days: number;
+  page: number;
+  limit: number;
+  items: ConsultStatsItem[];
+  has_more: boolean;
 }
 
 export interface ConsultHistoryItem {

@@ -122,4 +122,54 @@ export class UserConsultController {
       memo: body.memo?.trim() ? body.memo : null,
     });
   }
+
+  /**
+   * GET /api/user/consult/my-stats?from=YYYY-MM-DD&to=YYYY-MM-DD&type=&page=&limit=
+   * 상담사 본인의 기간별 상담 통계 + 상세 리스트.
+   *  - from~to 포함 구간 (KST 기준), 최대 6개월(180일)
+   *  - type: all | call | chat
+   *  - 응답: 상담건/부재건/상담시간 합계 + 파생지표(평균/일평균/부재율) + 페이지된 items
+   */
+  @Get('my-stats')
+  async myStats(
+    @Req() req: UserAuthedRequest,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('type') type?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (String(req.user.role ?? '') !== 'counselor') {
+      throw new ForbiddenException('상담사만 접근할 수 있습니다.');
+    }
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    if (!from || !dateRe.test(from)) {
+      throw new BadRequestException('from 은 YYYY-MM-DD 형식이어야 합니다.');
+    }
+    if (!to || !dateRe.test(to)) {
+      throw new BadRequestException('to 는 YYYY-MM-DD 형식이어야 합니다.');
+    }
+    const fromMs = new Date(`${from}T00:00:00+09:00`).getTime();
+    const toMs = new Date(`${to}T00:00:00+09:00`).getTime();
+    if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) {
+      throw new BadRequestException('잘못된 날짜입니다.');
+    }
+    if (fromMs > toMs) {
+      throw new BadRequestException('시작일이 종료일보다 늦을 수 없습니다.');
+    }
+    const spanDays = Math.round((toMs - fromMs) / (24 * 60 * 60 * 1000)) + 1;
+    if (spanDays > 186) {
+      throw new BadRequestException('최대 6개월(186일)까지 조회할 수 있습니다.');
+    }
+    const effType: 'all' | 'call' | 'chat' =
+      type === 'call' || type === 'chat' ? type : 'all';
+    return this.svc.myStats({
+      counselorId: req.user.sub,
+      from,
+      to,
+      type: effType,
+      page: page ? Number(page) : 1,
+      limit: limit ? Number(limit) : 20,
+    });
+  }
 }

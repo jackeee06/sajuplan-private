@@ -61,6 +61,7 @@ import CounselorMyReviewDetail from './pages/CounselorMyReviewDetail'
 import CounselorMyCalls from './pages/CounselorMyCalls'
 import CounselorMyChats from './pages/CounselorMyChats'
 import CounselorMyConsultMemo from './pages/CounselorMyConsultMemo'
+import CounselorMyConsultStats from './pages/CounselorMyConsultStats'
 import CounselorMyProducts from './pages/CounselorMyProducts'
 import CounselorMyProductInfo from './pages/CounselorMyProductInfo'
 import CounselorMyProductReviews from './pages/CounselorMyProductReviews'
@@ -142,6 +143,7 @@ export default function App() {
         <Route path="/counselor/mypage/calls" element={<CounselorMyCalls />} />
         <Route path="/counselor/mypage/chats" element={<CounselorMyChats />} />
         <Route path="/counselor/mypage/:type/:id/memo" element={<CounselorMyConsultMemo />} />
+        <Route path="/counselor/mypage/consult-stats" element={<CounselorMyConsultStats />} />
         <Route path="/counselor/mypage/products" element={<CounselorMyProducts />} />
         <Route path="/counselor/mypage/products/:id/info" element={<CounselorMyProductInfo />} />
         <Route path="/counselor/mypage/products/:id/reviews" element={<CounselorMyProductReviews />} />

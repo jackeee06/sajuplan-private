@@ -348,6 +348,49 @@ export const consultApi = {
     consultationId: number,
     body: { category?: string | null; topic?: string | null; memo?: string | null },
   ) => api.post<{ ok: true }>(`/user/consult/memo/${consultationId}`, body),
+
+  /** 상담사 본인 기간별 상담 통계 + 리스트 (상담사 전용) */
+  myStats: (params: {
+    from: string
+    to: string
+    type?: 'all' | 'call' | 'chat'
+    page?: number
+    limit?: number
+  }) => {
+    const q = new URLSearchParams()
+    q.set('from', params.from)
+    q.set('to', params.to)
+    if (params.type) q.set('type', params.type)
+    if (params.page) q.set('page', String(params.page))
+    if (params.limit) q.set('limit', String(params.limit))
+    return api.get<ConsultMyStats>(`/user/consult/my-stats?${q.toString()}`)
+  },
+}
+
+export interface ConsultStatsItem {
+  id: number
+  consult_type: 'call' | 'chat'
+  started_at: string | null
+  ended_at: string | null
+  created_at: string
+  is_missed: boolean
+  usetm_seconds: number
+  usetm_label: string
+  customer_no: string
+}
+
+export interface ConsultMyStats {
+  total_count: number
+  missed_count: number
+  total_seconds: number
+  avg_seconds: number
+  daily_avg: number
+  missed_rate_pct: number
+  days: number
+  page: number
+  limit: number
+  items: ConsultStatsItem[]
+  has_more: boolean
 }
 
 // ─────────────────────────────────────────────

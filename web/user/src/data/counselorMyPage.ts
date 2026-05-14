@@ -60,6 +60,7 @@ export interface CounselorMenuItem {
 }
 
 export const COUNSELOR_MAIN_MENU: CounselorMenuItem[] = [
+  { key: 'consult-stats', label: '상담 통계',      icon: '/img/ic_my_history.svg', to: '/counselor/mypage/consult-stats' },
   { key: 'customer-qnas', label: '고객 문의 관리', icon: '/img/ic_my_inquiry.svg', to: '/counselor/mypage/customer-qnas' },
   { key: 'calls',         label: '전화상담내역',   icon: '/img/ic_my_phone.svg',   to: '/counselor/mypage/calls' },
   { key: 'chats',         label: '채팅상담내역',   icon: '/img/ic_my_chat.svg',    to: '/counselor/mypage/chats' },

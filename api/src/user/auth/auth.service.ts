@@ -966,6 +966,16 @@ export class AuthService {
   ): Promise<MeProfile> {
     const cur = await this.getMeProfile(memberId);
 
+    // 상담사 가드: nickname 은 카드/리스트 노출명·후기 식별자라 본인이 임의로 바꾸지 못한다.
+    // 프론트의 readOnly 처리를 우회한 직접 호출(curl 등)을 막기 위한 서버측 방어.
+    // 운영자가 admin 측에서 직접 변경하는 경로(/api/admin/members)는 별도로 유지된다.
+    const roleRows = await this.sql<{ role: string }[]>`
+      SELECT role FROM member WHERE id = ${memberId} LIMIT 1
+    `;
+    if (roleRows[0]?.role === 'counselor' && body.nickname !== undefined) {
+      delete (body as { nickname?: string }).nickname;
+    }
+
     // 닉네임 변경 시 중복 확인
     if (body.nickname && body.nickname !== cur.nickname) {
       const dup = await this.sql<{ count: string }[]>`

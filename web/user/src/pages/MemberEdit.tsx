@@ -3,9 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import ConfirmModal from '../components/ConfirmModal'
 import HtmlEditor, { type HtmlEditorHandle } from '../components/HtmlEditor'
 import UploadedImage from '../components/UploadedImage'
-import { ApiError, authApi, captchaApi, counselorMypageApi, smsApi, type MeProfile } from '../lib/api'
+import { ApiError, authApi, captchaApi, counselorMypageApi, settingsApi, smsApi, type MeProfile } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
+import { openExternalUrl } from '../lib/native-bridge'
 import { FILE_BASE } from '../lib/runtime-env'
+
+// readOnly 필드(아이디/이름/상담사 닉네임) 옆에 노출하는 카카오 1:1 문의 안내.
+// kakaoUrl 미설정 시 사주문 라이브 채널로 폴백 — Help 페이지와 동일 정책.
+const KAKAO_FALLBACK = 'https://pf.kakao.com/_gLTVX'
 
 function resolveImageUrl(u: string | null): string | null {
   if (!u) return null
@@ -101,6 +106,26 @@ export default function MemberEdit() {
   const [profileBusy, setProfileBusy] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  // 카카오 1:1 문의 채널 URL (어드민 site.kakao_channel_url, 없으면 폴백)
+  const [kakaoUrl, setKakaoUrl] = useState<string>('')
+  useEffect(() => {
+    let alive = true
+    settingsApi
+      .public()
+      .then((s) => {
+        if (alive) setKakaoUrl(s['site.kakao_channel_url'] ?? '')
+      })
+      .catch(() => {
+        /* 무시 — 폴백 URL 사용 */
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
+  const handleInquiry = () => {
+    openExternalUrl(kakaoUrl || KAKAO_FALLBACK)
+  }
 
   // 초기 prefill
   useEffect(() => {
@@ -324,7 +349,8 @@ export default function MemberEdit() {
     setSubmitting(true)
     try {
       const updated = await authApi.updateMeProfile({
-        nickname: nickname.trim() || undefined,
+        // 상담사는 닉네임을 카드 노출명으로 쓰므로 본인 변경 불가 — 백엔드도 동일하게 무시.
+        nickname: isCounselor ? undefined : (nickname.trim() || undefined),
         email: email.trim() || null,
         ...(phoneChanged ? { phone, phone_code: phoneCode } : {}),
         gender,
@@ -539,6 +565,13 @@ export default function MemberEdit() {
             readOnly
             className={INPUT_READONLY}
           />
+          <p className="mt-1 text-[12px] text-[#6A7282]">
+            변경이 필요하시면{' '}
+            <button type="button" onClick={handleInquiry} className="underline text-[#8259F5]">
+              카카오톡 1:1 문의
+            </button>
+            로 요청해주세요.
+          </p>
         </Field>
 
         {profile.mb_id && (
@@ -601,6 +634,13 @@ export default function MemberEdit() {
 
         <Field label="이름">
           <input type="text" value={profile.name} readOnly className={INPUT_READONLY} />
+          <p className="mt-1 text-[12px] text-[#6A7282]">
+            변경이 필요하시면{' '}
+            <button type="button" onClick={handleInquiry} className="underline text-[#8259F5]">
+              카카오톡 1:1 문의
+            </button>
+            로 요청해주세요.
+          </p>
         </Field>
 
         <Field label="성별">
@@ -635,9 +675,19 @@ export default function MemberEdit() {
             type="text"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
-            className={INPUT_BASE}
+            className={isCounselor ? INPUT_READONLY : INPUT_BASE}
             maxLength={40}
+            readOnly={isCounselor}
           />
+          {isCounselor && (
+            <p className="mt-1 text-[12px] text-[#6A7282]">
+              상담사 닉네임은 카드/리스트에 노출되는 표시명입니다. 변경이 필요하시면{' '}
+              <button type="button" onClick={handleInquiry} className="underline text-[#8259F5]">
+                카카오톡 1:1 문의
+              </button>
+              로 요청해주세요.
+            </p>
+          )}
         </Field>
 
         <Field label="이메일">

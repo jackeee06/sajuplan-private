@@ -156,7 +156,7 @@ export default function Home() {
           <BannerSlider />
         </section>
 
-        {/* 통계 카드 — Figma 1:1272 Frame 504 (358 width, padding 16 0, gap 12) */}
+        {/* 통계 카드 — 한 줄 압축형: 아이콘+라벨(좌) / 값(우) */}
         <section className="px-4 py-4">
           <div className="grid grid-cols-2 gap-3">
             <StatCard
@@ -401,9 +401,9 @@ function BannerSlider() {
 }
 
 /**
- * 통계 카드 — Figma 1:1273/1:1276 (Frame 427/428)
- *  layout column, gap 8, padding 16, border #8259F5 1px, radius 16
- *  icon 24×24 + (label 15/400 #1E2939, value 18/600 #8259F5, gap 4)
+ * 통계 카드 — 한 줄 압축형: 아이콘+라벨(좌) / 값(우) 한 줄 배치
+ *  border #8259F5 1px, radius 16, padding 12
+ *  icon 20×20 + label 13/400 #1E2939, value 18/700 #8259F5
  */
 function StatCard({
   icon,
@@ -417,15 +417,15 @@ function StatCard({
   suffix?: string
 }) {
   return (
-    <div className="rounded-2xl border border-[#8259F5] p-4 flex flex-col gap-2">
-      <img src={icon} alt="" className="w-6 h-6" />
-      <div className="flex flex-col gap-1">
-        <p className="text-[15px] leading-[130%] text-[#1E2939]">{label}</p>
-        <p className="text-[18px] leading-[130%] font-semibold text-[#8259F5]">
-          {value}
-          {suffix && <span>{suffix}</span>}
-        </p>
+    <div className="rounded-2xl border border-[#8259F5] px-3 py-3 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <img src={icon} alt="" className="w-5 h-5 shrink-0" />
+        <p className="text-[13px] leading-[130%] text-[#1E2939] truncate">{label}</p>
       </div>
+      <p className="text-[18px] leading-[120%] font-bold text-[#8259F5] shrink-0">
+        {value}
+        {suffix && <span className="text-[12px] font-semibold ml-0.5">{suffix}</span>}
+      </p>
     </div>
   )
 }

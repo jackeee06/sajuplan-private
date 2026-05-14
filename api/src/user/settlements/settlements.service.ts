@@ -266,6 +266,7 @@ export class UserSettlementsService {
               AND ph.rel_id = c.id::text
         LEFT JOIN member cm ON cm.id = c.member_id
        WHERE ph.member_id = ${params.memberId}
+         AND ph.rel_table = 'consultation'
          ${dateFilter}
          ${mdFilter}
        ORDER BY ph.created_at DESC, ph.id DESC
