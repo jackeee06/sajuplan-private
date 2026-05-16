@@ -197,6 +197,7 @@ export default function Sidebar() {
                 {open.config && (
                   <ul className="flex flex-col gap-1 mt-2 pl-9">
                     <li><NavLink to="/settings" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>기본환경설정</NavLink></li>
+                    <li><NavLink to="/contents" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>내용 관리 (약관/처리방침)</NavLink></li>
                   </ul>
                 )}
               </li>
