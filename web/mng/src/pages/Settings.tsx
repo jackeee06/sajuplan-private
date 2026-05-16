@@ -332,9 +332,14 @@ export default function Settings() {
         </nav>
       </div>
 
-      {/* 필드 — legal 탭만 커스텀 렌더 (page 테이블), 나머지는 standard FieldDef 기반 */}
+      {/* 탭별 렌더 — legal/grade 는 커스텀, 나머지는 standard FieldDef */}
       {tab === 'legal' ? (
         <LegalEditor />
+      ) : tab === 'grade' ? (
+        <GradeMatrixEditor
+          values={data.grade ?? {}}
+          onChange={(key, value) => setField('grade', key, value)}
+        />
       ) : (
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
           <table className="w-full text-sm">
@@ -364,6 +369,167 @@ export default function Settings() {
           </table>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 등급/단가 매트릭스 편집기 — 6 등급 × 3 지표 한눈에
+// 변경은 부모 data.grade 에 setField 로 반영 → 우상단 '저장' 일괄
+// ─────────────────────────────────────────────────────────────────
+
+const GRADE_ROWS: Array<{ key: 'preliminary' | 'partner1' | 'partner2' | 'partner3' | 'partner4' | 'partner5'; label: string }> = [
+  { key: 'preliminary', label: '예비파트너' },
+  { key: 'partner1', label: '파트너1' },
+  { key: 'partner2', label: '파트너2' },
+  { key: 'partner3', label: '파트너3' },
+  { key: 'partner4', label: '파트너4' },
+  { key: 'partner5', label: '파트너5' },
+]
+
+function GradeMatrixEditor({
+  values,
+  onChange,
+}: {
+  values: Record<string, string>
+  onChange: (key: string, value: string) => void
+}) {
+  const cellInputCls =
+    'w-full px-2 py-1.5 border rounded text-sm bg-white dark:bg-gray-700 dark:border-gray-600'
+
+  return (
+    <div className="space-y-6">
+      {/* 매트릭스 표 — 등급별 옵션/정산률/임계값 한 화면 */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b bg-gray-50 dark:bg-gray-800/60">
+          <div className="text-sm font-medium text-gray-800 dark:text-gray-100">등급별 정책 (6 등급)</div>
+          <div className="text-[11px] text-gray-500 mt-0.5">
+            단가 옵션: 30초당 단가, 콤마 구분 (상담사가 선택 가능) · 정산률: 0~1 (예 0.35 = 35%) · 임계값: 직전 1개월 통화 시간(시)
+          </div>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50/60 dark:bg-gray-800/30 text-xs text-gray-600 dark:text-gray-300">
+            <tr>
+              <th className="px-3 py-2 text-left font-medium w-28">등급</th>
+              <th className="px-3 py-2 text-left font-medium">단가 옵션</th>
+              <th className="px-3 py-2 text-left font-medium w-32">정산률</th>
+              <th className="px-3 py-2 text-left font-medium w-32">임계값 (h)</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            {GRADE_ROWS.map((g) => (
+              <tr key={g.key}>
+                <td className="px-3 py-2 font-medium text-gray-700 dark:text-gray-200">{g.label}</td>
+                <td className="px-3 py-2">
+                  <input
+                    type="text"
+                    value={values[`options.${g.key}`] ?? ''}
+                    onChange={(e) => onChange(`options.${g.key}`, e.target.value)}
+                    placeholder="예: 800,1000"
+                    className={cellInputCls + ' font-mono'}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="1"
+                    value={values[`revenue_rate.${g.key}`] ?? ''}
+                    onChange={(e) => onChange(`revenue_rate.${g.key}`, e.target.value)}
+                    placeholder="0.50"
+                    className={cellInputCls + ' tabular-nums'}
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  {g.key === 'preliminary' ? (
+                    <span className="text-xs text-gray-400">— (기본값)</span>
+                  ) : (
+                    <input
+                      type="number"
+                      min="0"
+                      value={values[`thresholds.${g.key}`] ?? ''}
+                      onChange={(e) => onChange(`thresholds.${g.key}`, e.target.value)}
+                      placeholder="20"
+                      className={cellInputCls + ' tabular-nums'}
+                    />
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 기타 정책 4개 — grid 로 한 줄 */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
+        <div className="px-4 py-3 border-b bg-gray-50 dark:bg-gray-800/60">
+          <div className="text-sm font-medium text-gray-800 dark:text-gray-100">락 / 재산정 정책</div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4">
+          <PolicyCell
+            label="월 1일 락"
+            hint="true: 매월 1일만 단가 변경 / false: 즉시 변경"
+          >
+            <select
+              value={values['lock_until_first_day'] ?? 'true'}
+              onChange={(e) => onChange('lock_until_first_day', e.target.value)}
+              className={cellInputCls}
+            >
+              <option value="true">true (월 1일 락)</option>
+              <option value="false">false (즉시 변경)</option>
+            </select>
+          </PolicyCell>
+          <PolicyCell label="재산정 일자" hint="매월 N일에 등급 재산정">
+            <input
+              type="number"
+              min="1"
+              max="28"
+              value={values['recalc_day_of_month'] ?? ''}
+              onChange={(e) => onChange('recalc_day_of_month', e.target.value)}
+              className={cellInputCls + ' tabular-nums'}
+            />
+          </PolicyCell>
+          <PolicyCell label="재산정 시각 (KST)" hint="0~23 시">
+            <input
+              type="number"
+              min="0"
+              max="23"
+              value={values['recalc_hour_kst'] ?? ''}
+              onChange={(e) => onChange('recalc_hour_kst', e.target.value)}
+              className={cellInputCls + ' tabular-nums'}
+            />
+          </PolicyCell>
+          <PolicyCell label="강등 최대 단계" hint="1=한 번에 한 단계만 강등">
+            <input
+              type="number"
+              min="1"
+              max="5"
+              value={values['demote_step_max'] ?? ''}
+              onChange={(e) => onChange('demote_step_max', e.target.value)}
+              className={cellInputCls + ' tabular-nums'}
+            />
+          </PolicyCell>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PolicyCell({
+  label,
+  hint,
+  children,
+}: {
+  label: string
+  hint?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div>
+      <div className="text-xs font-medium text-gray-700 dark:text-gray-300">{label}</div>
+      {hint && <div className="text-[10px] text-gray-400 mb-1.5 mt-0.5">{hint}</div>}
+      {children}
     </div>
   )
 }
