@@ -574,15 +574,37 @@ CREATE TABLE setting_history (
 3. 변경 직후 버튼 비활성 + "다음 변경 가능: 2026-06-01" 표시 확인
 4. 재로그인/새로고침 후 상태 유지 확인
 
-### 다음: Phase 5 — 어드민 UI + 정산 모듈 grade 전환
+### 2026-05-16 — Phase 5 완료 ✅ (어드민 정책 + 정산 모듈 grade 전환)
 
-1. 어드민 정책 페이지 4종
-   - `/mng/policy/grade` (임계값 5단계)
-   - `/mng/policy/unit-cost` (등급별 옵션 콤마)
-   - `/mng/policy/lock` (락 정책 토글)
-   - `/mng/policy/revenue` (정산률 6등급)
-2. 회원 상세 (`/mng/members/[id]`) 에 등급/이력 섹션
-3. 크론 로그 페이지 `/mng/grade-recalc-log` (선택)
-4. **정산 모듈 grade 기반 전환** ([settlement-cron.service.ts](api/src/cron/settlement-cron.service.ts))
-   - 기존 `free_royalty_pct` / `paid_royalty_pct` → `setting.revenue_rate.<grade>` 조회로 교체
-   - `consultation.unit_cost_snapshot` 활용 안전망
+**어드민 정책 탭** [web/mng/src/pages/Settings.tsx](web/mng/src/pages/Settings.tsx):
+- 기존 Settings 페이지에 `grade` 탭 추가 (별도 페이지 분할 X — 일관성 유지)
+- 21개 필드를 4 그룹으로 (단가 옵션 6, 정산률 6, 임계값 5, 정책 4)
+- `kind: 'text' | 'number' | 'bool'` 적절히 사용
+- 기존 PATCH `/admin/settings` 라우트 재사용 (멀티네임스페이스 지원됨)
+
+**정산 모듈 grade 전환** [api/src/cron/settlement-cron.service.ts](api/src/cron/settlement-cron.service.ts):
+- `member.grade` 기반 `setting.revenue_rate.<grade>` 조회로 royalty_pct 대체
+- decimal 시드 (0.35) → percent (35) 환산 후 기존 `/100` 산식 호환
+- legacy 폴백 유지 (`member.grade IS NULL` 시 기존 `free_royalty_pct/paid_royalty_pct` 사용)
+- 단일 비율을 amt_free / amt_pro 양쪽에 동일 적용 (spec F.4 의 단일 revenue_rate)
+
+**배포**:
+- API: test + prod 빌드 통과 + pm2 reload
+- 어드민 프론트: vite build + 양 서버 SFTP 동기화 완료
+
+**검증**:
+- `GET /api/cron/settlement/monthly?test=1&month=2026-04` → 25명 dry-run, price=0 (오픈 전 데이터 없음, 정상)
+- 어드민 → 설정 → 등급/단가 탭 진입 가능 (사용자 브라우저 확인 필요)
+
+### Phase 5 미진행 (Phase 6 또는 별도)
+
+- 회원 상세 페이지에 등급/이력 섹션 — 운영 도구. 오픈 후 필요 시 추가.
+- 크론 로그 페이지 — `summary` JSON 만 봐도 충분. 선택 사항.
+
+### 다음: Phase 6 — 통합 검증 (오픈 전 최종)
+
+1. **시나리오 시드** — 가상 통화 데이터로 등급 변동 시뮬레이션
+2. **크론 한 사이클 돌려서 등급/단가/정산 일관성 확인**
+3. **단가 변경 락 시뮬레이션** — 두 번 시도 → 두 번째 거부
+4. **롤백 검증** — settlement_monthly 롤백 후 grade 시스템 영향 없음 확인
+5. **체크리스트 (F.5)** 항목별 통과 확인

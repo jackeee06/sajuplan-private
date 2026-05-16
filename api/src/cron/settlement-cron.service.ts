@@ -102,20 +102,43 @@ export class SettlementCronService {
       const memberRows = await tx<{
         id: number;
         mb_id: string | null;
+        grade: string | null;
         free_royalty_pct: number | null;
         paid_royalty_pct: number | null;
         call_070_unit_cost: number | null;
       }[]>`
-        SELECT id, mb_id, free_royalty_pct, paid_royalty_pct, call_070_unit_cost
+        SELECT id, mb_id, grade, free_royalty_pct, paid_royalty_pct, call_070_unit_cost
           FROM member
          WHERE id = ${memberId}
          LIMIT 1
       `;
       if (memberRows.length === 0) return { already: false, price: 0, price_tot: 0 };
       const m = memberRows[0];
-      const royaltyFree = Number(m.free_royalty_pct ?? 0);
-      const royaltyPaid = Number(m.paid_royalty_pct ?? 0);
       const mb4 = Number(m.call_070_unit_cost ?? 0);
+
+      // ───── 정산률: grade 기반 우선, 없으면 legacy royalty_pct ─────
+      // 등급 시스템 도입 (2026-05-16). setting.revenue_rate.<grade> 가 있으면 그 비율로 통일.
+      // 단일 비율을 amt_free / amt_pro 양쪽에 동일 적용.
+      let royaltyFree: number;
+      let royaltyPaid: number;
+      const gradeRow = m.grade
+        ? await tx<{ value: string }[]>`
+            SELECT value FROM setting
+             WHERE namespace = 'grade' AND key = ${`revenue_rate.${m.grade}`}
+             LIMIT 1
+          `
+        : [];
+      if (gradeRow.length > 0 && gradeRow[0].value) {
+        // 0.35 같은 decimal → 35 (percent) 로 환산 (기존 코드가 /100 함)
+        const rate = Number(gradeRow[0].value);
+        const ratePct = Number.isFinite(rate) ? rate * 100 : 0;
+        royaltyFree = ratePct;
+        royaltyPaid = ratePct;
+      } else {
+        // legacy 폴백 — 등급 시스템 시드 전 데이터 호환
+        royaltyFree = Number(m.free_royalty_pct ?? 0);
+        royaltyPaid = Number(m.paid_royalty_pct ?? 0);
+      }
 
       // 상담 집계 (환불 + 포인트 미지급 제외)
       const consRow = await tx<{ amt_free: string; amt_pro: string }[]>`

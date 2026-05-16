@@ -7,7 +7,7 @@ import { api } from '../lib/api'
 // ───────────────────────────────────────────────
 type SettingsByNs = Record<string, Record<string, string>>
 
-type TabKey = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer'
+type TabKey = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer' | 'grade'
 type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'password' | 'select' | 'multiselect'
 interface FieldDef {
   key: string
@@ -156,9 +156,42 @@ const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
       { key: 'extra_info', label: '기타 안내 문구', kind: 'textarea', hint: '푸터 하단에 추가 노출되는 내용' },
     ],
   },
+  grade: {
+    title: '등급/단가',
+    fields: [
+      // ── 등급별 단가 옵션 (30초당, 콤마 구분) ──
+      { key: 'options.preliminary', label: '예비파트너 단가 옵션', kind: 'text', placeholder: '예: 800,1000', hint: '30초당 단가, 콤마 구분. 상담사가 선택 가능한 옵션.' },
+      { key: 'options.partner1',    label: '파트너1 단가 옵션',    kind: 'text', placeholder: '예: 800,1000,1200' },
+      { key: 'options.partner2',    label: '파트너2 단가 옵션',    kind: 'text', placeholder: '예: 1000,1200,1300' },
+      { key: 'options.partner3',    label: '파트너3 단가 옵션',    kind: 'text', placeholder: '예: 1000,1200,1300' },
+      { key: 'options.partner4',    label: '파트너4 단가 옵션',    kind: 'text', placeholder: '예: 1000,1200,1300,1400,1500' },
+      { key: 'options.partner5',    label: '파트너5 단가 옵션',    kind: 'text', placeholder: '예: 1000,1200,1300,1400,1500' },
+
+      // ── 정산률 (상담사 수익 비율) ──
+      { key: 'revenue_rate.preliminary', label: '예비파트너 정산률', kind: 'text', placeholder: '예: 0.35', hint: '0.35 = 35%. 상담료 × 비율 = 상담사 수익.' },
+      { key: 'revenue_rate.partner1',    label: '파트너1 정산률',    kind: 'text', placeholder: '예: 0.45' },
+      { key: 'revenue_rate.partner2',    label: '파트너2 정산률',    kind: 'text', placeholder: '예: 0.55' },
+      { key: 'revenue_rate.partner3',    label: '파트너3 정산률',    kind: 'text', placeholder: '예: 0.60' },
+      { key: 'revenue_rate.partner4',    label: '파트너4 정산률',    kind: 'text', placeholder: '예: 0.65' },
+      { key: 'revenue_rate.partner5',    label: '파트너5 정산률',    kind: 'text', placeholder: '예: 0.70' },
+
+      // ── 등급 임계값 (시간 단위, 직전 1개월) ──
+      { key: 'thresholds.partner1', label: '파트너1 임계값(h)', kind: 'number', placeholder: '20', hint: '직전 1개월 통화 시간이 이 시간 이상이면 해당 등급.' },
+      { key: 'thresholds.partner2', label: '파트너2 임계값(h)', kind: 'number', placeholder: '40' },
+      { key: 'thresholds.partner3', label: '파트너3 임계값(h)', kind: 'number', placeholder: '70' },
+      { key: 'thresholds.partner4', label: '파트너4 임계값(h)', kind: 'number', placeholder: '90' },
+      { key: 'thresholds.partner5', label: '파트너5 임계값(h)', kind: 'number', placeholder: '120' },
+
+      // ── 락/재산정/강등 정책 ──
+      { key: 'lock_until_first_day', label: '월 1일 단가 변경 락', kind: 'bool', hint: 'true 면 매월 1일에만 단가 변경 가능. 신규 가입자는 가입 즉시 예외.' },
+      { key: 'recalc_day_of_month',  label: '등급 재산정 일자',     kind: 'number', placeholder: '1', hint: '매월 N일 KST 0시에 등급 재산정 (보통 1).' },
+      { key: 'recalc_hour_kst',      label: '등급 재산정 시각(KST)', kind: 'number', placeholder: '0' },
+      { key: 'demote_step_max',      label: '강등 최대 단계',        kind: 'number', placeholder: '1', hint: '한 번에 강등 가능 단계 수. 1 = 한 단계씩만.' },
+    ],
+  },
 }
 
-const TAB_ORDER: TabKey[] = ['site', 'member', 'review', 'social', 'security', 'footer']
+const TAB_ORDER: TabKey[] = ['site', 'member', 'review', 'social', 'security', 'footer', 'grade']
 
 // ───────────────────────────────────────────────
 // 페이지

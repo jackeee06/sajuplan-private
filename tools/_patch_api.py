@@ -23,11 +23,9 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 2026-05-16: 등급/단가 시스템 Phase 3 — 매월 1일 등급 재산정 크론
+# 2026-05-16: 등급/단가 시스템 Phase 5 — 정산 모듈 grade 기반 전환
 FILES = [
-    ("api/src/cron/grade-cron.service.ts", "src/cron/grade-cron.service.ts"),
-    ("api/src/cron/cron.module.ts", "src/cron/cron.module.ts"),
-    ("api/src/cron/cron.controller.ts", "src/cron/cron.controller.ts"),
+    ("api/src/cron/settlement-cron.service.ts", "src/cron/settlement-cron.service.ts"),
 ]
 
 
