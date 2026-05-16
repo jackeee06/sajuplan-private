@@ -397,6 +397,18 @@ function GradeMatrixEditor({
   const inputBase =
     'px-2 py-1.5 border rounded text-sm bg-white dark:bg-gray-700 dark:border-gray-600'
 
+  // 락/재산정 정책 잠금 — 매출 직결 정책 보호 (기본 잠금)
+  const [policyUnlocked, setPolicyUnlocked] = useState(false)
+  const togglePolicyLock = () => {
+    if (!policyUnlocked) {
+      const ok = window.confirm(
+        '⚠ 이 정책은 매출/정산에 직접 영향을 줍니다.\n잘못 변경하면 전체 상담사 정산 사고로 이어질 수 있습니다.\n\n정말 수정하시겠습니까?',
+      )
+      if (!ok) return
+    }
+    setPolicyUnlocked((v) => !v)
+  }
+
   return (
     // max-w 로 좌측 정렬 — 와이드 모니터에서 화면 끝까지 늘어나지 않게
     <div className="space-y-6 max-w-[1080px]">
@@ -488,15 +500,50 @@ function GradeMatrixEditor({
         </table>
       </div>
 
-      {/* 기타 정책 4개 — 카드별 친절 설명 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
-        <div className="px-4 py-3 border-b bg-gray-50 dark:bg-gray-800/60">
-          <div className="text-sm font-medium text-gray-800 dark:text-gray-100">락 / 재산정 정책</div>
-          <div className="text-[11px] text-gray-500 mt-0.5">
-            단가 변경 빈도 + 등급 재산정 일정 + 강등 속도 — 운영 정책 4개
+      {/* 기타 정책 4개 — 잠금 보호 + 카드별 친절 설명 */}
+      <div
+        className={`bg-white dark:bg-gray-900 border rounded-xl ${
+          policyUnlocked
+            ? 'border-rose-300 dark:border-rose-700 ring-2 ring-rose-100 dark:ring-rose-900/30'
+            : 'border-gray-200 dark:border-gray-700'
+        }`}
+      >
+        <div className="px-4 py-3 border-b bg-gray-50 dark:bg-gray-800/60 flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              락 / 재산정 정책
+              {policyUnlocked ? (
+                <span className="px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 text-[10px] font-semibold">
+                  🔓 수정 가능
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-[10px] font-semibold">
+                  🔒 잠금
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-gray-500 mt-0.5">
+              매출/정산 직결 정책. 사고 방지 위해 기본 잠금 — 클릭해서 해제 후 수정.
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={togglePolicyLock}
+            className={`px-3 py-1.5 rounded text-xs font-medium shrink-0 ${
+              policyUnlocked
+                ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                : 'bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-100'
+            }`}
+          >
+            {policyUnlocked ? '🔒 잠금 (수정 종료)' : '🔓 잠금 해제 (수정하기)'}
+          </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+        <fieldset
+          disabled={!policyUnlocked}
+          className={`grid grid-cols-1 md:grid-cols-2 gap-4 p-4 transition-opacity ${
+            !policyUnlocked ? 'opacity-50 cursor-not-allowed select-none' : ''
+          }`}
+        >
           <PolicyCell
             label="월 1일 락"
             hint="상담사가 단가를 변경할 수 있는 시점 제한. true 면 매월 1일에만 1회 변경 가능 (등급 재산정 직후). false 면 언제든 변경 가능 — 단가 사고 위험 있어 비추천. 신규 가입자는 정책 무관 가입 즉시 1회 선택 가능."
@@ -561,7 +608,7 @@ function GradeMatrixEditor({
               <span className="text-xs text-gray-500">단계</span>
             </div>
           </PolicyCell>
-        </div>
+        </fieldset>
       </div>
     </div>
   )
