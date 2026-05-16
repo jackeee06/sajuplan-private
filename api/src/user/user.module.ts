@@ -22,6 +22,7 @@ import { UserCounselorApplyModule } from './counselor-apply/counselor-apply.modu
 import { UserEventsModule } from './events/events.module';
 import { UserSettlementsModule } from './settlements/settlements.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { UserCounselorMypageGradeModule } from './counselor-mypage-grade/counselor-mypage-grade.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { AttendanceModule } from './attendance/attendance.module';
     UserEventsModule,
     UserSettlementsModule,
     AttendanceModule,
+    UserCounselorMypageGradeModule,
   ],
 })
 export class UserModule {}

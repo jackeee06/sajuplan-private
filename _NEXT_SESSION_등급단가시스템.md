@@ -484,12 +484,48 @@ CREATE TABLE setting_history (
 - `consultation` 단일 테이블 (call/chat 통합 — reason 컬럼으로 구분: 'DISCONNECT' / 'END_CHAT' / 'END_CHAT_LOCAL')
 - `member.call_070_unit_cost`, `chat_unit_cost` 별도 컬럼이지만 통합 정책으로 양쪽 동일값 쓰기로
 
-### 다음: Phase 2 — 백엔드 로직
+### 2026-05-16 — Phase 2 완료 ✅ (백엔드 단가 변경 API + consultation 스냅샷)
 
-1. **단가 변경 API** (`POST /api/user/counselor/unit-cost`)
-   - 본인 인증 + 등급 옵션 검증 + 락 체크 + 트랜잭션 + 동시성 + history INSERT
-   - call_070_unit_cost / chat_unit_cost 양쪽에 동일값 설정 (통합)
-2. **consultation 스냅샷 기록**
-   - 통화 시작 시 `unit_cost_snapshot`, `grade_at_session` 자동 채움
-   - call: m2net-push 핸들러 / chat: chat.service 시작 핸들러
-3. **last_month_seconds 집계** — 매월 1일 크론에서 계산 (Phase 3 와 연계)
+**신규 모듈** [api/src/user/counselor-mypage-grade/](api/src/user/counselor-mypage-grade/):
+- `counselor-mypage-grade.service.ts` — Grade type, MyGradeInfo, getMine, changeUnitCost
+- `counselor-mypage-grade.controller.ts` — Routes
+- `counselor-mypage-grade.module.ts` — DI
+
+**라우트**:
+- `GET /api/user/counselor-mypage/grade` — 내 등급/단가/락 상태 (현재 단가, 가능 옵션, 다음 변경일)
+- `POST /api/user/counselor-mypage/grade/unit-cost` — 단가 변경 (body: `{ unit_cost, reason? }`)
+
+**핵심 안전장치 구현**:
+- 트랜잭션 (`sql.begin`)
+- 동시성 락 — `pg_advisory_xact_lock(7777003, memberId)` (settlement 의 7777002 와 별도 키)
+- 행 잠금 — `SELECT ... FOR UPDATE`
+- 락 체크 — DB 시각 기준 (`unit_cost_changeable_at > NOW()`)
+- 정책 외 단가 거부 — `setting.options.<grade>` 조회 후 검증
+- KST 다음달 1일 계산 — `date_trunc('month', NOW() AT TIME ZONE 'Asia/Seoul') + interval '1 month'`
+- 단가 통합 — `call_070_unit_cost` / `chat_unit_cost` 양 컬럼 동일값
+- 이력 INSERT — `member_unit_cost_history` (changed_by='self')
+
+**consultation 스냅샷** ([api/src/pg-callbacks/m2net-push.service.ts](api/src/pg-callbacks/m2net-push.service.ts)):
+- main INSERT (라인 ~282) + settleChatRoomLocal INSERT (라인 ~491) 양쪽에 `unit_cost_snapshot`, `grade_at_session` 채움
+- 종료 시점에 member 조회 → INSERT 값으로 박제 (월 1일 락 정책상 통화 중 변경 불가)
+
+**배포**: test + prod 양쪽 빌드 통과, pm2 reload 완료.
+- 검증: `curl https://api.sajumoon.kr/api/user/counselor-mypage/grade` → 401 (auth required = 라우트 마운트 확인)
+- 검증: `curl https://api.sajumoon.co.kr/api/user/counselor-mypage/grade` → 401
+
+**기타 변경**:
+- `tools/_patch_api.py` — 신규 폴더 대비 `mkdir -p` 추가, FILES 목록 갱신
+
+### 다음: Phase 3 — 크론 (매월 1일 등급 재산정)
+
+1. **NestJS Cron Service** 신규
+   - 매월 1일 0시(KST) 트리거: `@Cron('0 0 1 * *', { timeZone: 'Asia/Seoul' })`
+   - 멱등성: `grade_recalculated_at` 검증
+2. **등급 산정 로직**
+   - 직전 1개월 `consultation.usetm` 합산 (reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL'))
+   - 임계값 비교 → 새 등급 결정
+   - 강등은 한 단계씩만 (`demote_step_max`)
+   - 등급 변동 시 `unit_cost_changeable_at = NULL` (락 해제)
+   - `member_grade_history` 기록
+3. **운영 리포트** — 어드민 알림 또는 로그 (승급/강등/유지 인원수)
+4. **수동 트리거 API** — `POST /api/admin/grade/recalculate` (테스트/긴급용)

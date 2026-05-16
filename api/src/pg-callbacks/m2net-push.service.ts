@@ -278,6 +278,22 @@ export class M2netPushService {
       }
     }
 
+    // ─── 등급/단가 스냅샷 (Phase 2) ───
+    // 통화 종료 시점의 상담사 등급/단가를 consultation 에 박제. 정산/분쟁 추적용.
+    // 월 1일 락 정책상 통화 중 단가 변경은 불가하므로 종료 시점 값 = 통화 시점 값.
+    let snapGrade: string | null = null;
+    let snapUnitCost: number | null = null;
+    if (counselorId !== null) {
+      const snap = await this.sql<{ grade: string; unit_cost: number }[]>`
+        SELECT grade, COALESCE(call_070_unit_cost, chat_unit_cost, 0)::int AS unit_cost
+          FROM member WHERE id = ${counselorId} LIMIT 1
+      `;
+      if (snap.length > 0) {
+        snapGrade = snap[0].grade ?? null;
+        snapUnitCost = Number(snap[0].unit_cost) || null;
+      }
+    }
+
     const inserted = await this.sql<{ id: number }[]>`
       INSERT INTO consultation (
         member_id, mb_id, counselor_id, csrid, cpid, dtmfno,
@@ -285,7 +301,8 @@ export class M2netPushService {
         amt, amt_free, amt_pro, preflag,
         is_paid, membid, roomid, callid,
         skip_charge, mrtn,
-        started_at, ended_at, eventtm, created_at
+        started_at, ended_at, eventtm, created_at,
+        unit_cost_snapshot, grade_at_session
       ) VALUES (
         ${memberId}, ${memberMbId || null}, ${counselorId}, ${csrid || null},
         ${cpid || null}, ${dtmfno || null},
@@ -294,7 +311,8 @@ export class M2netPushService {
         ${amt}, ${amtFree}, ${amtPro}, ${preflag || null},
         ${isPaid}, ${membid || null}, ${roomid || null}, ${callid || null},
         ${skipCharge}, ${raw},
-        ${startedAt}, ${endedAt}, ${eventAt}, ${wrAt}
+        ${startedAt}, ${endedAt}, ${eventAt}, ${wrAt},
+        ${snapUnitCost}, ${snapGrade}
       )
       RETURNING id
     `;
@@ -487,19 +505,35 @@ export class M2netPushService {
     const isPaid = amt >= 10000;
     const nowIso = new Date().toISOString();
 
+    // 등급/단가 스냅샷 (Phase 2)
+    let snapGradeLocal: string | null = null;
+    let snapUnitCostLocal: number | null = null;
+    if (room.counselor_id != null) {
+      const snap = await this.sql<{ grade: string; unit_cost: number }[]>`
+        SELECT grade, COALESCE(call_070_unit_cost, chat_unit_cost, 0)::int AS unit_cost
+          FROM member WHERE id = ${room.counselor_id} LIMIT 1
+      `;
+      if (snap.length > 0) {
+        snapGradeLocal = snap[0].grade ?? null;
+        snapUnitCostLocal = Number(snap[0].unit_cost) || null;
+      }
+    }
+
     // consultation INSERT — reason='END_CHAT_LOCAL' 로 push 와 구분
     const inserted = await this.sql<{ id: number }[]>`
       INSERT INTO consultation (
         member_id, counselor_id, csrid, reason, usetm,
         amt, amt_free, amt_pro,
         is_paid, roomid,
-        started_at, ended_at, created_at
+        started_at, ended_at, created_at,
+        unit_cost_snapshot, grade_at_session
       ) VALUES (
         ${room.member_id}, ${room.counselor_id}, ${room.csrid || null},
         'END_CHAT_LOCAL', ${secs},
         ${amt}, ${amtFree}, ${amtPro},
         ${isPaid}, ${room.roomid || null},
-        ${room.started_at}, ${room.ended_at ?? new Date()}, now()
+        ${room.started_at}, ${room.ended_at ?? new Date()}, now(),
+        ${snapUnitCostLocal}, ${snapGradeLocal}
       )
       RETURNING id
     `;

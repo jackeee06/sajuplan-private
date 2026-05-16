@@ -23,10 +23,13 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 2026-05-16: 상담사 신청 폼 UX — 한글 파일명 mojibake 수정 + 이미지 리사이즈
+# 2026-05-16: 등급/단가 시스템 Phase 2 — 단가 변경 API + consultation 스냅샷
 FILES = [
-    ("api/src/user/counselor-apply/counselor-apply.controller.ts", "src/user/counselor-apply/counselor-apply.controller.ts"),
-    ("api/src/shared/common/image-to-webp.ts", "src/shared/common/image-to-webp.ts"),
+    ("api/src/user/counselor-mypage-grade/counselor-mypage-grade.module.ts", "src/user/counselor-mypage-grade/counselor-mypage-grade.module.ts"),
+    ("api/src/user/counselor-mypage-grade/counselor-mypage-grade.controller.ts", "src/user/counselor-mypage-grade/counselor-mypage-grade.controller.ts"),
+    ("api/src/user/counselor-mypage-grade/counselor-mypage-grade.service.ts", "src/user/counselor-mypage-grade/counselor-mypage-grade.service.ts"),
+    ("api/src/user/user.module.ts", "src/user/user.module.ts"),
+    ("api/src/pg-callbacks/m2net-push.service.ts", "src/pg-callbacks/m2net-push.service.ts"),
 ]
 
 
@@ -71,6 +74,9 @@ def main() -> int:
             remote_path = f"{api_remote.rstrip('/')}/{remote_rel}"
             data = local_path.read_bytes()
             print(f"  put {local_rel}  ({len(data):,} bytes) → {remote_path}", flush=True)
+            # 신규 폴더 대비 — 부모 디렉토리 보장
+            remote_dir = remote_path.rsplit('/', 1)[0]
+            ssh.exec_command(f"mkdir -p '{remote_dir}'", timeout=10)[1].channel.recv_exit_status()
             # SFTP 가 chroot/path 이슈로 실패할 수 있어 ssh exec + cat > 으로 우회
             stdin, stdout, stderr = ssh.exec_command(f"cat > '{remote_path}'", timeout=60)
             stdin.write(data)
