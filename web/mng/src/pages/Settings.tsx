@@ -400,12 +400,38 @@ function GradeMatrixEditor({
   return (
     // max-w 로 좌측 정렬 — 와이드 모니터에서 화면 끝까지 늘어나지 않게
     <div className="space-y-6 max-w-[1080px]">
+      {/* 전체 정책 안내 — 오랜만에 보는 운영자 친절 가이드 */}
+      <details className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4 text-xs leading-relaxed">
+        <summary className="cursor-pointer font-medium text-blue-800 dark:text-blue-200 select-none">
+          ℹ️ 등급/단가 시스템이 어떻게 작동하나요? (오랜만에 보시면 펼쳐서 확인)
+        </summary>
+        <div className="mt-3 space-y-2 text-gray-700 dark:text-gray-300">
+          <p>
+            <b>전체 흐름</b>: 상담사는 시간이 누적되면 등급이 오릅니다. 각 등급마다 선택 가능한
+            <b> 단가 옵션</b>이 정해져 있고, 상담사가 본인 마이페이지에서 그중 하나를 고를 수 있습니다.
+            매월 1일에 직전 한 달 통화 시간을 합산해 등급이 자동 재산정되고, 등급이 바뀌면 단가 옵션도
+            바뀝니다.
+          </p>
+          <p>
+            <b>정산</b>: 상담사 수익 = (통화 결제 금액 - 환불) × 정산률. 등급이 높을수록 정산률을
+            높여 전속 상담사를 우대합니다.
+          </p>
+          <p>
+            <b>안전장치</b>: 단가 변경은 매월 1일에만 1회 가능 (월 1일 락). 등급은 한 달에 최대
+            <b> N단계만 강등</b> (특정 달에 통화 못한 사정 고려). 모든 변경은 이력이 남아 분쟁 시
+            추적 가능합니다.
+          </p>
+        </div>
+      </details>
+
       {/* 매트릭스 표 — 등급별 옵션/정산률/임계값 한 화면 */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b bg-gray-50 dark:bg-gray-800/60">
           <div className="text-sm font-medium text-gray-800 dark:text-gray-100">등급별 정책 (6 등급)</div>
-          <div className="text-[11px] text-gray-500 mt-0.5">
-            단가 옵션: 30초당 단가 (원, 상담사 선택 가능) · 정산률: 0~1 사이 값 (0.35 = 35%) · 임계값: 직전 1개월 통화 시간 (시간)
+          <div className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+            <b>단가 옵션</b>: 상담사가 마이페이지에서 선택 가능한 30초당 단가 (원). 정책 외 값은 상담사 본인이 선택 불가 — 어드민은 강제 수정 가능.<br />
+            <b>정산률</b>: 상담사 수익 비율. 0.35 = 35% (결제 금액의 35% 가 상담사 몫). 등급 ↑ → 정산률 ↑ 권장.<br />
+            <b>임계값</b>: 직전 1개월 통화 시간이 이 값 이상이면 해당 등급으로 승급. 예) 파트너2 임계값=40 → 40시간 이상 통화 시 파트너2.
           </div>
         </div>
         <table className="text-sm">
@@ -462,54 +488,78 @@ function GradeMatrixEditor({
         </table>
       </div>
 
-      {/* 기타 정책 4개 — grid 로 한 줄 */}
+      {/* 기타 정책 4개 — 카드별 친절 설명 */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
         <div className="px-4 py-3 border-b bg-gray-50 dark:bg-gray-800/60">
           <div className="text-sm font-medium text-gray-800 dark:text-gray-100">락 / 재산정 정책</div>
+          <div className="text-[11px] text-gray-500 mt-0.5">
+            단가 변경 빈도 + 등급 재산정 일정 + 강등 속도 — 운영 정책 4개
+          </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
           <PolicyCell
             label="월 1일 락"
-            hint="true: 매월 1일만 단가 변경 / false: 즉시"
+            hint="상담사가 단가를 변경할 수 있는 시점 제한. true 면 매월 1일에만 1회 변경 가능 (등급 재산정 직후). false 면 언제든 변경 가능 — 단가 사고 위험 있어 비추천. 신규 가입자는 정책 무관 가입 즉시 1회 선택 가능."
           >
             <select
               value={values['lock_until_first_day'] ?? 'true'}
               onChange={(e) => onChange('lock_until_first_day', e.target.value)}
               className={`${inputBase} w-full`}
             >
-              <option value="true">true (월 1일 락)</option>
-              <option value="false">false (즉시)</option>
+              <option value="true">true · 월 1일에만 변경 (권장)</option>
+              <option value="false">false · 즉시 언제든 변경</option>
             </select>
           </PolicyCell>
-          <PolicyCell label="재산정 일자" hint="매월 N일">
-            <input
-              type="number"
-              min="1"
-              max="28"
-              value={values['recalc_day_of_month'] ?? ''}
-              onChange={(e) => onChange('recalc_day_of_month', e.target.value)}
-              className={`${inputBase} tabular-nums w-full`}
-            />
+
+          <PolicyCell
+            label="재산정 일자"
+            hint="매월 며칠에 등급 재산정 크론을 자동 실행할지. 보통 1 (월초). 그 날 0시(KST)에 직전 1개월 통화 시간을 합산해 새 등급을 결정. 1~28 입력 가능 (29~31은 월 따라 없을 수 있어 제외)."
+          >
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="1"
+                max="28"
+                value={values['recalc_day_of_month'] ?? ''}
+                onChange={(e) => onChange('recalc_day_of_month', e.target.value)}
+                className={`${inputBase} tabular-nums w-24`}
+              />
+              <span className="text-xs text-gray-500">일</span>
+            </div>
           </PolicyCell>
-          <PolicyCell label="재산정 시각(KST)" hint="0~23 시">
-            <input
-              type="number"
-              min="0"
-              max="23"
-              value={values['recalc_hour_kst'] ?? ''}
-              onChange={(e) => onChange('recalc_hour_kst', e.target.value)}
-              className={`${inputBase} tabular-nums w-full`}
-            />
+
+          <PolicyCell
+            label="재산정 시각 (KST)"
+            hint="위 일자의 몇 시(0~23)에 재산정 크론이 실행될지. 권장 0 (자정) — 통화가 적은 시간에 처리. 너무 늦은 시각이면 그 날 단가 변경 시도하는 상담사에게 혼란 발생 가능."
+          >
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                max="23"
+                value={values['recalc_hour_kst'] ?? ''}
+                onChange={(e) => onChange('recalc_hour_kst', e.target.value)}
+                className={`${inputBase} tabular-nums w-24`}
+              />
+              <span className="text-xs text-gray-500">시</span>
+            </div>
           </PolicyCell>
-          <PolicyCell label="강등 최대 단계" hint="1=한 단계씩">
-            <input
-              type="number"
-              min="1"
-              max="5"
-              value={values['demote_step_max'] ?? ''}
-              onChange={(e) => onChange('demote_step_max', e.target.value)}
-              className={`${inputBase} tabular-nums w-full`}
-            />
+
+          <PolicyCell
+            label="강등 최대 단계"
+            hint="등급 재산정 시 한 번에 최대 몇 단계까지 강등 가능한지. 1 = 한 단계씩만 (권장 — 갑작스러운 강등 방지). 5 = 즉시 적정 등급으로 떨어짐 (예: 파트너5가 0시간 통화하면 1번에 예비파트너). 승급은 이 제약과 무관 (한 번에 여러 단계 가능)."
+          >
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="1"
+                max="5"
+                value={values['demote_step_max'] ?? ''}
+                onChange={(e) => onChange('demote_step_max', e.target.value)}
+                className={`${inputBase} tabular-nums w-24`}
+              />
+              <span className="text-xs text-gray-500">단계</span>
+            </div>
           </PolicyCell>
         </div>
       </div>
@@ -664,9 +714,13 @@ function PolicyCell({
   children: React.ReactNode
 }) {
   return (
-    <div>
-      <div className="text-xs font-medium text-gray-700 dark:text-gray-300">{label}</div>
-      {hint && <div className="text-[10px] text-gray-400 mb-1.5 mt-0.5">{hint}</div>}
+    <div className="border border-gray-100 dark:border-gray-700 rounded-lg p-3 bg-gray-50/40 dark:bg-gray-800/30">
+      <div className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-1">{label}</div>
+      {hint && (
+        <div className="text-[11px] text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
+          {hint}
+        </div>
+      )}
       {children}
     </div>
   )
