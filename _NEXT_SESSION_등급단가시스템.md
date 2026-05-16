@@ -639,3 +639,75 @@ CREATE TABLE setting_history (
    prod 도메인은 sajumoon.co.kr 로.
 2. **고객 확정 단가표 수령 후** 어드민 → 설정 → 등급/단가 탭에서 교체
 3. **첫 달 운영 데이터 1주 누적 후** test 서버에서 grade recalc 실수동 호출 → 결과 확인
+
+---
+
+## H. 오픈 전 운영자 격차 보강 (감사 기반)
+
+> Phase 6 완료 후 추가 감사 결과 — 코드는 있지만 어드민에서 못 보거나 못 다루는 격차 23개 발견.
+> 마스터 리스트 → 4 Phase 로 분할 (Phase 7~10).
+
+### 2026-05-16 — Phase 7 완료 ✅ (운영자 알림 인프라 + 크론 보호)
+
+**OpsAlertService 신규** [api/src/shared/ops-alert/](api/src/shared/ops-alert/):
+- `send(category, detail)` — 등록된 운영자 휴대폰 전원에게 카카오 알림톡 발송
+- 쿨다운 (기본 300초): 같은 카테고리 알림 폭주 방지
+- 발송 실패해도 본 작업 막지 않음 (try/catch 내부 흡수)
+- 정책 setting (`namespace='ops'`): enabled / recipients / template_code / cooldown_sec
+
+**CronTokenGuard 복구**:
+- `CRON_TOKEN` env 자동 생성 + 양 서버 .env 등록 (64자)
+- `crontab` URL 에 `?token=...` 자동 추가
+- 가드 없음 → 가드 적용 (?token 없이 → HTTP 401, 검증 완료)
+- 외부에서 토큰 모르면 cron 강제 실행 불가 (보안 구멍 메움)
+
+**Cron 실패 알림**:
+- `cron.controller.ts` 의 grade/recalculate + settlement/monthly 핸들러 try/catch wrap
+- 예외 발생 시 OpsAlert.send() → 카톡 + HTTP 500 + crontab log 동시
+
+**M2NET 차감 실패 알림** ([m2net-push.service.ts](api/src/pg-callbacks/m2net-push.service.ts)):
+- 회원 포인트 차감 실패 catch 블록 2곳 (콜+채팅) 에 OpsAlert 호출
+- 정보: memberId / consultationId / amt / reason / 에러 메시지
+
+**자동충전 실패 알림** ([pg-callback.controller.ts](api/src/user/charge/pg-callback.controller.ts)):
+- autopay-push catch 블록에 OpsAlert
+- 정보: membid / oid / amount / 에러 메시지
+
+**어드민 UI**:
+- Settings.tsx 에 '운영알림' 탭 (TabKey='ops') 추가
+- 수신번호/활성토글/쿨다운/템플릿 코드 입력 가능
+
+**시드 자동화** [tools/_setup_ops_alert.py](tools/_setup_ops_alert.py):
+- ops namespace 4개 키 INSERT
+- alimtalk_template 에 'ops_admin_alert' 예시 본문 (BizM 콘솔 등록 필수)
+- CRON_TOKEN .env 추가 + crontab URL 갱신 + pm2 reload
+- 재실행 안전 (ON CONFLICT DO NOTHING / 패턴 검색 후 SKIP)
+
+**검증 (양 서버)**:
+- token 없이 cron 호출 → HTTP 401 ✅
+- 잘못된 token → HTTP 401 ✅
+- 올바른 token → HTTP 200 ✅
+- 기존 crontab 자동 cron 실행 → token 포함 URL ✅
+
+### 오픈 전 사용자 액션 (Phase 7 후속 — 필수)
+
+1. **BizM 콘솔에 'ops_admin_alert' 템플릿 등록**:
+   ```
+   [사주문 운영 알림]
+
+   유형: #{category}
+   시각: #{at}
+
+   #{detail}
+   ```
+   변수: `#{category}`, `#{at}`, `#{detail}` 세 개. 등록 → 승인 받으면 즉시 발송 가능.
+
+2. **어드민 → 설정 → 운영알림 탭에서 수신 휴대폰 번호 입력**:
+   - `01012345678,01087654321` 콤마 구분
+   - 회사 운영자 휴대폰 전체 등록 권장
+
+3. **테스트 발송**: 임의로 cron 실패 유도 (잘못된 month 인자) → 카톡 도착 여부 확인
+
+### 다음: Phase 8 — 등급 시스템 운영 화면 (감사 발견 6개)
+
+A.1~6: 회원 상세 등급 섹션 / 단가 변경 이력 / 등급 변동 이력 / 정책 변경 이력 / 어드민 강제 수정 / 등급 분포

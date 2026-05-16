@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SQL, type Sql } from '../shared/db/db.module';
 import { M2netService } from '../shared/m2net/m2net.service';
+import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
 
 /**
  * 엠투넷(M2NET) Push 콜백 처리.
@@ -46,6 +47,7 @@ export class M2netPushService {
   constructor(
     @Inject(SQL) private readonly sql: Sql,
     private readonly m2net: M2netService,
+    private readonly opsAlert: OpsAlertService,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -350,8 +352,14 @@ export class M2netPushService {
             false,
           );
         } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
           this.logger.error(
-            `회원 포인트 차감 실패 (memberId=${memberId}, consultationId=${consultationId}): ${e instanceof Error ? e.message : String(e)}`,
+            `회원 포인트 차감 실패 (memberId=${memberId}, consultationId=${consultationId}): ${msg}`,
+          );
+          // 운영자 알림 — 회원-상담사 포인트 불일치 가능, 즉시 인지 필요
+          void this.opsAlert.send(
+            'M2NET 회원 차감 실패',
+            `memberId=${memberId} consultationId=${consultationId}\namt=${amt} reason=${reason}\n\n${msg}`,
           );
         }
       }
@@ -551,8 +559,13 @@ export class M2netPushService {
         false,
       );
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
       this.logger.error(
-        `[settleChatRoomLocal] 회원 차감 실패 memberId=${room.member_id} consultationId=${consultationId}: ${e instanceof Error ? e.message : String(e)}`,
+        `[settleChatRoomLocal] 회원 차감 실패 memberId=${room.member_id} consultationId=${consultationId}: ${msg}`,
+      );
+      void this.opsAlert.send(
+        'M2NET 채팅 정산 회원 차감 실패',
+        `memberId=${room.member_id} consultationId=${consultationId}\namt=${amt}\n\n${msg}`,
       );
     }
     try {

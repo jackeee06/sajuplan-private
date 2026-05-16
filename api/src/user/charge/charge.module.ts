@@ -4,6 +4,7 @@ import { PgCallbackController } from './pg-callback.controller';
 import { ChargeService } from './charge.service';
 import { AuthModule } from '../auth/auth.module';
 import { SmsModule } from '../sms/sms.module';
+import { OpsAlertModule } from '../../shared/ops-alert/ops-alert.module';
 
 /**
  * 사용자 측 포인트 충전 (Phase B).
@@ -12,7 +13,7 @@ import { SmsModule } from '../sms/sms.module';
  *  - 자동충전: /api/user/charge/auto-config → 엠투넷이 자율 트리거 → /api/pg/charge/autopay-push
  */
 @Module({
-  imports: [AuthModule, SmsModule],
+  imports: [AuthModule, SmsModule, OpsAlertModule],
   controllers: [ChargeController, PgCallbackController],
   providers: [ChargeService],
 })

@@ -1,50 +1,40 @@
-import { BadRequestException, Controller, Get, Post, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ResetService } from './reset.service';
 import { SettlementCronService } from './settlement-cron.service';
 import { GradeCronService } from './grade-cron.service';
+import { CronTokenGuard } from './cron-token.guard';
+import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
 
 /**
  * 외부 cron 진입점.
  *
- * 운영 호출 URL (매월 1일 04:00 KST 기준 예):
- *   GET https://api.sajumoon.kr/api/cron/settlement/monthly
- *
- * 옵션:
- *   ?month=YYYY-MM    특정 월 강제 (생략 시 KST 전월)
- *   ?test=1           dry-run. settlement_monthly 만 계산. 포인트 차감/플래그 갱신 0
- *   ?mb_id=demonster1 특정 상담사 한 명만 처리 (테스트용)
- *
- * 멱등성:
- *   같은 (mb_id, month) 의 settlement_monthly row 가 이미 있으면 → 계산값만 UPDATE.
- *   포인트 차감/플래그 갱신은 스킵 (두 번 돌려도 안전).
+ * 모든 라우트는 CronTokenGuard 로 보호. CRON_TOKEN env 와 일치하는 ?token=... 필요.
  *
  * crontab 예:
- *   0 4 1 * * curl -s 'https://api.sajumoon.kr/api/cron/settlement/monthly' >> /var/log/sajumoon_settlement.log 2>&1
+ *   5 0 1 * * curl -s 'https://api.sajumoon.kr/api/cron/grade/recalculate?token=$CRON_TOKEN' >> /var/log/sajumoon_grade.log 2>&1
+ *   0 4 1 * * curl -s 'https://api.sajumoon.kr/api/cron/settlement/monthly?token=$CRON_TOKEN' >> /var/log/sajumoon_settlement.log 2>&1
  *
- * TODO(임시): 가드 제거 상태 — 테스트 끝나면 CronTokenGuard 복구 필요.
- *   import 와 @UseGuards(CronTokenGuard) 한 줄 복원하면 됨.
+ * 실패 시 동작:
+ *   각 핸들러는 try/catch 로 감싸 예외 발생 시 OpsAlertService 로 알림톡 발송.
+ *   이후 원본 예외를 다시 throw 해서 HTTP 500 + crontab 로그에도 남김.
  */
 @Controller('cron')
+@UseGuards(CronTokenGuard)
 export class CronController {
   constructor(
     private readonly settlement: SettlementCronService,
     private readonly reset: ResetService,
     private readonly grade: GradeCronService,
+    private readonly opsAlert: OpsAlertService,
   ) {}
 
   /**
    * 매월 1일 등급 재산정.
    *
-   * 운영 호출:
-   *   GET https://api.sajumoon.kr/api/cron/grade/recalculate
-   *
    * 옵션:
    *   ?month=YYYY-MM  특정 월 강제 (직전 1개월 산정 대상). 생략 시 전월.
    *   ?test=1         dry-run. DB 변경 0.
    *   ?mb_id=xxx      특정 상담사만 (테스트용).
-   *
-   * crontab 예 (KST 매월 1일 0시 5분):
-   *   5 0 1 * * curl -s 'https://api.sajumoon.kr/api/cron/grade/recalculate' >> /var/log/sajumoon_grade.log 2>&1
    *
    * 멱등성: grade_recalculated_at 이 당월 1일 이후면 회원별 skip.
    */
@@ -57,7 +47,16 @@ export class CronController {
     const monthArg = month && /^\d{4}-\d{2}$/.test(month) ? month : undefined;
     const testOnly = test === '1' || test === 'true';
     const mbIdArg = mbId && /^[A-Za-z0-9._-]{1,100}$/.test(mbId) ? mbId : undefined;
-    return this.grade.recalculate(monthArg, testOnly, mbIdArg);
+    try {
+      return await this.grade.recalculate(monthArg, testOnly, mbIdArg);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await this.opsAlert.send(
+        '등급 재산정 크론 실패',
+        `month=${monthArg ?? '전월'}\n${msg}`,
+      );
+      throw e;
+    }
   }
 
   @Get('settlement/monthly')
@@ -69,7 +68,16 @@ export class CronController {
     const monthArg = month && /^\d{4}-\d{2}$/.test(month) ? month : undefined;
     const testOnly = test === '1' || test === 'true';
     const mbIdArg = mbId && /^[A-Za-z0-9._-]{1,100}$/.test(mbId) ? mbId : undefined;
-    return this.settlement.runMonthly(monthArg, testOnly, mbIdArg);
+    try {
+      return await this.settlement.runMonthly(monthArg, testOnly, mbIdArg);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await this.opsAlert.send(
+        '월별 정산 크론 실패',
+        `month=${monthArg ?? '전월'}\n${msg}`,
+      );
+      throw e;
+    }
   }
 
   /**
@@ -90,7 +98,6 @@ export class CronController {
   /**
    * 롤백: POST /api/cron/settlement/rollback?month=YYYY-MM
    * 해당 월의 settlement_monthly 전 row + 정산 차감 point_history + 플래그 되돌림.
-   * GET 안 만든 이유는 운영 데이터 변경이라 GET 으로 노출하면 위험. (가드 임시 제거 상태)
    */
   @Post('settlement/rollback')
   async rollback(@Query('month') month?: string) {

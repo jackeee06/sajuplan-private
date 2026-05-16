@@ -23,9 +23,12 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 2026-05-16: 등급/단가 시스템 Phase 5 — 정산 모듈 grade 기반 전환
+# 2026-05-16: Phase 7 — M2NET 차감 실패 + autopay 실패 알림 통합
 FILES = [
-    ("api/src/cron/settlement-cron.service.ts", "src/cron/settlement-cron.service.ts"),
+    ("api/src/pg-callbacks/m2net-push.module.ts", "src/pg-callbacks/m2net-push.module.ts"),
+    ("api/src/pg-callbacks/m2net-push.service.ts", "src/pg-callbacks/m2net-push.service.ts"),
+    ("api/src/user/charge/charge.module.ts", "src/user/charge/charge.module.ts"),
+    ("api/src/user/charge/pg-callback.controller.ts", "src/user/charge/pg-callback.controller.ts"),
 ]
 
 

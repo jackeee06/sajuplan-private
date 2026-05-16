@@ -7,7 +7,7 @@ import { api } from '../lib/api'
 // ───────────────────────────────────────────────
 type SettingsByNs = Record<string, Record<string, string>>
 
-type TabKey = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer' | 'grade'
+type TabKey = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer' | 'grade' | 'ops'
 type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'password' | 'select' | 'multiselect'
 interface FieldDef {
   key: string
@@ -189,9 +189,41 @@ const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
       { key: 'demote_step_max',      label: '강등 최대 단계',        kind: 'number', placeholder: '1', hint: '한 번에 강등 가능 단계 수. 1 = 한 단계씩만.' },
     ],
   },
+  ops: {
+    title: '운영알림',
+    fields: [
+      {
+        key: 'admin_alert.enabled',
+        label: '운영자 알림 활성',
+        kind: 'bool',
+        hint: '크론 실패/M2NET 차감 실패/자동충전 사고 시 카카오 알림톡 발송 여부.',
+      },
+      {
+        key: 'admin_alert.recipients',
+        label: '수신 휴대폰 번호',
+        kind: 'text',
+        placeholder: '01012345678,01087654321',
+        hint: '콤마 구분. 등록된 번호 전원에게 동일 메시지 발송. 빈 값이면 발송 안 함.',
+      },
+      {
+        key: 'admin_alert.template_code',
+        label: '알림톡 템플릿 코드',
+        kind: 'text',
+        placeholder: 'ops_admin_alert',
+        hint: 'BizM 콘솔에 사전 등록된 템플릿 코드. 변경 시 alimtalk_template 테이블에도 동일 코드의 행 필요.',
+      },
+      {
+        key: 'admin_alert.cooldown_sec',
+        label: '쿨다운(초)',
+        kind: 'number',
+        placeholder: '300',
+        hint: '같은 카테고리 알림이 N초 이내 반복되면 발송 차단. 알림 폭주 방지.',
+      },
+    ],
+  },
 }
 
-const TAB_ORDER: TabKey[] = ['site', 'member', 'review', 'social', 'security', 'footer', 'grade']
+const TAB_ORDER: TabKey[] = ['site', 'member', 'review', 'social', 'security', 'footer', 'grade', 'ops']
 
 // ───────────────────────────────────────────────
 // 페이지

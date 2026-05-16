@@ -6,6 +6,7 @@ import * as path from 'path';
 import { ChargeService } from './charge.service';
 import type { PgCallbackPayload } from '../../shared/ag9/ag9.types';
 import { runtimeEnv } from '../../shared/env/runtime-env';
+import { OpsAlertService } from '../../shared/ops-alert/ops-alert.service';
 
 // 자동결제 push 도착 진단용 파일 로그.
 // /api/pg/m2net/call-push 와 동일 패턴 (pg-callbacks/m2net-push.controller.ts:12-29).
@@ -46,6 +47,7 @@ export class PgCallbackController {
   constructor(
     private readonly svc: ChargeService,
     private readonly config: ConfigService,
+    private readonly opsAlert: OpsAlertService,
   ) {}
 
   /** AG9 카드/간편결제 결과 push (returnurl) */
@@ -78,7 +80,13 @@ export class PgCallbackController {
       appendAutopayLog('autopay-push-result', req.ip ?? '-', r);
       return r;
     } catch (e) {
-      appendAutopayLog('autopay-push-error', req.ip ?? '-', { message: (e as Error).message });
+      const msg = (e as Error).message;
+      appendAutopayLog('autopay-push-error', req.ip ?? '-', { message: msg });
+      // 자동충전 실패는 회원 충전 누락/중복 차감 사고 직결 — 즉시 운영자 알림
+      void this.opsAlert.send(
+        '자동충전(autopay-push) 처리 실패',
+        `membid=${payload.membid ?? '?'} oid=${payload.oid ?? '?'}\namount=${payload.amount ?? '?'}\n\n${msg}`,
+      );
       throw e;
     }
   }
