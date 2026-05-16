@@ -516,16 +516,41 @@ CREATE TABLE setting_history (
 **기타 변경**:
 - `tools/_patch_api.py` — 신규 폴더 대비 `mkdir -p` 추가, FILES 목록 갱신
 
-### 다음: Phase 3 — 크론 (매월 1일 등급 재산정)
+### 2026-05-16 — Phase 3 완료 ✅ (매월 1일 등급 재산정 크론)
 
-1. **NestJS Cron Service** 신규
-   - 매월 1일 0시(KST) 트리거: `@Cron('0 0 1 * *', { timeZone: 'Asia/Seoul' })`
-   - 멱등성: `grade_recalculated_at` 검증
-2. **등급 산정 로직**
-   - 직전 1개월 `consultation.usetm` 합산 (reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL'))
-   - 임계값 비교 → 새 등급 결정
-   - 강등은 한 단계씩만 (`demote_step_max`)
-   - 등급 변동 시 `unit_cost_changeable_at = NULL` (락 해제)
-   - `member_grade_history` 기록
-3. **운영 리포트** — 어드민 알림 또는 로그 (승급/강등/유지 인원수)
-4. **수동 트리거 API** — `POST /api/admin/grade/recalculate` (테스트/긴급용)
+**신규 서비스** [api/src/cron/grade-cron.service.ts](api/src/cron/grade-cron.service.ts):
+- `recalculate(month?, testOnly?, mbId?)` — 직전 1개월 시간 → 등급 산정
+- 정책 로드: `setting.namespace='grade'` 의 thresholds + demote_step_max
+- 임계값 매핑: hours ≥ partner5(120) > partner4(90) > partner3(70) > partner2(40) > partner1(20)
+- **강등 가드**: 한 번에 최대 1단계 (`applyDemoteLimit`)
+- **등급 변동 시 unit_cost_changeable_at = NULL** (단가 1회 변경 풀어줌)
+- **멱등성**: `grade_recalculated_at >= 당월 1일 0시(KST)` 면 회원별 skip
+- 트랜잭션 + advisory lock(7777003) — 단가 변경 API 와 같은 키 직렬화
+
+**라우트** (외부 cron 진입점):
+- `GET /api/cron/grade/recalculate?month=YYYY-MM&test=1&mb_id=xxx`
+- 옵션: `test=1` (dry-run), `mb_id` (단건 처리)
+- crontab 예: `5 0 1 * * curl -s 'https://api.sajumoon.kr/api/cron/grade/recalculate' >> /var/log/sajumoon_grade.log 2>&1`
+
+**검증**:
+- test (172.235.211.75): `?test=1&month=2026-04` → 25명 처리, 0시간/전원 preliminary 유지 ✅
+- prod (104.64.128.103): 같은 쿼리 → 27명 처리, 동일 결과 ✅
+- 양 서버 빌드 통과 + pm2 reload OK
+
+**운영 액션 (오픈 후)**:
+- 양 서버 crontab 에 매월 1일 0시 5분 KST 등록 필요
+- 등급 변동 리포트 통계는 응답 JSON 의 `summary` 필드에 포함됨 (수동 모니터링)
+
+### 다음: Phase 4 — 상담사 마이페이지 UI
+
+> ⚠️ UI 작업 시 브라우저 검증 필요 (CLAUDE.md 규칙)
+
+1. 상담사 마이페이지에 **등급 카드** 추가
+   - 등급 뱃지 (예비파트너/파트너1~5)
+   - 직전 1개월 누적 시간 + 다음 등급까지 진척바
+   - 현재 단가 표시
+2. **단가 변경 버튼** + 모달
+   - 현재 등급의 옵션 라디오
+   - 더블 컨펌 ("N월부터 30초당 N원으로 적용됩니다. 다음 변경은 N월 1일 가능합니다.")
+3. **락 상태 UI** — 변경 불가 시 다음 가능 일자 표시 + 버튼 비활성
+4. 정산 영역에 등급별 시간당 수익 표 링크

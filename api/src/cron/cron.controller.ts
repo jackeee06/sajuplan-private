@@ -1,6 +1,7 @@
 import { BadRequestException, Controller, Get, Post, Query } from '@nestjs/common';
 import { ResetService } from './reset.service';
 import { SettlementCronService } from './settlement-cron.service';
+import { GradeCronService } from './grade-cron.service';
 
 /**
  * 외부 cron 진입점.
@@ -28,7 +29,36 @@ export class CronController {
   constructor(
     private readonly settlement: SettlementCronService,
     private readonly reset: ResetService,
+    private readonly grade: GradeCronService,
   ) {}
+
+  /**
+   * 매월 1일 등급 재산정.
+   *
+   * 운영 호출:
+   *   GET https://api.sajumoon.kr/api/cron/grade/recalculate
+   *
+   * 옵션:
+   *   ?month=YYYY-MM  특정 월 강제 (직전 1개월 산정 대상). 생략 시 전월.
+   *   ?test=1         dry-run. DB 변경 0.
+   *   ?mb_id=xxx      특정 상담사만 (테스트용).
+   *
+   * crontab 예 (KST 매월 1일 0시 5분):
+   *   5 0 1 * * curl -s 'https://api.sajumoon.kr/api/cron/grade/recalculate' >> /var/log/sajumoon_grade.log 2>&1
+   *
+   * 멱등성: grade_recalculated_at 이 당월 1일 이후면 회원별 skip.
+   */
+  @Get('grade/recalculate')
+  async gradeRecalculate(
+    @Query('month') month?: string,
+    @Query('test') test?: string,
+    @Query('mb_id') mbId?: string,
+  ) {
+    const monthArg = month && /^\d{4}-\d{2}$/.test(month) ? month : undefined;
+    const testOnly = test === '1' || test === 'true';
+    const mbIdArg = mbId && /^[A-Za-z0-9._-]{1,100}$/.test(mbId) ? mbId : undefined;
+    return this.grade.recalculate(monthArg, testOnly, mbIdArg);
+  }
 
   @Get('settlement/monthly')
   async settlementMonthly(
