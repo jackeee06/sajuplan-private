@@ -117,22 +117,52 @@ const NS_FIELDS: Record<Namespace, { title: string; fields: FieldDef[] }> = {
   social: {
     title: '소셜로그인',
     fields: [
-      { key: 'use', label: '소셜로그인 사용', kind: 'bool' },
+      {
+        key: 'use',
+        label: '소셜로그인 전체 사용',
+        kind: 'bool',
+        hint: '꺼두면 모든 소셜로그인 버튼이 사용자 로그인 화면에서 사라집니다.',
+      },
       {
         key: 'service_list',
-        label: '활성 서비스',
+        label: '활성 서비스 선택',
         kind: 'multiselect',
-        hint: '체크된 서비스만 로그인 화면에 노출됩니다.',
+        hint: '체크된 서비스만 로그인 화면에 노출. 미체크 시 키 값을 입력해도 화면에서 안 보임.',
         options: [
           { value: 'naver', label: '네이버' },
           { value: 'kakao', label: '카카오' },
         ],
       },
-      { key: 'naver_client_id', label: 'Naver Client ID', kind: 'text' },
-      { key: 'naver_secret', label: 'Naver Client Secret', kind: 'password' },
-      { key: 'kakao_rest_key', label: 'Kakao REST API Key', kind: 'text' },
-      { key: 'kakao_client_secret', label: 'Kakao Client Secret', kind: 'password' },
-      { key: 'kakao_js_apikey', label: 'Kakao JS API Key (공유)', kind: 'text' },
+      {
+        key: 'naver_client_id',
+        label: '🟢 네이버 Client ID',
+        kind: 'text',
+        hint: '네이버 개발자센터 (developers.naver.com) > 내 애플리케이션 > Application 정보',
+      },
+      {
+        key: 'naver_secret',
+        label: '🟢 네이버 Client Secret',
+        kind: 'password',
+        hint: '네이버 개발자센터 같은 화면 — Client Secret 항목 (보안)',
+      },
+      {
+        key: 'kakao_rest_key',
+        label: '🟡 카카오 REST API Key',
+        kind: 'text',
+        hint: '카카오 디벨로퍼스 (developers.kakao.com) > 내 애플리케이션 > 앱 키 > REST API 키',
+      },
+      {
+        key: 'kakao_client_secret',
+        label: '🟡 카카오 Client Secret',
+        kind: 'password',
+        hint: '카카오 디벨로퍼스 > 카카오 로그인 > 보안 > Client Secret (필요 시 발급)',
+      },
+      {
+        key: 'kakao_js_apikey',
+        label: '🟡 카카오 JS API Key (공유 기능용)',
+        kind: 'text',
+        hint: '카카오 디벨로퍼스 > 내 애플리케이션 > 앱 키 > JavaScript 키. 카톡 공유하기에 사용.',
+      },
     ],
   },
   security: {
