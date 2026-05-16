@@ -126,6 +126,7 @@ export default function Sidebar() {
                     <li><NavLink to="/notices" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>공지사항 관리</NavLink></li>
                     <li><NavLink to="/events" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>이벤트 관리</NavLink></li>
                     <li><NavLink to="/post-reports" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>게시판 신고 관리</NavLink></li>
+                    <li><NavLink to="/posts-overview" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>글·댓글 현황</NavLink></li>
                   </ul>
                 )}
               </li>
