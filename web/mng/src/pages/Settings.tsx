@@ -8,7 +8,11 @@ import { api } from '../lib/api'
 // ───────────────────────────────────────────────
 type SettingsByNs = Record<string, Record<string, string>>
 
-type TabKey = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer' | 'grade' | 'ops' | 'legal'
+// 화면에 노출되는 탭 (4개로 통합 — 2026-05-17)
+type TabKey = 'general' | 'grade' | 'ops' | 'legal'
+// 데이터는 여전히 6개 namespace 로 분리 (DB 호환).
+// 'general' 탭은 아래 6개 namespace 를 섹션으로 묶어서 한 화면에 그리드로 표시.
+type Namespace = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer' | 'grade' | 'ops'
 type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'password' | 'select' | 'multiselect'
 interface FieldDef {
   key: string
@@ -22,7 +26,7 @@ interface FieldDef {
 // ───────────────────────────────────────────────
 // 탭별 필드 정의 (마이그레이션의 setting 시드 키와 1:1)
 // ───────────────────────────────────────────────
-const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
+const NS_FIELDS: Record<Namespace, { title: string; fields: FieldDef[] }> = {
   site: {
     title: '기본환경',
     fields: [
@@ -222,22 +226,19 @@ const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
       },
     ],
   },
-  legal: {
-    // 'legal' 탭은 page 테이블 (terms/privacy) 을 편집하는 특수 탭.
-    // FieldDef 기반이 아닌 커스텀 컴포넌트가 렌더됨 — fields 는 메타 표시용 빈 배열.
-    title: '약관/처리방침',
-    fields: [],
-  },
 }
 
-const TAB_ORDER: TabKey[] = ['site', 'member', 'review', 'social', 'security', 'footer', 'grade', 'ops', 'legal']
+// 'general' 탭에서 한 번에 노출되는 섹션 순서
+const GENERAL_SECTIONS: Namespace[] = ['site', 'member', 'review', 'social', 'security', 'footer']
+
+const TAB_ORDER: TabKey[] = ['general', 'grade', 'ops', 'legal']
 
 // ───────────────────────────────────────────────
 // 페이지
 // ───────────────────────────────────────────────
 export default function Settings() {
   const [data, setData] = useState<SettingsByNs | null>(null)
-  const [tab, setTab] = useState<TabKey>('site')
+  const [tab, setTab] = useState<TabKey>('general')
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -250,7 +251,7 @@ export default function Settings() {
     return () => { alive = false }
   }, [])
 
-  const setField = (ns: TabKey, key: string, value: string) => {
+  const setField = (ns: Namespace, key: string, value: string) => {
     setData((d) => {
       if (!d) return d
       const next = { ...d, [ns]: { ...(d[ns] ?? {}), [key]: value } }
@@ -272,7 +273,13 @@ export default function Settings() {
     }
   }
 
-  const fields = useMemo(() => TAB_FIELDS[tab].fields, [tab])
+  // 탭별 타이틀 — 헤더와 탭 버튼에 사용
+  const TAB_TITLES: Record<TabKey, string> = useMemo(() => ({
+    general: '기본환경',
+    grade: '등급/단가',
+    ops: '운영알림',
+    legal: '약관/처리방침',
+  }), [])
 
   if (!data) {
     return (
@@ -327,7 +334,7 @@ export default function Settings() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
               }`}
             >
-              {TAB_FIELDS[k].title}
+              {TAB_TITLES[k]}
             </button>
           ))}
         </nav>
@@ -341,35 +348,85 @@ export default function Settings() {
           values={data.grade ?? {}}
           onChange={(key, value) => setField('grade', key, value)}
         />
+      ) : tab === 'general' ? (
+        // 6개 namespace 를 섹션 카드로 묶어서 한 화면에 노출
+        <div className="space-y-6">
+          {GENERAL_SECTIONS.map((ns) => (
+            <SettingsSection
+              key={ns}
+              title={NS_FIELDS[ns].title}
+              fields={NS_FIELDS[ns].fields}
+              values={data[ns] ?? {}}
+              onChange={(key, value) => setField(ns, key, value)}
+            />
+          ))}
+        </div>
       ) : (
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
-          <table className="w-full text-sm">
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {fields.map((f) => {
-                const value = data[tab]?.[f.key] ?? ''
-                return (
-                  <tr key={f.key}>
-                    <th className="text-left align-top px-4 py-3 w-56 font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/50">
-                      <label htmlFor={`${tab}-${f.key}`}>{f.label}</label>
-                      {f.hint && (
-                        <div className="text-[11px] text-gray-400 mt-0.5 font-normal">{f.hint}</div>
-                      )}
-                    </th>
-                    <td className="px-4 py-3">
-                      <FieldInput
-                        id={`${tab}-${f.key}`}
-                        def={f}
-                        value={value}
-                        onChange={(v) => setField(tab, f.key, v)}
-                      />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        // ops 등 단일 namespace 탭 — 그리드 레이아웃
+        <SettingsSection
+          title={NS_FIELDS[tab as Namespace].title}
+          fields={NS_FIELDS[tab as Namespace].fields}
+          values={data[tab as Namespace] ?? {}}
+          onChange={(key, value) => setField(tab as Namespace, key, value)}
+          hideHeader
+        />
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 섹션 카드 — 제목 + 그리드 필드 (한 줄에 2개, textarea 는 풀폭)
+// ─────────────────────────────────────────────────────────────────
+
+function SettingsSection({
+  title,
+  fields,
+  values,
+  onChange,
+  hideHeader,
+}: {
+  title: string
+  fields: FieldDef[]
+  values: Record<string, string>
+  onChange: (key: string, value: string) => void
+  hideHeader?: boolean
+}) {
+  return (
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+      {!hideHeader && (
+        <div className="px-4 py-3 border-b bg-gray-50 dark:bg-gray-800/60">
+          <div className="text-sm font-medium text-gray-800 dark:text-gray-100">{title}</div>
         </div>
       )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 p-4">
+        {fields.map((f) => {
+          const value = values[f.key] ?? ''
+          // textarea 와 multiselect 는 풀폭으로
+          const wide = f.kind === 'textarea' || f.kind === 'multiselect'
+          return (
+            <div key={f.key} className={wide ? 'md:col-span-2' : ''}>
+              <label
+                htmlFor={`field-${f.key}`}
+                className="block text-xs font-medium text-gray-700 dark:text-gray-300"
+              >
+                {f.label}
+              </label>
+              {f.hint && (
+                <div className="text-[11px] text-gray-400 mt-0.5 mb-1.5">{f.hint}</div>
+              )}
+              <div className={f.hint ? '' : 'mt-1.5'}>
+                <FieldInput
+                  id={`field-${f.key}`}
+                  def={f}
+                  value={value}
+                  onChange={(v) => onChange(f.key, v)}
+                />
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
