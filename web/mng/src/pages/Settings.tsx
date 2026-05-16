@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Save } from 'lucide-react'
 import { api } from '../lib/api'
 
@@ -846,7 +847,7 @@ function LegalEditor() {
 
       <div className="p-3 rounded-lg bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300 text-xs">
         ℹ 여기서는 제목 + 본문만 편집합니다. HTML 모드 / 모바일 본문 분리 / 활성화 토글 등 부가 기능은{' '}
-        <a href="/contents" className="underline font-medium">내용 관리 페이지</a> 에서 사용하세요.
+        <Link to="/contents" className="underline font-medium">내용 관리 페이지</Link> 에서 사용하세요.
         {savedAt && (
           <span className="ml-2 text-emerald-700 dark:text-emerald-300">
             · 마지막 저장: {savedAt.toLocaleTimeString('ko-KR')}
