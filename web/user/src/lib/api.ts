@@ -719,6 +719,42 @@ export const counselorMypageApi = {
 }
 
 // ─────────────────────────────────────────────
+// 상담사 마이페이지 — 등급/단가 (Phase 4)
+// ─────────────────────────────────────────────
+
+export type CounselorGrade =
+  | 'preliminary' | 'partner1' | 'partner2' | 'partner3' | 'partner4' | 'partner5'
+
+export interface MyGradeInfo {
+  grade: CounselorGrade
+  grade_label: string
+  last_month_seconds: number
+  current_unit_cost: number
+  available_options: number[]
+  changeable_at: string | null
+  next_change_date_kst: string | null
+  can_change_now: boolean
+  days_until_unlock: number | null
+}
+
+export interface UnitCostChangeResult {
+  ok: true
+  new_unit_cost: number
+  next_changeable_at: string
+}
+
+export const counselorGradeApi = {
+  /** 내 등급/단가/락 상태 */
+  getMine: () => api.get<MyGradeInfo>('/user/counselor-mypage/grade'),
+  /** 단가 변경 — body.unit_cost: 30초당 원 (정책 옵션 중 하나) */
+  changeUnitCost: (unitCost: number, reason?: string) =>
+    api.post<UnitCostChangeResult>('/user/counselor-mypage/grade/unit-cost', {
+      unit_cost: unitCost,
+      reason,
+    }),
+}
+
+// ─────────────────────────────────────────────
 // 상담사 마이페이지 — 후기 관리
 // ─────────────────────────────────────────────
 

@@ -541,16 +541,48 @@ CREATE TABLE setting_history (
 - 양 서버 crontab 에 매월 1일 0시 5분 KST 등록 필요
 - 등급 변동 리포트 통계는 응답 JSON 의 `summary` 필드에 포함됨 (수동 모니터링)
 
-### 다음: Phase 4 — 상담사 마이페이지 UI
+### 2026-05-16 — Phase 4 완료 ✅ (상담사 마이페이지 UI)
 
-> ⚠️ UI 작업 시 브라우저 검증 필요 (CLAUDE.md 규칙)
+**API 클라이언트** [web/user/src/lib/api.ts](web/user/src/lib/api.ts):
+- `counselorGradeApi.getMine()` / `changeUnitCost()`
+- `MyGradeInfo`, `CounselorGrade` 타입 export
 
-1. 상담사 마이페이지에 **등급 카드** 추가
-   - 등급 뱃지 (예비파트너/파트너1~5)
-   - 직전 1개월 누적 시간 + 다음 등급까지 진척바
-   - 현재 단가 표시
-2. **단가 변경 버튼** + 모달
-   - 현재 등급의 옵션 라디오
-   - 더블 컨펌 ("N월부터 30초당 N원으로 적용됩니다. 다음 변경은 N월 1일 가능합니다.")
-3. **락 상태 UI** — 변경 불가 시 다음 가능 일자 표시 + 버튼 비활성
-4. 정산 영역에 등급별 시간당 수익 표 링크
+**컴포넌트** [web/user/src/components/UnitCostChangeModal.tsx](web/user/src/components/UnitCostChangeModal.tsx):
+- 2단계 모달 (select → confirm)
+- 옵션 라디오 (현재 단가 뱃지 + 시간당 환산)
+- 더블 컨펌 단계: "30초당 N원, 즉시 적용, 다음 변경 N월 1일"
+- 에러 메시지 표시 (락/정책 외 단가 등 서버 에러)
+- 디자인 토큰: `#F3EEFE` 활성 / `#9B7AF7` primary / 모바일 600px max-w
+
+**페이지 통합** [web/user/src/pages/CounselorMyPage.tsx](web/user/src/pages/CounselorMyPage.tsx):
+- 마운트 시 `counselorGradeApi.getMine()` 호출
+- 정산 카드 아래 **등급 카드** 추가:
+  - 등급 뱃지 (예비파트너/파트너1~5)
+  - `NextGradeProgress` 컴포넌트 — 직전 1개월 시간 + 다음 등급까지 잔여 + 진척바
+  - 현재 단가 + 변경 버튼
+  - 락 상태: 버튼 비활성 + "다음 변경 가능: YYYY-MM-DD"
+- 모달 통합 + 성공 시 `getMine()` 재호출로 UI 갱신
+
+**배포**:
+- vite build (1722 modules, 9.39s)
+- test ✅ (172.235.211.75 / sajumoon.kr) — 3 files synced
+- prod ✅ (104.64.128.103 / sajumoon.co.kr) — 3 files synced
+
+**검증 필요 (사용자)**:
+1. 상담사 로그인 → 마이페이지 → 등급 카드 렌더 확인
+2. "변경" 버튼 클릭 → 옵션 라디오 → 더블 컨펌 → 단가 변경 확인
+3. 변경 직후 버튼 비활성 + "다음 변경 가능: 2026-06-01" 표시 확인
+4. 재로그인/새로고침 후 상태 유지 확인
+
+### 다음: Phase 5 — 어드민 UI + 정산 모듈 grade 전환
+
+1. 어드민 정책 페이지 4종
+   - `/mng/policy/grade` (임계값 5단계)
+   - `/mng/policy/unit-cost` (등급별 옵션 콤마)
+   - `/mng/policy/lock` (락 정책 토글)
+   - `/mng/policy/revenue` (정산률 6등급)
+2. 회원 상세 (`/mng/members/[id]`) 에 등급/이력 섹션
+3. 크론 로그 페이지 `/mng/grade-recalc-log` (선택)
+4. **정산 모듈 grade 기반 전환** ([settlement-cron.service.ts](api/src/cron/settlement-cron.service.ts))
+   - 기존 `free_royalty_pct` / `paid_royalty_pct` → `setting.revenue_rate.<grade>` 조회로 교체
+   - `consultation.unit_cost_snapshot` 활용 안전망

@@ -9,8 +9,15 @@ import {
   COUNSELOR_MAIN_MENU,
 } from '../data/counselorMyPage'
 import { useAuth } from '../lib/auth-context'
-import { counselorMypageApi, settlementApi, type SettlementSummary } from '../lib/api'
+import {
+  counselorMypageApi,
+  counselorGradeApi,
+  settlementApi,
+  type SettlementSummary,
+  type MyGradeInfo,
+} from '../lib/api'
 import { FILE_BASE } from '../lib/runtime-env'
+import UnitCostChangeModal from '../components/UnitCostChangeModal'
 
 function resolveImageUrl(u: string | null): string | null {
   if (!u) return null
@@ -41,6 +48,8 @@ export default function CounselorMyPage() {
   const [logoutOpen, setLogoutOpen] = useState(false)
   const [toggleBusy, setToggleBusy] = useState(false)
   const [settlement, setSettlement] = useState<SettlementSummary | null>(null)
+  const [grade, setGrade] = useState<MyGradeInfo | null>(null)
+  const [costModalOpen, setCostModalOpen] = useState(false)
 
   // 진입 시 실제 토글 값 + 정산 요약을 동시에 로드.
   //  - 토글: member.use_phone/use_chat
@@ -70,6 +79,13 @@ export default function CounselorMyPage() {
         .catch(() => { /* 정산 요약 실패해도 페이지는 동작 */ })
     }
     refreshSettlement()
+
+    const refreshGrade = () => {
+      counselorGradeApi.getMine()
+        .then((g) => { if (!cancelled) setGrade(g) })
+        .catch(() => { /* 등급 정보 실패해도 페이지는 동작 */ })
+    }
+    refreshGrade()
     const pollId = window.setInterval(refreshSettlement, 30_000)
     const onVisible = () => {
       if (document.visibilityState === 'visible') refreshSettlement()
@@ -251,6 +267,51 @@ export default function CounselorMyPage() {
           </div>
         </section>
 
+        {/* 등급 / 단가 (Phase 4) */}
+        {grade && (
+          <section className="mt-3 rounded-[16px] bg-white border border-[#F3F4F6] p-5">
+            <div className="flex items-center gap-2">
+              <span className="text-[14px] text-[#6A7282] leading-[140%]">내 등급</span>
+              <span className="px-2.5 py-1 rounded-full bg-[#F3EEFE] text-[13px] font-semibold text-[#8259F5] leading-none">
+                {grade.grade_label}
+              </span>
+            </div>
+
+            {/* 다음 등급까지 진척바 — partner5 면 만렙 표시 */}
+            <NextGradeProgress
+              grade={grade.grade}
+              seconds={grade.last_month_seconds}
+            />
+
+            <div className="mt-4 pt-4 border-t border-[#F3F4F6]">
+              <div className="flex items-end justify-between">
+                <div>
+                  <p className="text-[14px] text-[#6A7282] leading-[140%]">현재 단가</p>
+                  <p className="mt-0.5 text-[22px] leading-[130%] font-bold text-[#1E2939]">
+                    {grade.current_unit_cost > 0
+                      ? `${grade.current_unit_cost.toLocaleString()}원`
+                      : '미설정'}
+                    <span className="ml-1 text-[13px] font-medium text-[#6A7282]">/ 30초</span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={!grade.can_change_now}
+                  onClick={() => setCostModalOpen(true)}
+                  className="h-9 px-4 rounded-full bg-[#9B7AF7] text-[13px] font-semibold text-white disabled:bg-[#F3F4F6] disabled:text-[#9CA3AF]"
+                >
+                  변경
+                </button>
+              </div>
+              {!grade.can_change_now && grade.next_change_date_kst && (
+                <p className="mt-2 text-[12px] text-[#9CA3AF] leading-[140%]">
+                  다음 변경 가능: {grade.next_change_date_kst}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* 상담 상태 */}
         <section className="pt-6">
           <h3 className="text-[14px] leading-[140%] text-[#99A1AF] mb-1">내 상담 상태 설정</h3>
@@ -313,6 +374,83 @@ export default function CounselorMyPage() {
         onCancel={() => setLogoutOpen(false)}
         onConfirm={handleLogout}
       />
+
+      <UnitCostChangeModal
+        open={costModalOpen}
+        info={grade}
+        onClose={() => setCostModalOpen(false)}
+        onSuccess={() => {
+          setCostModalOpen(false)
+          counselorGradeApi.getMine().then(setGrade).catch(() => {})
+        }}
+      />
+    </div>
+  )
+}
+
+/**
+ * 다음 등급까지 진척바.
+ * 임계값 하드코딩 (시드 정책과 동일):
+ *   partner1=20h, partner2=40h, partner3=70h, partner4=90h, partner5=120h
+ * 어드민에서 임계값 바뀌면 이 컴포넌트도 같이 수정 필요 (서버에서 받아오는 방식 고려).
+ */
+function NextGradeProgress({
+  grade,
+  seconds,
+}: {
+  grade: string
+  seconds: number
+}) {
+  const thresholds: Record<string, { next: string | null; nextHours: number | null; baseHours: number }> = {
+    preliminary: { next: '파트너1', nextHours: 20, baseHours: 0 },
+    partner1:    { next: '파트너2', nextHours: 40, baseHours: 20 },
+    partner2:    { next: '파트너3', nextHours: 70, baseHours: 40 },
+    partner3:    { next: '파트너4', nextHours: 90, baseHours: 70 },
+    partner4:    { next: '파트너5', nextHours: 120, baseHours: 90 },
+    partner5:    { next: null, nextHours: null, baseHours: 120 },
+  }
+  const info = thresholds[grade] ?? thresholds.preliminary
+  const hours = seconds / 3600
+
+  if (!info.next || info.nextHours == null) {
+    return (
+      <div className="mt-3">
+        <p className="text-[12px] text-[#6A7282] leading-[140%]">
+          최고 등급 · 직전 1개월 누적{' '}
+          <span className="font-semibold text-[#8259F5] tabular-nums">
+            {hours.toFixed(1)}시간
+          </span>
+        </p>
+      </div>
+    )
+  }
+
+  const pct = Math.min(
+    100,
+    Math.max(0, ((hours - info.baseHours) / (info.nextHours - info.baseHours)) * 100),
+  )
+  const remaining = Math.max(0, info.nextHours - hours)
+
+  return (
+    <div className="mt-3">
+      <div className="flex items-center justify-between text-[12px] text-[#6A7282] leading-[140%]">
+        <span>
+          직전 1개월{' '}
+          <span className="font-semibold text-[#8259F5] tabular-nums">
+            {hours.toFixed(1)}h
+          </span>
+        </span>
+        <span>
+          {info.next}까지{' '}
+          <span className="font-semibold tabular-nums">{remaining.toFixed(1)}h</span>
+        </span>
+      </div>
+      <div className="mt-1.5 h-1.5 rounded-full bg-[#F3F4F6] overflow-hidden">
+        <div
+          className="h-full bg-[#9B7AF7] transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   )
 }
