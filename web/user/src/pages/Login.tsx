@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
-import { ApiError, authApi } from '../lib/api'
+import { ApiError, attendanceApi, authApi } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 
 type SocialProvider = 'kakao' | 'naver' | 'apple'
@@ -185,6 +185,22 @@ export default function Login() {
       const r = await authApi.login(id, password, keepLogin)
       // AuthContext 갱신 → 다른 페이지에서 즉시 로그인 상태 인식
       await refresh()
+
+      // 출석체크 (2026-05-16) — 로그인 직후 자동 처리. 실패해도 로그인은 성공으로 본다.
+      // 결과는 sessionStorage 로 다음 화면에 전달 → 토스트/모달 노출.
+      try {
+        const att = await attendanceApi.checkin()
+        if (att.attended_now && att.total_added > 0) {
+          sessionStorage.setItem('attendance.justChecked', JSON.stringify({
+            consecutive_days: att.consecutive_days,
+            base_coin: att.base_coin,
+            bonus_coin: att.bonus_coin,
+            coupon_amount: att.coupon_amount,
+            total_added: att.total_added,
+          }))
+        }
+      } catch { /* 출석 실패는 로그인 흐름 막지 않음 */ }
+
       // 명시적 redirect 가 있으면 그 경로 (예: ?redirect=/charge), 없으면 role 기반 분기
       const target = redirect && redirect !== '/' ? redirect : (r.member.role === 'counselor' ? '/counselor/mypage' : '/')
       navigate(target, { replace: true })

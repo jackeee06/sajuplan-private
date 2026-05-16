@@ -326,7 +326,7 @@ function BottomFixedBar({
         className="flex-1 h-10 rounded-full bg-[#9B7AF7] flex items-center justify-center gap-1 text-white text-[14px] font-medium"
       >
         <img src="/img/ic_phone_solid_w.svg" alt="" className="w-4 h-4" />
-        상담하기
+        전화상담
       </button>
       <button
         type="button"
@@ -334,7 +334,7 @@ function BottomFixedBar({
         className="flex-1 h-10 rounded-full bg-[#9B7AF7] flex items-center justify-center gap-1 text-white text-[14px] font-medium"
       >
         <img src="/img/ic_message_circle_solid_w.svg" alt="" className="w-4 h-4" />
-        상담하기
+        채팅상담
       </button>
     </div>
   )

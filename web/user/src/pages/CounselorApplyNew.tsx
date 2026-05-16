@@ -160,7 +160,6 @@ export default function CounselorApplyNew() {
 
   const [submitOpen, setSubmitOpen] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
-  const [toastOpen, setToastOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
@@ -180,6 +179,10 @@ export default function CounselorApplyNew() {
   }
   useEffect(() => {
     void refreshCaptcha()
+    // 페이지 진입 시 무조건 최상단에서 시작 — 브라우저 scroll restoration 이
+    // 이전 방문 시 스크롤 위치(예: 이메일 필드 근처)를 기억해서 중간에서 시작하는
+    // 현상 방지. CounselorApplyNew 는 폼이 길어서 첫 화면이 가장 중요함.
+    window.scrollTo(0, 0)
   }, [])
 
   // 휴대폰 인증 타이머
@@ -321,33 +324,69 @@ export default function CounselorApplyNew() {
     }
   }
 
+  // 2026-05-16: 신청 종류 매핑 — 한글 라벨 ↔ 백엔드 키
+  const APPLY_TYPE_MAP: Record<string, 'application' | 'inquiry' | 'other'> = {
+    '상담사 지원': 'application',
+    '상담사 문의': 'inquiry',
+    '기타 문의': 'other',
+  }
+  const applyType = APPLY_TYPE_MAP[status] ?? 'application'
+  const isFullForm = applyType === 'application'
+
+  // 누락 필드 자동 스크롤 + 빨간 깜빡 — 사용자가 "어디가 빠졌는지" 바로 알게.
+  // CSS keyframe 'pulseError' 는 design.css 또는 index.css 에 정의되어 있어야 함.
+  const flashField = (fieldId: string, msg: string) => {
+    setErrorMsg(msg)
+    // 다음 페인트 이후 스크롤/하이라이트 — state 반영 후 DOM 안정화 보장
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`field-${fieldId}`)
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('field-error-flash')
+      window.setTimeout(() => el.classList.remove('field-error-flash'), 2200)
+    })
+  }
+
   const handleSubmitClick = () => {
     setErrorMsg(null)
-    if (!status) return setErrorMsg('신청상태를 선택해주세요.')
-    if (!title.trim()) return setErrorMsg('제목을 입력해주세요.')
-    if (!accountId.trim()) return setErrorMsg('아이디를 입력해주세요.')
-    if (!/^[a-zA-Z0-9_]{4,20}$/.test(accountId.trim())) {
-      return setErrorMsg('아이디는 영문/숫자/언더스코어 4~20자여야 합니다.')
+    if (!status) return flashField('status', '신청상태를 선택해주세요.')
+    if (!title.trim()) return flashField('title', '제목을 입력해주세요.')
+
+    if (isFullForm) {
+      // ── 상담사 지원: 풀폼 필수 검증 ──
+      if (!accountId.trim()) return flashField('accountId', '아이디를 입력해주세요.')
+      if (!/^[a-zA-Z0-9_]{4,20}$/.test(accountId.trim())) {
+        return flashField('accountId', '아이디는 영문/숫자/언더스코어 4~20자여야 합니다.')
+      }
+      if (accountIdStatus && !accountIdStatus.available) {
+        return flashField('accountId', accountIdStatus.reason ?? '사용할 수 없는 아이디입니다.')
+      }
+      if (accountPw.length < 6) return flashField('accountPw', '비밀번호는 6자 이상 입력해주세요.')
+      if (accountPw !== accountPwConfirm) return flashField('accountPw', '비밀번호가 일치하지 않습니다.')
+      if (!name.trim()) return flashField('name', '이름을 입력해주세요.')
+      if (!penName.trim()) return flashField('penName', '예명을 입력해주세요.')
+      if (!region) return flashField('region', '지역을 선택해주세요.')
+      if (!phoneVerified) return flashField('phone', '휴대폰 인증을 완료해주세요.')
+      if (!field) return flashField('counselField', '상담분야를 선택해주세요.')
+      if (!birth.trim()) return flashField('birth', '생년월일을 입력해주세요.')
+      if (specialties.length === 0) return flashField('specialties', '전문 상담분야를 1개 이상 선택해주세요.')
+      if (!profilePhoto) return flashField('profilePhoto', '프로필 사진을 등록해주세요.')
+      const introHtml = (introEditorRef.current?.getHTML() ?? intro).trim()
+      if (!introHtml || introHtml === '<p><br></p>') {
+        return flashField('intro', '본인 소개를 입력해주세요.')
+      }
+      setIntro(introHtml)
+    } else {
+      // ── 문의 (inquiry/other): 간단 폼 필수 검증 ──
+      if (!name.trim()) return flashField('name', '이름을 입력해주세요.')
+      if (!phoneVerified) return flashField('phone', '휴대폰 인증을 완료해주세요.')
+      const introHtml = (introEditorRef.current?.getHTML() ?? intro).trim()
+      if (!introHtml || introHtml === '<p><br></p>') {
+        return flashField('intro', '문의 내용을 입력해주세요.')
+      }
+      setIntro(introHtml)
     }
-    if (accountIdStatus && !accountIdStatus.available) {
-      return setErrorMsg(accountIdStatus.reason ?? '사용할 수 없는 아이디입니다.')
-    }
-    if (accountPw.length < 6) return setErrorMsg('비밀번호는 6자 이상 입력해주세요.')
-    if (accountPw !== accountPwConfirm) return setErrorMsg('비밀번호가 일치하지 않습니다.')
-    if (!name.trim()) return setErrorMsg('이름을 입력해주세요.')
-    if (!penName.trim()) return setErrorMsg('예명을 입력해주세요.')
-    if (!region) return setErrorMsg('지역을 선택해주세요.')
-    if (!phoneVerified) return setErrorMsg('휴대폰 인증을 완료해주세요.')
-    if (!field) return setErrorMsg('상담분야를 선택해주세요.')
-    if (!birth.trim()) return setErrorMsg('생년월일을 입력해주세요.')
-    if (specialties.length === 0) return setErrorMsg('전문 상담분야를 1개 이상 선택해주세요.')
-    if (!profilePhoto) return setErrorMsg('프로필 사진을 등록해주세요.')
-    const introHtml = (introEditorRef.current?.getHTML() ?? intro).trim()
-    if (!introHtml || introHtml === '<p><br></p>') {
-      return setErrorMsg('본인 소개를 입력해주세요.')
-    }
-    setIntro(introHtml)
-    if (!captchaInput.trim()) return setErrorMsg('자동등록방지 문자를 입력해주세요.')
+    if (!captchaInput.trim()) return flashField('captcha', '자동등록방지 문자를 입력해주세요.')
     setSubmitOpen(true)
   }
 
@@ -357,7 +396,8 @@ export default function CounselorApplyNew() {
     setErrorMsg(null)
     try {
       const introHtml = (introEditorRef.current?.getHTML() ?? intro).trim()
-      await counselorApplyApi.create({
+      const basePayload = {
+        apply_type: applyType,
         title: title.trim(),
         content: introHtml,
         applicant_phone: phone.replace(/[^0-9]/g, ''),
@@ -365,28 +405,42 @@ export default function CounselorApplyNew() {
         is_secret: true,
         captcha_token: captchaToken,
         captcha_input: captchaInput.trim(),
-        mb_id: accountId.trim(),
-        password: accountPw,
-        extras: {
-          status,
-          real_name: name.trim(),
-          pen_name: penName.trim(),
-          region,
-          field,
-          birth: birth.trim(),
-          specialties,
-          intro: introHtml,
-          profile_photo_url: profilePhoto,
-          profile_photo_url_webp: profilePhotoWebp,
-          contract_files: contractFiles,
-        },
+      }
+      // 지원/문의 분기 — 풀폼만 계정/사진/분야 등 전체 전송
+      if (isFullForm) {
+        await counselorApplyApi.create({
+          ...basePayload,
+          mb_id: accountId.trim(),
+          password: accountPw,
+          extras: {
+            status,
+            real_name: name.trim(),
+            pen_name: penName.trim(),
+            region,
+            field,
+            birth: birth.trim(),
+            specialties,
+            intro: introHtml,
+            profile_photo_url: profilePhoto,
+            profile_photo_url_webp: profilePhotoWebp,
+            contract_files: contractFiles,
+          },
+        })
+      } else {
+        await counselorApplyApi.create({
+          ...basePayload,
+          extras: {
+            status,
+            real_name: name.trim(),
+          },
+        })
+      }
+      // 토스트 대신 전용 완료 페이지로 이동 — 다음 단계 (관리자 검토/SMS/로그인) 안내.
+      // applyType 을 state 로 전달해서 application/inquiry/other 별 문구 분기.
+      navigate('/mypage/counselor-apply/done', {
+        state: { applyType },
+        replace: true,
       })
-      setToastOpen(true)
-      setTimeout(() => {
-        setToastOpen(false)
-        // 로그인 회원은 본인 신청 내역 페이지로, 비회원은 홈으로 이동
-        navigate(isLoggedIn ? '/mypage/counselor-apply' : '/')
-      }, 1400)
     } catch (e) {
       // 캡차 실패면 자동 새로고침
       if (e instanceof ApiError && /캡차|자동등록방지/.test(e.message)) {
@@ -413,14 +467,6 @@ export default function CounselorApplyNew() {
         </h1>
       </header>
 
-      {toastOpen && (
-        <div className="fixed top-[68px] left-1/2 -translate-x-1/2 z-50 max-w-[400px] w-[calc(100%-32px)] mx-auto pointer-events-none">
-          <div className="mx-auto inline-block bg-[#1E2939] text-white text-[14px] leading-[140%] px-4 py-2.5 rounded-[10px] shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
-            상담사 신청이 완료되었습니다.
-          </div>
-        </div>
-      )}
-
       <main className="flex-1 px-4 pt-2">
         <div className="rounded-[12px] bg-[#F3EEFE] px-3 py-2.5 flex items-center gap-2">
           <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" fill="none" aria-hidden>
@@ -433,18 +479,49 @@ export default function CounselorApplyNew() {
         </div>
 
         <div className="mt-5 space-y-4">
-          <Field label="신청상태" required>
-            <SimpleSelect value={status} options={APPLY_STATUS_OPTIONS} placeholder="문의 종류 선택" onChange={setStatus} />
-          </Field>
-          <Field label="제목" required>
-            <TextInput value={title} onChange={setTitle} placeholder="제목을 입력해주세요." />
-          </Field>
+          <div id="field-status">
+            <Field label="신청상태" required>
+              {/* 2026-05-16: select → 토글 버튼 그룹 (한눈에 옵션 다 보임) */}
+              <div className="flex gap-2 flex-wrap">
+                {APPLY_STATUS_OPTIONS.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => setStatus(opt)}
+                    className={`flex-1 min-w-[100px] px-3 py-2.5 rounded-full text-[14px] font-medium border transition ${
+                      status === opt
+                        ? 'bg-[#9B7AF7] text-white border-[#9B7AF7]'
+                        : 'bg-white text-[#4A5565] border-[#E5E7EB] hover:border-[#9B7AF7]'
+                    }`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </Field>
+          </div>
+          <div id="field-title">
+            <Field label="제목" required>
+              <TextInput value={title} onChange={setTitle} placeholder="제목을 입력해주세요." />
+            </Field>
+          </div>
 
-          {/* 계정 정보 — 승인 후 그대로 로그인용으로 사용됨 */}
-          <div className="rounded-[12px] border border-[#E5E7EB] bg-white px-4 py-4 space-y-3">
+          {/* 계정 정보 — 승인 후 그대로 로그인용으로 사용됨 (상담사 지원에서만) */}
+          {isFullForm && (
+          <div id="field-accountId" className="rounded-[12px] border border-[#E5E7EB] bg-white px-4 py-4 space-y-3">
             <p className="text-[13px] font-semibold text-[#030712]">
-              계정 정보 <span className="text-[12px] font-normal text-[#99A1AF]">— 승인 후 이 정보로 상담사 로그인</span>
+              계정 정보 <span className="text-[#FF6467] ml-0.5">*</span>
             </p>
+            <div className="rounded-[10px] bg-[#FFF8E1] border border-[#FFE08A] px-3 py-2.5 flex items-start gap-2">
+              <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] shrink-0 mt-0.5" fill="none" aria-hidden>
+                <circle cx="12" cy="12" r="9.5" stroke="#B45309" strokeWidth="1.6" />
+                <path d="M12 7.5V13" stroke="#B45309" strokeWidth="1.8" strokeLinecap="round" />
+                <circle cx="12" cy="16.5" r="1.1" fill="#B45309" />
+              </svg>
+              <p className="text-[12.5px] leading-[150%] text-[#92591F]">
+                <span className="font-semibold">상담사 신규 가입 단계입니다.</span> 관리자가 지원을 승인하면, 아래에서 정한 아이디·비밀번호로 상담사 로그인을 하시게 됩니다. <span className="font-medium">기존 회원 아이디가 아닌 새로 정한 아이디</span>를 입력해주세요.
+              </p>
+            </div>
             <div>
               <label className="block text-[13px] leading-[140%] font-medium text-[#030712] mb-1.5">
                 아이디<span className="text-[#FF6467] ml-0.5">*</span>
@@ -503,18 +580,30 @@ export default function CounselorApplyNew() {
               )}
             </div>
           </div>
+          )}
 
-          <Field label="이름" required>
-            <TextInput value={name} onChange={setName} placeholder="이름을 입력해주세요." />
-          </Field>
-          <Field label="예명" required>
-            <TextInput value={penName} onChange={setPenName} placeholder="예명을 입력해주세요." />
-          </Field>
-          <Field label="지역" required>
-            <SimpleSelect value={region} options={APPLY_REGION_OPTIONS} placeholder="지역 선택" onChange={setRegion} />
-          </Field>
+          <div id="field-name">
+            <Field label="이름" required>
+              <TextInput value={name} onChange={setName} placeholder="이름을 입력해주세요." />
+            </Field>
+          </div>
+          {isFullForm && (
+            <>
+              <div id="field-penName">
+                <Field label="예명" required>
+                  <TextInput value={penName} onChange={setPenName} placeholder="예명을 입력해주세요." />
+                </Field>
+              </div>
+              <div id="field-region">
+                <Field label="지역" required>
+                  <SimpleSelect value={region} options={APPLY_REGION_OPTIONS} placeholder="지역 선택" onChange={setRegion} />
+                </Field>
+              </div>
+            </>
+          )}
 
           {/* 휴대폰 + 인증번호 */}
+          <div id="field-phone">
           <Field label="휴대폰번호" required>
             <div className="flex gap-2">
               <input
@@ -559,122 +648,169 @@ export default function CounselorApplyNew() {
               </p>
             )}
             {phoneSent && !phoneVerified && (
-              <div className="mt-2 flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={phoneCode}
-                    onChange={(e) => setPhoneCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
-                    placeholder="인증번호 입력"
-                    className="w-full h-[48px] px-4 pr-14 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] text-[#1E2939] focus:outline-none"
-                  />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-[#FB2C36]">
-                    {phoneTimerLabel}
-                  </span>
+              <>
+                <div className="mt-2 flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={phoneCode}
+                      onChange={(e) => setPhoneCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 6))}
+                      placeholder="인증번호 입력"
+                      className="w-full h-[48px] px-4 pr-14 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] text-[#1E2939] focus:outline-none"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[13px] text-[#FB2C36]">
+                      {phoneTimerLabel}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleVerifyCode}
+                    disabled={phoneVerifying || phoneTimer === 0}
+                    className={`shrink-0 h-[48px] px-4 rounded-full text-[14px] font-medium ${
+                      phoneVerifying || phoneTimer === 0
+                        ? 'bg-[#D1D5DB] text-white'
+                        : 'bg-[#9B7AF7] text-white'
+                    }`}
+                  >
+                    확인
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleVerifyCode}
-                  disabled={phoneVerifying || phoneTimer === 0}
-                  className={`shrink-0 h-[48px] px-4 rounded-full text-[14px] font-medium ${
-                    phoneVerifying || phoneTimer === 0
-                      ? 'bg-[#D1D5DB] text-white'
-                      : 'bg-[#9B7AF7] text-white'
-                  }`}
-                >
-                  확인
-                </button>
-              </div>
+                <p className="mt-1.5 text-[12.5px] leading-[150%] text-[#FB2C36] font-medium flex items-center gap-1">
+                  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 shrink-0" fill="none" aria-hidden>
+                    <circle cx="8" cy="8" r="6.5" stroke="#FB2C36" strokeWidth="1.4"/>
+                    <path d="M8 5V8.5" stroke="#FB2C36" strokeWidth="1.6" strokeLinecap="round"/>
+                    <circle cx="8" cy="11" r="0.8" fill="#FB2C36"/>
+                  </svg>
+                  인증번호 입력 후 <span className="underline underline-offset-2">[확인]</span> 버튼을 꼭 눌러주세요.
+                </p>
+              </>
             )}
             {phoneVerified && (
               <p className="mt-1.5 text-[13px] text-[#10B981]">✓ 휴대폰 인증이 완료되었습니다.</p>
             )}
           </Field>
+          </div>
 
           <Field label="이메일">
             <TextInput value={email} onChange={setEmail} placeholder="이메일 주소를 입력해주세요." />
           </Field>
-          <Field label="상담분야" required>
-            <SimpleSelect value={field} options={APPLY_FIELD_OPTIONS} placeholder="상담분야 선택" onChange={setField} />
-          </Field>
-          <Field label="생년월일" required>
-            <TextInput value={birth} onChange={setBirth} placeholder="YYYY-MM-DD" />
-          </Field>
-
-          <div>
-            <p className="text-[14px] leading-[140%] font-semibold text-[#030712] mb-2">
-              전문 상담분야<span className="text-[#FF6467] ml-0.5">*</span>
-            </p>
-            <ul className="grid grid-cols-3 gap-2">
-              {APPLY_SPECIALTY_OPTIONS.map((s) => {
-                const active = specialties.includes(s)
-                return (
-                  <li key={s}>
+          {isFullForm && (
+            <>
+              <div id="field-counselField">
+              <Field label="상담분야" required>
+                <div className="flex gap-2 flex-wrap">
+                  {APPLY_FIELD_OPTIONS.map((opt) => (
                     <button
+                      key={opt}
                       type="button"
-                      onClick={() => toggleSpecialty(s)}
-                      className={
-                        active
-                          ? 'w-full h-[40px] rounded-full bg-[#9B7AF7] text-white text-[14px] font-medium'
-                          : 'w-full h-[40px] rounded-full border border-[#E5E7EB] bg-white text-[#6A7282] text-[14px] font-medium'
-                      }
+                      onClick={() => setField(opt)}
+                      className={`flex-1 min-w-[80px] px-3 py-2.5 rounded-full text-[14px] font-medium border transition ${
+                        field === opt
+                          ? 'bg-[#9B7AF7] text-white border-[#9B7AF7]'
+                          : 'bg-white text-[#4A5565] border-[#E5E7EB] hover:border-[#9B7AF7]'
+                      }`}
                     >
-                      {s}
+                      {opt}
                     </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
+                  ))}
+                </div>
+              </Field>
+              </div>
+              <div id="field-birth">
+                <Field label="생년월일" required>
+                  <TextInput value={birth} onChange={setBirth} placeholder="YYYY-MM-DD" />
+                </Field>
+              </div>
 
-          {/* 프로필 사진 — 관리자 페이지와 동일 (정사각 200×200, JPG/PNG/GIF/WEBP) */}
-          <FileUploadField
-            label="프로필 사진"
-            required
-            hint="JPG/PNG/GIF/WEBP · 30MB 이하 · 권장 사이즈 200×200 (정사각 인물)"
-            inputRef={profileFileRef}
-            accept="image/jpeg,image/png,image/gif,image/webp"
-            uploading={uploading === 'profile'}
-            currentFileName={profilePhoto ? extractFileName(profilePhoto) : null}
-            onPick={(f) => handleUpload('profile', f)}
-            onRemove={() => {
-              setProfilePhoto(null)
-              setProfilePhotoWebp(null)
-            }}
-            preview={
-              profilePhoto ? (
-                <UploadedImage
-                  src={profilePhoto}
-                  srcWebp={profilePhotoWebp}
-                  alt="프로필 미리보기"
-                  className="block"
-                  style={{ width: 200, height: 200, objectFit: 'cover' }}
-                />
-              ) : null
-            }
-          />
+              <div id="field-specialties">
+                <p className="text-[14px] leading-[140%] font-semibold text-[#030712] mb-2">
+                  전문 상담분야<span className="text-[#FF6467] ml-0.5">*</span>
+                </p>
+                <ul className="grid grid-cols-3 gap-2">
+                  {APPLY_SPECIALTY_OPTIONS.map((s) => {
+                    const active = specialties.includes(s)
+                    return (
+                      <li key={s}>
+                        <button
+                          type="button"
+                          onClick={() => toggleSpecialty(s)}
+                          className={
+                            active
+                              ? 'w-full h-[40px] rounded-full bg-[#9B7AF7] text-white text-[14px] font-medium'
+                              : 'w-full h-[40px] rounded-full border border-[#E5E7EB] bg-white text-[#6A7282] text-[14px] font-medium'
+                          }
+                        >
+                          {s}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
 
-          {/* 사업자 / 계약 관련 파일 — PDF 또는 이미지, 여러 장 */}
-          <ContractUploadField
-            label="사업자 / 계약 관련 파일"
-            hint="PDF/JPG/PNG/WEBP · 각 30MB 이하 · 여러 장 가능 (사업자등록증, 신분증, 계약서 등)"
-            inputRef={contractFileRef}
-            uploading={uploading === 'contract'}
-            files={contractFiles}
-            onPick={(f) => handleUpload('contract', f)}
-            onRemove={(idx) =>
-              setContractFiles((prev) => prev.filter((_, i) => i !== idx))
-            }
-          />
+              {/* 프로필 사진 — 관리자 페이지와 동일 (정사각 200×200, JPG/PNG/GIF/WEBP) */}
+              <div id="field-profilePhoto">
+              <FileUploadField
+                label="프로필 사진"
+                required
+                hint="JPG/PNG/GIF/WEBP · 30MB 이하 · 권장 사이즈 200×200 (정사각 인물)"
+                inputRef={profileFileRef}
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                uploading={uploading === 'profile'}
+                currentFileName={profilePhoto ? extractFileName(profilePhoto) : null}
+                onPick={(f) => handleUpload('profile', f)}
+                onRemove={() => {
+                  setProfilePhoto(null)
+                  setProfilePhotoWebp(null)
+                }}
+                preview={
+                  profilePhoto ? (
+                    <UploadedImage
+                      src={profilePhoto}
+                      srcWebp={profilePhotoWebp}
+                      alt="프로필 미리보기"
+                      className="block"
+                      style={{ width: 200, height: 200, objectFit: 'cover' }}
+                    />
+                  ) : null
+                }
+              />
+              </div>
 
-          <div>
+              {/* 사업자 / 계약 관련 파일 — PDF 또는 이미지, 여러 장 */}
+              <ContractUploadField
+                label="사업자 / 계약 관련 파일"
+                hint="PDF/JPG/PNG/WEBP · 각 30MB 이하 · 여러 장 가능 (사업자등록증, 신분증, 계약서 등)"
+                inputRef={contractFileRef}
+                uploading={uploading === 'contract'}
+                files={contractFiles}
+                onPick={(f) => handleUpload('contract', f)}
+                onRemove={(idx) =>
+                  setContractFiles((prev) => prev.filter((_, i) => i !== idx))
+                }
+              />
+            </>
+          )}
+
+          <div id="field-intro">
             <p className="text-[14px] leading-[140%] font-semibold text-[#030712] mb-2">
-              본인 소개<span className="text-[#FF6467] ml-0.5">*</span>
+              {isFullForm ? '본인 소개' : '문의 내용'}<span className="text-[#FF6467] ml-0.5">*</span>
             </p>
-            <p className="text-[12px] leading-[140%] text-[#99A1AF] mb-2">
-              관리자/상담사 상세 페이지의 소개 본문으로 노출됩니다. 이미지·서식 포함 가능.
-            </p>
+            {isFullForm ? (
+              <div className="rounded-[10px] bg-[#EFF6FF] border border-[#BFDBFE] px-3 py-2.5 mb-2">
+                <p className="text-[13px] leading-[150%] text-[#1E40AF]">
+                  상담사 상세 페이지의 <span className="font-semibold">소개 본문으로 노출</span>됩니다. 이미지·서식 포함 가능.
+                </p>
+                <p className="text-[12px] leading-[150%] text-[#3B82F6] mt-1">
+                  💡 부담 갖지 마세요 — <span className="font-semibold">가입 후 마이페이지에서 언제든 수정 가능합니다.</span>
+                </p>
+              </div>
+            ) : (
+              <p className="text-[13px] leading-[150%] text-[#6A7282] mb-2">
+                문의하실 내용을 자세히 적어주세요. 빠르게 회신드리겠습니다.
+              </p>
+            )}
             <div className="rounded-[12px] overflow-hidden border border-[#F3F4F6]">
               <HtmlEditor
                 ref={introEditorRef}
@@ -685,6 +821,7 @@ export default function CounselorApplyNew() {
           </div>
 
           {/* 자동등록방지 — 실제 SVG 캡차 */}
+          <div id="field-captcha">
           <Field label="자동등록방지" required>
             <div className="flex gap-2 items-center">
               <div
@@ -710,6 +847,7 @@ export default function CounselorApplyNew() {
               </button>
             </div>
           </Field>
+          </div>
         </div>
 
         {errorMsg && (

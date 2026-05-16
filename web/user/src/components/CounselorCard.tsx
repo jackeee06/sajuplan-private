@@ -19,6 +19,8 @@ export interface Counselor {
   rating: number
   reviewCount: number
   liked?: boolean
+  /** 신규 상담사 — 가입 후 90일 이내 (2026-05-15). 카드 우측 상단에 NEW 뱃지 노출 */
+  isNew?: boolean
   imgUrl: string
   /** WebP 변환본 — 있으면 <picture> source 로 우선 사용 (선택) */
   imgUrlWebp?: string | null
@@ -57,7 +59,8 @@ const BADGE_BG: Record<string, string> = {
  *   └──────────────────────────────────┘
  */
 export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Props) {
-  const { id, name, badge, code, tagline, pricePerSec, phoneState, chatState, hashtags, rating, reviewCount, liked: likedProp, imgUrl, imgUrlWebp } = counselor
+  // rating 은 데이터 미정착으로 UI 노출 제거 (2026-05-15) — 매퍼에서는 계속 받음, destructure 만 생략
+  const { id, name, badge, code, tagline, pricePerSec, phoneState, chatState, hashtags, reviewCount, liked: likedProp, isNew, imgUrl, imgUrlWebp } = counselor
   const badgeBg = (badge && BADGE_BG[badge]) || '#8259F5'
   const { openConsult } = useConsultModal()
   const { toggleLike } = useLikeAction()
@@ -135,6 +138,14 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
                 <span className="text-[16px] leading-[130%] font-semibold text-[#8259F5]">
                   {code}
                 </span>
+                {isNew && (
+                  <span
+                    className="text-[10px] leading-none font-bold text-white px-1.5 py-0.5 rounded-full bg-[#FF6467] shrink-0"
+                    aria-label="신규 상담사"
+                  >
+                    NEW
+                  </span>
+                )}
               </Link>
               <button
                 type="button"
@@ -169,7 +180,7 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
         {!hideChat && <ContactButton state={chatState} kind="chat" onClick={() => onContact('chat')} />}
       </div>
 
-      {/* 해시태그 + 평점·후기 — Figma Frame 514 (row, justify-between, gap-내부 10) */}
+      {/* 해시태그 + 후기 수 — 별점은 데이터 미정착으로 노출 제거 (2026-05-15) */}
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0">
           {hashtags.map((tag) => (
@@ -179,10 +190,6 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
           ))}
         </div>
         <div className="flex items-center gap-2.5 shrink-0 ml-2.5">
-          <span className="flex items-center gap-0.5">
-            <img src="/img/ic_review.svg" alt="" className="w-4 h-4" />
-            <span className="text-[14px] leading-[110%] text-[#6A7282]">{rating.toFixed(1)}</span>
-          </span>
           <span className="flex items-center gap-0.5">
             <img src="/img/ic_message_g.svg" alt="" className="w-4 h-4" />
             <span className="text-[14px] leading-[110%] text-[#6A7282]">{reviewCount}</span>
@@ -201,7 +208,7 @@ interface ContactButtonProps {
 }
 
 function ContactButton({ state, kind, fullWidth, onClick }: ContactButtonProps) {
-  const baseLabel = '상담하기'
+  const baseLabel = kind === 'phone' ? '전화상담' : '채팅상담'
   const label = state === 'available' ? baseLabel : state === 'busy' ? '상담중' : '오프라인'
   const disabled = state !== 'available'
   const iconSrc =

@@ -23,10 +23,10 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 주의: prod 에는 consult 2개만. 다른 파일은 prod 가 로컬과 다른 별도 변경분일 수 있음.
+# 2026-05-16: 상담사 신청 폼 UX — 한글 파일명 mojibake 수정 + 이미지 리사이즈
 FILES = [
-    ("api/src/user/consult/consult.service.ts", "src/user/consult/consult.service.ts"),
-    ("api/src/user/consult/consult.controller.ts", "src/user/consult/consult.controller.ts"),
+    ("api/src/user/counselor-apply/counselor-apply.controller.ts", "src/user/counselor-apply/counselor-apply.controller.ts"),
+    ("api/src/shared/common/image-to-webp.ts", "src/shared/common/image-to-webp.ts"),
 ]
 
 

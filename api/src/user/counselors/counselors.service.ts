@@ -33,7 +33,15 @@ export interface PublicCounselor {
   category: '사주' | '타로' | '신점' | '기타';
   /** 요청자가 이 상담사를 단골 등록했는지 (비로그인이면 false) */
   is_liked: boolean;
-  /** 후기 평균 별점 (1~5, 후기 없으면 0) */
+  /** 신규 상담사 — 가입 후 90일 이내 (2026-05-15 신설). 카드 NEW 뱃지 노출용. */
+  is_new: boolean;
+  /**
+   * 후기 평균 별점 (1~5, 후기 없으면 0).
+   * ⚠️ 현재 사용자 UI(상담사 리스트 카드 등)에서 노출하지 않는 **비활성 기능** (2026-05-15).
+   *     별점 데이터 정착도가 낮아 0.0 노출이 오히려 신뢰도를 해친다는 운영 판단.
+   *     데이터는 계속 누적되며 (`review.rating` 컬럼 그대로 수집), 시스템 정착 시 UI 부활 예정.
+   *     필드 자체와 SQL 계산은 유지해서 호환성·복귀 비용을 최소화.
+   */
   rating_avg: number;
 }
 
@@ -81,6 +89,10 @@ export interface PublicCounselorDetail {
   /** 히어로 이미지 (wide) — 없으면 profile_image fallback */
   hero_image: string | null;
   hero_image_webp: string | null;
+  /** 히어로 이미지 위 헤드라인 캡션 (빈 문자열이면 미노출) */
+  wide_headline: string | null;
+  /** 히어로 이미지 위 서브카피 (빈 문자열이면 미노출) */
+  wide_subcaption: string | null;
   category: '사주' | '타로' | '신점' | '기타';
   /**
    * "현재 N명이 같은 페이지를 보고 있습니다" 표시값.
@@ -306,30 +318,31 @@ export class UserCounselorsService {
     //   - 채팅 즉시 가능: IDLE, RDCH, CRDY  / 채팅 통화중: CNCH / 음성 대기: RDVC
     //   - sample 은 IDLE/RDVC/CONN 만 보지만 신규 state 가 더 세분화되어 있어 동일 의미로 확장
     //
-    // 정렬 우선순위: state CASE → 인기/추천 보조 정렬
-    //   IDLE(대기) = 0 / 채팅 또는 통화 가능 (RDCH/RDVC/CRDY) = 1 / 통화/채팅중 (CONN/CNCH) = 2 / 그 외 = 3
+    // 정렬 우선순위 — 2026-05-15 운영 정책 변경:
+    //   "최근 5분 내 상담 시작한 상담중(CONN/CNCH)" 만 최상단(0).
+    //   "활동 보여주기" 마케팅 효과 (이렇게 많이 상담중! 인기 앱이군!).
+    //   그 외 전부 동등(1) → updated_at(최근접속) 순으로 자연스럽게 섞임.
     const statePriority = this.sql`(CASE
-      WHEN m.state = 'IDLE' THEN 0
-      WHEN m.state IN ('RDCH','RDVC','CRDY') THEN 1
-      WHEN m.state IN ('CONN','CNCH') THEN 2
-      ELSE 3
+      WHEN m.state IN ('CONN','CNCH') AND m.updated_at >= now() - interval '5 minutes' THEN 0
+      ELSE 1
     END)`;
 
     const orderBy = (() => {
       switch (tab) {
         case 'popular':
-          // 인기 = 관리자가 마킹한 is_rising 가장 위, 그 외는 review_count + fan_count 순.
-          // (sample 은 mb_rising 1~20 만 노출이지만 신규에선 마킹 부족 시에도 자동 채움)
-          return this.sql`m.is_rising DESC, ${statePriority}, pc.review_count DESC NULLS LAST, pc.fan_count DESC NULLS LAST, m.id DESC`;
+          // 인기 마킹(is_rising) 우선 + 최근 5분 상담중 + 최근접속순
+          return this.sql`m.is_rising DESC, ${statePriority}, m.updated_at DESC NULLS LAST, m.id DESC`;
         case 'chat':
-          // sample 기본 orderBy: state CASE → mb_nick
-          return this.sql`${statePriority}, pc.review_count DESC NULLS LAST, m.nickname ASC, m.id DESC`;
+          // 채팅 가능 상담사 — 최근 5분 상담중 + 최근접속순
+          return this.sql`${statePriority}, m.updated_at DESC NULLS LAST, m.id DESC`;
         case 'new':
-          // 신규상담사 — 최근 가입 순. created_at NULL 인 레거시는 id DESC 로 fallback.
+          // 신규상담사 — 가입순(created_at DESC) 유지. 신규 본래 의미 보존.
           return this.sql`m.created_at DESC NULLS LAST, m.id DESC`;
         default: // all
-          // sample: state CASE → mb_nick. 추천 상담사 가장 위로.
-          return this.sql`m.is_recommended DESC, ${statePriority}, pc.review_count DESC NULLS LAST, m.id DESC`;
+          // 1) 어드민 상위노출(is_recommended) — 평소 비활성, 깜짝 노출용
+          // 2) 최근 5분 상담중 (마케팅 포인트)
+          // 3) 최근접속순 (updated_at DESC)
+          return this.sql`m.is_recommended DESC, ${statePriority}, m.updated_at DESC NULLS LAST, m.id DESC`;
       }
     })();
 
@@ -347,9 +360,9 @@ export class UserCounselorsService {
           // "채팅 안 되는데 왜 노출?" 문제 발생. 신규 정책: 버튼이 활성/상담중 인 케이스만.
           return this.sql`AND m.use_chat = true AND m.state IN ('IDLE','RDCH','RDVC','CNCH')`;
         case 'new':
-          // 신규상담사 — 활성/대기/통화중 모두 노출 (ABSE/RESV 만 제외).
+          // 신규상담사 — 가입 후 90일 이내 (2026-05-15). 활성/대기/통화중 모두 노출 (RESV 만 제외).
           // 채널 ON 여부 무관 (가입 직후 채널 미설정 상태도 카드에 노출되어야 함).
-          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH','ABSE')`;
+          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH','ABSE') AND m.created_at >= now() - interval '90 days'`;
         default: // all
           // sample line 151: state IN active AND NOT (use_phone='N' AND use_chat='N')
           return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH') AND (m.use_phone = true OR m.use_chat = true)`;
@@ -398,6 +411,7 @@ export class UserCounselorsService {
       profile_stored_name: string | null;
       profile_stored_name_webp: string | null;
       rating_avg: number | null;
+      is_new: boolean;
     };
 
     // 단가/단위시간 source of truth: member.call_070_unit_cost / chat_unit_cost / call_unit_seconds / chat_unit_seconds
@@ -417,7 +431,8 @@ export class UserCounselorsService {
                WHERE mf.member_id = m.id AND mf.kind = 'profile'
                ORDER BY mf.id DESC LIMIT 1) AS profile_stored_name_webp,
              COALESCE((SELECT AVG(r.rating)::float FROM post_review r
-                       WHERE r.counselor_id = m.id AND r.rating IS NOT NULL), 0) AS rating_avg
+                       WHERE r.counselor_id = m.id AND r.rating IS NOT NULL), 0) AS rating_avg,
+             (m.created_at >= now() - interval '90 days') AS is_new
         FROM member m
         LEFT JOIN post_counselor pc ON pc.member_id = m.id
        WHERE m.role = 'counselor'
@@ -468,6 +483,7 @@ export class UserCounselorsService {
       profile_image_webp: r.profile_stored_name_webp ? `/uploads/member/${r.profile_stored_name_webp}` : null,
       category: this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
       is_liked: likedIds.has(Number(r.id)),
+      is_new: !!r.is_new,
       rating_avg: Number(r.rating_avg ?? 0),
     }));
   }
@@ -713,6 +729,7 @@ export class UserCounselorsService {
       profile_stored_name: string | null;
       profile_stored_name_webp: string | null;
       rating_avg: number | null;
+      is_new: boolean;
     };
 
     const rows = await this.sql<Row[]>`
@@ -730,6 +747,7 @@ export class UserCounselorsService {
                ORDER BY mf.id DESC LIMIT 1) AS profile_stored_name_webp,
              COALESCE((SELECT AVG(r.rating)::float FROM post_review r
                        WHERE r.counselor_id = m.id AND r.rating IS NOT NULL), 0) AS rating_avg,
+             (m.created_at >= now() - interval '90 days') AS is_new,
              (CASE
                 WHEN m.name ILIKE ${term} OR m.nickname ILIKE ${term} THEN 0
                 WHEN COALESCE(pc.hashtag1,'') ILIKE ${tagWithHash}
@@ -805,6 +823,7 @@ export class UserCounselorsService {
       category: this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
       is_liked: likedIds.has(Number(r.id)),
       rating_avg: Number(r.rating_avg ?? 0),
+      is_new: !!r.is_new,
     }));
   }
 
@@ -855,6 +874,7 @@ export class UserCounselorsService {
       profile_stored_name: string | null;
       profile_stored_name_webp: string | null;
       rating_avg: number | null;
+      is_new: boolean;
     };
 
     const rows = await this.sql<Row[]>`
@@ -871,7 +891,8 @@ export class UserCounselorsService {
                WHERE mf.member_id = m.id AND mf.kind = 'profile'
                ORDER BY mf.id DESC LIMIT 1) AS profile_stored_name_webp,
              COALESCE((SELECT AVG(r.rating)::float FROM post_review r
-                       WHERE r.counselor_id = m.id AND r.rating IS NOT NULL), 0) AS rating_avg
+                       WHERE r.counselor_id = m.id AND r.rating IS NOT NULL), 0) AS rating_avg,
+             (m.created_at >= now() - interval '90 days') AS is_new
         FROM member_favorite_counselor mfc
         INNER JOIN member m ON m.id = mfc.counselor_id
         LEFT JOIN post_counselor pc ON pc.member_id = m.id
@@ -909,6 +930,7 @@ export class UserCounselorsService {
       category: this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
       is_liked: true,
       rating_avg: Number(r.rating_avg ?? 0),
+      is_new: !!r.is_new,
     }));
   }
 
@@ -939,6 +961,8 @@ export class UserCounselorsService {
       review_count: number | null;
       fan_count: number | null;
       pc_updated_at: Date | null;
+      wide_headline: string | null;
+      wide_subcaption: string | null;
       profile_stored_name: string | null;
       profile_stored_name_webp: string | null;
       hero_stored_name: string | null;
@@ -954,6 +978,7 @@ export class UserCounselorsService {
              COALESCE(NULLIF(m.call_070_unit_cost, 0), NULLIF(m.chat_unit_cost, 0), pc.unit_cost) AS unit_cost,
              pc.review_count, pc.fan_count,
              pc.updated_at AS pc_updated_at,
+             pc.wide_headline, pc.wide_subcaption,
              (SELECT mf.stored_name      FROM member_file mf
                WHERE mf.member_id = m.id AND mf.kind = 'profile'
                ORDER BY mf.id DESC LIMIT 1) AS profile_stored_name,
@@ -1061,6 +1086,8 @@ export class UserCounselorsService {
       profile_image_webp: profileImageWebp,
       hero_image: heroImage,
       hero_image_webp: heroImageWebp,
+      wide_headline: r.wide_headline,
+      wide_subcaption: r.wide_subcaption,
       live_viewers: pseudoLiveViewers(r.id, fanCount),
       qna_count: qnaCount,
       is_liked: isLiked,
@@ -1102,6 +1129,81 @@ export class UserCounselorsService {
     `;
     return { fan_count: Number(fan[0]?.count ?? 0) };
   }
+
+  /** 현재 활성 이벤트 상담사 목록 (최대 3명, event_starts_at 오름차순) */
+  async listEvent(): Promise<PublicEventCounselor[]> {
+    const rows = await this.sql<{
+      id: string;
+      nickname: string;
+      headline: string | null;
+      hashtag1: string | null;
+      hashtag2: string | null;
+      unit_seconds: number | null;
+      unit_cost: number | null;
+      state: string;
+      use_phone: boolean;
+      use_chat: boolean;
+      event_starts_at: string;
+      event_ends_at: string | null;
+      event_banner_image_url: string | null;
+      wide_headline: string | null;
+      wide_subcaption: string | null;
+      profile_stored_name: string | null;
+      profile_stored_name_webp: string | null;
+      hero_stored_name: string | null;
+      hero_stored_name_webp: string | null;
+    }[]>`
+      SELECT m.id::text, m.nickname, m.state, m.use_phone, m.use_chat,
+             pc.headline, pc.hashtag1, pc.hashtag2,
+             COALESCE(m.call_unit_seconds, m.chat_unit_seconds, pc.unit_seconds) AS unit_seconds,
+             COALESCE(NULLIF(m.call_070_unit_cost, 0), NULLIF(m.chat_unit_cost, 0), pc.unit_cost) AS unit_cost,
+             pc.event_starts_at, pc.event_ends_at, pc.event_banner_image_url,
+             pc.wide_headline, pc.wide_subcaption,
+             (SELECT mf.stored_name FROM member_file mf
+               WHERE mf.member_id = m.id AND mf.kind = 'profile'
+               ORDER BY mf.id DESC LIMIT 1) AS profile_stored_name,
+             (SELECT mf.stored_name_webp FROM member_file mf
+               WHERE mf.member_id = m.id AND mf.kind = 'profile'
+               ORDER BY mf.id DESC LIMIT 1) AS profile_stored_name_webp,
+             (SELECT mf.stored_name FROM member_file mf
+               WHERE mf.member_id = m.id AND mf.kind = 'wide'
+               ORDER BY mf.id DESC LIMIT 1) AS hero_stored_name,
+             (SELECT mf.stored_name_webp FROM member_file mf
+               WHERE mf.member_id = m.id AND mf.kind = 'wide'
+               ORDER BY mf.id DESC LIMIT 1) AS hero_stored_name_webp
+        FROM member m
+        JOIN post_counselor pc ON pc.member_id = m.id
+       WHERE m.role = 'counselor'
+         AND m.left_at IS NULL
+         AND pc.event_starts_at IS NOT NULL
+         AND pc.event_starts_at <= now()
+         AND (pc.event_ends_at IS NULL OR pc.event_ends_at > now())
+       ORDER BY pc.event_starts_at ASC
+       LIMIT 3
+    `;
+
+    return rows.map((r) => ({
+      id: Number(r.id),
+      nickname: r.nickname,
+      headline: r.headline,
+      hashtag1: r.hashtag1,
+      hashtag2: r.hashtag2,
+      unit_seconds: r.unit_seconds,
+      unit_cost: r.unit_cost,
+      state: r.state,
+      use_phone: r.use_phone,
+      use_chat: r.use_chat,
+      event_starts_at: r.event_starts_at,
+      event_ends_at: r.event_ends_at,
+      event_banner_image_url: r.event_banner_image_url,
+      profile_image: r.profile_stored_name ? `/uploads/member/${r.profile_stored_name}` : null,
+      profile_image_webp: r.profile_stored_name_webp ? `/uploads/member/${r.profile_stored_name_webp}` : null,
+      hero_image: r.hero_stored_name ? `/uploads/member/${r.hero_stored_name}` : null,
+      hero_image_webp: r.hero_stored_name_webp ? `/uploads/member/${r.hero_stored_name_webp}` : null,
+      wide_headline: r.wide_headline,
+      wide_subcaption: r.wide_subcaption,
+    }));
+  }
 }
 
 /**
@@ -1127,4 +1229,27 @@ function pseudoLiveViewers(counselorId: number, fanCount: number): number {
   const popularity = Math.min(10, Math.floor(fanCount / 100));
   // 최저 3명 보장
   return 3 + base + popularity;
+}
+
+export interface PublicEventCounselor {
+  id: number;
+  nickname: string;
+  headline: string | null;
+  hashtag1: string | null;
+  hashtag2: string | null;
+  unit_seconds: number | null;
+  unit_cost: number | null;
+  state: string;
+  use_phone: boolean;
+  use_chat: boolean;
+  event_starts_at: string;
+  event_ends_at: string | null;
+  event_banner_image_url: string | null;
+  profile_image: string | null;
+  profile_image_webp: string | null;
+  /** 와이드 이미지 — 이벤트 배너 자동 카드에 우선 사용. 없으면 profile_image */
+  hero_image: string | null;
+  hero_image_webp: string | null;
+  wide_headline: string | null;
+  wide_subcaption: string | null;
 }

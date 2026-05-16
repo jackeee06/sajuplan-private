@@ -12,20 +12,34 @@ export interface WebpResult {
   alreadyWebp: boolean;
 }
 
+export interface ConvertOptions {
+  /** WebP 품질 (1-100). 기본 80 */
+  quality?: number;
+  /** 최대 가로/세로. 둘 중 큰 쪽이 이 값 이하로 축소. 0 또는 미설정 = 리사이즈 안 함 */
+  maxDimension?: number;
+}
+
 /**
  * multer로 저장된 이미지 파일을 동일 디렉토리에 .webp 사이블링으로 변환한다.
  *
  * - 이미 webp 면 변환하지 않고 같은 파일명을 그대로 반환 (alreadyWebp = true).
  * - jpg/jpeg/png/gif 만 변환. 그 외 (pdf 등)는 null.
  * - 변환 실패 시 (sharp 오류) null. 원본 업로드는 영향 없음.
+ * - maxDimension 지정 시 큰 쪽을 그 값에 맞춰 비율 유지 축소 (확대는 안 함).
  *
  * @param storedAbsPath 디스크에 저장된 원본 경로 (multer file.path)
- * @param quality WebP 품질 (기본 80)
+ * @param options quality / maxDimension
  */
 export async function convertImageToWebp(
   storedAbsPath: string,
-  quality = 80,
+  options: ConvertOptions | number = {},
 ): Promise<WebpResult> {
+  // 하위 호환: 두 번째 인자가 number 면 quality 로 간주
+  const opts: ConvertOptions =
+    typeof options === 'number' ? { quality: options } : options;
+  const quality = opts.quality ?? 80;
+  const maxDimension = opts.maxDimension ?? 0;
+
   const ext = extname(storedAbsPath).toLowerCase();
 
   if (ext === WEBP_EXT) {
@@ -42,9 +56,17 @@ export async function convertImageToWebp(
 
   try {
     // GIF 는 첫 프레임만 변환 (animated webp 는 용량/호환성 이슈로 보류)
-    await sharp(storedAbsPath, { animated: false })
-      .webp({ quality, effort: 4 })
-      .toFile(webpPath);
+    let pipeline = sharp(storedAbsPath, { animated: false });
+    if (maxDimension > 0) {
+      // withoutEnlargement: 원본이 작으면 그대로 (확대 안 함)
+      pipeline = pipeline.resize({
+        width: maxDimension,
+        height: maxDimension,
+        fit: 'inside',
+        withoutEnlargement: true,
+      });
+    }
+    await pipeline.webp({ quality, effort: 4 }).toFile(webpPath);
     return { webpFilename: webpName, alreadyWebp: false };
   } catch {
     // 변환 실패 — 부분 파일 정리

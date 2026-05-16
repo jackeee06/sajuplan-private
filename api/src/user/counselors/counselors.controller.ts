@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { UserCounselorsService, CounselorTab } from './counselors.service';
+import { UserCounselorsService, CounselorTab, PublicEventCounselor } from './counselors.service';
 import { UserReviewsService } from '../reviews/reviews.service';
 import { OptionalUserGuard, type OptionalUserRequest } from '../auth/optional-user.guard';
 import { UserAuthGuard, type UserAuthedRequest } from '../auth/user-auth.guard';
@@ -33,6 +33,16 @@ export class UserCounselorsController {
       limit: limit ? Math.min(50, Math.max(1, Number(limit) || 13)) : 13,
       requesterId: req.user?.sub,
     });
+    return { items };
+  }
+
+  /**
+   * GET /api/user/counselors/event — 현재 활성 이벤트 상담사 (최대 3명).
+   * ※ 라우트 우선순위 — :id 매칭 전에 등록.
+   */
+  @Get('event')
+  async eventCounselors(): Promise<{ items: PublicEventCounselor[] }> {
+    const items = await this.svc.listEvent();
     return { items };
   }
 

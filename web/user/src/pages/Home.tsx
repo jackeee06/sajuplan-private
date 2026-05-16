@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus'
 import BottomNav from '../components/BottomNav'
 import CounselorCard from '../components/CounselorCard'
 import ReviewCardMain from '../components/ReviewCardMain'
 import UploadedImage from '../components/UploadedImage'
+import { FILE_BASE } from '../lib/runtime-env'
 import {
   authApi,
   bannersApi,
@@ -16,12 +17,14 @@ import {
   PublicCounselor,
   reviewsApi,
   PublicRecentReview,
+  eventCounselorsApi,
+  PublicEventCounselor,
 } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 import { mapPublicCounselorToCard } from '../lib/counselor-mapper'
 import { openExternalUrl } from '../lib/native-bridge'
 
-type MainTab = 'all' | 'popular' | 'chat' | 'review'
+type MainTab = 'all' | 'popular' | 'new' | 'chat' | 'review'
 type ChipTab = '전체' | '사주' | '타로' | '신점'
 
 const CHIPS: ChipTab[] = ['전체', '사주', '타로', '신점']
@@ -179,6 +182,7 @@ export default function Home() {
           <div className="flex gap-6 pt-4 px-4 pb-3">
             <TabBtn active={tab === 'all'} onClick={() => setTab('all')}>전체</TabBtn>
             <TabBtn active={tab === 'popular'} onClick={() => setTab('popular')}>인기</TabBtn>
+            <TabBtn active={tab === 'new'} onClick={() => setTab('new')}>신규</TabBtn>
             <TabBtn active={tab === 'chat'} onClick={() => setTab('chat')}>채팅</TabBtn>
             <TabBtn active={tab === 'review'} onClick={() => setTab('review')}>후기</TabBtn>
           </div>
@@ -258,10 +262,74 @@ export default function Home() {
  *  - 터치 스와이프 지원
  *  - 우하단 페이지네이션 "current / total"
  */
+/** 이벤트 상담사 자동 카드 슬라이드 (배너 이미지 없을 때).
+ *  와이드 사진 우선 사용 (CounselorDetail hero 와 동일 톤). 와이드 없으면 프로필 사진 fallback.
+ *  운영자가 wide_headline/wide_subcaption 입력했으면 그 캡션을 우선 노출, 없으면 nickname + 단가 자동 카피.
+ */
+/** API 에서 받은 상대 경로 (/uploads/...) 를 절대 URL 로 변환. 절대 URL/외부 URL 은 그대로 통과. */
+function resolveEventImg(u: string | null): string | null {
+  if (!u) return null
+  if (/^https?:\/\//.test(u)) return u
+  if (u.startsWith('/')) return `${FILE_BASE}${u}`
+  return u
+}
+
+function EventCounselorSlide({ c, onClick }: { c: PublicEventCounselor; onClick: () => void }) {
+  const img = resolveEventImg(c.hero_image ?? c.profile_image)
+  const imgWebp = resolveEventImg(c.hero_image_webp ?? c.profile_image_webp)
+  const headline = c.wide_headline?.trim() || c.nickname
+  const subcaption =
+    c.wide_subcaption?.trim() ||
+    (c.unit_cost ? `${c.unit_seconds ?? 30}초당 ${c.unit_cost.toLocaleString()}원` : '')
+  return (
+    <div
+      className="w-full h-full shrink-0 relative cursor-pointer select-none"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && onClick()}
+      aria-label={`이벤트 상담사 ${c.nickname}`}
+    >
+      {img ? (
+        <picture className="absolute inset-0">
+          {imgWebp && <source srcSet={imgWebp} type="image/webp" />}
+          <img src={img} alt="" className="w-full h-full object-cover object-center" draggable={false} />
+        </picture>
+      ) : (
+        <div className="absolute inset-0 bg-[#3D2078]" />
+      )}
+      {/* 좌측 가독성 그라데이션 */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
+      {/* 하단 텍스트 가독성 그라데이션 */}
+      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent to-black/70" />
+      {/* 이벤트 뱃지 */}
+      <div className="absolute top-4 left-4 px-2 py-1 rounded-full bg-[#9B7AF7] text-white text-[11px] font-semibold leading-none">
+        이벤트 상담사
+      </div>
+      {/* 헤드라인 — 세로 중앙·가로 좌측, 글자 2배(40px) */}
+      <p className="absolute left-4 right-4 top-1/2 -translate-y-1/2 text-white text-[40px] font-bold leading-tight drop-shadow line-clamp-1">{headline}</p>
+      {/* 서브카피 — 세로 75% (중앙↔하단의 중간)·가로 좌측, 글자 2배(26px) */}
+      {subcaption && (
+        <p className="absolute left-4 right-4 top-[75%] -translate-y-1/2 text-white/85 text-[26px] leading-tight line-clamp-1">{subcaption}</p>
+      )}
+    </div>
+  )
+}
+
+type SlideItem =
+  | { kind: 'banner'; data: PublicBanner }
+  | { kind: 'event'; data: PublicEventCounselor }
+
 function BannerSlider() {
+  const navigate = useNavigate()
   const [banners, setBanners] = useState<PublicBanner[]>([])
+  const [eventCounselors, setEventCounselors] = useState<PublicEventCounselor[]>([])
+  const slides: SlideItem[] = [
+    ...banners.map((b): SlideItem => ({ kind: 'banner', data: b })),
+    ...eventCounselors.map((c): SlideItem => ({ kind: 'event', data: c })),
+  ]
   const [idx, setIdx] = useState(0)
-  const total = banners.length
+  const total = slides.length
   const startXRef = useRef<number | null>(null)
   const draggingRef = useRef(false)
   const SWIPE_THRESHOLD = 40
@@ -270,16 +338,20 @@ function BannerSlider() {
   useEffect(() => {
     let alive = true
     bannersApi.listByPosition('메인-상단배너').then(
-      (r) => {
-        if (alive) setBanners(r.items)
-      },
-      () => {
-        // 실패 시 빈 배열 — 배너 영역만 비어 보임
-      },
+      (r) => { if (alive) setBanners(r.items) },
+      () => {},
     )
-    return () => {
-      alive = false
-    }
+    return () => { alive = false }
+  }, [])
+
+  // 현재 활성 이벤트 상담사 (최대 3명)
+  useEffect(() => {
+    let alive = true
+    eventCounselorsApi.list().then(
+      (r) => { if (alive) setEventCounselors(r.items) },
+      () => {},
+    )
+    return () => { alive = false }
   }, [])
 
   // 자동 슬라이드 — 4초마다 다음 배너 (% total 로 무한 루프 보장)
@@ -325,7 +397,7 @@ function BannerSlider() {
     }
   }
 
-  // 배너 없음 — 빈 영역으로 자리 차지하지 않음
+  // 배너+이벤트 모두 없으면 빈 영역 미노출
   if (total === 0) return null
 
   return (
@@ -342,7 +414,21 @@ function BannerSlider() {
         className="flex w-full h-full transition-transform duration-500 ease-out"
         style={{ transform: `translateX(-${idx * 100}%)` }}
       >
-        {banners.map((b, i) => {
+        {slides.map((slide, i) => {
+          if (slide.kind === 'event') {
+            const c = slide.data
+            // 커스텀 배너 이미지가 있으면 일반 배너처럼 이미지 렌더, 없으면 자동 카드
+            if (c.event_banner_image_url) {
+              return (
+                <Link key={`ev-${c.id}`} to={`/counselors/${c.id}`} className="w-full h-full shrink-0 block" draggable={false}>
+                  <UploadedImage src={c.event_banner_image_url} srcWebp={null} alt={c.nickname} className="w-full h-full object-cover pointer-events-none" draggable={false} />
+                </Link>
+              )
+            }
+            return <EventCounselorSlide key={`ev-${c.id}`} c={c} onClick={() => navigate(`/counselors/${c.id}`)} />
+          }
+
+          const b = slide.data
           const img = (
             <UploadedImage
               src={b.image_url}
@@ -352,7 +438,6 @@ function BannerSlider() {
               draggable={false}
             />
           )
-          // 링크 있으면 외부면 <a>, 내부면 <Link>, 없으면 <div>
           if (!b.link_url) {
             return (
               <div key={b.id} className="w-full h-full shrink-0 block" aria-label={`배너 ${i + 1}`}>
@@ -362,27 +447,13 @@ function BannerSlider() {
           }
           if (/^https?:\/\//.test(b.link_url)) {
             return (
-              <a
-                key={b.id}
-                href={b.link_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full h-full shrink-0 block"
-                aria-label={`배너 ${i + 1}`}
-                draggable={false}
-              >
+              <a key={b.id} href={b.link_url} target="_blank" rel="noopener noreferrer" className="w-full h-full shrink-0 block" aria-label={`배너 ${i + 1}`} draggable={false}>
                 {img}
               </a>
             )
           }
           return (
-            <Link
-              key={b.id}
-              to={b.link_url}
-              className="w-full h-full shrink-0 block"
-              aria-label={`배너 ${i + 1}`}
-              draggable={false}
-            >
+            <Link key={b.id} to={b.link_url} className="w-full h-full shrink-0 block" aria-label={`배너 ${i + 1}`} draggable={false}>
               {img}
             </Link>
           )
@@ -482,6 +553,7 @@ function Footer() {
   // [라벨, 값] — 값이 빈 문자열이면 행 생략
   const items: [string, string][] = (
     [
+      ['상호명', s['footer.business_name'] ?? ''],
       ['대표', s['footer.ceo'] ?? ''],
       ['주소', s['footer.address'] ?? ''],
       ['사업자등록번호', s['footer.business_no'] ?? ''],

@@ -21,6 +21,7 @@ import { ChargeModule } from './charge/charge.module';
 import { UserCounselorApplyModule } from './counselor-apply/counselor-apply.module';
 import { UserEventsModule } from './events/events.module';
 import { UserSettlementsModule } from './settlements/settlements.module';
+import { AttendanceModule } from './attendance/attendance.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { UserSettlementsModule } from './settlements/settlements.module';
     UserCounselorApplyModule,
     UserEventsModule,
     UserSettlementsModule,
+    AttendanceModule,
   ],
 })
 export class UserModule {}

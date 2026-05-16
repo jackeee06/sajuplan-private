@@ -63,10 +63,37 @@ const STATUS_LABEL: Record<string, string> = {
   superseded: '대체됨',
 }
 
+// 2026-05-16: 신청 종류 (post_apply.category)
+//   application: 상담사 지원 (풀폼 — 계정/사진/분야)
+//   inquiry:     상담사 문의 (간단폼)
+//   other:       기타 문의   (간단폼)
+//   레거시: null / 'general' 은 application 으로 매핑
+const CATEGORY_FILTERS: Array<{ value: string; label: string }> = [
+  { value: 'all', label: '전체' },
+  { value: 'application', label: '상담사 지원' },
+  { value: 'inquiry', label: '상담사 문의' },
+  { value: 'other', label: '기타 문의' },
+]
+
+const CATEGORY_LABEL: Record<string, string> = {
+  application: '지원',
+  general: '지원',
+  inquiry: '문의',
+  other: '기타',
+}
+
+const CATEGORY_BADGE: Record<string, string> = {
+  application: 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  general: 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+  inquiry: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  other: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+}
+
 const PAGE_SIZE = 20
 
 export default function CounselorApplyList() {
   const [status, setStatus] = useState('all')
+  const [category, setCategory] = useState('all')
   const [q, setQ] = useState('')
   const [pendingQ, setPendingQ] = useState('')
   const [page, setPage] = useState(1)
@@ -77,6 +104,7 @@ export default function CounselorApplyList() {
   useEffect(() => {
     const params = new URLSearchParams()
     if (status && status !== 'all') params.set('status', status)
+    if (category && category !== 'all') params.set('category', category)
     if (q) params.set('q', q)
     params.set('page', String(page))
     params.set('limit', String(PAGE_SIZE))
@@ -87,7 +115,7 @@ export default function CounselorApplyList() {
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : '조회 실패'))
       .finally(() => setLoading(false))
-  }, [status, q, page])
+  }, [status, category, q, page])
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
@@ -101,28 +129,53 @@ export default function CounselorApplyList() {
       </div>
 
       {/* 필터 */}
-      <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {STATUS_FILTERS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => {
-                setStatus(f.value)
-                setPage(1)
-              }}
-              className={`px-3 py-1.5 rounded-md text-xs border transition ${
-                status === f.value
-                  ? 'bg-brand-500 text-white border-brand-500'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <span className="shrink-0 w-12 pt-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">상태</span>
+          <div className="flex flex-wrap items-center gap-1.5 flex-1">
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => {
+                  setStatus(f.value)
+                  setPage(1)
+                }}
+                className={`px-3 py-1.5 rounded-md text-xs border transition ${
+                  status === f.value
+                    ? 'bg-brand-500 text-white border-brand-500'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-start gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+          <span className="shrink-0 w-12 pt-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">종류</span>
+          <div className="flex flex-wrap items-center gap-1.5 flex-1">
+            {CATEGORY_FILTERS.map((f) => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => {
+                  setCategory(f.value)
+                  setPage(1)
+                }}
+                className={`px-3 py-1.5 rounded-md text-xs border transition ${
+                  category === f.value
+                    ? 'bg-violet-500 text-white border-violet-500'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
         <form
-          className="flex items-center gap-2 ml-auto"
+          className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-800"
           onSubmit={(e) => {
             e.preventDefault()
             setQ(pendingQ.trim())
@@ -172,6 +225,7 @@ export default function CounselorApplyList() {
             <thead className="bg-gray-50 dark:bg-gray-800/40 text-gray-600 dark:text-gray-300 text-xs">
               <tr>
                 <th className="px-4 py-2 text-left font-medium">번호</th>
+                <th className="px-4 py-2 text-left font-medium">종류</th>
                 <th className="px-4 py-2 text-left font-medium">상태</th>
                 <th className="px-4 py-2 text-left font-medium">예명 / 실명</th>
                 <th className="px-4 py-2 text-left font-medium">분야 / 지역</th>
@@ -186,22 +240,34 @@ export default function CounselorApplyList() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
                     로딩 중…
                   </td>
                 </tr>
               )}
               {!loading && data && data.items.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
                     신청 내역이 없습니다.
                   </td>
                 </tr>
               )}
               {!loading &&
-                data?.items.map((it) => (
+                data?.items.map((it) => {
+                  // 카테고리 매핑 — null/general 은 application 으로 간주
+                  const catKey = it.category && it.category !== 'general' ? it.category : 'application'
+                  return (
                   <tr key={it.id} className="border-t border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{it.id}</td>
+                    <td className="px-4 py-2.5">
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
+                          CATEGORY_BADGE[catKey] ?? 'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        {CATEGORY_LABEL[catKey] ?? catKey}
+                      </span>
+                    </td>
                     <td className="px-4 py-2.5">
                       <span
                         className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
@@ -265,7 +331,8 @@ export default function CounselorApplyList() {
                       </Link>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
             </tbody>
           </table>
         </div>

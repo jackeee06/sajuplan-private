@@ -25,6 +25,9 @@ export interface CounselorDetailData {
   heroImg: string
   /** 히어로 이미지 WebP — picture source 로 우선 사용 (없으면 jpg/png 만 노출) */
   heroImgWebp?: string | null
+  /** 와이드 이미지 위 오버레이 캡션 — 빈값이면 미노출 */
+  wideHeadline?: string | null
+  wideSubcaption?: string | null
   fields: string[]
   styles: string[]
   career: string[]

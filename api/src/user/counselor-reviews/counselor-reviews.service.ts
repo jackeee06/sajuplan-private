@@ -12,6 +12,10 @@ export interface CounselorReviewListItem {
   /** 마스킹된 작성자 닉네임 (예: '김*객') */
   customer_name: string;
   is_private: boolean;
+  /** 베스트 후기 여부 (상담사 본인이 선정, 2026-05-15 신설) */
+  is_best: boolean;
+  /** 베스트 선정 시각 — 정렬·UX 표시용. 해제 시 null */
+  best_at: string | null;
   title: string;
   content: string;
   rating: number | null;
@@ -54,11 +58,13 @@ interface ReviewRow {
   content: string | null;
   rating: number | null;
   is_secret: boolean;
+  is_best: boolean;
+  best_at: Date | null;
   has_file: boolean;
   extras: Record<string, unknown> | null;
   created_at: Date;
   reviewer_nickname: string | null;
-  reviewer_name: string | null;
+  reviewer_mb_id: string | null;
   reply_id: number | null;
   reply_content: string | null;
   reply_created_at: Date | null;
@@ -107,8 +113,8 @@ export class UserCounselorReviewsService {
     type Row = ReviewRow & { total: string };
     const rows = await this.sql<Row[]>`
       SELECT r.id, r.counselor_id, r.title, r.content, r.rating,
-             r.is_secret, r.has_file, r.extras, r.created_at,
-             rm.nickname AS reviewer_nickname, rm.name AS reviewer_name,
+             r.is_secret, r.is_best, r.best_at, r.has_file, r.extras, r.created_at,
+             rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id,
              rep.id              AS reply_id,
              rep.content         AS reply_content,
              rep.created_at      AS reply_created_at,
@@ -124,7 +130,7 @@ export class UserCounselorReviewsService {
        WHERE r.counselor_id = ${params.counselorId}
          ${unansweredFilter}
          ${photoFilter}
-       ORDER BY r.created_at DESC
+       ORDER BY r.is_best DESC, r.best_at DESC NULLS LAST, r.created_at DESC
        LIMIT ${limit} OFFSET ${offset}
     `;
 
@@ -134,8 +140,13 @@ export class UserCounselorReviewsService {
       const meta = extractMeta(r.extras, r.created_at);
       return {
         id: r.id,
-        customer_name: maskName(r.reviewer_nickname || r.reviewer_name || '고객'),
+        customer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id, '고객'),
         is_private: r.is_secret,
+        is_best: r.is_best,
+        best_at:
+          r.best_at instanceof Date
+            ? r.best_at.toISOString()
+            : r.best_at === null ? null : String(r.best_at),
         title: r.title,
         content: r.is_secret ? '' : (r.content ?? ''),
         rating: r.rating,
@@ -167,7 +178,7 @@ export class UserCounselorReviewsService {
     const rows = await this.sql<ReviewRow[]>`
       SELECT r.id, r.counselor_id, r.title, r.content, r.rating,
              r.is_secret, r.has_file, r.extras, r.created_at,
-             rm.nickname AS reviewer_nickname, rm.name AS reviewer_name,
+             rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id,
              rep.id              AS reply_id,
              rep.content         AS reply_content,
              rep.created_at      AS reply_created_at,
@@ -195,7 +206,7 @@ export class UserCounselorReviewsService {
     const meta = extractMeta(r.extras, r.created_at);
     return {
       id: r.id,
-      customer_name: maskName(r.reviewer_nickname || r.reviewer_name || '고객'),
+      customer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id, '고객'),
       is_private: r.is_secret,
       title: r.title,
       content: r.is_secret ? '' : (r.content ?? ''),
@@ -321,6 +332,21 @@ function maskName(name: string): string {
   if (s.length <= 1) return s;
   if (s.length === 2) return s[0] + '*';
   return s[0] + '*' + s.slice(2);
+}
+
+/** mb_id 마스킹 — 본명 노출 회피용 (2026-05-15). 예: 'ubuub1234' → 'ub***34' */
+function maskMbId(mbId: string): string {
+  const s = mbId.trim();
+  if (s.length <= 2) return s;
+  if (s.length <= 4) return s[0] + '***' + s.slice(-1);
+  return s.slice(0, 2) + '***' + s.slice(-2);
+}
+
+/** 작성자 표기 우선순위: nickname → mb_id(마스킹) → fallback. 본명은 노출 안 함 (2026-05-15). */
+function displayReviewer(nickname: string | null, mbId: string | null, fallback = '익명'): string {
+  if (nickname && nickname.trim()) return maskName(nickname);
+  if (mbId && mbId.trim()) return maskMbId(mbId);
+  return fallback;
 }
 
 /**

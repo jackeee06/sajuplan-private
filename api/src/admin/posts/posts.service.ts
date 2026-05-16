@@ -56,6 +56,10 @@ export interface PostRow {
   counselor_id?: number | null;
   counselor_name?: string | null;
   rating?: number | null;
+  /** 신고 누적 (2026-05-15) — review slug 응답에만 포함 */
+  report_count?: number;
+  /** 미처리(pending) 신고 — review slug 응답에만 포함 */
+  report_pending_count?: number;
 }
 
 export interface PostFilter {
@@ -109,7 +113,10 @@ export class PostsService {
                  p.ip, p.extras, p.created_at,
                  p.counselor_id, p.rating,
                  m.mb_id, m.name AS member_name, m.nickname AS member_nickname,
-                 c.name AS counselor_name
+                 c.name AS counselor_name,
+                 -- 후기 신고 카운트 (2026-05-15) — 미처리(pending) 와 전체 분리해서 UI 에 노출
+                 COALESCE((SELECT COUNT(*) FROM post_review_report rr WHERE rr.review_id = p.id), 0)::int AS report_count,
+                 COALESCE((SELECT COUNT(*) FROM post_review_report rr WHERE rr.review_id = p.id AND rr.status = 'pending'), 0)::int AS report_pending_count
           FROM ${tableSql} p
           LEFT JOIN member m ON m.id = p.member_id
           LEFT JOIN member c ON c.id = p.counselor_id
@@ -159,5 +166,129 @@ export class PostsService {
     const result = await this.sql`DELETE FROM ${tableSql} WHERE id = ${id}`;
     if (result.count === 0) throw new NotFoundException('게시글을 찾을 수 없습니다.');
     return { ok: true };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // 후기 신고 관리 (2026-05-15 신설) — post_review_report 테이블
+  // ─────────────────────────────────────────────────────────────────
+
+  /** 후기 신고 목록 — status 필터 + 페이지네이션. 후기 제목·신고자 닉네임 함께 반환. */
+  async listReports(filter: { status?: string; page: number; limit: number }) {
+    const page = Math.max(1, filter.page);
+    const limit = Math.min(100, Math.max(1, filter.limit));
+    const offset = (page - 1) * limit;
+    const statusFilter = filter.status && filter.status !== 'all' ? filter.status : null;
+
+    const rows = await this.sql<{
+      id: number;
+      review_id: number;
+      reporter_member_id: number;
+      reason_category: string;
+      reason: string | null;
+      status: string;
+      admin_memo: string | null;
+      created_at: Date;
+      resolved_at: Date | null;
+      review_title: string | null;
+      reporter_nickname: string | null;
+      reporter_mb_id: string | null;
+    }[]>`
+      SELECT rr.id, rr.review_id, rr.reporter_member_id, rr.reason_category, rr.reason,
+             rr.status, rr.admin_memo, rr.created_at, rr.resolved_at,
+             pr.title AS review_title,
+             m.nickname AS reporter_nickname, m.mb_id AS reporter_mb_id
+        FROM post_review_report rr
+        LEFT JOIN post_review pr ON pr.id = rr.review_id
+        LEFT JOIN member m ON m.id = rr.reporter_member_id
+       WHERE ${statusFilter ? this.sql`rr.status = ${statusFilter}` : this.sql`TRUE`}
+       ORDER BY rr.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    const totalRows = await this.sql<{ count: string }[]>`
+      SELECT COUNT(*)::text AS count FROM post_review_report
+       WHERE ${statusFilter ? this.sql`status = ${statusFilter}` : this.sql`TRUE`}
+    `;
+
+    return {
+      items: rows,
+      total: Number(totalRows[0]?.count ?? 0),
+      page,
+      limit,
+    };
+  }
+
+  /** 신고 단건 — 후기 본문/작성자도 함께. */
+  async getReportById(id: number) {
+    const rows = await this.sql<{
+      id: number;
+      review_id: number;
+      reporter_member_id: number;
+      reason_category: string;
+      reason: string | null;
+      status: string;
+      admin_memo: string | null;
+      created_at: Date;
+      resolved_at: Date | null;
+      resolved_by: number | null;
+      review_title: string | null;
+      review_content: string | null;
+      review_member_id: number | null;
+      review_member_nickname: string | null;
+      review_member_mb_id: string | null;
+      reporter_nickname: string | null;
+      reporter_mb_id: string | null;
+    }[]>`
+      SELECT rr.id, rr.review_id, rr.reporter_member_id, rr.reason_category, rr.reason,
+             rr.status, rr.admin_memo, rr.created_at, rr.resolved_at, rr.resolved_by,
+             pr.title AS review_title, pr.content AS review_content, pr.member_id AS review_member_id,
+             rm.nickname AS review_member_nickname, rm.mb_id AS review_member_mb_id,
+             m.nickname AS reporter_nickname, m.mb_id AS reporter_mb_id
+        FROM post_review_report rr
+        LEFT JOIN post_review pr ON pr.id = rr.review_id
+        LEFT JOIN member rm ON rm.id = pr.member_id
+        LEFT JOIN member m ON m.id = rr.reporter_member_id
+       WHERE rr.id = ${id}
+       LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('신고를 찾을 수 없습니다.');
+    return rows[0];
+  }
+
+  /**
+   * 신고 처리.
+   *  - status 변경: 'pending'/'reviewed'/'hidden'/'dismissed'
+   *  - 'hidden' 으로 변경 시 어드민이 해당 후기를 별도로 삭제하거나 숨김 처리 필요 (이 API 는 신고 상태만 변경)
+   *  - resolved_at/resolved_by 자동 세팅 (pending 외 상태로 갈 때)
+   */
+  async updateReportStatus(
+    id: number,
+    adminId: number,
+    input: { status?: string; admin_memo?: string | null },
+  ) {
+    const allowedStatus = new Set(['pending', 'reviewed', 'hidden', 'dismissed']);
+    const updates: Record<string, unknown> = {};
+    if (input.status !== undefined) {
+      if (!allowedStatus.has(input.status)) {
+        throw new BadRequestException('status 값이 유효하지 않습니다.');
+      }
+      updates.status = input.status;
+      if (input.status !== 'pending') {
+        updates.resolved_at = new Date();
+        updates.resolved_by = adminId;
+      } else {
+        updates.resolved_at = null;
+        updates.resolved_by = null;
+      }
+    }
+    if (input.admin_memo !== undefined) updates.admin_memo = input.admin_memo;
+    if (Object.keys(updates).length === 0) {
+      throw new BadRequestException('변경할 필드가 없습니다.');
+    }
+    const r = await this.sql`
+      UPDATE post_review_report SET ${this.sql(updates)} WHERE id = ${id}
+    `;
+    if (r.count === 0) throw new NotFoundException('신고를 찾을 수 없습니다.');
+    return this.getReportById(id);
   }
 }

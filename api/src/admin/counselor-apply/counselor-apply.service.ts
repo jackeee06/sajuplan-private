@@ -77,6 +77,8 @@ export class AdminCounselorApplyService {
 
   async list(params: {
     status?: string;
+    /** 신청 종류 (2026-05-16): 'application' | 'inquiry' | 'other' | 'all' */
+    category?: string;
     q?: string;
     page?: number;
     limit?: number;
@@ -97,6 +99,15 @@ export class AdminCounselorApplyService {
     ];
     if (params.status && params.status !== 'all') {
       filters.push(this.sql`a.status = ${params.status}`);
+    }
+    // 2026-05-16: 카테고리 필터 — application(지원) / inquiry(상담사 문의) / other(기타 문의)
+    // 레거시 행 호환: category 가 null 이거나 'general' 인 옛 행은 'application' 로 간주.
+    if (params.category && params.category !== 'all') {
+      if (params.category === 'application') {
+        filters.push(this.sql`(a.category IS NULL OR a.category IN ('application','general'))`);
+      } else {
+        filters.push(this.sql`a.category = ${params.category}`);
+      }
     }
     if (params.q) {
       // 휴대폰/이메일/예명/실명/제목 부분검색

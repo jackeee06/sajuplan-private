@@ -33,6 +33,8 @@ import PaymentList from './pages/PaymentList'
 import PointHistoryList from './pages/PointHistoryList'
 import PostList from './pages/PostList'
 import PostReports from './pages/PostReports'
+import ReviewReports from './pages/ReviewReports'
+import Attendance from './pages/Attendance'
 import PostsOverview from './pages/PostsOverview'
 import PopupLayerForm from './pages/PopupLayerForm'
 import PushNotifications from './pages/PushNotifications'
@@ -117,6 +119,10 @@ export default function App() {
 
               {/* 게시판 통합 (review/wish/wish_event/qa/qa_counselor) */}
               <Route path="/posts/:slug" element={<PostList />} />
+
+              {/* 후기 신고 관리 (2026-05-15 신설) */}
+              <Route path="/review-reports" element={<ReviewReports />} />
+              <Route path="/attendance" element={<Attendance />} />
 
               {/* 채팅내역 */}
               <Route path="/chat-history" element={<ChatHistoryList />} />

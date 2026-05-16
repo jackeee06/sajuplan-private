@@ -131,6 +131,43 @@ export interface SignupPayload {
   agree_sms?: boolean
 }
 
+// ─────────────────────────────────────────────
+// 출석체크 (2026-05-16)
+// ─────────────────────────────────────────────
+
+export interface AttendanceCheckinResult {
+  attended_now: boolean
+  skip_reason: string | null
+  consecutive_days: number
+  base_coin: number
+  bonus_coin: number
+  coupon_amount: number
+  total_added: number
+}
+
+export const attendanceApi = {
+  /** 출석 처리 (1일 1회). 로그인 직후 자동 호출. 이미 출석한 경우 attended_now=false. */
+  checkin: () => api.post<AttendanceCheckinResult>('/user/attendance/checkin', {}),
+  /** 오늘 출석 상태 + 연속일 (마이페이지 위젯용) */
+  today: () =>
+    api.get<{
+      attended_today: boolean
+      consecutive_days: number
+      today_total_added: number
+      last_attended_date: string | null
+    }>('/user/attendance/today'),
+  /** 최근 출석 이력 */
+  history: (limit = 30) =>
+    api.get<{
+      items: {
+        attended_date: string
+        base_coin: number
+        bonus_coin: number
+        consecutive_days: number
+      }[]
+    }>(`/user/attendance/history?limit=${limit}`),
+}
+
 export const authApi = {
   login: (mb_id: string, password: string, keep_login: boolean) =>
     api.post<{ ok: true; member: UserMember }>('/user/auth/login', {
@@ -618,6 +655,37 @@ export const bannersApi = {
 }
 
 // ─────────────────────────────────────────────
+// 이벤트 상담사
+// ─────────────────────────────────────────────
+
+export interface PublicEventCounselor {
+  id: number
+  nickname: string
+  headline: string | null
+  hashtag1: string | null
+  hashtag2: string | null
+  unit_seconds: number | null
+  unit_cost: number | null
+  state: string
+  use_phone: boolean
+  use_chat: boolean
+  event_starts_at: string
+  event_ends_at: string | null
+  event_banner_image_url: string | null
+  profile_image: string | null
+  profile_image_webp: string | null
+  hero_image: string | null
+  hero_image_webp: string | null
+  wide_headline: string | null
+  wide_subcaption: string | null
+}
+
+export const eventCounselorsApi = {
+  /** 현재 활성 이벤트 상담사 (최대 3명) */
+  list: () => api.get<{ items: PublicEventCounselor[] }>('/user/counselors/event'),
+}
+
+// ─────────────────────────────────────────────
 // 메인 페이지 공개 통계 (최근 상담 건수 / 접속중 상담사)
 // ─────────────────────────────────────────────
 
@@ -658,6 +726,9 @@ export interface CounselorReviewListItem {
   id: number
   customer_name: string
   is_private: boolean
+  /** 베스트 후기 여부 (2026-05-15 신설) */
+  is_best: boolean
+  best_at: string | null
   title: string
   content: string
   rating: number | null
@@ -803,6 +874,8 @@ export interface PublicCounselor {
   category: '사주' | '타로' | '신점' | '기타'
   /** 요청자가 단골 등록했는지 (비로그인이면 false) */
   is_liked: boolean
+  /** 신규 상담사 — 가입 후 90일 이내 (2026-05-15 신설). NEW 뱃지 노출용. */
+  is_new: boolean
   /** 후기 평균 별점 (1~5, 후기 없거나 별점 미부여면 0) */
   rating_avg: number
 }
@@ -842,6 +915,9 @@ export interface PublicCounselorDetail {
   profile_image_webp: string | null
   hero_image: string | null
   hero_image_webp: string | null
+  /** 와이드 이미지 위 오버레이 캡션 — 빈값이면 미노출 */
+  wide_headline: string | null
+  wide_subcaption: string | null
   category: '사주' | '타로' | '신점' | '기타'
   /** "현재 N명이 같은 페이지를 보고 있습니다" — 의사값 (상담사 ID + 시간버킷 해시) */
   live_viewers: number
@@ -924,6 +1000,10 @@ export interface PublicCounselorReview {
   /** 비밀글이면 빈 문자열 */
   content: string
   is_secret: boolean
+  /** 베스트 후기 여부 (상담사가 선정, 2026-05-15 신설) */
+  is_best: boolean
+  /** 베스트 선정 시각 (정렬용, 해제 시 null) */
+  best_at: string | null
   rating: number | null
   created_at: string
   /** 마스킹된 작성자명 */
@@ -1198,6 +1278,12 @@ export const reviewsApi = {
   ) => api.patch<MyReviewItem>(`/user/reviews/${id}`, body),
   /** 본인 후기 물리 삭제 */
   remove: (id: number) => api.delete<{ ok: true }>(`/user/reviews/${id}`),
+  /** 후기 신고 (2026-05-15 신설) — 본인 후기는 신고 불가, 같은 사용자가 같은 후기 중복 신고 불가 */
+  report: (id: number, body: { reason_category: 'abuse' | 'false' | 'ad' | 'privacy' | 'other'; reason?: string }) =>
+    api.post<{ ok: true }>(`/user/reviews/${id}/report`, body),
+  /** 베스트 후기 토글 (2026-05-15 신설) — 상담사 본인만, 5개 제한 */
+  toggleBest: (id: number, isBest: boolean) =>
+    api.patch<{ ok: true; is_best: boolean; best_at: string | null }>(`/user/reviews/${id}/best`, { is_best: isBest }),
   /** 새 후기 작성 — consultation_id 가 있으면 그 상담 1건만 작성 가능 (중복 차단) */
   create: (body: {
     counselor_id: number
@@ -1720,6 +1806,8 @@ export const counselorApplyApi = {
   detail: (id: number) =>
     api.get<CounselorApplyDetail>(`/user/counselor-apply/${id}`),
   create: (input: {
+    /** 신청 종류 (2026-05-16) — application(지원서, 풀폼) | inquiry(상담사 문의) | other(기타 문의) */
+    apply_type?: 'application' | 'inquiry' | 'other'
     title: string
     content?: string
     applicant_phone?: string
@@ -1728,9 +1816,9 @@ export const counselorApplyApi = {
     extras?: CounselorApplyExtras
     captcha_token?: string
     captcha_input?: string
-    /** 상담사 가입 ID — 승인 시 mb_id 로 사용. 필수. */
+    /** application 일 때만 필수 */
     mb_id?: string
-    /** 상담사 가입 PW (평문) — 백엔드에서 즉시 bcrypt 해시. 필수. */
+    /** application 일 때만 필수 */
     password?: string
   }) => api.post<{ id: number }>('/user/counselor-apply', input),
   cancel: (id: number) =>

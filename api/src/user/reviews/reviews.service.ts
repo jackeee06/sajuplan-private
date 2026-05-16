@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
 
 export interface PublicRecentReview {
@@ -57,7 +57,7 @@ export class UserReviewsService {
       created_at: Date;
       is_secret: boolean;
       reviewer_nickname: string | null;
-      reviewer_name: string | null;
+      reviewer_mb_id: string | null;
       counselor_id: number;
       counselor_nickname: string;
       counselor_name: string;
@@ -75,7 +75,7 @@ export class UserReviewsService {
 
     const rows = await this.sql<Row[]>`
       SELECT r.id, r.title, r.content, r.rating, r.created_at, r.is_secret,
-             rm.nickname AS reviewer_nickname, rm.name AS reviewer_name,
+             rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id,
              c.id        AS counselor_id,
              c.nickname  AS counselor_nickname,
              c.name      AS counselor_name,
@@ -111,7 +111,7 @@ export class UserReviewsService {
         r.created_at instanceof Date
           ? r.created_at.toISOString()
           : String(r.created_at),
-      reviewer_name: maskName(r.reviewer_nickname || r.reviewer_name || '익명'),
+      reviewer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id),
       counselor_id: r.counselor_id,
       counselor_nickname: r.counselor_nickname || r.counselor_name,
       counselor_code: r.counselor_code,
@@ -147,18 +147,21 @@ export class UserReviewsService {
       rating: number | null;
       created_at: Date;
       is_secret: boolean;
+      is_best: boolean;
+      best_at: Date | null;
       reviewer_nickname: string | null;
-      reviewer_name: string | null;
+      reviewer_mb_id: string | null;
     };
 
     const [rows, totalRows] = await Promise.all([
       this.sql<Row[]>`
         SELECT r.id, r.title, r.content, r.rating, r.created_at, r.is_secret,
-               rm.nickname AS reviewer_nickname, rm.name AS reviewer_name
+               r.is_best, r.best_at,
+               rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id
           FROM post_review r
           LEFT JOIN member rm ON rm.id = r.member_id
          WHERE r.counselor_id = ${params.counselorId}
-         ORDER BY r.created_at DESC
+         ORDER BY r.is_best DESC, r.best_at DESC NULLS LAST, r.created_at DESC
          LIMIT ${limit} OFFSET ${offset}
       `,
       this.sql<{ count: string }[]>`
@@ -173,12 +176,17 @@ export class UserReviewsService {
       title: r.title,
       content: r.is_secret ? '' : (r.content ?? ''),
       is_secret: r.is_secret,
+      is_best: r.is_best,
+      best_at:
+        r.best_at instanceof Date
+          ? r.best_at.toISOString()
+          : r.best_at === null ? null : String(r.best_at),
       rating: r.rating,
       created_at:
         r.created_at instanceof Date
           ? r.created_at.toISOString()
           : String(r.created_at),
-      reviewer_name: maskName(r.reviewer_nickname || r.reviewer_name || '익명'),
+      reviewer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id),
     }));
 
     return { items, total: Number(totalRows[0]?.count ?? 0) };
@@ -220,7 +228,7 @@ export class UserReviewsService {
       has_file: boolean;
       extras: Record<string, unknown> | null;
       reviewer_nickname: string | null;
-      reviewer_name: string | null;
+      reviewer_mb_id: string | null;
       counselor_id: number;
       counselor_name: string;
       counselor_nickname: string;
@@ -235,7 +243,7 @@ export class UserReviewsService {
 
     const rows = await this.sql<Row[]>`
       SELECT r.id, r.title, r.content, r.rating, r.created_at, r.has_file, r.extras,
-             rm.nickname AS reviewer_nickname, rm.name AS reviewer_name,
+             rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id,
              c.id        AS counselor_id,
              c.name      AS counselor_name,
              c.nickname  AS counselor_nickname,
@@ -284,7 +292,7 @@ export class UserReviewsService {
         consult_type: consultType,
         consult_date: consultDate,
         consult_duration: consultDuration,
-        customer_name: maskName(r.reviewer_nickname || r.reviewer_name || '고객'),
+        customer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id, '고객'),
         counselor_id: r.counselor_id,
         counselor_name: r.counselor_nickname || r.counselor_name,
         counselor_code: r.counselor_code ?? '',
@@ -317,7 +325,7 @@ export class UserReviewsService {
       hashtag2: string | null;
       specialty: string | null;
       reviewer_nickname: string | null;
-      reviewer_name: string | null;
+      reviewer_mb_id: string | null;
     }[]>`
       SELECT r.id, r.title, r.content, r.rating, r.is_secret, r.has_file, r.extras, r.created_at, r.member_id,
              c.id        AS counselor_id,
@@ -328,7 +336,7 @@ export class UserReviewsService {
                WHERE mf.member_id = c.id AND mf.kind = 'profile'
                ORDER BY mf.id DESC LIMIT 1) AS counselor_profile_image,
              pc.hashtag1, pc.hashtag2, pc.specialty,
-             rm.nickname AS reviewer_nickname, rm.name AS reviewer_name
+             rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id
         FROM post_review r
         INNER JOIN member c ON c.id = r.counselor_id
         LEFT JOIN post_counselor pc ON pc.member_id = c.id
@@ -363,7 +371,7 @@ export class UserReviewsService {
       consult_type: consultType,
       consult_date: consultDate,
       consult_duration: consultDuration,
-      customer_name: maskName(r.reviewer_nickname || r.reviewer_name || '고객'),
+      customer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id, '고객'),
       counselor_id: r.counselor_id,
       counselor_name: r.counselor_nickname || r.counselor_name,
       counselor_code: r.counselor_code ?? '',
@@ -471,13 +479,18 @@ export class UserReviewsService {
     if (input.photo_url_webp) extras.photo_url_webp = input.photo_url_webp;
 
     // consultation 검증 + 중복 후기 차단
+    //  - 2026-05-15: 상담사 보호 정책으로 consultation_id **필수** + 사용시간 **5분(300초) 이상** 요건 추가.
+    //    공격성/문제 손님이 5분 안에 끊고 악의적 후기 쓰는 경로를 차단한다.
     //  - consultation.counselor_id 가 있으면 그 값을 정답(source of truth)으로 사용.
     //    프론트에서 잘못된 counselor_id 를 보냈더라도(예: 상담사 변경/매핑 차이) consultation
     //    소유자가 본인 회원이라면 후기 작성을 허용한다 — "포인트 쓴 상담이면 후기 가능" 요건.
+    if (!input.consultation_id) {
+      throw new BadRequestException('상담 내역이 있어야 후기를 작성할 수 있습니다.');
+    }
     let resolvedCounselorId = input.counselor_id;
     /** 후기 작성 포인트 지급 판정에 쓰일 사용포인트 (consultation.amt). 0이면 조건 적용 안 함. */
     let consultationAmt = 0;
-    if (input.consultation_id) {
+    {
       const rows = await this.sql<{
         id: number;
         member_id: number | null;
@@ -496,6 +509,11 @@ export class UserReviewsService {
       if (!c) throw new NotFoundException('상담 내역을 찾을 수 없습니다.');
       if (c.member_id !== memberId) {
         throw new ForbiddenException('본인의 상담만 후기를 작성할 수 있습니다.');
+      }
+      // 5분(300초) 이상 사용 검증 — 상담사 보호 정책 (2026-05-15)
+      const sec = Number(c.usetm ?? 0);
+      if (sec < 300) {
+        throw new BadRequestException('5분 이상 상담을 진행한 경우에만 후기 작성이 가능합니다.');
       }
       if (c.counselor_id) {
         // consultation 의 counselor_id 가 있으면 항상 그 값을 사용 (입력 불일치 무시).
@@ -516,7 +534,6 @@ export class UserReviewsService {
       // 표시용 부가 정보 — sample 의 wr_2/wr_3 자리 활용
       const isChat = !!(c.roomid && c.roomid.length > 0);
       extras.consult_type = isChat ? '채팅' : '전화';
-      const sec = Number(c.usetm ?? 0);
       if (sec > 0) {
         const m = Math.floor(sec / 60);
         const s = sec % 60;
@@ -643,6 +660,83 @@ export class UserReviewsService {
       throw new ForbiddenException('본인이 작성한 후기만 삭제할 수 있습니다.');
     }
   }
+
+  /**
+   * 후기 신고 등록 (2026-05-15 신설).
+   *  - 후기 존재 검증
+   *  - 본인이 쓴 후기는 신고 불가 (400)
+   *  - 같은 사용자가 같은 후기 중복 신고 차단 (DB UNIQUE → 409)
+   *  - 카테고리 화이트리스트: 'abuse'/'false'/'ad'/'privacy'/'other'
+   */
+  async reportReview(
+    reviewId: number,
+    reporterId: number,
+    input: { reason_category: string; reason: string | null },
+  ): Promise<void> {
+    const allowedCategories = new Set(['abuse', 'false', 'ad', 'privacy', 'other']);
+    const category = allowedCategories.has(input.reason_category) ? input.reason_category : 'other';
+
+    const rows = await this.sql<{ member_id: number | null }[]>`
+      SELECT member_id FROM post_review WHERE id = ${reviewId} LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('후기를 찾을 수 없습니다.');
+    if (rows[0].member_id === reporterId) {
+      throw new BadRequestException('본인이 작성한 후기는 신고할 수 없습니다.');
+    }
+
+    try {
+      await this.sql`
+        INSERT INTO post_review_report (review_id, reporter_member_id, reason_category, reason)
+        VALUES (${reviewId}, ${reporterId}, ${category}, ${input.reason})
+      `;
+    } catch (e) {
+      // PostgreSQL unique_violation = '23505'
+      if (e instanceof Error && 'code' in e && (e as { code?: string }).code === '23505') {
+        throw new ConflictException('이미 신고하신 후기입니다.');
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * 베스트 후기 토글 (2026-05-15) — 상담사 본인만 자기 받은 후기를 선정/해제.
+   *
+   *  - 본인이 받은 후기가 아니면 403
+   *  - is_best=true 로 신규 등록 시 기존 베스트 5개 초과면 409
+   *  - is_best 갱신과 best_at 도 함께 (해제 시 NULL)
+   */
+  async toggleBest(reviewId: number, counselorId: number, isBest: boolean): Promise<{ ok: true; is_best: boolean; best_at: Date | null }> {
+    const rows = await this.sql<{ id: number; counselor_id: number | null; is_best: boolean }[]>`
+      SELECT id, counselor_id, is_best FROM post_review WHERE id = ${reviewId} LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('후기를 찾을 수 없습니다.');
+    const r = rows[0];
+    if (r.counselor_id !== counselorId) {
+      throw new ForbiddenException('본인이 받은 후기만 베스트로 선정할 수 있습니다.');
+    }
+    // 동일 상태 요청 — no-op
+    if (r.is_best === isBest) {
+      return { ok: true, is_best: isBest, best_at: null };
+    }
+    // 신규 등록 시 5개 제한
+    if (isBest) {
+      const cnt = await this.sql<{ cnt: string }[]>`
+        SELECT COUNT(*)::text AS cnt FROM post_review
+         WHERE counselor_id = ${counselorId} AND is_best = true
+      `;
+      if (Number(cnt[0]?.cnt ?? 0) >= 5) {
+        throw new ConflictException('베스트 후기는 최대 5개까지만 선정할 수 있습니다. 기존 베스트를 해제한 뒤 시도해 주세요.');
+      }
+    }
+    const bestAt = isBest ? new Date() : null;
+    await this.sql`
+      UPDATE post_review
+         SET is_best = ${isBest},
+             best_at = ${bestAt}
+       WHERE id = ${reviewId}
+    `;
+    return { ok: true, is_best: isBest, best_at: bestAt };
+  }
 }
 
 function pad(n: number): string {
@@ -692,6 +786,10 @@ export interface PublicCounselorReview {
   /** 비밀글이면 빈 문자열 */
   content: string;
   is_secret: boolean;
+  /** 베스트 후기 여부 (상담사가 선정) */
+  is_best: boolean;
+  /** 베스트 선정 시각 — 정렬용. 해제 시 null */
+  best_at: string | null;
   rating: number | null;
   created_at: string;
   /** 마스킹된 작성자명 (예: '김*객') */
@@ -728,6 +826,31 @@ function maskName(name: string): string {
   if (s.length <= 1) return s;
   if (s.length === 2) return s[0] + '*';
   return s[0] + '*' + s.slice(2);
+}
+
+/**
+ * mb_id 마스킹 — 본명 노출 회피용 (2026-05-15 정책).
+ * 예: 'ubuub1234' → 'ub***34', 'kim' → 'k*m', 'a' → 'a'
+ * 양끝 2글자만 노출하고 가운데는 *** 로 고정 (길이 정보 숨김).
+ */
+function maskMbId(mbId: string): string {
+  const s = mbId.trim();
+  if (s.length <= 2) return s;
+  if (s.length <= 4) return s[0] + '***' + s.slice(-1);
+  return s.slice(0, 2) + '***' + s.slice(-2);
+}
+
+/**
+ * 작성자 표기 우선순위 (2026-05-15 정책):
+ *   1) 닉네임이 있으면 nickname (마스킹)
+ *   2) 없으면 mb_id (마스킹)
+ *   3) 둘 다 없으면 '익명' 폴백
+ * 본명(name)은 절대 노출하지 않는다 — 고객 우려.
+ */
+function displayReviewer(nickname: string | null, mbId: string | null, fallback = '익명'): string {
+  if (nickname && nickname.trim()) return maskName(nickname);
+  if (mbId && mbId.trim()) return maskMbId(mbId);
+  return fallback;
 }
 
 function inferCategory(

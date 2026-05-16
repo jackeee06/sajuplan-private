@@ -75,6 +75,8 @@ export interface CounselorRow {
   point: number;
   state: string;
   is_rising: boolean;
+  /** 메인 상위노출 (2026-05-15 어드민 토글 신설) — 정렬 1순위에 적용됨 */
+  is_recommended: boolean;
   admin_memo: string | null;
   created_at: Date;
   // 프로필 (post_counselor)
@@ -86,6 +88,11 @@ export interface CounselorRow {
   profile_bio: string | null;
   profile_notice: string | null;
   profile_intro: string | null;
+  event_starts_at: string | null;
+  event_ends_at: string | null;
+  event_banner_image_url: string | null;
+  wide_headline: string | null;
+  wide_subcaption: string | null;
   // 첨부파일
   files: { id: number; kind: string | null; source_name: string; stored_name: string; stored_name_webp: string | null; filesize: number; created_at: Date }[];
   // 집계
@@ -165,6 +172,8 @@ export interface CounselorInput {
   use_phone?: boolean;
   use_chat?: boolean;
   is_rising?: boolean;
+  /** 메인 상위노출 — 어드민이 켜면 정렬 최상위 (2026-05-15) */
+  is_recommended?: boolean;
   admin_memo?: string | null;        // 관리자 메모
   // m2net 등록 강제 ON/OFF (기본: env 활성 시 ON)
   register_m2net?: boolean;
@@ -177,6 +186,13 @@ export interface CounselorInput {
   profile_bio?: string | null;            // wr_7 약력 (max 1000)
   profile_notice?: string | null;         // wr_content 상담사 공지 (rich text)
   profile_intro?: string | null;          // wr_4 상담사 소개 (rich text)
+  // ── 이벤트 상담사 ──
+  event_starts_at?: string | null;        // ISO 문자열, null이면 이벤트 해제
+  event_ends_at?: string | null;
+  event_banner_image_url?: string | null;
+  // ── 와이드 사진 오버레이 캡션 ──
+  wide_headline?: string | null;
+  wide_subcaption?: string | null;
 }
 
 @Injectable()
@@ -533,7 +549,7 @@ export class MembersService {
              m.paid_royalty_pct, m.free_royalty_pct,
              m.bank_name, m.bank_holder, m.bank_account,
              m.use_phone, m.use_chat,
-             m.level, m.point, m.state, m.is_rising, m.admin_memo, m.created_at,
+             m.level, m.point, m.state, m.is_rising, m.is_recommended, m.admin_memo, m.created_at,
              p.headline                                 AS profile_headline,
              p.hashtag1                                 AS profile_hashtag1,
              p.hashtag2                                 AS profile_hashtag2,
@@ -542,6 +558,11 @@ export class MembersService {
              p.bio                                      AS profile_bio,
              p.content                                  AS profile_notice,
              p.intro                                    AS profile_intro,
+             p.event_starts_at                          AS event_starts_at,
+             p.event_ends_at                            AS event_ends_at,
+             p.event_banner_image_url                   AS event_banner_image_url,
+             p.wide_headline                            AS wide_headline,
+             p.wide_subcaption                          AS wide_subcaption,
              COALESCE(
                (SELECT json_agg(json_build_object(
                  'id', f.id, 'kind', f.kind, 'source_name', f.source_name,
@@ -728,7 +749,12 @@ export class MembersService {
       input.profile_bio !== undefined ||
       input.profile_notice !== undefined ||
       input.profile_intro !== undefined ||
-      input.nickname !== undefined; // title은 nickname을 미러링
+      input.nickname !== undefined ||
+      input.event_starts_at !== undefined ||
+      input.event_ends_at !== undefined ||
+      input.event_banner_image_url !== undefined ||
+      input.wide_headline !== undefined ||
+      input.wide_subcaption !== undefined;
     if (!hasProfileInput) return;
 
     const existing = await this.sql<{ id: number }[]>`
@@ -767,7 +793,31 @@ export class MembersService {
     if (input.profile_hashtag1 !== undefined) updates.hashtag1 = input.profile_hashtag1;
     if (input.profile_hashtag2 !== undefined) updates.hashtag2 = input.profile_hashtag2;
     if (input.profile_intro !== undefined) updates.intro = input.profile_intro;
+    if (input.event_starts_at !== undefined) updates.event_starts_at = input.event_starts_at || null;
+    if (input.event_ends_at !== undefined) updates.event_ends_at = input.event_ends_at || null;
+    if (input.event_banner_image_url !== undefined) updates.event_banner_image_url = input.event_banner_image_url || null;
+    if (input.wide_headline !== undefined) updates.wide_headline = input.wide_headline || null;
+    if (input.wide_subcaption !== undefined) updates.wide_subcaption = input.wide_subcaption || null;
     if (Object.keys(updates).length === 0) return;
+
+    // 이벤트 상담사 동시 3명 제한 체크 (신규 등록 시만 — event_starts_at이 새로 설정될 때)
+    if (input.event_starts_at) {
+      const startsAt = input.event_starts_at;
+      const endsAt = input.event_ends_at || null;
+      const conflictRows = await this.sql<{ cnt: string }[]>`
+        SELECT COUNT(*)::text AS cnt
+          FROM post_counselor
+         WHERE member_id <> ${memberId}
+           AND event_starts_at IS NOT NULL
+           AND event_starts_at <= ${endsAt ?? '9999-12-31'}::timestamptz
+           AND (event_ends_at IS NULL OR event_ends_at > ${startsAt}::timestamptz)
+      `;
+      const conflictCount = Number(conflictRows[0]?.cnt ?? 0);
+      if (conflictCount >= 3) {
+        throw new Error('이벤트 상담사는 동시에 최대 3명까지만 등록할 수 있습니다.');
+      }
+    }
+
     await this.sql`UPDATE post_counselor SET ${this.sql(updates)}, updated_at = now() WHERE member_id = ${memberId}`;
   }
 
@@ -955,6 +1005,7 @@ export class MembersService {
     setIf('use_phone');
     setIf('use_chat');
     setIf('is_rising');
+    setIf('is_recommended');
     setIf('admin_memo');
     if (input.phone !== undefined) updates.phone = input.phone ? input.phone.replace(/[^0-9]/g, '') : null;
     if (input.telno !== undefined) updates.telno = input.telno ? input.telno.replace(/[^0-9]/g, '') : null;

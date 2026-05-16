@@ -32,6 +32,9 @@ interface Post {
   rating?: number | null
   counselor_id?: number | null
   counselor_name?: string | null
+  /** 후기 신고 누적 (review slug 응답에만 포함, 2026-05-15) */
+  report_count?: number
+  report_pending_count?: number
   created_at: string
 }
 
@@ -125,7 +128,8 @@ export default function PostList() {
                 <th className="px-3 py-2 text-left font-medium">번호</th>
                 <th className="px-3 py-2 text-left font-medium">제목</th>
                 {slug === 'review' && <th className="px-3 py-2 text-left font-medium">상담사</th>}
-                {slug === 'review' && <th className="px-3 py-2 text-right font-medium">평점</th>}
+                {slug === 'review' && <th className="px-3 py-2 text-right font-medium text-gray-400" title="현재 사용자 페이지에 노출하지 않는 비활성 기능 — 데이터는 누적 중">평점 <span className="text-[10px] font-normal">(미사용)</span></th>}
+                {slug === 'review' && <th className="px-3 py-2 text-center font-medium" title="후기 신고 누적 — 빨강은 미처리 신고">신고</th>}
                 <th className="px-3 py-2 text-left font-medium">작성자</th>
                 <th className="px-3 py-2 text-right font-medium">조회</th>
                 <th className="px-3 py-2 text-left font-medium">작성일</th>
@@ -135,9 +139,9 @@ export default function PostList() {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading && !data ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">로딩...</td></tr>
+                <tr><td colSpan={slug === 'review' ? 11 : 8} className="px-4 py-8 text-center text-sm text-gray-500">로딩...</td></tr>
               ) : !data || data.items.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">자료가 없습니다.</td></tr>
+                <tr><td colSpan={slug === 'review' ? 11 : 8} className="px-4 py-8 text-center text-sm text-gray-400">자료가 없습니다.</td></tr>
               ) : (
                 data.items.map((p, idx) => {
                   const num = data.total - (filter.page - 1) * PAGE_SIZE - idx
@@ -145,7 +149,7 @@ export default function PostList() {
                     <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
                       <td className="px-3 py-2 text-gray-500">{num}</td>
                       <td className="px-3 py-2 max-w-[400px] truncate">
-                        {p.is_secret && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 mr-1">비밀</span>}
+                        {p.is_secret && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 mr-1" title={slug === 'review' ? '구버전 비밀후기 — 2026-05-15 이후 신규 비밀후기는 작성 불가' : '비밀글'}>비밀</span>}
                         {p.has_file && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 mr-1">파일</span>}
                         {p.title}
                       </td>
@@ -156,7 +160,21 @@ export default function PostList() {
                           ) : <span className="text-gray-400">-</span>}
                         </td>
                       )}
-                      {slug === 'review' && <td className="px-3 py-2 text-right">{p.rating ? `${p.rating}/5` : '-'}</td>}
+                      {slug === 'review' && <td className="px-3 py-2 text-right text-gray-400">{p.rating ? `${p.rating}/5` : '-'}</td>}
+                      {slug === 'review' && (
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                          {(p.report_count ?? 0) === 0 ? (
+                            <span className="text-gray-300">-</span>
+                          ) : (
+                            <Link to="/review-reports" title={`총 ${p.report_count}건 (미처리 ${p.report_pending_count ?? 0}건)`}>
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${(p.report_pending_count ?? 0) > 0 ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-600'}`}>
+                                {(p.report_pending_count ?? 0) > 0 ? '⚠' : ''}
+                                {p.report_count}건
+                              </span>
+                            </Link>
+                          )}
+                        </td>
+                      )}
                       <td className="px-3 py-2 whitespace-nowrap">
                         {p.member_id && p.mb_id ? (
                           <Link to={`/members/customers/${p.member_id}`} className="text-brand-600 hover:underline">{p.mb_id}</Link>

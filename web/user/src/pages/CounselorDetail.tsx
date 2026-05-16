@@ -29,6 +29,8 @@ function mapDetail(r: PublicCounselorDetail): CounselorDetailData {
     liked: r.is_liked,
     heroImg: resolveImageUrl(r.hero_image),
     heroImgWebp: r.hero_image_webp ? resolveImageUrl(r.hero_image_webp) : null,
+    wideHeadline: r.wide_headline ?? null,
+    wideSubcaption: r.wide_subcaption ?? null,
     fields: r.fields.length > 0 ? r.fields : ['전문 상담'],
     styles: r.traits.length > 0 ? r.traits : ['친절한'],
     career: r.career.length > 0 ? r.career : ['상담사 약력 준비 중입니다.'],

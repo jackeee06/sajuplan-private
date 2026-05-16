@@ -4,9 +4,13 @@ import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
 import {
+  ApiError,
   counselorMyReviewsApi,
+  reviewsApi,
   type CounselorReviewListItem,
 } from '../lib/api'
+
+const BEST_LIMIT = 5
 
 const PAGE_SIZE = 10
 
@@ -57,6 +61,26 @@ export default function CounselorMyReviews() {
   }, [page, unansweredOnly, photoOnly])
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  // 현재 페이지 기준 베스트 카운트 — 다른 페이지에 베스트가 있을 수 있으므로 참고용
+  const bestOnPage = items.filter((i) => i.is_best).length
+
+  /** 베스트 토글 — 5개 초과 시 백엔드가 409 반환 → 알림 후 변경 안 함 */
+  const onToggleBest = async (id: number, current: boolean) => {
+    try {
+      const res = await reviewsApi.toggleBest(id, !current)
+      setItems((arr) =>
+        arr.map((it) =>
+          it.id === id ? { ...it, is_best: res.is_best, best_at: res.best_at } : it,
+        ),
+      )
+    } catch (e) {
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : '베스트 후기 변경에 실패했습니다.'
+      alert(msg)
+    }
+  }
 
   return (
     <div className="mobile-frame flex flex-col pb-[100px]">
@@ -101,6 +125,8 @@ export default function CounselorMyReviews() {
         <section className="px-4 pt-3 pb-2 flex items-center justify-between">
           <p className="text-[13px] leading-[140%] text-[#6A7282]">
             전체 <span className="text-[#8259F5] font-medium">{total.toLocaleString()}</span>건
+            <span className="ml-2 text-[#6A7282]">·</span>
+            <span className="ml-2 text-[#4A5565]">⭐ 베스트 {bestOnPage}/{BEST_LIMIT}</span>
           </p>
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -133,6 +159,25 @@ export default function CounselorMyReviews() {
                       <path d="M5 8L7 10L11 6" stroke="#9B7AF7" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     <span className="flex-1 text-[14px] font-medium text-[#1E2939]">{r.customer_name}</span>
+                    {/* 베스트 토글 (2026-05-15) — 활성 시 노란별, 비활성 시 회색 외곽 */}
+                    <button
+                      type="button"
+                      onClick={() => onToggleBest(r.id, r.is_best)}
+                      aria-pressed={r.is_best}
+                      aria-label={r.is_best ? '베스트 후기 해제' : '베스트 후기 선정'}
+                      title={r.is_best ? '베스트 후기 해제' : `베스트 후기 선정 (최대 ${BEST_LIMIT}개)`}
+                      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#F9FAFB] transition"
+                    >
+                      {r.is_best ? (
+                        <svg viewBox="0 0 20 20" className="w-5 h-5" fill="#F59E0B" aria-hidden>
+                          <path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.2 1 5.9L10 15l-5.2 2.7 1-5.9L1.5 7.6l5.9-.9L10 1.5z" />
+                        </svg>
+                      ) : (
+                        <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none" stroke="#99A1AF" strokeWidth="1.4" aria-hidden>
+                          <path d="M10 1.5l2.6 5.3 5.9.9-4.3 4.2 1 5.9L10 15l-5.2 2.7 1-5.9L1.5 7.6l5.9-.9L10 1.5z" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </button>
                     <button type="button" aria-label="더보기" className="w-5 h-5">
                       <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" aria-hidden>
                         <circle cx="12" cy="6" r="1.4" fill="#6A7282" />

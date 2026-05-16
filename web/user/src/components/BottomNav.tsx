@@ -29,13 +29,14 @@ export default function BottomNav({ myHref = '/mypage' }: Props = {}) {
   const location = useLocation()
   const navigate = useNavigate()
   const { isCounselor } = useAuth()
+  // 2026-05-15 변경: 상담사/단골 위치 swap + '충전'→'코인충전' 라벨, '정산'→'코인충전' 통일
   const ITEMS: NavItem[] = [
-    { to: '/favorites', label: '단골', iconBase: 'bookmark' },
     { to: '/counselors', label: '상담사', iconBase: 'heart' },
+    { to: '/favorites', label: '단골', iconBase: 'bookmark' },
     { to: '/', label: '홈', iconBase: 'home' },
     isCounselor
-      ? { to: '/mypage/settlement/history', label: '정산', iconBase: 'point' }
-      : { to: '/mypage/charge', label: '충전', iconBase: 'point' },
+      ? { to: '/mypage/settlement/history', label: '코인충전', iconBase: 'point' }
+      : { to: '/mypage/charge', label: '코인충전', iconBase: 'point' },
     { to: myHref, label: '마이', iconBase: 'my' },
   ]
 
@@ -72,15 +73,26 @@ export default function BottomNav({ myHref = '/mypage' }: Props = {}) {
             onClick={onTabClick(it.to)}
             className="flex flex-col items-center gap-2"
           >
-            <img
-              src={`/img/bt_menu_${it.iconBase}_${active ? 'on' : 'off'}.svg`}
-              alt=""
-              className="w-6 h-6"
-            />
+            {/* 홈 강조 (2026-05-15) — 다른 아이콘보다 1.4배 크게 + 활성 시 보라 원형 배경 */}
+            {it.iconBase === 'home' ? (
+              <div className={`flex items-center justify-center rounded-full ${active ? 'bg-[#F3EEFE]' : ''} w-11 h-11 -mt-2`}>
+                <img
+                  src={`/img/bt_menu_home_${active ? 'on' : 'off'}.svg`}
+                  alt=""
+                  className="w-8 h-8"
+                />
+              </div>
+            ) : (
+              <img
+                src={`/img/bt_menu_${it.iconBase}_${active ? 'on' : 'off'}.svg`}
+                alt=""
+                className="w-6 h-6"
+              />
+            )}
             <span
               className={`text-[14px] leading-none ${
                 active ? 'text-[#8259F5] font-medium' : 'text-[#4A5565] font-normal'
-              }`}
+              } ${it.iconBase === 'home' ? 'font-semibold' : ''}`}
             >
               {it.label}
             </span>

@@ -23,6 +23,7 @@ import { PostsModule } from './posts/posts.module';
 import { SettingsModule } from './settings/settings.module';
 import { SettlementsModule } from './settlements/settlements.module';
 import { StatsModule } from './stats/stats.module';
+import { AdminAttendanceModule } from './attendance/attendance.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { StatsModule } from './stats/stats.module';
     CouponsModule,
     CouponZonesModule,
     AdminCounselorApplyModule,
+    AdminAttendanceModule,
   ],
 })
 export class AdminModule {}

@@ -20,11 +20,13 @@ import {
 export class AdminCounselorApplyController {
   constructor(private readonly svc: AdminCounselorApplyService) {}
 
-  /** GET /api/admin/counselor-apply?status=pending&q=홍길동&page=1&limit=20 */
+  /** GET /api/admin/counselor-apply?status=pending&category=application&q=홍길동&page=1&limit=20
+   *  category: 'application' | 'inquiry' | 'other' (2026-05-16 추가) */
   @Get()
   list(@Query() q: Record<string, string>) {
     return this.svc.list({
       status: q.status || undefined,
+      category: q.category || undefined,
       q: q.q || undefined,
       page: q.page ? Number(q.page) : undefined,
       limit: q.limit ? Number(q.limit) : undefined,

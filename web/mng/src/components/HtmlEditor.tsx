@@ -60,7 +60,7 @@ const HtmlEditor = forwardRef<HtmlEditorHandle, Props>(function HtmlEditor(
       height={height}
       initialEditType="wysiwyg"
       useCommandShortcut
-      hideModeSwitch={false}
+      hideModeSwitch={true}
       toolbarItems={[
         ['heading', 'bold', 'italic', 'strike'],
         ['hr', 'quote'],

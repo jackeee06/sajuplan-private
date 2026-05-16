@@ -129,7 +129,7 @@ export class UserCounselorQnaService {
       content: string;
       is_secret: boolean;
       reviewer_nickname: string | null;
-      reviewer_name: string | null;
+      reviewer_mb_id: string | null;
       member_id: number | null;
       created_at: Date;
       reply_id: number | null;
@@ -138,7 +138,7 @@ export class UserCounselorQnaService {
     const [rows, totalRows] = await Promise.all([
       this.sql<Row[]>`
         SELECT q.id, q.title, q.content, q.is_secret, q.member_id, q.created_at,
-               m.nickname AS reviewer_nickname, m.name AS reviewer_name,
+               m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id,
                r.id AS reply_id
           FROM counselor_qna q
           LEFT JOIN member m ON m.id = q.member_id
@@ -168,7 +168,7 @@ export class UserCounselorQnaService {
         is_secret: r.is_secret,
         has_reply,
         status: has_reply ? '답변완료' : '답변대기',
-        reviewer_name: maskName(r.reviewer_nickname || r.reviewer_name || '익명'),
+        reviewer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id),
         created_at:
           r.created_at instanceof Date
             ? r.created_at.toISOString()
@@ -193,13 +193,13 @@ export class UserCounselorQnaService {
       content: string;
       is_secret: boolean;
       reviewer_nickname: string | null;
-      reviewer_name: string | null;
+      reviewer_mb_id: string | null;
       created_at: Date;
     };
 
     const rows = await this.sql<QnaRow[]>`
       SELECT q.id, q.counselor_id, q.member_id, q.title, q.content, q.is_secret, q.created_at,
-             m.nickname AS reviewer_nickname, m.name AS reviewer_name
+             m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
         FROM counselor_qna q
         LEFT JOIN member m ON m.id = q.member_id
        WHERE q.id = ${params.qnaId}
@@ -267,7 +267,7 @@ export class UserCounselorQnaService {
       title: q.title,
       content: canSeeContent ? q.content : '',
       is_secret: q.is_secret,
-      reviewer_name: maskName(q.reviewer_nickname || q.reviewer_name || '익명'),
+      reviewer_name: displayReviewer(q.reviewer_nickname, q.reviewer_mb_id),
       created_at:
         q.created_at instanceof Date
           ? q.created_at.toISOString()
@@ -300,7 +300,7 @@ export class UserCounselorQnaService {
       created_at: Date;
       reply_id: number | null;
       reviewer_nickname: string | null;
-      reviewer_name: string | null;
+      reviewer_mb_id: string | null;
     };
 
     const [rows, totalRows] = await Promise.all([
@@ -309,7 +309,7 @@ export class UserCounselorQnaService {
                c.name AS counselor_name, c.nickname AS counselor_nickname,
                c.dtmfno AS counselor_code,
                r.id AS reply_id,
-               m.nickname AS reviewer_nickname, m.name AS reviewer_name
+               m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
           FROM counselor_qna q
           LEFT JOIN member c ON c.id = q.counselor_id
           LEFT JOIN member m ON m.id = q.member_id
@@ -337,7 +337,7 @@ export class UserCounselorQnaService {
         is_secret: r.is_secret,
         has_reply,
         status: has_reply ? '답변완료' : '답변대기',
-        reviewer_name: maskName(r.reviewer_nickname || r.reviewer_name || '익명'),
+        reviewer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id),
         created_at:
           r.created_at instanceof Date
             ? r.created_at.toISOString()
@@ -364,7 +364,7 @@ export class UserCounselorQnaService {
       content: string;
       is_secret: boolean;
       reviewer_nickname: string | null;
-      reviewer_name: string | null;
+      reviewer_mb_id: string | null;
       created_at: Date;
     };
 
@@ -372,7 +372,7 @@ export class UserCounselorQnaService {
       SELECT q.id, q.counselor_id, q.member_id, q.title, q.content, q.is_secret, q.created_at,
              c.name AS counselor_name, c.nickname AS counselor_nickname,
              c.dtmfno AS counselor_code,
-             m.nickname AS reviewer_nickname, m.name AS reviewer_name
+             m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
         FROM counselor_qna q
         LEFT JOIN member c ON c.id = q.counselor_id
         LEFT JOIN member m ON m.id = q.member_id
@@ -438,7 +438,7 @@ export class UserCounselorQnaService {
       title: q.title,
       content: q.content,
       is_secret: q.is_secret,
-      reviewer_name: maskName(q.reviewer_nickname || q.reviewer_name || '익명'),
+      reviewer_name: displayReviewer(q.reviewer_nickname, q.reviewer_mb_id),
       created_at:
         q.created_at instanceof Date
           ? q.created_at.toISOString()
@@ -467,14 +467,14 @@ export class UserCounselorQnaService {
       created_at: Date;
       reply_id: number | null;
       reviewer_nickname: string | null;
-      reviewer_name: string | null;
+      reviewer_mb_id: string | null;
     };
 
     const [rows, totalRows] = await Promise.all([
       this.sql<Row[]>`
         SELECT q.id, q.title, q.content, q.is_secret, q.created_at,
                r.id AS reply_id,
-               m.nickname AS reviewer_nickname, m.name AS reviewer_name
+               m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
           FROM counselor_qna q
           LEFT JOIN member m ON m.id = q.member_id
           LEFT JOIN counselor_qna_reply r ON r.qna_id = q.id
@@ -498,7 +498,7 @@ export class UserCounselorQnaService {
         is_secret: r.is_secret,
         has_reply,
         status: has_reply ? '답변완료' : '답변대기',
-        reviewer_name: maskName(r.reviewer_nickname || r.reviewer_name || '익명'),
+        reviewer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id),
         created_at:
           r.created_at instanceof Date
             ? r.created_at.toISOString()
@@ -521,13 +521,13 @@ export class UserCounselorQnaService {
       content: string;
       is_secret: boolean;
       reviewer_nickname: string | null;
-      reviewer_name: string | null;
+      reviewer_mb_id: string | null;
       created_at: Date;
     };
 
     const rows = await this.sql<QnaRow[]>`
       SELECT q.id, q.counselor_id, q.title, q.content, q.is_secret, q.created_at,
-             m.nickname AS reviewer_nickname, m.name AS reviewer_name
+             m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
         FROM counselor_qna q
         LEFT JOIN member m ON m.id = q.member_id
        WHERE q.id = ${params.qnaId}
@@ -589,7 +589,7 @@ export class UserCounselorQnaService {
       title: q.title,
       content: q.content,
       is_secret: q.is_secret,
-      reviewer_name: maskName(q.reviewer_nickname || q.reviewer_name || '익명'),
+      reviewer_name: displayReviewer(q.reviewer_nickname, q.reviewer_mb_id),
       created_at:
         q.created_at instanceof Date
           ? q.created_at.toISOString()
@@ -826,4 +826,19 @@ function maskName(name: string): string {
   if (s.length <= 1) return s;
   if (s.length === 2) return s[0] + '*';
   return s[0] + '*' + s.slice(2);
+}
+
+/** mb_id 마스킹 — 본명 노출 회피용 (2026-05-15). 예: 'ubuub1234' → 'ub***34' */
+function maskMbId(mbId: string): string {
+  const s = mbId.trim();
+  if (s.length <= 2) return s;
+  if (s.length <= 4) return s[0] + '***' + s.slice(-1);
+  return s.slice(0, 2) + '***' + s.slice(-2);
+}
+
+/** 작성자 표기 우선순위: nickname → mb_id(마스킹) → '익명'. 본명 노출 안 함 (2026-05-15). */
+function displayReviewer(nickname: string | null, mbId: string | null, fallback = '익명'): string {
+  if (nickname && nickname.trim()) return maskName(nickname);
+  if (mbId && mbId.trim()) return maskMbId(mbId);
+  return fallback;
 }

@@ -22,7 +22,6 @@ export default function CounselorReviewNew() {
   const { id = '3' } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [secret, setSecret] = useState(false)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   /**
@@ -88,8 +87,7 @@ export default function CounselorReviewNew() {
           </p>
         </article>
 
-        {/* 비밀글로 작성 */}
-        <SecretCheckbox checked={secret} onChange={setSecret} />
+        {/* 비밀글 옵션 제거 (2026-05-15) — 후기는 항상 공개. 비밀 의도가 있으면 문의(Q&A) 사용 */}
 
         {/* 제목 */}
         <FormField label="제목" required>

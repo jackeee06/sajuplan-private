@@ -8,6 +8,8 @@ import type { PostFilter } from './posts.service';
 export class PostsController {
   constructor(private readonly svc: PostsService) {}
 
+  // ※ 후기 신고 관리는 별도 컨트롤러 review-reports.controller.ts 가 처리 (경로: /api/admin/review-reports)
+
   @Get(':slug')
   list(@Param('slug') slug: string, @Query() q: Record<string, string>) {
     const filter: PostFilter = {

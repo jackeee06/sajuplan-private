@@ -4,6 +4,8 @@ import { ConsultProvider } from './lib/consult-context'
 import { LikeProvider } from './lib/like-context'
 import { LoginPromptProvider } from './lib/login-prompt-context'
 import NativeBackBridge from './components/NativeBackBridge'
+import AttendanceToast from './components/AttendanceToast'
+import ScrollToTop from './components/ScrollToTop'
 import MyPageEntry from './pages/MyPageEntry'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
@@ -75,6 +77,7 @@ import Help from './pages/Help'
 import NewCounselors from './pages/NewCounselors'
 import CounselorApply from './pages/CounselorApply'
 import CounselorApplyNew from './pages/CounselorApplyNew'
+import CounselorApplyDone from './pages/CounselorApplyDone'
 import CounselorApplyDetail from './pages/CounselorApplyDetail'
 
 export default function App() {
@@ -84,7 +87,9 @@ export default function App() {
       <LoginPromptProvider>
       <LikeProvider>
       <ConsultProvider>
+      <ScrollToTop />
       <NativeBackBridge />
+      <AttendanceToast />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
@@ -157,6 +162,7 @@ export default function App() {
         <Route path="/mypage/new-counselors" element={<NewCounselors />} />
         <Route path="/mypage/counselor-apply" element={<CounselorApply />} />
         <Route path="/mypage/counselor-apply/new" element={<CounselorApplyNew />} />
+        <Route path="/mypage/counselor-apply/done" element={<CounselorApplyDone />} />
         <Route path="/mypage/counselor-apply/:id" element={<CounselorApplyDetail />} />
         {/* 추후: /chat/:id, /bookmarks, /point, /mypage/inquiry/new */}
         <Route path="*" element={<Navigate to="/" replace />} />

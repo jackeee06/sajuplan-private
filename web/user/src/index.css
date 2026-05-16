@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 필수 입력 누락 시 해당 필드를 잠시 빨갛게 강조 — CounselorApplyNew 의 flashField() 가 토글 */
+@keyframes fieldErrorFlash {
+  0% { box-shadow: 0 0 0 0 rgba(251, 44, 54, 0); }
+  20% { box-shadow: 0 0 0 4px rgba(251, 44, 54, 0.35); background-color: rgba(254, 235, 238, 0.6); }
+  60% { box-shadow: 0 0 0 4px rgba(251, 44, 54, 0.2); background-color: rgba(254, 235, 238, 0.3); }
+  100% { box-shadow: 0 0 0 0 rgba(251, 44, 54, 0); background-color: transparent; }
+}
+.field-error-flash {
+  animation: fieldErrorFlash 2.2s ease-out;
+  border-radius: 12px;
+  scroll-margin-top: 80px;
+}
+
 @layer base {
   html,
   body,

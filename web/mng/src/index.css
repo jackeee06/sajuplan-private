@@ -84,3 +84,12 @@
     @apply bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400;
   }
 }
+
+/* sticky 저장 버튼 — 변경 미저장 상태에서 부드러운 펄스로 시선 유도 */
+@keyframes save-pulse {
+  0%, 100% { box-shadow: 0 8px 24px -6px rgba(130, 89, 245, 0.55); }
+  50%      { box-shadow: 0 12px 32px -4px rgba(130, 89, 245, 0.85); }
+}
+.save-pulse {
+  animation: save-pulse 1.8s ease-in-out infinite;
+}

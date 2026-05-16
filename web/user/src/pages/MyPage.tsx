@@ -53,11 +53,11 @@ export default function MyPage() {
 
       <main className="flex-1 px-4">
         <section className="pt-2 pb-6">
-          <h2 className="text-[22px] leading-[140%] font-bold text-[#030712]">
-            사주문에 오신걸<br />환영합니다 :)
+          <h2 className="text-[20px] leading-[140%] font-bold text-[#030712]">
+            사주문에 오신 걸 환영합니다.
           </h2>
-          <p className="mt-2 text-[14px] leading-[140%] text-[#99A1AF]">
-            로그인 후 다양한 서비스를 사용해보세요.
+          <p className="mt-2 text-[14px] leading-[150%] text-[#99A1AF] break-keep">
+            로그인하시면 상담, 후기, 단골 등 다양한 서비스를 이용하실 수 있습니다.
           </p>
           <Link
             to="/login"

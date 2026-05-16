@@ -13,10 +13,11 @@ import {
 type MenuKey = 'member' | 'sales' | 'consultation' | 'board' | 'notification' | 'misc' | 'permission' | 'config'
 
 export default function Sidebar() {
+  // 회원현황/매출현황/상담관리는 자주 쓰는 메뉴라 항상 펼친 상태로 시작
   const [open, setOpen] = useState<Record<MenuKey, boolean>>({
-    member: false,
-    sales: false,
-    consultation: false,
+    member: true,
+    sales: true,
+    consultation: true,
     board: false,
     notification: false,
     misc: false,
@@ -60,6 +61,7 @@ export default function Sidebar() {
                     <li><NavLink to="/members/customers" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>고객 리스트</NavLink></li>
                     <li><NavLink to="/members/counselors" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담사 리스트</NavLink></li>
                     <li><NavLink to="/members/counselor-apply" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담사 신청 내역</NavLink></li>
+                    <li><NavLink to="/attendance" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 출석 관리</NavLink></li>
                   </ul>
                 )}
               </li>
@@ -100,6 +102,7 @@ export default function Sidebar() {
                 {open.consultation && (
                   <ul className="flex flex-col gap-1 mt-2 pl-9">
                     <li><NavLink to="/posts/review" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담후기 관리</NavLink></li>
+                    <li><NavLink to="/review-reports" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>후기 신고 관리</NavLink></li>
                     <li><NavLink to="/chat-history" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>채팅내역 리스트</NavLink></li>
                   </ul>
                 )}

@@ -85,7 +85,7 @@ export default function ConsultModal({ open, onClose, variant, counselor }: Prop
     ? Math.floor((userPoint * 30) / counselor.pricePerHalfMin / 60)
     : 0
 
-  const ctaText = isPhone ? '상담하기' : '채팅 상담하기'
+  const ctaText = isPhone ? '전화 상담하기' : '채팅 상담하기'
   const headerTitle = isPhone ? '전화상담 가능' : '채팅상담 가능'
   const badgeBg = (counselor.badge && BADGE_BG_MAP[counselor.badge]) || '#8259F5'
 

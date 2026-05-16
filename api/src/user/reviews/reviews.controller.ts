@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Param,
   ParseIntPipe,
@@ -133,7 +134,8 @@ export class UserReviewsController {
       counselor_id: Number(body.counselor_id),
       title: String(body.title ?? ''),
       content: String(body.content ?? ''),
-      is_secret: !!body.is_secret,
+      // 비밀글 기능 제거 (2026-05-15) — 후기는 항상 공개. 프론트 입력값 무시하고 false 강제.
+      is_secret: false,
       rating: body.rating ?? null,
       photo_url: body.photo_url ?? null,
       photo_url_webp: body.photo_url_webp ?? null,
@@ -151,15 +153,20 @@ export class UserReviewsController {
     return this.svc.getMine(id, req.user.sub);
   }
 
-  /** PATCH /api/user/reviews/:id — 본인 후기 수정 (제목/본문/비밀글) */
+  /**
+   * PATCH /api/user/reviews/:id — 본인 후기 수정.
+   * ⚠️ 2026-05-15 운영 정책으로 **수정 기능 비활성화** (403 반환).
+   *     이유: 후기는 한 번 작성 후 변경 불가 (악의적 변조·삭제·재작성 반복 방지).
+   *           수정이 필요하면 기존 후기를 삭제(DELETE)하고 다시 작성하도록 안내.
+   *     service.updateMine 함수 자체는 어드민/복귀 시나리오 대비로 코드 유지.
+   */
   @Patch(':id')
   @UseGuards(UserAuthGuard)
   async update(
-    @Req() req: UserAuthedRequest,
-    @Param('id', ParseIntPipe) id: number,
-    @Body() body: { title?: string; content?: string; is_secret?: boolean; rating?: number; photo_url?: string | null },
+    @Req() _req: UserAuthedRequest,
+    @Param('id', ParseIntPipe) _id: number,
   ) {
-    return this.svc.updateMine(id, req.user.sub, body);
+    throw new ForbiddenException('후기는 수정할 수 없습니다. 변경이 필요하면 삭제 후 다시 작성해 주세요.');
   }
 
   /** DELETE /api/user/reviews/:id — 본인 후기 물리 삭제 (hard delete) */
@@ -170,6 +177,45 @@ export class UserReviewsController {
     @Param('id', ParseIntPipe) id: number,
   ) {
     await this.svc.deleteMine(id, req.user.sub);
+    return { ok: true };
+  }
+
+  /**
+   * PATCH /api/user/reviews/:id/best — 베스트 후기 토글 (2026-05-15 신설).
+   *
+   *  - 후기 대상 상담사 본인만 토글 가능 (counselor_id === req.user.sub)
+   *  - 베스트는 상담사당 최대 5개. 6번째 등록 시 409 (기존 해제 후 시도).
+   *  - body: { is_best: boolean }
+   */
+  @Patch(':id/best')
+  @UseGuards(UserAuthGuard)
+  async toggleBest(
+    @Req() req: UserAuthedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { is_best?: boolean },
+  ) {
+    return this.svc.toggleBest(id, req.user.sub, !!body.is_best);
+  }
+
+  /**
+   * POST /api/user/reviews/:id/report — 후기 신고 (2026-05-15 신설).
+   * 비방·허위·광고 등 부적절한 후기를 다른 사용자가 신고할 수 있음.
+   *
+   *  - 본인이 작성한 후기는 신고 불가 (400).
+   *  - 같은 사용자가 같은 후기를 중복 신고 불가 (DB UNIQUE 제약, 409).
+   *  - 어드민이 검토 후 처리 (hidden/dismissed). 자동 숨김 없음.
+   */
+  @Post(':id/report')
+  @UseGuards(UserAuthGuard)
+  async report(
+    @Req() req: UserAuthedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { reason_category?: string; reason?: string },
+  ) {
+    await this.svc.reportReview(id, req.user.sub, {
+      reason_category: String(body.reason_category ?? 'other'),
+      reason: body.reason ? String(body.reason) : null,
+    });
     return { ok: true };
   }
 }

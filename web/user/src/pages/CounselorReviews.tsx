@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import CounselorDetailLayout from '../components/CounselorDetailLayout'
+import ReviewReportModal from '../components/ReviewReportModal'
 import type { Badge, CounselorDetailData } from '../data/counselorDetails'
 import {
   ApiError,
@@ -174,12 +175,32 @@ export default function CounselorReviews() {
       {/* 카운터 + 사진 후기만 */}
       <CounterRow total={data.reviewTotal} />
 
-      {/* 후기 카드 리스트 */}
+      {/* 베스트 후기 영역 — 옅은 황색 배경으로 영역 명확화 (2026-05-15) */}
+      {(() => {
+        const bestList = reviews.filter((r) => r.is_best).slice(0, 5)
+        if (bestList.length === 0) return null
+        return (
+          <section className="-mx-4 px-4 bg-[#FFFBEB] border-y border-[#FDE68A]">
+            <div className="pt-4 pb-2 flex items-center gap-1.5">
+              <span aria-hidden>⭐</span>
+              <h2 className="text-[15px] font-bold text-[#1E2939]">베스트 후기</h2>
+              <span className="text-[12px] text-[#92400E]">상담사가 직접 선정한 후기 {bestList.length}건</span>
+            </div>
+            <div className="flex flex-col pb-2">
+              {bestList.map((r) => (
+                <ReviewCard key={`best-${r.id}`} review={r} isLoggedIn={!!member} />
+              ))}
+            </div>
+          </section>
+        )
+      })()}
+
+      {/* 후기 카드 리스트 (전체 — 베스트도 포함, 정렬상 베스트가 위에 옴) */}
       <section className="flex flex-col -mt-2">
         {reviews.length === 0 ? (
           <p className="text-center text-[14px] text-[#99A1AF] py-10">아직 후기가 없습니다.</p>
         ) : (
-          reviews.map((r) => <ReviewCard key={r.id} review={r} />)
+          reviews.filter((r) => !r.is_best).map((r) => <ReviewCard key={r.id} review={r} isLoggedIn={!!member} />)
         )}
       </section>
 
@@ -217,41 +238,67 @@ function CounterRow({ total }: { total: string }) {
 
 /* ───────────── 후기 카드 (백엔드 연동) ───────────── */
 
-function ReviewCard({ review }: { review: PublicCounselorReview }) {
+function ReviewCard({ review, isLoggedIn }: { review: PublicCounselorReview; isLoggedIn: boolean }) {
   const { id, title, content, is_secret, reviewer_name, created_at } = review
   const dateText = formatDate(created_at)
+  const navigate = useNavigate()
+  const [reportOpen, setReportOpen] = useState(false)
+
+  const onReportClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!isLoggedIn) {
+      alert('신고하려면 로그인이 필요합니다.')
+      navigate('/login')
+      return
+    }
+    setReportOpen(true)
+  }
 
   return (
-    <Link
-      to={`/reviews/${id}`}
-      className="block px-0 py-4 flex flex-col gap-2 border-b border-[#F3F4F6] hover:bg-[#F9FAFB]/40 transition"
-    >
-      {/* 1) 작성자 + 메뉴 */}
-      <div className="flex items-center gap-2">
-        <div className="flex-1 flex items-center gap-1 min-w-0">
-          <img src="/img/ic_reviewer.svg" alt="" className="w-4 h-4 shrink-0" />
-          <span className="text-[14px] leading-[130%] font-medium text-[#1E2939] truncate">
-            {reviewer_name}
-          </span>
+    <>
+      <Link
+        to={`/reviews/${id}`}
+        className="block px-0 py-4 flex flex-col gap-2 border-b border-[#F3F4F6] hover:bg-[#F9FAFB]/40 transition"
+      >
+        {/* 1) 작성자 + 신고 버튼 */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 flex items-center gap-1 min-w-0">
+            <img src="/img/ic_reviewer.svg" alt="" className="w-4 h-4 shrink-0" />
+            <span className="text-[14px] leading-[130%] font-medium text-[#1E2939] truncate">
+              {reviewer_name}
+            </span>
+          </div>
+          {/* 신고 버튼 (2026-05-15 신설) — Link 클릭 전파 차단 */}
+          <button
+            type="button"
+            onClick={onReportClick}
+            className="shrink-0 text-[12px] text-[#99A1AF] hover:text-[#FB2C36] underline-offset-2 hover:underline"
+            aria-label="이 후기 신고"
+          >
+            신고
+          </button>
         </div>
-      </div>
 
-      {/* 2) 제목 */}
-      <div className="flex items-center gap-1">
-        {is_secret && <LockIcon />}
-        <h3 className="text-[14px] leading-[130%] font-medium text-[#1E2939]">{title}</h3>
-      </div>
+        {/* 2) 제목 */}
+        <div className="flex items-center gap-1">
+          {is_secret && <LockIcon />}
+          <h3 className="text-[14px] leading-[130%] font-medium text-[#1E2939]">{title}</h3>
+        </div>
 
-      {/* 3) 본문 */}
-      <p className="text-[14px] leading-[130%] text-[#4A5565] whitespace-pre-line line-clamp-3">
-        {is_secret ? '비밀 후기입니다' : content}
-      </p>
+        {/* 3) 본문 */}
+        <p className="text-[14px] leading-[130%] text-[#4A5565] whitespace-pre-line line-clamp-3">
+          {is_secret ? '비밀 후기입니다' : content}
+        </p>
 
-      {/* 4) 날짜 */}
-      <div className="flex items-center gap-1 text-[14px] leading-[130%] text-[#99A1AF]">
-        <span>{dateText}</span>
-      </div>
-    </Link>
+        {/* 4) 날짜 */}
+        <div className="flex items-center gap-1 text-[14px] leading-[130%] text-[#99A1AF]">
+          <span>{dateText}</span>
+        </div>
+      </Link>
+
+      <ReviewReportModal reviewId={id} open={reportOpen} onClose={() => setReportOpen(false)} />
+    </>
   )
 }
 

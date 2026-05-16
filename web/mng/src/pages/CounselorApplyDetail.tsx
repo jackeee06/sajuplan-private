@@ -398,9 +398,14 @@ export default function CounselorApplyDetail() {
           )}
         </Row>
         <Row label="본인 소개" fullWidth>
-          <p className="whitespace-pre-line text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-            {intro || '-'}
-          </p>
+          {intro ? (
+            <div
+              className="apply-intro text-sm text-gray-700 dark:text-gray-300 leading-relaxed prose prose-sm max-w-none dark:prose-invert"
+              dangerouslySetInnerHTML={{ __html: intro }}
+            />
+          ) : (
+            <span className="text-gray-400 text-sm">-</span>
+          )}
         </Row>
       </Section>
 
@@ -449,7 +454,9 @@ export default function CounselorApplyDetail() {
               </picture>
             </a>
           ) : (
-            <span className="text-gray-400 text-sm">등록 안됨</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 italic">
+              승인 후 별도 등록 — 메인 배너용 마케팅 자료 (신청 단계 미수집 항목)
+            </span>
           )}
         </Row>
       </Section>

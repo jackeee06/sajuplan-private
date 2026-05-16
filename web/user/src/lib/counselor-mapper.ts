@@ -89,6 +89,7 @@ export function mapPublicCounselorToCard(c: PublicCounselor): Counselor {
     rating: c.rating_avg ?? 0,
     reviewCount: c.review_count,
     liked: c.is_liked,
+    isNew: c.is_new,
     imgUrl: c.profile_image ?? '/img/sample_img01.jpg',
     imgUrlWebp: c.profile_image_webp,
   }

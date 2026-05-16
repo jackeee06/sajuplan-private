@@ -105,13 +105,20 @@ export class UserCounselorApplyController {
 
     let urlWebp: string | null = null;
     if (k === 'profile' || k === 'wide') {
+      // 큰 사진 자동 축소 — 프로필은 800px, 와이드 배너는 1600px 까지.
+      // 모바일 원본 (예: 4032x3024) 그대로 두면 페이지 로딩 느려짐.
+      const maxDimension = k === 'profile' ? 800 : 1600;
       try {
-        const { webpFilename } = await convertImageToWebp(file.path);
+        const { webpFilename } = await convertImageToWebp(file.path, { maxDimension });
         if (webpFilename) urlWebp = `/uploads/counselor-apply/${webpFilename}`;
       } catch {
         // webp 변환 실패는 치명적이지 않음 — 원본만 반환.
       }
     }
+
+    // multer 가 multipart 헤더의 filename 을 latin1 으로 디코딩해서
+    // 한글 파일명이 mojibake (예: '½ÇÇèÆÄÀÏ.png') 로 보임 → utf-8 로 재디코딩.
+    const originalName = Buffer.from(file.originalname, 'latin1').toString('utf-8');
 
     return {
       ok: true,
@@ -119,7 +126,7 @@ export class UserCounselorApplyController {
       url: `/uploads/counselor-apply/${file.filename}`,
       url_webp: urlWebp,
       filename: file.filename,
-      original_name: file.originalname,
+      original_name: originalName,
       size: file.size,
     };
   }
@@ -168,6 +175,8 @@ export class UserCounselorApplyController {
     @Req() req: OptionalUserRequest,
     @Body()
     body: {
+      /** 신청 종류 (2026-05-16) — application(지원서) | inquiry(상담사 문의) | other(기타 문의) */
+      apply_type?: 'application' | 'inquiry' | 'other';
       title?: string;
       content?: string;
       applicant_phone?: string;
@@ -176,16 +185,16 @@ export class UserCounselorApplyController {
       extras?: Record<string, unknown>;
       captcha_token?: string;
       captcha_input?: string;
-      /** 상담사 가입 ID — 승인 시 mb_id 로 사용 */
+      /** 상담사 가입 ID — application 에서만 사용 */
       mb_id?: string;
-      /** 상담사 가입 PW (평문) — 백엔드에서 즉시 bcrypt 해시. 평문은 절대 저장 안 함. */
+      /** 상담사 가입 PW (평문) — application 에서만 사용. 백엔드에서 즉시 bcrypt 해시. */
       password?: string;
     },
   ) {
-    // 1) 자동등록방지(캡차) 검증 — 잘못 입력 시 바로 4xx
+    // 1) 자동등록방지(캡차) 검증
     await this.captcha.verify(body.captcha_token ?? '', body.captcha_input ?? '');
 
-    // 2) 휴대폰 인증 검증 — sms_auth 에 verified=true 인 row 가 5분 내에 있어야 함
+    // 2) 휴대폰 인증 검증 — 모든 종류 공통 (스팸/봇 차단)
     const phone = (body.applicant_phone ?? '').replace(/[^0-9]/g, '');
     if (!phone) throw new BadRequestException('휴대폰 인증을 완료해주세요.');
     const verified = await this.sms.isVerifiedRecently(phone);
@@ -194,6 +203,7 @@ export class UserCounselorApplyController {
     return this.svc.create({
       memberId: req.user?.sub ?? null,
       mbId: req.user?.mb_id ?? null,
+      apply_type: body.apply_type ?? 'application',
       title: body.title ?? '',
       content: body.content,
       applicant_phone: phone,

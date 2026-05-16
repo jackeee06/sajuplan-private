@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError, reviewsApi } from '../lib/api'
-import { SecretCheckbox } from './CounselorReviewNew'
 
 /**
  * 상담 후기 작성 (마이페이지에서 진입) — Figma 147:12530
@@ -28,7 +27,6 @@ export default function MyReviewNew() {
   const consultationId = Number(searchParams.get('consultation_id') ?? '') || 0
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [secret, setSecret] = useState(false)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   /** 화면 표시용 미리보기 URL (objectURL 또는 업로드된 서버 URL). 최대 1장. */
@@ -106,7 +104,8 @@ export default function MyReviewNew() {
         counselor_id: counselorId,
         title: title.trim(),
         content: content.trim(),
-        is_secret: secret,
+        // 비밀글 기능 제거 (2026-05-15) — 후기는 항상 공개. 백엔드도 무시.
+        is_secret: false,
         photo_url: uploadedUrl,
         photo_url_webp: uploadedWebpUrl,
         consultation_id: consultationId || null,
@@ -150,7 +149,7 @@ export default function MyReviewNew() {
           </p>
         </article>
 
-        <SecretCheckbox checked={secret} onChange={setSecret} />
+        {/* 비밀글 옵션 제거 (2026-05-15) — 후기는 항상 공개 */}
 
         <FormField label="제목" required>
           <input
