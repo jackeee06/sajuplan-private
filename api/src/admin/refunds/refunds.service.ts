@@ -74,6 +74,16 @@ export class AdminRefundsService {
         throw new BadRequestException('회원 ID 없는 상담은 환불 불가 (전화 매칭 누락 건).');
       }
 
+      // [Audit A-#7] amt 정합성 검증 — amt_free + amt_pro = amt 가 성립해야 함.
+      // 깨진 데이터에서 환불 비율 계산하면 잘못된 분배 발생 가능.
+      const sumParts = (cs.amt_free ?? 0) + (cs.amt_pro ?? 0);
+      if (sumParts !== (cs.amt ?? 0)) {
+        throw new BadRequestException(
+          `상담 금액 데이터 불일치: amt_free(${cs.amt_free}) + amt_pro(${cs.amt_pro}) = ${sumParts} ≠ amt(${cs.amt}). ` +
+          `consultation #${consultationId} 데이터 점검 후 환불 처리하세요.`,
+        );
+      }
+
       const remaining = (cs.amt ?? 0) - (cs.refunded_amount ?? 0);
       if (remaining <= 0) {
         throw new BadRequestException('이미 전액 환불된 상담입니다.');

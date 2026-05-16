@@ -23,12 +23,11 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 2026-05-16: Phase 13 — 일괄 알림톡 발송 + 발송 로그
+# 2026-05-17: Audit A 그룹 — 정산률 검증 + 멱등성 + amt 정합성 + OpsAlert
 FILES = [
-    ("api/src/admin/alimtalk-bulk/alimtalk-bulk.module.ts", "src/admin/alimtalk-bulk/alimtalk-bulk.module.ts"),
-    ("api/src/admin/alimtalk-bulk/alimtalk-bulk.service.ts", "src/admin/alimtalk-bulk/alimtalk-bulk.service.ts"),
-    ("api/src/admin/alimtalk-bulk/alimtalk-bulk.controller.ts", "src/admin/alimtalk-bulk/alimtalk-bulk.controller.ts"),
-    ("api/src/admin/admin.module.ts", "src/admin/admin.module.ts"),
+    ("api/src/cron/settlement-cron.service.ts", "src/cron/settlement-cron.service.ts"),
+    ("api/src/admin/refunds/refunds.service.ts", "src/admin/refunds/refunds.service.ts"),
+    ("api/src/pg-callbacks/m2net-push.service.ts", "src/pg-callbacks/m2net-push.service.ts"),
 ]
 
 

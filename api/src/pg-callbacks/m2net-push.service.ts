@@ -378,8 +378,14 @@ export class M2netPushService {
             false,
           );
         } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
           this.logger.error(
-            `상담사 포인트 적립 실패 (counselorId=${counselorId}, consultationId=${consultationId}): ${e instanceof Error ? e.message : String(e)}`,
+            `상담사 포인트 적립 실패 (counselorId=${counselorId}, consultationId=${consultationId}): ${msg}`,
+          );
+          // [Audit A-#11] 상담사 적립 실패도 OpsAlert — 상담사 수익 미적립 = 정산 분쟁 직결.
+          void this.opsAlert.send(
+            'M2NET 상담사 적립 실패',
+            `counselorId=${counselorId} consultationId=${consultationId}\namt=${amt} reason=${reason}\n\n${msg}`,
           );
         }
       }
@@ -579,8 +585,14 @@ export class M2netPushService {
         false,
       );
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
       this.logger.error(
-        `[settleChatRoomLocal] 상담사 적립 실패 counselorId=${room.counselor_id} consultationId=${consultationId}: ${e instanceof Error ? e.message : String(e)}`,
+        `[settleChatRoomLocal] 상담사 적립 실패 counselorId=${room.counselor_id} consultationId=${consultationId}: ${msg}`,
+      );
+      // [Audit A-#11] 채팅 정산 시 상담사 적립 실패도 OpsAlert.
+      void this.opsAlert.send(
+        'M2NET 채팅 정산 상담사 적립 실패',
+        `counselorId=${room.counselor_id} consultationId=${consultationId}\namt=${amt}\n\n${msg}`,
       );
     }
 

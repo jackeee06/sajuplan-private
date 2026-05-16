@@ -130,8 +130,16 @@ export class SettlementCronService {
         : [];
       if (gradeRow.length > 0 && gradeRow[0].value) {
         // 0.35 같은 decimal → 35 (percent) 로 환산 (기존 코드가 /100 함)
+        // [Audit A-#1] 정산률 형식 검증 — 0.35 대신 35 가 저장되면 ×100 환산 후 3500%
+        // 적용되어 회사에 큰 손실. decimal 0~1 범위 강제.
         const rate = Number(gradeRow[0].value);
-        const ratePct = Number.isFinite(rate) ? rate * 100 : 0;
+        if (!Number.isFinite(rate) || rate < 0 || rate > 1) {
+          throw new Error(
+            `[settlement] 정산률 형식 오류: namespace=grade key=revenue_rate.${m.grade} value="${gradeRow[0].value}" — decimal 0~1 사이여야 함 (예: 0.35). ` +
+            `정책 설정 확인 후 재실행하세요.`,
+          );
+        }
+        const ratePct = rate * 100;
         royaltyFree = ratePct;
         royaltyPaid = ratePct;
       } else {
@@ -191,10 +199,14 @@ export class SettlementCronService {
       const price = supply - withholding - replyFee;
 
       // 기존 row 확인 → UPSERT
+      // [Audit A-#2] 멱등성 — member_id 만으로 정확히 매칭 (OR 제거).
+      // OR 조건은 mb_id 가 변경된 row 가 있을 때 잘못된 매칭 → 중복 INSERT 가능했음.
+      // DB 측 UNIQUE 제약 (uq_settlement_member_month, uq_settlement_mb_id_month) 이
+      // 최종 방어선. 코드 검색은 member_id 만 사용해 명확화.
       const existing = await tx<{ id: number }[]>`
         SELECT id FROM settlement_monthly
          WHERE month = ${bmonth}
-           AND (member_id = ${memberId} OR mb_id = ${mbId})
+           AND member_id = ${memberId}
          LIMIT 1
       `;
       const alreadyExists = existing.length > 0;
