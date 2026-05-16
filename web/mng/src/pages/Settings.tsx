@@ -290,8 +290,8 @@ export default function Settings() {
   }
 
   return (
-    // 왼쪽 정렬 + 최대 폭 제한 — 와이드 모니터에서 콘텐츠 끝까지 안 늘어나게
-    <div className="space-y-6 max-w-[960px]">
+    // 정보 밀도 최대화 — 와이드 모니터에서 한 화면에 많이 보이게
+    <div className="space-y-4 max-w-[1600px]">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">기본환경설정</h1>
@@ -400,13 +400,14 @@ function SettingsSection({
           <div className="text-sm font-medium text-gray-800 dark:text-gray-100">{title}</div>
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 p-4">
+      {/* 정보 밀도 높이기 — 4열 (lg) / 3열 (md) / 1열 (mobile). textarea 는 풀폭 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-3 p-3">
         {fields.map((f) => {
           const value = values[f.key] ?? ''
-          // textarea 와 multiselect 는 풀폭으로
+          // textarea 와 multiselect 는 풀폭 (2칸)으로
           const wide = f.kind === 'textarea' || f.kind === 'multiselect'
           return (
-            <div key={f.key} className={wide ? 'md:col-span-2' : ''}>
+            <div key={f.key} className={wide ? 'md:col-span-3 lg:col-span-4' : ''}>
               <label
                 htmlFor={`field-${f.key}`}
                 className="block text-xs font-medium text-gray-700 dark:text-gray-300"
@@ -414,9 +415,9 @@ function SettingsSection({
                 {f.label}
               </label>
               {f.hint && (
-                <div className="text-[11px] text-gray-400 mt-0.5 mb-1.5">{f.hint}</div>
+                <div className="text-[10px] text-gray-400 mt-0.5 mb-1 leading-tight">{f.hint}</div>
               )}
-              <div className={f.hint ? '' : 'mt-1.5'}>
+              <div className={f.hint ? '' : 'mt-1'}>
                 <FieldInput
                   id={`field-${f.key}`}
                   def={f}
