@@ -290,7 +290,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-6">
+    // 왼쪽 정렬 + 최대 폭 제한 — 와이드 모니터에서 콘텐츠 끝까지 안 늘어나게
+    <div className="space-y-6 max-w-[960px]">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">기본환경설정</h1>
