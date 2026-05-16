@@ -21,6 +21,13 @@ interface FieldDef {
   hint?: string
   placeholder?: string
   options?: { value: string; label: string }[]
+  /**
+   * 그리드 폭 오버라이드. 기본:
+   *  - textarea / multiselect → true (행 전체)
+   *  - 그 외 → false (1칸)
+   * 짧은 내용 textarea (IP 목록 등) 는 false 로 명시해 좁게 표시.
+   */
+  wide?: boolean
 }
 
 // ───────────────────────────────────────────────
@@ -168,10 +175,10 @@ const NS_FIELDS: Record<Namespace, { title: string; fields: FieldDef[] }> = {
   security: {
     title: '보안',
     fields: [
-      { key: 'possible_ip', label: '접속 허용 IP', kind: 'textarea', hint: '개행 구분, 비우면 전체 허용' },
-      { key: 'intercept_ip', label: '접속 차단 IP', kind: 'textarea' },
-      { key: 'prohibit_id', label: '금지 아이디', kind: 'textarea', hint: '콤마(,) 구분 — 예: admin, root, test. 회원가입 시 이 ID 거부' },
-      { key: 'prohibit_email', label: '금지 이메일 도메인', kind: 'textarea', hint: '콤마(,) 구분 — 예: spam.com, badmail.org. 회원가입 시 이 도메인 거부' },
+      { key: 'possible_ip', label: '접속 허용 IP', kind: 'textarea', wide: false, hint: '개행 구분, 비우면 전체 허용' },
+      { key: 'intercept_ip', label: '접속 차단 IP', kind: 'textarea', wide: false, hint: '개행 구분' },
+      { key: 'prohibit_id', label: '금지 아이디', kind: 'textarea', wide: false, hint: '콤마(,) 구분 — 예: admin, root, test' },
+      { key: 'prohibit_email', label: '금지 이메일 도메인', kind: 'textarea', wide: false, hint: '콤마(,) 구분 — 예: spam.com, badmail.org' },
     ],
   },
   footer: {
@@ -434,8 +441,8 @@ function SettingsSection({
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-3 p-3">
         {fields.map((f) => {
           const value = values[f.key] ?? ''
-          // textarea 와 multiselect 는 풀폭 (2칸)으로
-          const wide = f.kind === 'textarea' || f.kind === 'multiselect'
+          // wide 오버라이드 우선. 없으면 textarea/multiselect 만 풀폭, 나머지 1칸.
+          const wide = f.wide ?? (f.kind === 'textarea' || f.kind === 'multiselect')
           return (
             <div key={f.key} className={wide ? 'md:col-span-3 lg:col-span-4' : ''}>
               <label
