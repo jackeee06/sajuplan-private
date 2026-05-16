@@ -422,12 +422,9 @@ function GradeMatrixEditor({
               <tr key={g.key}>
                 <td className="px-3 py-2 font-medium text-gray-700 dark:text-gray-200">{g.label}</td>
                 <td className="px-3 py-2">
-                  <input
-                    type="text"
+                  <PriceOptionsEditor
                     value={values[`options.${g.key}`] ?? ''}
-                    onChange={(e) => onChange(`options.${g.key}`, e.target.value)}
-                    placeholder="예: 800,1000"
-                    className={`${inputBase} font-mono w-[400px]`}
+                    onChange={(v) => onChange(`options.${g.key}`, v)}
                   />
                 </td>
                 <td className="px-3 py-2">
@@ -513,6 +510,110 @@ function GradeMatrixEditor({
           </PolicyCell>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * 단가 옵션 개별 칸 편집기.
+ *  - DB 저장 형식: "800,1000,1200" (콤마 구분 문자열) — 기존 스키마 그대로
+ *  - UI 는 칸당 한 숫자 + 추가/삭제 버튼
+ *  - 잘못된 입력(빈값/0 이하/비숫자) 은 저장 시 자동 제외
+ *
+ *  변경 정책:
+ *    - 빈 값 입력 OK (편집 중 임시 상태). 빈 값/0/NaN 은 join 할 때 자동 제거.
+ *    - 추가: + 버튼 → 빈 칸 추가
+ *    - 삭제: 칸 옆 × 버튼
+ *    - 최소 1개 유지 (전부 삭제 방지)
+ */
+function PriceOptionsEditor({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (v: string) => void
+}) {
+  // 입력 중에는 raw 문자열 상태로 유지 — 사용자가 지웠다가 다시 쓸 수 있게
+  const initial = value
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+  const [items, setItems] = useState<string[]>(initial.length > 0 ? initial : [''])
+
+  // 부모 value 가 다른 출처(예: 저장 후 새로 받은 데이터)로 바뀌면 동기화
+  useEffect(() => {
+    const next = value.split(',').map((s) => s.trim()).filter((s) => s.length > 0)
+    const joined = items.join(',')
+    if (joined !== value && next.join(',') !== joined) {
+      setItems(next.length > 0 ? next : [''])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+
+  const propagate = (next: string[]) => {
+    // 부모에게는 valid 한 숫자만 콤마 결합해 전달
+    const valid = next
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0 && Number(s) > 0)
+    onChange(valid.join(','))
+  }
+
+  const updateAt = (i: number, v: string) => {
+    // 숫자/빈문자만 허용 — 콤마 입력으로 데이터 깨지는 사고 방지
+    if (v && !/^\d+$/.test(v)) return
+    const next = [...items]
+    next[i] = v
+    setItems(next)
+    propagate(next)
+  }
+
+  const addItem = () => {
+    const next = [...items, '']
+    setItems(next)
+    // 빈 값 추가는 외부 value 에 영향 없음 (propagate 가 빈 값 제거)
+  }
+
+  const removeAt = (i: number) => {
+    if (items.length <= 1) return // 최소 1개 유지
+    const next = items.filter((_, idx) => idx !== i)
+    setItems(next)
+    propagate(next)
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {items.map((v, i) => (
+        <div key={i} className="relative group">
+          <input
+            type="text"
+            inputMode="numeric"
+            value={v}
+            onChange={(e) => updateAt(i, e.target.value)}
+            placeholder="0"
+            className="w-20 px-2 py-1.5 pr-6 border rounded text-sm tabular-nums bg-white dark:bg-gray-700 dark:border-gray-600"
+          />
+          {items.length > 1 && (
+            <button
+              type="button"
+              onClick={() => removeAt(i)}
+              className="absolute right-1 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-200 hover:bg-rose-200 text-gray-500 hover:text-rose-700 text-[10px] leading-none flex items-center justify-center"
+              aria-label="삭제"
+              title="삭제"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addItem}
+        className="w-7 h-7 rounded-full border border-dashed border-gray-300 dark:border-gray-600 text-gray-400 hover:text-brand-600 hover:border-brand-400 text-sm leading-none flex items-center justify-center"
+        aria-label="단가 추가"
+        title="단가 추가"
+      >
+        +
+      </button>
     </div>
   )
 }
