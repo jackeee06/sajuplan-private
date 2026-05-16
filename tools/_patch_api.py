@@ -23,13 +23,11 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 2026-05-17: Audit C-#9, C-#10 — 정산 재시도 + M2NET 동기화 retry cron
+# 2026-05-17: Phase G — DB 일관성 health-check (18 invariants)
 FILES = [
-    ("api/src/cron/retry-cron.service.ts", "src/cron/retry-cron.service.ts"),
+    ("api/src/cron/health-check.service.ts", "src/cron/health-check.service.ts"),
     ("api/src/cron/cron.module.ts", "src/cron/cron.module.ts"),
     ("api/src/cron/cron.controller.ts", "src/cron/cron.controller.ts"),
-    ("api/src/pg-callbacks/m2net-push.service.ts", "src/pg-callbacks/m2net-push.service.ts"),
-    ("api/src/user/charge/charge.service.ts", "src/user/charge/charge.service.ts"),
 ]
 
 

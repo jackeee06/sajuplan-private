@@ -3,6 +3,7 @@ import { ResetService } from './reset.service';
 import { SettlementCronService } from './settlement-cron.service';
 import { GradeCronService } from './grade-cron.service';
 import { RetryCronService } from './retry-cron.service';
+import { HealthCheckService } from './health-check.service';
 import { CronTokenGuard } from './cron-token.guard';
 import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
 
@@ -27,8 +28,17 @@ export class CronController {
     private readonly reset: ResetService,
     private readonly grade: GradeCronService,
     private readonly retryCron: RetryCronService,
+    private readonly healthCheck: HealthCheckService,
     private readonly opsAlert: OpsAlertService,
   ) {}
+
+  // [Phase G] DB 일관성 health-check — 18개 invariant 자동 점검 + Critical 위반 시 OpsAlert.
+  //   GET /api/cron/health-check
+  //   crontab 권장: 매시간 정각 — '0 * * * * curl ...health-check?token=...'
+  @Get('health-check')
+  async healthCheckRun() {
+    return this.healthCheck.runAll();
+  }
 
   // [Audit C-#9] 채팅 정산 재시도 — M2NET 일시 장애로 미정산된 chat_room 처리.
   //   GET /api/cron/retry/chat-settle

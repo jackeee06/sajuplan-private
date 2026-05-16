@@ -73,6 +73,12 @@ def install_one(label: str, host: str, api_domain: str, pw: str) -> int:
             "retry/payment-m2net",
             "M2NET 결제 적립 재시도 (10분 간격)",
         ),
+        # [Phase G] DB 일관성 health-check — 매시간 정각
+        (
+            f"0 * * * * curl -s 'https://{api_domain}/api/cron/health-check{token_q}' >> /var/log/sajumoon_health.log 2>&1",
+            "health-check",
+            "DB 일관성 health-check (매시간)",
+        ),
     ]
 
     print(f"\n========== [{label}] {host} ==========")
