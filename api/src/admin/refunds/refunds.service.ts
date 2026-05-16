@@ -40,13 +40,38 @@ export class AdminRefundsService {
     amount: number;
     reason: string;
     adminId: number;
+    idempotentKey?: string;
   }) {
-    const { consultationId, amount, reason, adminId } = params;
+    const { consultationId, amount, reason, adminId, idempotentKey } = params;
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException('환불 금액은 0보다 커야 합니다.');
     }
     if (!reason || !reason.trim()) {
       throw new BadRequestException('사유 필수 — 분쟁 시 증거');
+    }
+
+    // [Audit B-#8] 멱등 키로 중복 처리 차단 (HTTP 재전송 / 더블 클릭 대비)
+    // 클라이언트가 idempotent_key 보내면, 같은 (consultation_id, idempotent_key)
+    // 조합은 1회만 처리. DB UNIQUE (uq_refund_request_idem) 가 최후 방어선.
+    if (idempotentKey && idempotentKey.trim()) {
+      const existing = await this.sql<{ id: number; amount: number }[]>`
+        SELECT id, amount FROM refund_request
+         WHERE consultation_id = ${consultationId}
+           AND idempotent_key = ${idempotentKey.trim()}
+         LIMIT 1
+      `;
+      if (existing.length > 0) {
+        return {
+          ok: true as const,
+          refund_id: existing[0].id,
+          consultation_id: consultationId,
+          amount: existing[0].amount,
+          amount_free: 0,
+          amount_pro: 0,
+          new_balance: 0,
+          refund_status: 'idempotent_skip',
+        };
+      }
     }
 
     return await this.sql.begin(async (tx) => {
@@ -169,13 +194,13 @@ export class AdminRefundsService {
           amount, amount_free, amount_pro,
           reason, status, requested_by,
           decided_by, decided_reason, point_history_id,
-          decided_at
+          idempotent_key, decided_at
         ) VALUES (
           ${consultationId}, ${cs.member_id}, ${cs.counselor_id},
           ${amount}, ${refundFree}, ${refundPro},
           ${reason}, 'approved', ${`admin:${adminId}`},
           ${`admin:${adminId}`}, ${reason}, ${phId},
-          NOW()
+          ${idempotentKey?.trim() || null}, NOW()
         )
         RETURNING id
       `;

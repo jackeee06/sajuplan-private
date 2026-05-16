@@ -70,6 +70,8 @@ export default function ConsultationDetail() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [refundOpen, setRefundOpen] = useState(false)
+  // 환불 모달 열릴 때 멱등 키 1회 생성 → 더블 클릭/HTTP 재전송 시 중복 처리 차단
+  const [refundIdempotentKey, setRefundIdempotentKey] = useState<string>('')
   const [refundAmount, setRefundAmount] = useState('')
   const [refundReason, setRefundReason] = useState('')
   const [refundSubmitting, setRefundSubmitting] = useState(false)
@@ -106,6 +108,8 @@ export default function ConsultationDetail() {
           consultation_id: d.id,
           amount,
           reason: refundReason.trim(),
+          // 멱등 키 — 같은 모달에서 더블 클릭/네트워크 재전송 시 1회만 처리됨
+          idempotent_key: refundIdempotentKey,
         }),
       })
       setRefundOpen(false)
@@ -139,7 +143,11 @@ export default function ConsultationDetail() {
         <div className="flex gap-2">
           {d.member_id && d.amt > (d.refunded_amount ?? 0) && (
             <button
-              onClick={() => setRefundOpen(true)}
+              onClick={() => {
+                // 모달 열릴 때마다 새 멱등 키 (timestamp + random)
+                setRefundIdempotentKey(`refund-${d.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
+                setRefundOpen(true)
+              }}
               className="px-3 py-2 text-sm rounded-lg bg-rose-600 hover:bg-rose-700 text-white"
             >
               환불 처리

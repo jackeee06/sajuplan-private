@@ -54,7 +54,7 @@ export class M2netPushService {
   // Push 통지 (mtonet_rcv.php)
   // ─────────────────────────────────────────────
 
-  async handleCallPush(payload: Record<string, unknown>): Promise<{ ok: true }> {
+  async handleCallPush(payload: Record<string, unknown>): Promise<{ ok: true; idempotent?: boolean }> {
     const raw = JSON.stringify(payload);
 
     // 1) 원본 로그 (sample 동등) — 실패해도 본 처리에 영향 없음
@@ -296,6 +296,9 @@ export class M2netPushService {
       }
     }
 
+    // [Audit B-#3] DB 레벨 중복 INSERT 차단 — UNIQUE 제약 (uq_consultation_call_callid,
+    // uq_consultation_chat_roomid) 위반 시 ON CONFLICT DO NOTHING 으로 graceful skip.
+    // RETURNING 결과가 비면 중복으로 인한 INSERT 미수행 → 후속 포인트 차감/적립도 skip.
     const inserted = await this.sql<{ id: number }[]>`
       INSERT INTO consultation (
         member_id, mb_id, counselor_id, csrid, cpid, dtmfno,
@@ -316,8 +319,16 @@ export class M2netPushService {
         ${startedAt}, ${endedAt}, ${eventAt}, ${wrAt},
         ${snapUnitCost}, ${snapGrade}
       )
+      ON CONFLICT DO NOTHING
       RETURNING id
     `;
+    if (inserted.length === 0) {
+      // 중복 콜백 — 이미 처리된 통화 (callid 또는 roomid 기반 UNIQUE 위반)
+      this.logger.warn(
+        `[handleCallPush] consultation 중복 INSERT 차단 — callid=${callid} roomid=${roomid} counselorId=${counselorId} memberId=${memberId}`,
+      );
+      return { ok: true, idempotent: true };
+    }
     const consultationId = Number(inserted[0]?.id ?? 0);
 
     // ─── 포인트 정산 — sample/mtonet/mtonet_rcv.php 정책 1:1 매핑 ─────────
@@ -534,6 +545,7 @@ export class M2netPushService {
     }
 
     // consultation INSERT — reason='END_CHAT_LOCAL' 로 push 와 구분
+    // [Audit B-#3] DB UNIQUE 제약 (roomid, member, counselor, reason) 위반 시 graceful skip.
     const inserted = await this.sql<{ id: number }[]>`
       INSERT INTO consultation (
         member_id, counselor_id, csrid, reason, usetm,
@@ -549,8 +561,15 @@ export class M2netPushService {
         ${room.started_at}, ${room.ended_at ?? new Date()}, now(),
         ${snapUnitCostLocal}, ${snapGradeLocal}
       )
+      ON CONFLICT DO NOTHING
       RETURNING id
     `;
+    if (inserted.length === 0) {
+      this.logger.warn(
+        `[settleChatRoomLocal] consultation 중복 INSERT 차단 — roomid=${room.roomid} chatRoomId=${chatRoomId}`,
+      );
+      return { ok: true, settled: false };
+    }
     const consultationId = Number(inserted[0]?.id ?? 0);
 
     // 회원 차감 + 상담사 적립
@@ -826,7 +845,36 @@ export class M2netPushService {
       }
       const free = Number(pt[0].free_balance);
       const paid = Number(pt[0].paid_balance);
-      const balanceAfter = free + paid - amt;
+
+      // [Audit B-#5] 실제 차감액 재계산 — FOR UPDATE 후 잠긴 잔액 기준.
+      // 호출자(handleCallPush)가 전달한 amtFree/amtPro 는 트랜잭션 밖에서 계산되어
+      // race 시 stale 값일 수 있음. 여기서 실제 잔액에 맞게 재계산해
+      // consultation.amt_free/pro 와 point 차감을 일관되게 유지.
+      const actualFree = Math.max(0, Math.min(amtFree, free));
+      const remaining = amt - actualFree;
+      const actualPro = Math.max(0, Math.min(remaining, paid));
+      const totalDeducted = actualFree + actualPro;
+      const balanceAfter = free + paid - totalDeducted;
+
+      // 호출자 기대값과 실제 차감액이 다르면 race 발생 — 경고 로그 + OpsAlert
+      if (actualFree !== amtFree || actualPro !== amtPro) {
+        this.logger.warn(
+          `[deductMemberPoint] 잔액 불일치 보정 memberId=${memberId} consultationId=${consultationId} ` +
+          `requested(free=${amtFree}, pro=${amtPro}) → actual(free=${actualFree}, pro=${actualPro})`,
+        );
+      }
+      // 잔액 부족 (totalDeducted < amt) 이면 명시적 알림
+      if (totalDeducted < amt) {
+        this.logger.error(
+          `[deductMemberPoint] 잔액 부족 memberId=${memberId} consultationId=${consultationId} ` +
+          `amt=${amt} actual=${totalDeducted} shortfall=${amt - totalDeducted}`,
+        );
+        void this.opsAlert.send(
+          'M2NET 회원 잔액 부족',
+          `memberId=${memberId} consultationId=${consultationId}\n` +
+          `요청 ${amt} / 실차감 ${totalDeducted} / 부족 ${amt - totalDeducted}`,
+        );
+      }
 
       // 멱등 INSERT — DB 의 unique index 가 partial 이므로 ON CONFLICT 에 WHERE 동일하게 명시.
       // (uq_point_history_payment_action: WHERE rel_table IN ('payment','payment_autopay','consultation'))
@@ -837,7 +885,7 @@ export class M2netPushService {
           is_paid, is_expired, expire_date, actor_type
         ) VALUES (
           ${memberId}, ${content},
-          0, ${amt}, ${balanceAfter},
+          0, ${totalDeducted}, ${balanceAfter},
           'consultation', ${String(consultationId)}, ${relAction},
           ${isPaid}, false, NULL, 'system'
         )
@@ -849,18 +897,25 @@ export class M2netPushService {
       // 이미 처리된 콜백이면 잔액 갱신 안 함 (멱등)
       if (ins.length === 0) return { applied: false, membid: null as string | null };
 
-      // 잔액 갱신 — sample 매핑된 amt_free / amt_pro 그대로 사용 (free 우선 차감 의도)
+      // 잔액 갱신 — actualFree/actualPro 사용 (FOR UPDATE 기준 정확한 값)
       await tx`
         UPDATE point SET
-          free_balance = GREATEST(0, free_balance - ${amtFree}),
-          paid_balance = GREATEST(0, paid_balance - ${amtPro}),
-          total_used = total_used + ${amt},
+          free_balance = free_balance - ${actualFree},
+          paid_balance = paid_balance - ${actualPro},
+          total_used = total_used + ${totalDeducted},
           updated_at = now()
          WHERE member_id = ${memberId}
       `;
       await tx`
-        UPDATE member SET point = point - ${amt}, updated_at = now()
+        UPDATE member SET point = point - ${totalDeducted}, updated_at = now()
          WHERE id = ${memberId}
+      `;
+      // consultation 의 amt_free/amt_pro 도 실제 차감액으로 보정 — 정산 일관성
+      await tx`
+        UPDATE consultation
+           SET amt_free = ${actualFree},
+               amt_pro = ${actualPro}
+         WHERE id = ${consultationId}
       `;
       // m2net 측 잔액에도 반영하기 위해 회원의 membid(=member.csrid) 조회
       const r = await tx<{ csrid: string | null }[]>`

@@ -23,10 +23,11 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 2026-05-17: Audit A 그룹 — 정산률 검증 + 멱등성 + amt 정합성 + OpsAlert
+# 2026-05-17: Audit B 그룹 — consultation UNIQUE + point race + refund 멱등 + floor 검증
 FILES = [
     ("api/src/cron/settlement-cron.service.ts", "src/cron/settlement-cron.service.ts"),
     ("api/src/admin/refunds/refunds.service.ts", "src/admin/refunds/refunds.service.ts"),
+    ("api/src/admin/refunds/refunds.controller.ts", "src/admin/refunds/refunds.controller.ts"),
     ("api/src/pg-callbacks/m2net-push.service.ts", "src/pg-callbacks/m2net-push.service.ts"),
 ]
 

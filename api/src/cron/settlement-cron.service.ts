@@ -198,6 +198,29 @@ export class SettlementCronService {
       const replyFee = priceTot >= 50000 ? 20000 : 0;
       const price = supply - withholding - replyFee;
 
+      // [Audit B-#12] 부동소수점 정밀도 역산 검증 — 결과가 비정상이면 OpsAlert.
+      // floor 누적 손실이 의도된 범위(VAT 10% 이하) 인지 확인. 이상치 발견 시 운영자 인지.
+      const expectedSupplyMax = Math.ceil(priceTot / 1.1); // 역산 최대
+      const expectedVatRange = priceTot - expectedSupplyMax; // 최소 VAT
+      const anomalies: string[] = [];
+      if (vat < 0) anomalies.push(`vat 음수 (${vat})`);
+      if (vat > Math.ceil(priceTot * 0.12)) anomalies.push(`vat 과다 ${vat} > ${Math.ceil(priceTot * 0.12)}`);
+      if (supply > priceTot) anomalies.push(`supply 과다 ${supply} > priceTot ${priceTot}`);
+      if (priceTot > 0 && price < 0 && replyFee === 0) {
+        // 회신비 없는데 price 가 음수면 부동소수점 오차로 추정
+        anomalies.push(`price 음수 ${price} (회신비 없음)`);
+      }
+      if (anomalies.length > 0) {
+        this.logger.error(
+          `[settlement] 산식 이상 — memberId=${memberId} month=${bmonth} ` +
+          `priceTot=${priceTot} supply=${supply} vat=${vat} withholding=${withholding} ` +
+          `replyFee=${replyFee} price=${price} | 이상: ${anomalies.join(', ')}`,
+        );
+        // 트랜잭션 안에서 OpsAlert 호출 안 함 (외부 호출은 락 시간 늘림) — 로그만.
+        // expectedVatRange 는 진단용 변수로만 사용 (디버깅 단서)
+        void expectedVatRange;
+      }
+
       // 기존 row 확인 → UPSERT
       // [Audit A-#2] 멱등성 — member_id 만으로 정확히 매칭 (OR 제거).
       // OR 조건은 mb_id 가 변경된 row 가 있을 때 잘못된 매칭 → 중복 INSERT 가능했음.

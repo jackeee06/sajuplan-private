@@ -38,12 +38,18 @@ export class AdminRefundsController {
 
   @Post()
   async create(
-    @Body() body: { consultation_id?: number; amount?: number; reason?: string },
+    @Body() body: {
+      consultation_id?: number;
+      amount?: number;
+      reason?: string;
+      idempotent_key?: string;
+    },
     @Req() req: AuthedRequest,
   ) {
     const consultationId = Number(body?.consultation_id);
     const amount = Number(body?.amount);
     const reason = (body?.reason ?? '').trim();
+    const idempotentKey = (body?.idempotent_key ?? '').trim() || undefined;
     if (!Number.isFinite(consultationId) || consultationId <= 0) {
       throw new BadRequestException('consultation_id 필수');
     }
@@ -56,6 +62,7 @@ export class AdminRefundsController {
       amount,
       reason,
       adminId: req.admin.sub,
+      idempotentKey,
     });
   }
 }
