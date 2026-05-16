@@ -690,14 +690,13 @@ function PriceOptionsEditor({
             value={v}
             onChange={(e) => updateAt(i, e.target.value)}
             placeholder="0"
-            className="w-20 px-2 py-1.5 pr-12 border rounded text-sm tabular-nums bg-white dark:bg-gray-700 dark:border-gray-600"
+            className="w-24 px-2 py-1.5 pr-7 border rounded text-sm tabular-nums bg-white dark:bg-gray-700 dark:border-gray-600"
           />
-          <span className="absolute right-6 text-xs text-gray-400 pointer-events-none">원</span>
           {items.length > 1 && (
             <button
               type="button"
               onClick={() => removeAt(i)}
-              className="absolute right-1 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-200 hover:bg-rose-200 text-gray-500 hover:text-rose-700 text-[10px] leading-none flex items-center justify-center"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gray-200 hover:bg-rose-200 text-gray-500 hover:text-rose-700 text-[11px] leading-none flex items-center justify-center"
               aria-label="삭제"
               title="삭제"
             >
