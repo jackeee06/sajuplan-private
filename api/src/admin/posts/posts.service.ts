@@ -168,6 +168,59 @@ export class PostsService {
     return { ok: true };
   }
 
+  /**
+   * 어드민 1:1 문의 답변 (Phase 12).
+   *
+   * 답변은 post_qa.extras.admin_reply 필드에 박제:
+   *   { content, replied_at, replied_by, replied_by_id }
+   *
+   * 동일 게시글에 새 답변이 오면 덮어쓰기 (수정). 이력은 별도로 안 남김 — 운영팀 1회성 응대 가정.
+   * 추후 수정 이력 필요해지면 admin_reply_history 배열로 확장.
+   */
+  async replyToQa(
+    slug: string,
+    id: number,
+    content: string,
+    adminId: number,
+    adminName?: string,
+  ) {
+    if (slug !== 'qa' && slug !== 'qa_counselor') {
+      throw new BadRequestException('답변은 1:1 문의(qa / qa_counselor)에서만 가능합니다.');
+    }
+    if (!content || !content.trim()) {
+      throw new BadRequestException('답변 내용을 입력하세요.');
+    }
+    const reply = {
+      content: content.trim(),
+      replied_at: new Date().toISOString(),
+      replied_by: adminName ?? `admin:${adminId}`,
+      replied_by_id: adminId,
+    };
+    const result = await this.sql`
+      UPDATE post_qa
+         SET extras = COALESCE(extras, '{}'::jsonb) || jsonb_build_object('admin_reply', ${this.sql.json(reply)}::jsonb),
+             updated_at = now()
+       WHERE id = ${id}
+    `;
+    if (result.count === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
+    return { ok: true, reply };
+  }
+
+  /** 어드민 답변 삭제 — extras.admin_reply 제거. */
+  async deleteQaReply(slug: string, id: number) {
+    if (slug !== 'qa' && slug !== 'qa_counselor') {
+      throw new BadRequestException('1:1 문의에서만 가능합니다.');
+    }
+    const result = await this.sql`
+      UPDATE post_qa
+         SET extras = extras - 'admin_reply',
+             updated_at = now()
+       WHERE id = ${id}
+    `;
+    if (result.count === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
+    return { ok: true };
+  }
+
   // ─────────────────────────────────────────────────────────────────
   // 후기 신고 관리 (2026-05-15 신설) — post_review_report 테이블
   // ─────────────────────────────────────────────────────────────────

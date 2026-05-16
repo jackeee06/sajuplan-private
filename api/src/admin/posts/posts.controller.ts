@@ -1,5 +1,5 @@
-import { Controller, Delete, Get, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
-import { AdminAuthGuard } from '../auth/admin-auth.guard';
+import { BadRequestException, Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { AdminAuthGuard, type AuthedRequest } from '../auth/admin-auth.guard';
 import { PostsService } from './posts.service';
 import type { PostFilter } from './posts.service';
 
@@ -31,5 +31,23 @@ export class PostsController {
   @Delete(':slug/:id')
   remove(@Param('slug') slug: string, @Param('id', ParseIntPipe) id: number) {
     return this.svc.remove(slug, id);
+  }
+
+  /** 어드민 1:1 문의 답변 (qa / qa_counselor 만 허용) (Phase 12) */
+  @Post(':slug/:id/reply')
+  reply(
+    @Param('slug') slug: string,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { content?: string },
+    @Req() req: AuthedRequest,
+  ) {
+    const content = (body?.content ?? '').trim();
+    if (!content) throw new BadRequestException('답변 내용 필수');
+    return this.svc.replyToQa(slug, id, content, req.admin.sub);
+  }
+
+  @Delete(':slug/:id/reply')
+  removeReply(@Param('slug') slug: string, @Param('id', ParseIntPipe) id: number) {
+    return this.svc.deleteQaReply(slug, id);
   }
 }

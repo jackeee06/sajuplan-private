@@ -14,6 +14,13 @@ import { api } from '../lib/api'
  *   qa_counselor  → 1:1문의(상담사)
  */
 
+interface AdminReply {
+  content: string
+  replied_at: string
+  replied_by: string
+  replied_by_id: number
+}
+
 interface Post {
   id: number
   wr_id: number | null
@@ -35,6 +42,8 @@ interface Post {
   /** 후기 신고 누적 (review slug 응답에만 포함, 2026-05-15) */
   report_count?: number
   report_pending_count?: number
+  /** 어드민 답변 (qa / qa_counselor 만, Phase 12) */
+  extras?: { admin_reply?: AdminReply }
   created_at: string
 }
 
@@ -60,6 +69,50 @@ export default function PostList() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  // CS 답변 모달 (Phase 12 — qa, qa_counselor 만)
+  const [replyPost, setReplyPost] = useState<Post | null>(null)
+  const [replyContent, setReplyContent] = useState('')
+  const [replySubmitting, setReplySubmitting] = useState(false)
+  const isQa = slug === 'qa' || slug === 'qa_counselor'
+
+  const openReply = (p: Post) => {
+    setReplyPost(p)
+    setReplyContent(p.extras?.admin_reply?.content ?? '')
+  }
+
+  const submitReply = async () => {
+    if (!replyPost || !replyContent.trim()) return
+    setReplySubmitting(true)
+    try {
+      await api(`/admin/posts/${slug}/${replyPost.id}/reply`, {
+        method: 'POST',
+        body: JSON.stringify({ content: replyContent.trim() }),
+      })
+      setReplyPost(null)
+      setSuccess(replyPost.extras?.admin_reply ? '답변 수정 완료' : '답변 등록 완료')
+      load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '답변 저장 실패')
+    } finally {
+      setReplySubmitting(false)
+    }
+  }
+
+  const deleteReply = async () => {
+    if (!replyPost) return
+    if (!confirm('답변을 삭제하시겠습니까?')) return
+    setReplySubmitting(true)
+    try {
+      await api(`/admin/posts/${slug}/${replyPost.id}/reply`, { method: 'DELETE' })
+      setReplyPost(null)
+      setSuccess('답변 삭제 완료')
+      load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '답변 삭제 실패')
+    } finally {
+      setReplySubmitting(false)
+    }
+  }
 
   // slug 변경 시 검색 초기화
   useEffect(() => {
@@ -188,6 +241,18 @@ export default function PostList() {
                         <span className="text-[10px] text-gray-500">👍 {p.like_count} / 👎 {p.dislike_count}</span>
                       </td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
+                        {isQa && (
+                          <button
+                            onClick={() => openReply(p)}
+                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded border mr-1 ${
+                              p.extras?.admin_reply
+                                ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                                : 'border-amber-200 text-amber-700 hover:bg-amber-50'
+                            }`}
+                          >
+                            {p.extras?.admin_reply ? '✓ 답변완료' : '✋ 답변작성'}
+                          </button>
+                        )}
                         <button onClick={() => onDelete(p)} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-rose-200 text-rose-700 hover:bg-rose-50">
                           <Trash2 className="w-3.5 h-3.5" /> 삭제
                         </button>
@@ -210,6 +275,68 @@ export default function PostList() {
           </div>
         )}
       </div>
+
+      {/* CS 답변 모달 (Phase 12) */}
+      {replyPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-2xl mx-4 p-5 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold">CS 답변</h3>
+              <button onClick={() => setReplyPost(null)} className="text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="p-3 rounded bg-gray-50 dark:bg-gray-700 text-sm">
+                <div className="font-medium">{replyPost.title}</div>
+                <div className="mt-1 text-xs text-gray-500">
+                  작성자: {replyPost.mb_id || replyPost.member_nickname || '익명'} · {formatDT(replyPost.created_at)}
+                </div>
+                <div className="mt-2 text-xs whitespace-pre-wrap text-gray-700 dark:text-gray-300 max-h-40 overflow-y-auto">
+                  {replyPost.content || '(내용 없음)'}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">답변 내용</label>
+                <textarea
+                  value={replyContent}
+                  onChange={(e) => setReplyContent(e.target.value)}
+                  rows={6}
+                  placeholder="답변을 작성해주세요. 회원/상담사가 이 내용을 볼 수 있습니다."
+                  className="w-full mt-1 px-3 py-2 border rounded text-sm bg-white dark:bg-gray-700"
+                />
+              </div>
+              {replyPost.extras?.admin_reply && (
+                <div className="text-xs text-gray-500">
+                  마지막 답변: {replyPost.extras.admin_reply.replied_by} ·{' '}
+                  {formatDT(replyPost.extras.admin_reply.replied_at)}
+                </div>
+              )}
+              <div className="flex gap-2 justify-end pt-2">
+                {replyPost.extras?.admin_reply && (
+                  <button
+                    onClick={() => void deleteReply()}
+                    disabled={replySubmitting}
+                    className="px-4 py-2 text-sm rounded border border-rose-200 text-rose-700 disabled:opacity-40"
+                  >
+                    답변 삭제
+                  </button>
+                )}
+                <button onClick={() => setReplyPost(null)} className="px-4 py-2 text-sm border rounded">
+                  취소
+                </button>
+                <button
+                  disabled={!replyContent.trim() || replySubmitting}
+                  onClick={() => void submitReply()}
+                  className="px-4 py-2 text-sm rounded bg-brand-600 text-white disabled:opacity-50"
+                >
+                  {replySubmitting ? '처리 중...' : replyPost.extras?.admin_reply ? '답변 수정' : '답변 등록'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
