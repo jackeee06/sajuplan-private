@@ -453,3 +453,43 @@ CREATE TABLE setting_history (
 
 작성: 2026-05-16
 업데이트: 2026-05-16 (F 섹션 추가, Phase 6 정산 마이그레이션 → 통합 검증으로 교체)
+
+---
+
+## G. 진행 로그
+
+### 2026-05-16 — Phase 1 완료 ✅
+
+**스키마 마이그레이션** (`tools/_migrate_grade_system.py`):
+- test ✅ (172.235.211.75) / prod ✅ (104.64.128.103)
+- `member` 컬럼 추가: `grade` (DEFAULT 'preliminary'), `last_month_seconds`, `unit_cost_changeable_at`, `grade_recalculated_at`
+- `consultation` 컬럼 추가: `unit_cost_snapshot`, `grade_at_session`
+- 신규 테이블: `member_unit_cost_history`, `member_grade_history`, `setting_history`
+- CHECK 제약: `member_grade_check` (grade 값 검증)
+
+**정책 시드** (`tools/_seed_grade_settings.py`):
+- test ✅ / prod ✅ (각 21건)
+- `namespace='grade'`: options.* (6개), revenue_rate.* (6개), thresholds.* (5개), 정책 4개
+
+**기존 데이터 현황**:
+- test: 35명 전원 preliminary
+- prod: 37명 전원 preliminary
+- 오픈 전 = 데이터 마이그레이션 불필요
+
+**발견 사항**:
+- 정산 모듈 **2-layer 구조**:
+  - **WHO** (상담사 식별): `WHERE level = 5` ([settlement-cron.service.ts:57,62](api/src/cron/settlement-cron.service.ts#L57)) — `project-role-level-cleanup` 메모 그대로 유효
+  - **HOW MUCH** (정산 금액): `member.free_royalty_pct / paid_royalty_pct` ([settlement-cron.service.ts:107+](api/src/cron/settlement-cron.service.ts#L107))
+  - Phase 5 정산 모듈 grade 기반 전환 시 → royalty_pct 를 grade 의 `revenue_rate.*` 로 교체
+- `consultation` 단일 테이블 (call/chat 통합 — reason 컬럼으로 구분: 'DISCONNECT' / 'END_CHAT' / 'END_CHAT_LOCAL')
+- `member.call_070_unit_cost`, `chat_unit_cost` 별도 컬럼이지만 통합 정책으로 양쪽 동일값 쓰기로
+
+### 다음: Phase 2 — 백엔드 로직
+
+1. **단가 변경 API** (`POST /api/user/counselor/unit-cost`)
+   - 본인 인증 + 등급 옵션 검증 + 락 체크 + 트랜잭션 + 동시성 + history INSERT
+   - call_070_unit_cost / chat_unit_cost 양쪽에 동일값 설정 (통합)
+2. **consultation 스냅샷 기록**
+   - 통화 시작 시 `unit_cost_snapshot`, `grade_at_session` 자동 채움
+   - call: m2net-push 핸들러 / chat: chat.service 시작 핸들러
+3. **last_month_seconds 집계** — 매월 1일 크론에서 계산 (Phase 3 와 연계)
