@@ -44,6 +44,8 @@ interface Consultation {
   counselor_nickname: string | null
   counselor_category: string | null
   counselor_unit_cost: number | null
+  unit_cost_snapshot?: number | null
+  grade_at_session?: string | null
 }
 
 interface Resp {

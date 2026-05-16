@@ -82,6 +82,9 @@ export interface ConsultationRow {
   counselor_name: string | null;
   counselor_nickname: string | null;
   counselor_category: string | null;
+  // 통화 시점 등급/단가 스냅샷 (Phase 2 추가 — 분쟁 시 추적용)
+  unit_cost_snapshot?: number | null;
+  grade_at_session?: string | null;
   counselor_unit_cost: number | null; // mb_4
 }
 
@@ -260,6 +263,7 @@ export class ConsultationsService {
         cs.reason, cs.preflag, cs.usetm, cs.amt, cs.amt_free, cs.amt_pro,
         cs.is_paid, cs.is_settled, cs.is_absent_disconnect, cs.skip_charge,
         cs.member_id, cs.counselor_id,
+        cs.unit_cost_snapshot, cs.grade_at_session,
         m.mb_id AS member_mb_id, m.name AS member_name,
         c.mb_id AS counselor_mb_id, c.name AS counselor_name,
         c.nickname AS counselor_nickname,

@@ -748,8 +748,27 @@ CREATE TABLE setting_history (
 - 어드민에서 /mng/grade 진입 가능 (사용자 브라우저 확인 필요)
 - 어드민에서 상담사 상세 진입 → "⭐ 등급/단가 관리 →" 클릭 → 상세 페이지 진입 (사용자 확인 필요)
 
-### 다음: Phase 9 — 사고 대응 도구 (3개)
+### 2026-05-16 — Phase 9 완료 ✅ (사고 대응 도구)
 
-1. 상담사 강제 정지/복구 UI (use_phone / use_chat 토글)
-2. 회원 차단(intercept_until) UI
-3. 분쟁 시 통화 상세 + unit_cost_snapshot 조회 UI
+**감사 후 재확인 — 1, 2번은 이미 존재했음**:
+- ① 상담사 강제 정지/복구: `CounselorForm.tsx:710,718` 의 use_phone/use_chat 토글 ✅
+- ② 회원 차단: `CustomerForm.tsx:300` 의 `intercept_until` datetime-local 입력 + 리스트 차단 뱃지 ✅
+- 감사 보고가 양식만 보고 토글 컴포넌트는 못 알아본 케이스. 코드 추가 X, 확인만.
+
+**③ 분쟁 시 통화 상세 신규 페이지**:
+- [api/src/admin/consultations/consultations.service.ts](api/src/admin/consultations/consultations.service.ts) — `getDetail()` 에 `unit_cost_snapshot`, `grade_at_session` 컬럼 추가 SELECT
+- [web/mng/src/pages/ConsultationDetail.tsx](web/mng/src/pages/ConsultationDetail.tsx) 신규 — 기존 `/consultations/:id` "확인" 링크가 404 였던 사각지대 해결
+  - 통화 시점 스냅샷 보라색 강조 카드 (분쟁 시 증거)
+  - 현재 단가 vs 통화 시점 단가 불일치 시 ⚠ 경고
+  - 회원/상담사 양방 링크 (상담사 → 등급/단가 상세로)
+  - 시간/식별자/플래그/채팅 내역 통합
+
+**배포**: API + 어드민 양 서버 OK.
+
+### 다음: Phase 10 — 환불 워크플로우 (단독 큰 작업)
+
+1. `refund_request` 테이블 신규 (member_id, consultation_id, amount, reason, status, requested_at, decided_at, decided_by, decided_reason)
+2. 회원이 후기/문의에서 환불 요청 가능 (사용자 측)
+3. 어드민 환불 관리 페이지 (`/mng/refunds`) — 대기 / 승인 / 반려
+4. 승인 시 정산 모듈 연동 — 해당 consultation 의 amt 만큼 회원에게 환불 + 상담사 정산 차감
+5. 환불 이력 → 상담사 등급/단가 영향 없음 (정책: 시간만 유지, 금액 환수)

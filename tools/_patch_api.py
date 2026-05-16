@@ -23,14 +23,9 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 2026-05-16: Phase 8 — 어드민 등급 관리 + setting_history INSERT
+# 2026-05-16: Phase 9 — consultation 상세 + 스냅샷 필드 노출
 FILES = [
-    ("api/src/admin/grade/grade.module.ts", "src/admin/grade/grade.module.ts"),
-    ("api/src/admin/grade/grade.service.ts", "src/admin/grade/grade.service.ts"),
-    ("api/src/admin/grade/grade.controller.ts", "src/admin/grade/grade.controller.ts"),
-    ("api/src/admin/admin.module.ts", "src/admin/admin.module.ts"),
-    ("api/src/admin/settings/settings.service.ts", "src/admin/settings/settings.service.ts"),
-    ("api/src/admin/settings/settings.controller.ts", "src/admin/settings/settings.controller.ts"),
+    ("api/src/admin/consultations/consultations.service.ts", "src/admin/consultations/consultations.service.ts"),
 ]
 
 
