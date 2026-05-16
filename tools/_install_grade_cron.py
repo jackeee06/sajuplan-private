@@ -1,8 +1,12 @@
-"""양 서버 root crontab 에 등급 재산정 라인 등록 (Phase 6 운영 액션).
+"""양 서버 root crontab 에 운영 cron 라인 일괄 등록 (Phase 6 운영 액션).
 
-- 매월 1일 KST 0시 5분 — grade 재산정 API 호출
-- 라인 중복 방지: 동일 패턴(grade/recalculate) 이미 있으면 SKIP
-- 정산 라인(settlement/monthly)도 누락 시 보충
+등록 라인 (순서 중요):
+  1. 매월 1일 KST 0시 5분 — grade 재산정 API 호출
+  2. 매월 1일 KST 4시 — settlement (정산) API 호출
+     → grade 재산정이 먼저 끝난 뒤 정산이 새 등급 + revenue_rate 로 계산
+
+라인 중복 방지: 동일 패턴(URL substring) 이미 있으면 SKIP.
+재실행 안전 — 무한히 다시 돌려도 중복 없음.
 
 사용: SSHPASS=... python tools/_install_grade_cron.py
 """
@@ -35,7 +39,19 @@ def install_one(label: str, host: str, api_domain: str, pw: str) -> int:
     _, stdout, _ = c.exec_command("crontab -l 2>/dev/null || true")
     current = stdout.read().decode("utf-8", errors="replace")
 
-    grade_line = f"5 0 1 * * curl -s 'https://{api_domain}/api/cron/grade/recalculate' >> /var/log/sajumoon_grade.log 2>&1"
+    # (라인, 매칭_패턴, 라벨) 튜플 목록 — 순서대로 검사/추가
+    cron_jobs = [
+        (
+            f"5 0 1 * * curl -s 'https://{api_domain}/api/cron/grade/recalculate' >> /var/log/sajumoon_grade.log 2>&1",
+            "grade/recalculate",
+            "등급 재산정 (1일 00:05 KST)",
+        ),
+        (
+            f"0 4 1 * * curl -s 'https://{api_domain}/api/cron/settlement/monthly' >> /var/log/sajumoon_settlement.log 2>&1",
+            "settlement/monthly",
+            "월별 정산 (1일 04:00 KST)",
+        ),
+    ]
 
     print(f"\n========== [{label}] {host} ==========")
     print("─ 현재 crontab ─")
@@ -44,11 +60,13 @@ def install_one(label: str, host: str, api_domain: str, pw: str) -> int:
     new_lines = current.splitlines()
     added: list[str] = []
 
-    if any("grade/recalculate" in ln for ln in new_lines):
-        print("✓ 등급 재산정 라인 이미 존재 — SKIP")
-    else:
-        new_lines.append(grade_line)
-        added.append("grade/recalculate")
+    for line, pattern, label_kr in cron_jobs:
+        if any(pattern in ln for ln in new_lines):
+            print(f"✓ {label_kr} — 이미 등록됨")
+        else:
+            new_lines.append(line)
+            added.append(label_kr)
+            print(f"+ {label_kr} — 신규 추가")
 
     if not added:
         print("(추가할 항목 없음)")
@@ -70,7 +88,7 @@ def install_one(label: str, host: str, api_domain: str, pw: str) -> int:
     # 검증
     _, stdout, _ = c.exec_command("crontab -l")
     verified = stdout.read().decode("utf-8", errors="replace")
-    print(f"─ 적용 후 crontab ({', '.join(added)} 추가) ─")
+    print(f"─ 적용 후 crontab (추가: {', '.join(added)}) ─")
     print(verified.rstrip())
     c.close()
     return 0
