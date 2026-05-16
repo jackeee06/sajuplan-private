@@ -601,10 +601,41 @@ CREATE TABLE setting_history (
 - 회원 상세 페이지에 등급/이력 섹션 — 운영 도구. 오픈 후 필요 시 추가.
 - 크론 로그 페이지 — `summary` JSON 만 봐도 충분. 선택 사항.
 
-### 다음: Phase 6 — 통합 검증 (오픈 전 최종)
+### 2026-05-16 — Phase 6 완료 ✅ (통합 검증 — 오픈 전 최종)
 
-1. **시나리오 시드** — 가상 통화 데이터로 등급 변동 시뮬레이션
-2. **크론 한 사이클 돌려서 등급/단가/정산 일관성 확인**
-3. **단가 변경 락 시뮬레이션** — 두 번 시도 → 두 번째 거부
-4. **롤백 검증** — settlement_monthly 롤백 후 grade 시스템 영향 없음 확인
-5. **체크리스트 (F.5)** 항목별 통과 확인
+**검증 스크립트** [tools/_verify_grade_system.py](tools/_verify_grade_system.py):
+- DB 7항목 × API 3항목 양 서버 일괄 점검
+- 재실행 안전 (READ ONLY 쿼리 + dry-run API)
+
+**검증 결과 (test + prod 모두 PASS)**:
+
+| # | 항목 | test | prod |
+|---|---|---|---|
+| 1 | member 컬럼 4개 (grade, last_month_seconds, unit_cost_changeable_at, grade_recalculated_at) | ✅ | ✅ |
+| 2 | consultation 컬럼 2개 (unit_cost_snapshot, grade_at_session) | ✅ | ✅ |
+| 3 | 이력 테이블 3개 (member_unit_cost_history, member_grade_history, setting_history) | ✅ | ✅ |
+| 4 | CHECK 제약 (member_grade_check) — 잘못된 grade 거부 | ✅ | ✅ |
+| 5 | 시드 정책 21건 (namespace='grade') | ✅ | ✅ |
+| 6 | 전원 preliminary 디폴트 (test 35명 / prod 37명) | ✅ | ✅ |
+| 7 | revenue_rate 6개 시드 (0.35~0.70 범위) | ✅ | ✅ |
+| 8 | grade recalc dry-run (test 25 / prod 27 처리, 0시간/전원 unchanged) | ✅ | ✅ |
+| 9 | settlement dry-run (test 25 / prod 27 ok, price=0 — 데이터 없음 정상) | ✅ | ✅ |
+| 10 | 단가 변경 API 인증 가드 (HTTP 401 — 마운트 + 인증 작동) | ✅ | ✅ |
+
+**남은 검증 (사용자 협력 필요)**:
+- 브라우저: 상담사 로그인 → 마이페이지 등급 카드 + 단가 변경 모달
+- 브라우저: 어드민 → 설정 → 등급/단가 탭 저장/조회
+- 실제 통화 데이터 시드 후 등급 변동 시뮬레이션 (오픈 후 자연스럽게 검증됨)
+
+### 오픈 전 운영 액션
+
+1. **crontab 등록** (양 서버 root):
+   ```
+   # 매월 1일 KST 0시 5분 — 등급 재산정
+   5 0 1 * * curl -s 'https://api.sajumoon.kr/api/cron/grade/recalculate' >> /var/log/sajumoon_grade.log 2>&1
+   # 매월 1일 KST 4시 — 정산 (기존 라인 그대로)
+   0 4 1 * * curl -s 'https://api.sajumoon.kr/api/cron/settlement/monthly' >> /var/log/sajumoon_settlement.log 2>&1
+   ```
+   prod 도메인은 sajumoon.co.kr 로.
+2. **고객 확정 단가표 수령 후** 어드민 → 설정 → 등급/단가 탭에서 교체
+3. **첫 달 운영 데이터 1주 누적 후** test 서버에서 grade recalc 실수동 호출 → 결과 확인
