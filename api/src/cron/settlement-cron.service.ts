@@ -141,16 +141,20 @@ export class SettlementCronService {
       }
 
       // 상담 집계 (환불 + 포인트 미지급 제외)
+      // refunded_amount 만큼은 amt 에서 차감해 정산 (Phase 10 환불 워크플로우)
+      // refunded_amount 가 amt_free / amt_pro 어느 쪽인지는 refund_request 시 결정됐지만
+      // 여기선 단순화하여 amt_pro 우선 차감 후 amt_free 차감 (유료 비중이 일반적으로 더 큼).
       const consRow = await tx<{ amt_free: string; amt_pro: string }[]>`
         SELECT
-          COALESCE(SUM(c.amt_free), 0)::text AS amt_free,
-          COALESCE(SUM(c.amt_pro),  0)::text AS amt_pro
+          COALESCE(SUM(GREATEST(c.amt_free - GREATEST(c.refunded_amount - c.amt_pro, 0), 0)), 0)::text AS amt_free,
+          COALESCE(SUM(GREATEST(c.amt_pro  - LEAST(c.refunded_amount, c.amt_pro), 0)), 0)::text AS amt_pro
         FROM consultation c
         WHERE c.counselor_id = ${memberId}
           AND c.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
           AND c.created_at >= ${range.startday}
           AND c.created_at <  ${range.endday}
           AND NOT (c.reason = 'DISCONNECT' AND c.usetm < 30 AND c.amt <= ${mb4})
+          AND c.refund_status IS DISTINCT FROM 'full'
           AND EXISTS (
             SELECT 1 FROM point_history ph
              WHERE ph.rel_table = 'consultation'

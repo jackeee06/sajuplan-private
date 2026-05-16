@@ -25,6 +25,7 @@ import { SettlementsModule } from './settlements/settlements.module';
 import { StatsModule } from './stats/stats.module';
 import { AdminAttendanceModule } from './attendance/attendance.module';
 import { AdminGradeModule } from './grade/grade.module';
+import { AdminRefundsModule } from './refunds/refunds.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { AdminGradeModule } from './grade/grade.module';
     AdminCounselorApplyModule,
     AdminAttendanceModule,
     AdminGradeModule,
+    AdminRefundsModule,
   ],
 })
 export class AdminModule {}

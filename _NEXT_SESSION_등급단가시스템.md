@@ -765,10 +765,62 @@ CREATE TABLE setting_history (
 
 **배포**: API + 어드민 양 서버 OK.
 
-### 다음: Phase 10 — 환불 워크플로우 (단독 큰 작업)
+### 2026-05-16 — Phase 10 완료 ✅ (환불 워크플로우)
 
-1. `refund_request` 테이블 신규 (member_id, consultation_id, amount, reason, status, requested_at, decided_at, decided_by, decided_reason)
-2. 회원이 후기/문의에서 환불 요청 가능 (사용자 측)
-3. 어드민 환불 관리 페이지 (`/mng/refunds`) — 대기 / 승인 / 반려
-4. 승인 시 정산 모듈 연동 — 해당 consultation 의 amt 만큼 회원에게 환불 + 상담사 정산 차감
-5. 환불 이력 → 상담사 등급/단가 영향 없음 (정책: 시간만 유지, 금액 환수)
+**스키마** [tools/_migrate_refund_system.py](tools/_migrate_refund_system.py):
+- 신규 `refund_request` 테이블 (15 컬럼)
+  - consultation_id / member_id / counselor_id / amount / amount_free / amount_pro / reason / status / requested_by / decided_by / point_history_id
+  - CHECK: amount > 0, status IN (pending/approved/rejected)
+- `consultation` 컬럼 추가: `refunded_amount` int default 0, `refund_status` text
+- 인덱스 3종 (consultation_id, member_id, status)
+- 양 서버 적용 완료
+
+**신규 모듈** [api/src/admin/refunds/](api/src/admin/refunds/):
+- `AdminRefundsService.createAndApprove()` — 원자적 처리:
+  1. consultation FOR UPDATE 잠금 + advisory_xact_lock(7777004)
+  2. 환불 가능 금액 검증 (over-refund 차단)
+  3. free / pro 원본 비율로 환원 분배
+  4. point_history INSERT (earn_point, rel_table='consultation', rel_action='refund')
+  5. point 테이블 잔액 UPDATE (UPSERT 지원)
+  6. member.point denormalized 갱신
+  7. consultation.refunded_amount 누적 + refund_status (partial/full)
+  8. refund_request 이력 INSERT
+- `list()` — status / member_mb_id 필터 + 페이지네이션
+- 라우트: `GET /admin/refunds`, `POST /admin/refunds`
+
+**정산 모듈 환불 연동** [settlement-cron.service.ts](api/src/cron/settlement-cron.service.ts):
+- `consultation.refund_status = 'full'` 인 통화는 정산에서 완전 제외
+- 부분 환불은 `amt_pro` 우선 차감 → 남은 환불금은 `amt_free` 차감
+- 환불 금액만큼 상담사 정산 자동 감소
+
+**어드민 UI**:
+- 신규 페이지 `/mng/refunds` ([RefundList.tsx](web/mng/src/pages/RefundList.tsx))
+  - 필터: 상태 / 회원 아이디
+  - 페이지네이션 (30/페이지)
+  - 사이드바 "매출현황 > ⭐ 환불 이력"
+- [ConsultationDetail.tsx](web/mng/src/pages/ConsultationDetail.tsx) 확장:
+  - 우상단 빨간 "환불 처리" 버튼 (잔여 환불액 있을 때만)
+  - 환불 모달: 금액 + 사유 입력 + ⚠ 경고 → 즉시 환불 + 회원 포인트 환원
+  - 환불 발생 시 상단 황색 알림 배너 ("환불 발생: NNNP, 정산 시 차감됨")
+
+**검증**:
+- `POST /admin/refunds` 마운트 확인 (HTTP 401)
+- settlement dry-run with refund logic → total=25 ok=25 ✅
+- 양 서버 빌드/배포 완료
+
+### 마스터 리스트 진척
+
+🔴 14개 (오픈 전 필수): **100% 완료**
+- A.1~6 등급 시스템 운영 화면 ✅ (Phase 8)
+- B.7~10 모니터링/알림 ✅ (Phase 7)
+- C.11~14 사고 대응 ✅ (Phase 9~10)
+
+🟡 5개 (오픈 후 가능): 미진행 (사용자 결정 사항)
+🟢 4개 (정책 기반): 미진행 (법무/회계 검토 필요)
+
+### 오픈 직전 사용자 액션 (재확인 권장)
+
+1. **BizM 콘솔에 'ops_admin_alert' 템플릿 등록** (Phase 7)
+2. **어드민 → 설정 → 운영알림 탭에서 수신 휴대폰 번호 입력** (Phase 7)
+3. **어드민 → 설정 → 등급/단가 탭에서 고객 확정 단가표/정산률 교체** (Phase 1 시드는 임의값)
+4. **브라우저 시각 검증**: 상담사 마이페이지 / 어드민 등급 관리 / 어드민 환불 / 통화 상세 등

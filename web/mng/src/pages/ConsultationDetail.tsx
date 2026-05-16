@@ -42,6 +42,8 @@ interface Detail {
   counselor_unit_cost: number | null
   unit_cost_snapshot?: number | null
   grade_at_session?: string | null
+  refunded_amount?: number
+  refund_status?: string | null
 }
 
 const GRADE_LABEL: Record<string, string> = {
@@ -67,6 +69,18 @@ export default function ConsultationDetail() {
   const [d, setD] = useState<Detail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [refundOpen, setRefundOpen] = useState(false)
+  const [refundAmount, setRefundAmount] = useState('')
+  const [refundReason, setRefundReason] = useState('')
+  const [refundSubmitting, setRefundSubmitting] = useState(false)
+
+  const refresh = () => {
+    setLoading(true)
+    api<Detail>(`/admin/consultations/${id}`)
+      .then((r) => setD(r))
+      .catch((e: Error) => setError(e.message))
+      .finally(() => setLoading(false))
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -79,6 +93,32 @@ export default function ConsultationDetail() {
       cancelled = true
     }
   }, [id])
+
+  const submitRefund = async () => {
+    if (!d) return
+    const amount = Number(refundAmount)
+    if (!Number.isFinite(amount) || amount <= 0 || !refundReason.trim()) return
+    setRefundSubmitting(true)
+    try {
+      await api('/admin/refunds', {
+        method: 'POST',
+        body: JSON.stringify({
+          consultation_id: d.id,
+          amount,
+          reason: refundReason.trim(),
+        }),
+      })
+      setRefundOpen(false)
+      setRefundAmount('')
+      setRefundReason('')
+      refresh()
+      alert('환불 처리 완료 — 회원에게 포인트 환원됨')
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '환불 처리 실패')
+    } finally {
+      setRefundSubmitting(false)
+    }
+  }
 
   if (loading) return <div className="p-6 text-sm text-gray-500">로딩...</div>
   if (error) return <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>
@@ -96,13 +136,31 @@ export default function ConsultationDetail() {
           <h1 className="text-xl font-semibold">상담 상세 #{d.id}</h1>
           <p className="text-xs text-gray-500 mt-1">분쟁 추적용 — 통화 시점 단가/등급 + 정산 정보</p>
         </div>
-        <button
-          onClick={() => navigate(-1)}
-          className="px-3 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
-        >
-          ← 목록으로
-        </button>
+        <div className="flex gap-2">
+          {d.member_id && d.amt > (d.refunded_amount ?? 0) && (
+            <button
+              onClick={() => setRefundOpen(true)}
+              className="px-3 py-2 text-sm rounded-lg bg-rose-600 hover:bg-rose-700 text-white"
+            >
+              환불 처리
+            </button>
+          )}
+          <button
+            onClick={() => navigate(-1)}
+            className="px-3 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50"
+          >
+            ← 목록으로
+          </button>
+        </div>
       </div>
+
+      {(d.refunded_amount ?? 0) > 0 && (
+        <div className="p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-sm">
+          ⚠ <span className="font-medium">환불 발생</span>:{' '}
+          {(d.refunded_amount ?? 0).toLocaleString()}P 환불 처리됨 ({d.refund_status === 'full' ? '전액' : '부분'}).
+          정산 시 해당 금액만큼 차감됨.
+        </div>
+      )}
 
       {/* 상단: 상태 + 기본정보 */}
       <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -228,6 +286,72 @@ export default function ConsultationDetail() {
         >
           채팅 내역 보기 →
         </Link>
+      )}
+
+      {/* 환불 처리 모달 */}
+      {refundOpen && d && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md mx-4 p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold">환불 처리</h3>
+              <button onClick={() => setRefundOpen(false)} className="text-gray-400 hover:text-gray-600">
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div className="p-3 rounded bg-gray-50 dark:bg-gray-700 text-xs">
+                <div>상담 #{d.id} · 통화 시간 {fmtDuration(d.usetm)}</div>
+                <div className="mt-1">
+                  총 결제: <span className="font-medium">{d.amt.toLocaleString()}P</span>
+                  {(d.refunded_amount ?? 0) > 0 && (
+                    <span className="ml-2 text-amber-600">
+                      (기환불 {(d.refunded_amount ?? 0).toLocaleString()}P · 잔여{' '}
+                      {(d.amt - (d.refunded_amount ?? 0)).toLocaleString()}P)
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">환불 금액 (P, 양수)</label>
+                <input
+                  type="number"
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  placeholder={`최대 ${(d.amt - (d.refunded_amount ?? 0)).toLocaleString()}`}
+                  className="w-full mt-1 px-3 py-2 border rounded text-sm bg-white dark:bg-gray-700"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">사유 (필수, 이력에 기록됨)</label>
+                <textarea
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  rows={3}
+                  placeholder="예: 상담사 일방적 종료, 통화 품질 문제, ..."
+                  className="w-full mt-1 px-3 py-2 border rounded text-sm bg-white dark:bg-gray-700"
+                />
+              </div>
+              <div className="text-xs text-amber-700 bg-amber-50 dark:bg-amber-900/20 dark:text-amber-300 p-2 rounded">
+                ⚠ 환불 즉시 회원에게 포인트 환원됩니다. 정산 시 상담사 정산금에서도 차감됩니다. 되돌릴 수 없습니다.
+              </div>
+              <div className="flex gap-2 justify-end pt-2">
+                <button
+                  onClick={() => setRefundOpen(false)}
+                  className="px-4 py-2 text-sm border rounded"
+                >
+                  취소
+                </button>
+                <button
+                  disabled={!refundAmount || !refundReason.trim() || refundSubmitting}
+                  onClick={() => void submitRefund()}
+                  className="px-4 py-2 text-sm rounded bg-rose-600 text-white disabled:opacity-50"
+                >
+                  {refundSubmitting ? '처리 중...' : '환불 확정'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

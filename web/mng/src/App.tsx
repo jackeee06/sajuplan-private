@@ -38,6 +38,7 @@ import Attendance from './pages/Attendance'
 import GradeManagement from './pages/GradeManagement'
 import CounselorGradeDetail from './pages/CounselorGradeDetail'
 import ConsultationDetail from './pages/ConsultationDetail'
+import RefundList from './pages/RefundList'
 import PostsOverview from './pages/PostsOverview'
 import PopupLayerForm from './pages/PopupLayerForm'
 import PushNotifications from './pages/PushNotifications'
@@ -72,6 +73,7 @@ export default function App() {
               {/* 매출현황 */}
               <Route path="/consultations" element={<ConsultationList />} />
               <Route path="/consultations/:id" element={<ConsultationDetail />} />
+              <Route path="/refunds" element={<RefundList />} />
               <Route path="/charge-amounts" element={<ChargeAmounts />} />
               <Route path="/payments" element={<PaymentList />} />
               <Route path="/payments/:id" element={<PaymentDetail />} />
