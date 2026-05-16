@@ -405,16 +405,22 @@ function GradeMatrixEditor({
         <div className="px-4 py-3 border-b bg-gray-50 dark:bg-gray-800/60">
           <div className="text-sm font-medium text-gray-800 dark:text-gray-100">등급별 정책 (6 등급)</div>
           <div className="text-[11px] text-gray-500 mt-0.5">
-            단가 옵션: 30초당 단가, 콤마 구분 · 정산률: 0~1 (0.35 = 35%) · 임계값: 직전 1개월 통화 시간(시)
+            단가 옵션: 30초당 단가 (원, 상담사 선택 가능) · 정산률: 0~1 사이 값 (0.35 = 35%) · 임계값: 직전 1개월 통화 시간 (시간)
           </div>
         </div>
         <table className="text-sm">
           <thead className="bg-gray-50/60 dark:bg-gray-800/30 text-xs text-gray-600 dark:text-gray-300">
             <tr>
               <th className="px-3 py-2 text-left font-medium w-24">등급</th>
-              <th className="px-3 py-2 text-left font-medium w-[420px]">단가 옵션</th>
-              <th className="px-3 py-2 text-left font-medium w-24">정산률</th>
-              <th className="px-3 py-2 text-left font-medium w-24">임계값(h)</th>
+              <th className="px-3 py-2 text-left font-medium w-[460px]">
+                단가 옵션 <span className="text-gray-400 font-normal">(원 / 30초)</span>
+              </th>
+              <th className="px-3 py-2 text-left font-medium w-32">
+                정산률 <span className="text-gray-400 font-normal">(0~1)</span>
+              </th>
+              <th className="px-3 py-2 text-left font-medium w-32">
+                임계값 <span className="text-gray-400 font-normal">(시간)</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -428,29 +434,26 @@ function GradeMatrixEditor({
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="1"
+                  <RateInput
                     value={values[`revenue_rate.${g.key}`] ?? ''}
-                    onChange={(e) => onChange(`revenue_rate.${g.key}`, e.target.value)}
-                    placeholder="0.50"
-                    className={`${inputBase} tabular-nums w-20`}
+                    onChange={(v) => onChange(`revenue_rate.${g.key}`, v)}
                   />
                 </td>
                 <td className="px-3 py-2">
                   {g.key === 'preliminary' ? (
                     <span className="text-xs text-gray-400">— (기본값)</span>
                   ) : (
-                    <input
-                      type="number"
-                      min="0"
-                      value={values[`thresholds.${g.key}`] ?? ''}
-                      onChange={(e) => onChange(`thresholds.${g.key}`, e.target.value)}
-                      placeholder="20"
-                      className={`${inputBase} tabular-nums w-20`}
-                    />
+                    <div className="inline-flex items-center gap-1">
+                      <input
+                        type="number"
+                        min="0"
+                        value={values[`thresholds.${g.key}`] ?? ''}
+                        onChange={(e) => onChange(`thresholds.${g.key}`, e.target.value)}
+                        placeholder="20"
+                        className={`${inputBase} tabular-nums w-16`}
+                      />
+                      <span className="text-xs text-gray-400">시간</span>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -583,15 +586,16 @@ function PriceOptionsEditor({
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {items.map((v, i) => (
-        <div key={i} className="relative group">
+        <div key={i} className="relative inline-flex items-center">
           <input
             type="text"
             inputMode="numeric"
             value={v}
             onChange={(e) => updateAt(i, e.target.value)}
             placeholder="0"
-            className="w-20 px-2 py-1.5 pr-6 border rounded text-sm tabular-nums bg-white dark:bg-gray-700 dark:border-gray-600"
+            className="w-20 px-2 py-1.5 pr-12 border rounded text-sm tabular-nums bg-white dark:bg-gray-700 dark:border-gray-600"
           />
+          <span className="absolute right-6 text-xs text-gray-400 pointer-events-none">원</span>
           {items.length > 1 && (
             <button
               type="button"
@@ -614,6 +618,38 @@ function PriceOptionsEditor({
       >
         +
       </button>
+    </div>
+  )
+}
+
+/**
+ * 정산률 입력 (0~1 decimal).
+ *   입력은 그대로 0.35 형식. 우측에 "(=35%)" 자동 변환 표시 — 직관성 보강.
+ */
+function RateInput({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (v: string) => void
+}) {
+  const n = Number(value)
+  const pct = Number.isFinite(n) && n > 0 ? Math.round(n * 1000) / 10 : null
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        max="1"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="0.50"
+        className="w-20 px-2 py-1.5 border rounded text-sm tabular-nums bg-white dark:bg-gray-700 dark:border-gray-600"
+      />
+      <span className="text-xs text-gray-400 tabular-nums min-w-[44px]">
+        {pct !== null ? `= ${pct}%` : ''}
+      </span>
     </div>
   )
 }
