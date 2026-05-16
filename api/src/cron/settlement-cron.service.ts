@@ -149,14 +149,23 @@ export class SettlementCronService {
       }
 
       // 상담 집계 (환불 + 포인트 미지급 제외)
-      // refunded_amount 만큼은 amt 에서 차감해 정산 (Phase 10 환불 워크플로우)
-      // refunded_amount 가 amt_free / amt_pro 어느 쪽인지는 refund_request 시 결정됐지만
-      // 여기선 단순화하여 amt_pro 우선 차감 후 amt_free 차감 (유료 비중이 일반적으로 더 큼).
+      // [Audit C-#6] 환불 차감을 refund_request 의 amount_free/amount_pro 합산으로 정확히 계산.
+      // 이전 SQL 은 refunded_amount 만으로 추정 차감 (amt_pro 우선) — 환불 시 실제 분배와
+      // 불일치하면 상담사 정산이 과다/과소 산정될 수 있었음.
+      // 환불 시 결정된 free/pro 비율을 그대로 빼서 일관성 보장.
       const consRow = await tx<{ amt_free: string; amt_pro: string }[]>`
         SELECT
-          COALESCE(SUM(GREATEST(c.amt_free - GREATEST(c.refunded_amount - c.amt_pro, 0), 0)), 0)::text AS amt_free,
-          COALESCE(SUM(GREATEST(c.amt_pro  - LEAST(c.refunded_amount, c.amt_pro), 0)), 0)::text AS amt_pro
+          COALESCE(SUM(GREATEST(c.amt_free - COALESCE(rr.refunded_free, 0), 0)), 0)::text AS amt_free,
+          COALESCE(SUM(GREATEST(c.amt_pro  - COALESCE(rr.refunded_pro,  0), 0)), 0)::text AS amt_pro
         FROM consultation c
+        LEFT JOIN (
+          SELECT consultation_id,
+                 COALESCE(SUM(amount_free), 0)::bigint AS refunded_free,
+                 COALESCE(SUM(amount_pro),  0)::bigint AS refunded_pro
+            FROM refund_request
+           WHERE status = 'approved'
+           GROUP BY consultation_id
+        ) rr ON rr.consultation_id = c.id
         WHERE c.counselor_id = ${memberId}
           AND c.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
           AND c.created_at >= ${range.startday}
