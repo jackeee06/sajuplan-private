@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Link2, KeyRound, User, Headphones, BadgeCheck, Megaphone, CreditCard, Paperclip } from 'lucide-react'
 import { api } from '../lib/api'
 import HtmlEditor, { type HtmlEditorHandle } from '../components/HtmlEditor'
@@ -462,6 +462,19 @@ export default function CounselorForm() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* 등급/단가 상세 진입 링크 — 수정 모드 한정 (Phase 8) */}
+      {!isNew && (
+        <Link
+          to={`/members/counselors/${id}/grade-detail`}
+          className="block px-4 py-3 rounded-lg bg-purple-50 hover:bg-purple-100 dark:bg-purple-900/20 dark:hover:bg-purple-900/30 border border-purple-200 dark:border-purple-700 text-sm transition-colors"
+        >
+          <span className="font-medium text-purple-700 dark:text-purple-300">⭐ 등급/단가 관리 →</span>
+          <span className="ml-2 text-xs text-purple-600 dark:text-purple-400">
+            현재 등급 · 단가 · 변경 이력 + 분쟁 시 강제 수정
+          </span>
+        </Link>
       )}
 
       {error && (

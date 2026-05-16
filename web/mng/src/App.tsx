@@ -35,6 +35,8 @@ import PostList from './pages/PostList'
 import PostReports from './pages/PostReports'
 import ReviewReports from './pages/ReviewReports'
 import Attendance from './pages/Attendance'
+import GradeManagement from './pages/GradeManagement'
+import CounselorGradeDetail from './pages/CounselorGradeDetail'
 import PostsOverview from './pages/PostsOverview'
 import PopupLayerForm from './pages/PopupLayerForm'
 import PushNotifications from './pages/PushNotifications'
@@ -123,6 +125,8 @@ export default function App() {
               {/* 후기 신고 관리 (2026-05-15 신설) */}
               <Route path="/review-reports" element={<ReviewReports />} />
               <Route path="/attendance" element={<Attendance />} />
+              <Route path="/grade" element={<GradeManagement />} />
+              <Route path="/members/counselors/:id/grade-detail" element={<CounselorGradeDetail />} />
 
               {/* 채팅내역 */}
               <Route path="/chat-history" element={<ChatHistoryList />} />

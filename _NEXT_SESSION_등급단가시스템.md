@@ -708,6 +708,48 @@ CREATE TABLE setting_history (
 
 3. **테스트 발송**: 임의로 cron 실패 유도 (잘못된 month 인자) → 카톡 도착 여부 확인
 
-### 다음: Phase 8 — 등급 시스템 운영 화면 (감사 발견 6개)
+### 2026-05-16 — Phase 8 완료 ✅ (어드민 등급 운영 화면)
 
-A.1~6: 회원 상세 등급 섹션 / 단가 변경 이력 / 등급 변동 이력 / 정책 변경 이력 / 어드민 강제 수정 / 등급 분포
+**신규 모듈** [api/src/admin/grade/](api/src/admin/grade/):
+- `AdminGradeService` — 6 메서드
+- `GET /admin/grade/distribution` — 등급별 분포 (활동 상담사)
+- `GET /admin/grade/recent-changes` — 최근 등급 변동 50건
+- `GET /admin/grade/counselor/:id` — 단건 상세 (등급/누적시간/단가/락/옵션)
+- `GET /admin/grade/counselor/:id/unit-cost-history`
+- `GET /admin/grade/counselor/:id/grade-history`
+- `PATCH /admin/grade/counselor/:id/grade` — 어드민 강제 등급 변경 (사유 필수)
+- `PATCH /admin/grade/counselor/:id/unit-cost` — 어드민 강제 단가 (정책 외 값 허용, 사유 필수)
+
+**setting_history INSERT 누락 수정** [admin/settings/settings.service.ts](api/src/admin/settings/settings.service.ts):
+- 어드민이 정책 변경 시 변경 전후 값을 `setting_history` 에 자동 INSERT
+- `changed_by = 'admin:<id>'` 기록
+- 값 동일 시 INSERT skip (노이즈 제거)
+- `GET /admin/settings/history/list?namespace=&key=&limit=` — 조회 API
+
+**신규 어드민 페이지**:
+- `/mng/grade` ([GradeManagement.tsx](web/mng/src/pages/GradeManagement.tsx))
+  - 등급별 분포 6 카드 (예비파트너~파트너5)
+  - 최근 등급 변동 50건 (시각/상담사/변경/유형/주체)
+  - 정책 변경 이력 50건 (namespace='grade')
+  - 사이드바 "회원현황 > ⭐ 등급 관리" 추가
+- `/mng/members/counselors/:id/grade-detail` ([CounselorGradeDetail.tsx](web/mng/src/pages/CounselorGradeDetail.tsx))
+  - 4 카드 (등급 / 누적시간 / 현재 단가 / 다음 변경 가능)
+  - 단가 변경 이력 + 등급 변동 이력 2 탭
+  - 강제 등급 변경 모달 (drop-down + 사유)
+  - 강제 단가 변경 모달 (숫자 + 사유, 정책 외 값 OK)
+- CounselorForm 헤더에 "⭐ 등급/단가 관리 →" 보라색 진입 배너
+
+**배포**:
+- API: test + prod 빌드 통과
+- 어드민 프론트: vite build + 양 서버 SFTP 동기화
+
+**검증**:
+- 새 엔드포인트 4종 → HTTP 401 ✅ (마운트 + 인증 가드 작동)
+- 어드민에서 /mng/grade 진입 가능 (사용자 브라우저 확인 필요)
+- 어드민에서 상담사 상세 진입 → "⭐ 등급/단가 관리 →" 클릭 → 상세 페이지 진입 (사용자 확인 필요)
+
+### 다음: Phase 9 — 사고 대응 도구 (3개)
+
+1. 상담사 강제 정지/복구 UI (use_phone / use_chat 토글)
+2. 회원 차단(intercept_until) UI
+3. 분쟁 시 통화 상세 + unit_cost_snapshot 조회 UI

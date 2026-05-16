@@ -62,6 +62,7 @@ export default function Sidebar() {
                     <li><NavLink to="/members/counselors" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담사 리스트</NavLink></li>
                     <li><NavLink to="/members/counselor-apply" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담사 신청 내역</NavLink></li>
                     <li><NavLink to="/attendance" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 출석 관리</NavLink></li>
+                    <li><NavLink to="/grade" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 등급 관리</NavLink></li>
                   </ul>
                 )}
               </li>

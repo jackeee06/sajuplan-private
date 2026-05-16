@@ -23,12 +23,14 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 2026-05-16: Phase 7 — M2NET 차감 실패 + autopay 실패 알림 통합
+# 2026-05-16: Phase 8 — 어드민 등급 관리 + setting_history INSERT
 FILES = [
-    ("api/src/pg-callbacks/m2net-push.module.ts", "src/pg-callbacks/m2net-push.module.ts"),
-    ("api/src/pg-callbacks/m2net-push.service.ts", "src/pg-callbacks/m2net-push.service.ts"),
-    ("api/src/user/charge/charge.module.ts", "src/user/charge/charge.module.ts"),
-    ("api/src/user/charge/pg-callback.controller.ts", "src/user/charge/pg-callback.controller.ts"),
+    ("api/src/admin/grade/grade.module.ts", "src/admin/grade/grade.module.ts"),
+    ("api/src/admin/grade/grade.service.ts", "src/admin/grade/grade.service.ts"),
+    ("api/src/admin/grade/grade.controller.ts", "src/admin/grade/grade.controller.ts"),
+    ("api/src/admin/admin.module.ts", "src/admin/admin.module.ts"),
+    ("api/src/admin/settings/settings.service.ts", "src/admin/settings/settings.service.ts"),
+    ("api/src/admin/settings/settings.controller.ts", "src/admin/settings/settings.controller.ts"),
 ]
 
 

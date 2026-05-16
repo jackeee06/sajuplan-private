@@ -24,6 +24,7 @@ import { SettingsModule } from './settings/settings.module';
 import { SettlementsModule } from './settlements/settlements.module';
 import { StatsModule } from './stats/stats.module';
 import { AdminAttendanceModule } from './attendance/attendance.module';
+import { AdminGradeModule } from './grade/grade.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { AdminAttendanceModule } from './attendance/attendance.module';
     CouponZonesModule,
     AdminCounselorApplyModule,
     AdminAttendanceModule,
+    AdminGradeModule,
   ],
 })
 export class AdminModule {}

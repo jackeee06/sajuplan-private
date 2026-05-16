@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Patch,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -34,5 +35,20 @@ export class SettingsController {
     @Req() req: AuthedRequest,
   ): Promise<{ updated: number }> {
     return this.settings.update(body, req.admin.sub);
+  }
+
+  /**
+   * 정책 변경 이력 조회.
+   *   GET /admin/settings/history?namespace=grade&key=options.partner1&limit=50
+   */
+  @Get('history/list')
+  async history(
+    @Query('namespace') namespace?: string,
+    @Query('key') key?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const lim = limit ? Math.max(1, Math.min(200, Number(limit) || 50)) : 50;
+    const items = await this.settings.getHistory({ namespace, key, limit: lim });
+    return { items };
   }
 }

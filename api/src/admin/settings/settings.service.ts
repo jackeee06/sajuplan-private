@@ -60,6 +60,12 @@ export class SettingsService {
     let updated = 0;
     await this.sql.begin(async (tx) => {
       for (const { namespace, key, value } of flat) {
+        // 변경 전 값 조회 (이력 INSERT 용)
+        const beforeRows = await tx<{ value: string | null }[]>`
+          SELECT value FROM setting WHERE namespace = ${namespace} AND key = ${key} LIMIT 1
+        `;
+        const before = beforeRows[0]?.value ?? null;
+
         const result = await tx`
           UPDATE setting
              SET value = ${value},
@@ -67,9 +73,53 @@ export class SettingsService {
                  updated_at = now()
            WHERE namespace = ${namespace} AND key = ${key}
         `;
-        updated += result.count;
+        if (result.count > 0) {
+          updated += result.count;
+          // 실제 변경된 경우에만 이력 INSERT (값 동일하면 SKIP)
+          if (before !== value) {
+            await tx`
+              INSERT INTO setting_history (namespace, key, value_before, value_after, changed_by)
+              VALUES (${namespace}, ${key}, ${before}, ${value}, ${`admin:${adminId}`})
+            `;
+          }
+        }
       }
     });
     return { updated };
+  }
+
+  /**
+   * 설정 변경 이력 조회 (어드민 운영 도구).
+   * namespace + key 로 필터 가능. 최근 순.
+   */
+  async getHistory(params: {
+    namespace?: string;
+    key?: string;
+    limit?: number;
+  }): Promise<Array<{
+    id: number;
+    namespace: string;
+    key: string;
+    value_before: string | null;
+    value_after: string | null;
+    changed_by: string;
+    created_at: string;
+  }>> {
+    const lim = Math.min(200, Math.max(1, params.limit ?? 50));
+    const nsFilter = params.namespace ? this.sql`AND namespace = ${params.namespace}` : this.sql``;
+    const keyFilter = params.key ? this.sql`AND key = ${params.key}` : this.sql``;
+    return await this.sql<Array<{
+      id: number; namespace: string; key: string;
+      value_before: string | null; value_after: string | null;
+      changed_by: string; created_at: string;
+    }>>`
+      SELECT id, namespace, key, value_before, value_after, changed_by, created_at::text
+        FROM setting_history
+       WHERE 1=1
+         ${nsFilter}
+         ${keyFilter}
+       ORDER BY id DESC
+       LIMIT ${lim}
+    `;
   }
 }
