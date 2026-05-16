@@ -7,7 +7,7 @@ import { api } from '../lib/api'
 // ───────────────────────────────────────────────
 type SettingsByNs = Record<string, Record<string, string>>
 
-type TabKey = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer' | 'grade' | 'ops'
+type TabKey = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer' | 'grade' | 'ops' | 'legal'
 type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'password' | 'select' | 'multiselect'
 interface FieldDef {
   key: string
@@ -221,9 +221,15 @@ const TAB_FIELDS: Record<TabKey, { title: string; fields: FieldDef[] }> = {
       },
     ],
   },
+  legal: {
+    // 'legal' 탭은 page 테이블 (terms/privacy) 을 편집하는 특수 탭.
+    // FieldDef 기반이 아닌 커스텀 컴포넌트가 렌더됨 — fields 는 메타 표시용 빈 배열.
+    title: '약관/처리방침',
+    fields: [],
+  },
 }
 
-const TAB_ORDER: TabKey[] = ['site', 'member', 'review', 'social', 'security', 'footer', 'grade', 'ops']
+const TAB_ORDER: TabKey[] = ['site', 'member', 'review', 'social', 'security', 'footer', 'grade', 'ops', 'legal']
 
 // ───────────────────────────────────────────────
 // 페이지
@@ -326,33 +332,207 @@ export default function Settings() {
         </nav>
       </div>
 
-      {/* 필드 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
-        <table className="w-full text-sm">
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {fields.map((f) => {
-              const value = data[tab]?.[f.key] ?? ''
-              return (
-                <tr key={f.key}>
-                  <th className="text-left align-top px-4 py-3 w-56 font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/50">
-                    <label htmlFor={`${tab}-${f.key}`}>{f.label}</label>
-                    {f.hint && (
-                      <div className="text-[11px] text-gray-400 mt-0.5 font-normal">{f.hint}</div>
-                    )}
-                  </th>
-                  <td className="px-4 py-3">
-                    <FieldInput
-                      id={`${tab}-${f.key}`}
-                      def={f}
-                      value={value}
-                      onChange={(v) => setField(tab, f.key, v)}
-                    />
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+      {/* 필드 — legal 탭만 커스텀 렌더 (page 테이블), 나머지는 standard FieldDef 기반 */}
+      {tab === 'legal' ? (
+        <LegalEditor />
+      ) : (
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {fields.map((f) => {
+                const value = data[tab]?.[f.key] ?? ''
+                return (
+                  <tr key={f.key}>
+                    <th className="text-left align-top px-4 py-3 w-56 font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/50">
+                      <label htmlFor={`${tab}-${f.key}`}>{f.label}</label>
+                      {f.hint && (
+                        <div className="text-[11px] text-gray-400 mt-0.5 font-normal">{f.hint}</div>
+                      )}
+                    </th>
+                    <td className="px-4 py-3">
+                      <FieldInput
+                        id={`${tab}-${f.key}`}
+                        def={f}
+                        value={value}
+                        onChange={(v) => setField(tab, f.key, v)}
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 약관/처리방침 편집기 (page 테이블 slug='terms', 'privacy')
+// 부가 기능(use_html / mobile_content / head_html / tail_html) 은
+// 별도 페이지(/mng/contents) 에서 처리.
+// ─────────────────────────────────────────────────────────────────
+
+interface LegalPage {
+  id: number
+  slug: string
+  title: string
+  content: string | null
+}
+
+function LegalEditor() {
+  const [terms, setTerms] = useState<LegalPage | null>(null)
+  const [privacy, setPrivacy] = useState<LegalPage | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [savedAt, setSavedAt] = useState<Date | null>(null)
+  const [saving, setSaving] = useState<'terms' | 'privacy' | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    setLoading(true)
+    api<{ items: LegalPage[] }>('/admin/contents?limit=200')
+      .then((res) => {
+        if (!alive) return
+        const items = res.items ?? []
+        setTerms(items.find((p) => p.slug === 'terms') ?? null)
+        setPrivacy(items.find((p) => p.slug === 'privacy') ?? null)
+      })
+      .catch((e: Error) => alive && setError(e.message))
+      .finally(() => alive && setLoading(false))
+    return () => { alive = false }
+  }, [])
+
+  const saveOne = async (page: LegalPage | null, kind: 'terms' | 'privacy') => {
+    if (!page) return
+    setSaving(kind)
+    setError(null)
+    try {
+      // mobile_content 도 동일값으로 갱신 — 모바일/PC 분리 안 함 (탭 정책)
+      await api(`/admin/contents/${page.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          title: page.title,
+          content: page.content ?? '',
+          mobile_content: page.content ?? '',
+        }),
+      })
+      setSavedAt(new Date())
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unknown error')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="p-6 text-sm text-gray-500 dark:text-gray-400">로딩...</div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {error && (
+        <div className="p-3 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 text-sm">
+          {error}
+        </div>
+      )}
+
+      <div className="p-3 rounded-lg bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300 text-xs">
+        ℹ 여기서는 제목 + 본문만 편집합니다. HTML 모드 / 모바일 본문 분리 / 활성화 토글 등 부가 기능은{' '}
+        <a href="/contents" className="underline font-medium">내용 관리 페이지</a> 에서 사용하세요.
+        {savedAt && (
+          <span className="ml-2 text-emerald-700 dark:text-emerald-300">
+            · 마지막 저장: {savedAt.toLocaleTimeString('ko-KR')}
+          </span>
+        )}
+      </div>
+
+      {/* terms */}
+      <LegalCard
+        label="회원가입약관"
+        page={terms}
+        kind="terms"
+        saving={saving === 'terms'}
+        onTitleChange={(v) => terms && setTerms({ ...terms, title: v })}
+        onContentChange={(v) => terms && setTerms({ ...terms, content: v })}
+        onSave={() => saveOne(terms, 'terms')}
+      />
+
+      {/* privacy */}
+      <LegalCard
+        label="개인정보처리방침"
+        page={privacy}
+        kind="privacy"
+        saving={saving === 'privacy'}
+        onTitleChange={(v) => privacy && setPrivacy({ ...privacy, title: v })}
+        onContentChange={(v) => privacy && setPrivacy({ ...privacy, content: v })}
+        onSave={() => saveOne(privacy, 'privacy')}
+      />
+    </div>
+  )
+}
+
+function LegalCard({
+  label,
+  page,
+  saving,
+  onTitleChange,
+  onContentChange,
+  onSave,
+}: {
+  label: string
+  page: LegalPage | null
+  kind: 'terms' | 'privacy'
+  saving: boolean
+  onTitleChange: (v: string) => void
+  onContentChange: (v: string) => void
+  onSave: () => void
+}) {
+  if (!page) {
+    return (
+      <div className="p-4 rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+        <div className="font-medium mb-2">{label}</div>
+        <div className="text-xs text-gray-500">
+          page 테이블에 해당 slug 행 없음. 내용 관리 페이지에서 신규 생성 필요.
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-3">
+        <div className="font-medium text-gray-800 dark:text-gray-100">{label}</div>
+        <button
+          onClick={onSave}
+          disabled={saving}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50"
+        >
+          <Save className="w-3.5 h-3.5" />
+          {saving ? '저장 중...' : '저장'}
+        </button>
+      </div>
+      <div className="space-y-3">
+        <div>
+          <label className="text-xs text-gray-500">제목</label>
+          <input
+            type="text"
+            value={page.title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            className="w-full mt-1 px-3 py-2 border rounded text-sm bg-white dark:bg-gray-700"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-gray-500">본문 (줄바꿈은 그대로 표시됩니다)</label>
+          <textarea
+            value={page.content ?? ''}
+            onChange={(e) => onContentChange(e.target.value)}
+            rows={14}
+            className="w-full mt-1 px-3 py-2 border rounded text-sm font-mono bg-white dark:bg-gray-700"
+          />
+        </div>
       </div>
     </div>
   )
