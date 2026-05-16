@@ -399,7 +399,7 @@ function GradeMatrixEditor({
 
   return (
     // max-w 로 좌측 정렬 — 와이드 모니터에서 화면 끝까지 늘어나지 않게
-    <div className="space-y-6 max-w-[920px]">
+    <div className="space-y-6 max-w-[1080px]">
       {/* 매트릭스 표 — 등급별 옵션/정산률/임계값 한 화면 */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
         <div className="px-4 py-3 border-b bg-gray-50 dark:bg-gray-800/60">
@@ -412,7 +412,7 @@ function GradeMatrixEditor({
           <thead className="bg-gray-50/60 dark:bg-gray-800/30 text-xs text-gray-600 dark:text-gray-300">
             <tr>
               <th className="px-3 py-2 text-left font-medium w-24">등급</th>
-              <th className="px-3 py-2 text-left font-medium w-[460px]">
+              <th className="px-3 py-2 text-left font-medium w-[640px]">
                 단가 옵션 <span className="text-gray-400 font-normal">(원 / 30초)</span>
               </th>
               <th className="px-3 py-2 text-left font-medium w-32">
