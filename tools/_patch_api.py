@@ -23,14 +23,10 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 2026-05-16: Phase 10 — 환불 워크플로우
+# 2026-05-16: Phase 11 — 운영 KPI (환불률, 평균 통화, 상담사 순위)
 FILES = [
-    ("api/src/admin/refunds/refunds.module.ts", "src/admin/refunds/refunds.module.ts"),
-    ("api/src/admin/refunds/refunds.service.ts", "src/admin/refunds/refunds.service.ts"),
-    ("api/src/admin/refunds/refunds.controller.ts", "src/admin/refunds/refunds.controller.ts"),
-    ("api/src/admin/admin.module.ts", "src/admin/admin.module.ts"),
-    ("api/src/admin/consultations/consultations.service.ts", "src/admin/consultations/consultations.service.ts"),
-    ("api/src/cron/settlement-cron.service.ts", "src/cron/settlement-cron.service.ts"),
+    ("api/src/admin/stats/stats.service.ts", "src/admin/stats/stats.service.ts"),
+    ("api/src/admin/stats/stats.controller.ts", "src/admin/stats/stats.controller.ts"),
 ]
 
 

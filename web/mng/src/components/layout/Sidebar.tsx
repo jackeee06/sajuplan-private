@@ -78,6 +78,7 @@ export default function Sidebar() {
                   <ul className="flex flex-col gap-1 mt-2 pl-9">
                     <li><NavLink to="/consultations" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>사용(상담) 내역</NavLink></li>
                     <li><NavLink to="/refunds" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 환불 이력</NavLink></li>
+                    <li><NavLink to="/ops-kpi" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 운영 KPI</NavLink></li>
                     <li><NavLink to="/charge-amounts" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>충전금액 설정</NavLink></li>
                     <li><NavLink to="/payments" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>결제 내역</NavLink></li>
                     <li><NavLink to="/points/history" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>포인트 관리</NavLink></li>

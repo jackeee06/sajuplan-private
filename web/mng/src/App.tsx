@@ -39,6 +39,7 @@ import GradeManagement from './pages/GradeManagement'
 import CounselorGradeDetail from './pages/CounselorGradeDetail'
 import ConsultationDetail from './pages/ConsultationDetail'
 import RefundList from './pages/RefundList'
+import OpsKpi from './pages/OpsKpi'
 import PostsOverview from './pages/PostsOverview'
 import PopupLayerForm from './pages/PopupLayerForm'
 import PushNotifications from './pages/PushNotifications'
@@ -74,6 +75,7 @@ export default function App() {
               <Route path="/consultations" element={<ConsultationList />} />
               <Route path="/consultations/:id" element={<ConsultationDetail />} />
               <Route path="/refunds" element={<RefundList />} />
+              <Route path="/ops-kpi" element={<OpsKpi />} />
               <Route path="/charge-amounts" element={<ChargeAmounts />} />
               <Route path="/payments" element={<PaymentList />} />
               <Route path="/payments/:id" element={<PaymentDetail />} />
