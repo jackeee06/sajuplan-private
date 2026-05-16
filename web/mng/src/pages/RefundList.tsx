@@ -161,7 +161,7 @@ export default function RefundList() {
                   <td className="px-3 py-2 text-xs">
                     {r.counselor_id && r.counselor_mb_id ? (
                       <Link
-                        to={`/members/counselors/${r.counselor_id}/edit`}
+                        to={`/members/counselors/${r.counselor_id}`}
                         className="text-brand-600 hover:underline"
                       >
                         {r.counselor_nickname || r.counselor_mb_id}

@@ -156,7 +156,7 @@ export default function CounselorGradeDetail() {
           </p>
         </div>
         <button
-          onClick={() => navigate(`/members/counselors/${memberId}/edit`)}
+          onClick={() => navigate(`/members/counselors/${memberId}`)}
           className="px-3 py-2 text-sm rounded-lg border border-gray-200 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
         >
           ← 상담사 정보로

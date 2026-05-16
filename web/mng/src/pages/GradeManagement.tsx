@@ -156,7 +156,7 @@ export default function GradeManagement() {
                           </td>
                           <td className="px-3 py-2">
                             <Link
-                              to={`/members/counselors/${c.member_id}/edit`}
+                              to={`/members/counselors/${c.member_id}`}
                               className="text-brand-600 hover:underline"
                             >
                               {c.nickname || c.mb_id || `#${c.member_id}`}
