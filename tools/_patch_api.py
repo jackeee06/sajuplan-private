@@ -23,10 +23,12 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 2026-05-16: Phase 12 — CS 답변 (post_qa.extras.admin_reply)
+# 2026-05-16: Phase 13 — 일괄 알림톡 발송 + 발송 로그
 FILES = [
-    ("api/src/admin/posts/posts.service.ts", "src/admin/posts/posts.service.ts"),
-    ("api/src/admin/posts/posts.controller.ts", "src/admin/posts/posts.controller.ts"),
+    ("api/src/admin/alimtalk-bulk/alimtalk-bulk.module.ts", "src/admin/alimtalk-bulk/alimtalk-bulk.module.ts"),
+    ("api/src/admin/alimtalk-bulk/alimtalk-bulk.service.ts", "src/admin/alimtalk-bulk/alimtalk-bulk.service.ts"),
+    ("api/src/admin/alimtalk-bulk/alimtalk-bulk.controller.ts", "src/admin/alimtalk-bulk/alimtalk-bulk.controller.ts"),
+    ("api/src/admin/admin.module.ts", "src/admin/admin.module.ts"),
 ]
 
 

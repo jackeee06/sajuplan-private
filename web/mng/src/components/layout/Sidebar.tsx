@@ -140,6 +140,7 @@ export default function Sidebar() {
                 {open.notification && (
                   <ul className="flex flex-col gap-1 mt-2 pl-9">
                     <li><NavLink to="/push-notifications" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>푸시 알림</NavLink></li>
+                    <li><NavLink to="/alimtalk-bulk" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 알림톡 발송</NavLink></li>
                     <li><NavLink to="/alimtalk-templates" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>알림톡 템플릿</NavLink></li>
                   </ul>
                 )}
