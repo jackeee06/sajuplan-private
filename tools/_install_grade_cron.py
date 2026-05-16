@@ -35,6 +35,16 @@ def install_one(label: str, host: str, api_domain: str, pw: str) -> int:
     c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     c.connect(host, 22, "root", pw, allow_agent=False, look_for_keys=False, timeout=20)
 
+    # CRON_TOKEN 조회 — 모든 cron URL 에 포함
+    _, out, _ = c.exec_command(
+        f"grep '^CRON_TOKEN=' /data/wwwroot/api.{api_domain.split('.', 1)[1] if api_domain.startswith('api.') else api_domain}/.env"
+        " 2>/dev/null | head -1 | cut -d= -f2-"
+    )
+    token = out.read().decode("utf-8", errors="replace").strip().strip('"').strip("'")
+    if not token:
+        print(f"  ⚠ CRON_TOKEN .env 에서 못 찾음 — URL 에 ?token= 없이 등록됨 (가드 거부될 것)")
+    token_q = f"?token={token}" if token else ""
+
     # 현재 crontab 조회 (없으면 빈 문자열)
     _, stdout, _ = c.exec_command("crontab -l 2>/dev/null || true")
     current = stdout.read().decode("utf-8", errors="replace")
@@ -42,14 +52,26 @@ def install_one(label: str, host: str, api_domain: str, pw: str) -> int:
     # (라인, 매칭_패턴, 라벨) 튜플 목록 — 순서대로 검사/추가
     cron_jobs = [
         (
-            f"5 0 1 * * curl -s 'https://{api_domain}/api/cron/grade/recalculate' >> /var/log/sajumoon_grade.log 2>&1",
+            f"5 0 1 * * curl -s 'https://{api_domain}/api/cron/grade/recalculate{token_q}' >> /var/log/sajumoon_grade.log 2>&1",
             "grade/recalculate",
             "등급 재산정 (1일 00:05 KST)",
         ),
         (
-            f"0 4 1 * * curl -s 'https://{api_domain}/api/cron/settlement/monthly' >> /var/log/sajumoon_settlement.log 2>&1",
+            f"0 4 1 * * curl -s 'https://{api_domain}/api/cron/settlement/monthly{token_q}' >> /var/log/sajumoon_settlement.log 2>&1",
             "settlement/monthly",
             "월별 정산 (1일 04:00 KST)",
+        ),
+        # [Audit C-#9] 채팅 정산 재시도 — 10분 간격 (M2NET 일시 장애 대응)
+        (
+            f"5,15,25,35,45,55 * * * * curl -s 'https://{api_domain}/api/cron/retry/chat-settle{token_q}' >> /var/log/sajumoon_retry.log 2>&1",
+            "retry/chat-settle",
+            "채팅 정산 재시도 (10분 간격)",
+        ),
+        # [Audit C-#10] M2NET 적립 재시도 — 10분 간격
+        (
+            f"0,10,20,30,40,50 * * * * curl -s 'https://{api_domain}/api/cron/retry/payment-m2net{token_q}' >> /var/log/sajumoon_retry.log 2>&1",
+            "retry/payment-m2net",
+            "M2NET 결제 적립 재시도 (10분 간격)",
         ),
     ]
 

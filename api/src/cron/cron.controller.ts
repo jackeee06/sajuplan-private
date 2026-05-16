@@ -2,6 +2,7 @@ import { BadRequestException, Controller, Get, Post, Query, UseGuards } from '@n
 import { ResetService } from './reset.service';
 import { SettlementCronService } from './settlement-cron.service';
 import { GradeCronService } from './grade-cron.service';
+import { RetryCronService } from './retry-cron.service';
 import { CronTokenGuard } from './cron-token.guard';
 import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
 
@@ -25,8 +26,27 @@ export class CronController {
     private readonly settlement: SettlementCronService,
     private readonly reset: ResetService,
     private readonly grade: GradeCronService,
+    private readonly retryCron: RetryCronService,
     private readonly opsAlert: OpsAlertService,
   ) {}
+
+  // [Audit C-#9] 채팅 정산 재시도 — M2NET 일시 장애로 미정산된 chat_room 처리.
+  //   GET /api/cron/retry/chat-settle
+  //   crontab 예 (10분 간격): '0,10,20,30,40,50 * * * * curl ...retry/chat-settle?token=...'
+  @Get('retry/chat-settle')
+  async retryChatSettle(@Query('limit') limit?: string) {
+    const n = limit ? Math.max(1, Math.min(100, Number(limit) || 20)) : 20;
+    return this.retryCron.retryChatSettles(n);
+  }
+
+  // [Audit C-#10] 결제 M2NET 적립 재시도 — m2net 적립 실패한 payment 재시도.
+  //   GET /api/cron/retry/payment-m2net
+  //   crontab 예 (10분 간격): '0,10,20,30,40,50 * * * * curl ...retry/payment-m2net?token=...'
+  @Get('retry/payment-m2net')
+  async retryPaymentM2net(@Query('limit') limit?: string) {
+    const n = limit ? Math.max(1, Math.min(100, Number(limit) || 20)) : 20;
+    return this.retryCron.retryPaymentM2netSync(n);
+  }
 
   /**
    * 매월 1일 등급 재산정.

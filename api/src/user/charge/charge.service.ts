@@ -12,6 +12,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
 import { Ag9Service } from '../../shared/ag9/ag9.service';
 import { M2netService } from '../../shared/m2net/m2net.service';
 import { SmsService } from '../sms/sms.service';
+import { OpsAlertService } from '../../shared/ops-alert/ops-alert.service';
 import { maskCardNumber } from '../../shared/ag9/card-crypto';
 import type { PgCallbackPayload } from '../../shared/ag9/ag9.types';
 import { PrepareChargeDto, type GeneralPayMethod } from './dto/prepare-charge.dto';
@@ -48,6 +49,7 @@ export class ChargeService {
     private readonly m2net: M2netService,
     private readonly config: ConfigService,
     private readonly sms: SmsService,
+    private readonly opsAlert: OpsAlertService,
   ) {}
 
   // ============================================================
@@ -809,15 +811,36 @@ export class ChargeService {
     });
 
     // 9) 엠투넷 동기화 (sample 라인 113-123)
+    // [Audit C-#10] 실패 시 retry_count 갱신 — 별도 retry cron 이 재시도하게.
     if (row.mb_1) {
       const sync = await this.m2net.addMemberCoin(row.mb_1, Number(row.coin_amount));
-      await this.sql`
-        UPDATE payment SET m2net_status = ${sync.ok ? '코인충전성공' : '코인충전실패'}, updated_at = now()
-         WHERE id = ${row.id}
-      `;
+      if (sync.ok) {
+        await this.sql`
+          UPDATE payment SET m2net_status = '코인충전성공', updated_at = now()
+           WHERE id = ${row.id}
+        `;
+      } else {
+        await this.sql`
+          UPDATE payment SET
+            m2net_status = '코인충전실패',
+            m2net_retry_count = COALESCE(m2net_retry_count, 0) + 1,
+            m2net_last_retry_at = NOW(),
+            updated_at = now()
+           WHERE id = ${row.id}
+        `;
+        void this.opsAlert.send(
+          'M2NET 가상계좌 코인 적립 실패',
+          `payment.id=${row.id} oid=${oid} coin=${row.coin_amount}\nm2net error: ${sync.error ?? 'unknown'}`,
+        );
+      }
     } else {
       await this.sql`
-        UPDATE payment SET m2net_status = '코인충전실패', updated_at = now() WHERE id = ${row.id}
+        UPDATE payment SET
+          m2net_status = '코인충전실패',
+          m2net_retry_count = COALESCE(m2net_retry_count, 0) + 1,
+          m2net_last_retry_at = NOW(),
+          updated_at = now()
+         WHERE id = ${row.id}
       `;
     }
 
@@ -1042,12 +1065,28 @@ export class ChargeService {
     if (result.done || !result.pmt) return;
 
     // 트랜잭션 커밋 후 엠투넷 동기화 (sample/coin_pay_ok_v2.php 라인 137-143)
+    // [Audit C-#10] 실패 시 retry_count 증가 → 별도 retry cron 이 재시도.
     if (result.pmt.mb_1) {
       const sync = await this.m2net.addMemberCoin(result.pmt.mb_1, Number(result.pmt.coin_amount));
-      await this.sql`
-        UPDATE payment SET m2net_status = ${sync.ok ? '코인충전성공' : '코인충전실패'}, updated_at = now()
-         WHERE id = ${result.pmt.id}
-      `;
+      if (sync.ok) {
+        await this.sql`
+          UPDATE payment SET m2net_status = '코인충전성공', updated_at = now()
+           WHERE id = ${result.pmt.id}
+        `;
+      } else {
+        await this.sql`
+          UPDATE payment SET
+            m2net_status = '코인충전실패',
+            m2net_retry_count = COALESCE(m2net_retry_count, 0) + 1,
+            m2net_last_retry_at = NOW(),
+            updated_at = now()
+           WHERE id = ${result.pmt.id}
+        `;
+        void this.opsAlert.send(
+          'M2NET 카드/간편결제 코인 적립 실패',
+          `payment.id=${result.pmt.id} oid=${oid} coin=${result.pmt.coin_amount}\nm2net error: ${sync.error ?? 'unknown'}`,
+        );
+      }
     }
 
     // 카드/간편결제 완료 알림톡은 발송하지 않음 — 운영 정책상 가상계좌 발급(order_bankinfo2) 외 알림톡 미발송.

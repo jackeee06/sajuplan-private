@@ -417,7 +417,9 @@ export class M2netPushService {
   // 같은 chat_room 에 대해 consultation row 가 이미 있으면(=push 가 이미 도착) 멱등 skip.
   // ─────────────────────────────────────────────
 
-  async settleChatRoomLocal(chatRoomId: number): Promise<{ ok: true; settled: boolean }> {
+  async settleChatRoomLocal(
+    chatRoomId: number,
+  ): Promise<{ ok: true; settled: boolean; marked_for_retry?: boolean }> {
     const rooms = await this.sql<{
       id: number;
       roomid: string | null;
@@ -507,16 +509,22 @@ export class M2netPushService {
           return { ok: true, settled: false };
         }
       } else {
+        // [Audit C-#9] M2NET 잔액 조회 실패 — chat_room.settle_status 마킹 + retry cron 재시도
+        const reason = r.error ?? 'unknown';
         this.logger.warn(
-          `[settleChatRoomLocal] m2net 잔액 조회 실패 csrid=${csrid} error=${r.error ?? 'unknown'} → 차감 skip (END_CHAT push 에서 처리)`,
+          `[settleChatRoomLocal] m2net 잔액 조회 실패 csrid=${csrid} error=${reason} → m2net_failed 마킹`,
         );
-        return { ok: true, settled: false };
+        await this.markChatRoomSettleFailed(chatRoomId, `m2net_get_balance_failed: ${reason}`);
+        return { ok: true, settled: false, marked_for_retry: true };
       }
     } catch (e) {
+      // [Audit C-#9] 예외 발생 — 같은 처리
+      const reason = e instanceof Error ? e.message : String(e);
       this.logger.warn(
-        `[settleChatRoomLocal] m2net 잔액 조회 예외 csrid=${csrid}: ${e instanceof Error ? e.message : String(e)} → 차감 skip`,
+        `[settleChatRoomLocal] m2net 잔액 조회 예외 csrid=${csrid}: ${reason} → m2net_failed 마킹`,
       );
-      return { ok: true, settled: false };
+      await this.markChatRoomSettleFailed(chatRoomId, `m2net_exception: ${reason}`);
+      return { ok: true, settled: false, marked_for_retry: true };
     }
     if (amt <= 0) return { ok: true, settled: false };
 
@@ -618,7 +626,35 @@ export class M2netPushService {
     this.logger.log(
       `[settleChatRoomLocal] chatRoomId=${chatRoomId} secs=${secs} amt=${amt} amtFree=${amtFree} amtPro=${amtPro}`,
     );
+    // [Audit C-#9] 정산 성공 마킹 — retry cron 이 다시 처리 안 하게
+    await this.sql`
+      UPDATE chat_room
+         SET settle_status = 'completed',
+             settle_failure_reason = NULL
+       WHERE id = ${chatRoomId}
+    `;
     return { ok: true, settled: true };
+  }
+
+  /**
+   * [Audit C-#9] chat_room 정산 실패 마킹 — 별도 retry cron 이 다시 처리하게.
+   * 트랜잭션 없이 단발 UPDATE (실패해도 본 흐름 영향 X).
+   */
+  private async markChatRoomSettleFailed(chatRoomId: number, reason: string): Promise<void> {
+    try {
+      await this.sql`
+        UPDATE chat_room
+           SET settle_status = 'm2net_failed',
+               settle_retry_count = COALESCE(settle_retry_count, 0) + 1,
+               settle_last_retry_at = NOW(),
+               settle_failure_reason = ${reason.slice(0, 500)}
+         WHERE id = ${chatRoomId}
+      `;
+    } catch (e) {
+      this.logger.error(
+        `[markChatRoomSettleFailed] UPDATE 실패 chatRoomId=${chatRoomId}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   // ─────────────────────────────────────────────
