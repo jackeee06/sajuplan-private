@@ -111,6 +111,12 @@ export class HealthCheckService {
     `;
     checks.push({ id: 'C-10', name: 'usetm 비현실적', severity: 'warning', violations: Number(c10[0].cnt) });
 
+    // C-11 settlement_monthly 음수 정산액 (환불 많아 음수 가능, 알림용)
+    const c11 = await this.sql<{ cnt: string }[]>`
+      SELECT COUNT(*)::text AS cnt FROM settlement_monthly WHERE price < 0
+    `;
+    checks.push({ id: 'C-11', name: 'settlement 음수 정산액', severity: 'warning', violations: Number(c11[0].cnt) });
+
     // C-12 등급 임계값 역전
     const c12 = await this.sql<{ p1: number | null; p2: number | null; p3: number | null; p4: number | null; p5: number | null }[]>`
       SELECT
@@ -139,6 +145,12 @@ export class HealthCheckService {
          AND (NULLIF(value,'')::numeric < 0 OR NULLIF(value,'')::numeric > 1)
     `;
     checks.push({ id: 'C-13', name: '정산률 범위 외(0~1)', severity: 'critical', violations: Number(c13[0].cnt) });
+
+    // C-14 point.free_balance > total_earned (사기성 데이터 — 받은 적 없는 free 가 있음)
+    const c14 = await this.sql<{ cnt: string }[]>`
+      SELECT COUNT(*)::text AS cnt FROM point WHERE free_balance > total_earned
+    `;
+    checks.push({ id: 'C-14', name: 'point.free_balance > total_earned', severity: 'warning', violations: Number(c14[0].cnt) });
 
     // C-15 refund_status 일관성
     const c15 = await this.sql<{ cnt: string }[]>`
@@ -173,6 +185,24 @@ export class HealthCheckService {
       severity: c17_v > 10 ? 'critical' : c17_v > 0 ? 'warning' : 'info',
       violations: c17_v,
       detail: c17[0].max_r ? `max_retries=${c17[0].max_r}` : undefined,
+    });
+
+    // C-18 role/level 이중 진실원천 어긋남 — 정산 cron 이 level=5 기준이라 어긋나면 정산 누락
+    //   매핑: admin=10, counselor=5, user=2 (메모리: project_role_level_cleanup.md)
+    const c18 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG(DISTINCT role || ':' || level::text, ', ') AS sample
+        FROM member
+       WHERE (role = 'admin'     AND level <> 10)
+          OR (role = 'counselor' AND level <> 5)
+          OR (role = 'user'      AND level <> 2)
+    `;
+    checks.push({
+      id: 'C-18',
+      name: 'role/level 매핑 어긋남',
+      severity: 'critical',
+      violations: Number(c18[0].cnt),
+      detail: c18[0].sample ?? undefined,
     });
 
     // 종합

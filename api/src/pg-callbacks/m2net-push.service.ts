@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { SQL, type Sql } from '../shared/db/db.module';
+import { SQL, type Sql, type TxSql } from '../shared/db/db.module';
 import { M2netService } from '../shared/m2net/m2net.service';
 import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
 
@@ -296,110 +296,102 @@ export class M2netPushService {
       }
     }
 
+    // [Audit #4] consultation INSERT + 회원 차감 + 상담사 적립을 단일 트랜잭션으로 묶음.
+    //   기존 3-개 트랜잭션 분리 시: consultation 만 남고 차감 실패 → 수익 손실 시나리오 발생 가능.
+    //   단일 트랜잭션이면 차감/적립 중 하나라도 실패 시 consultation 도 롤백 → 재시도 가능.
+    //
     // [Audit B-#3] DB 레벨 중복 INSERT 차단 — UNIQUE 제약 (uq_consultation_call_callid,
     // uq_consultation_chat_roomid) 위반 시 ON CONFLICT DO NOTHING 으로 graceful skip.
-    // RETURNING 결과가 비면 중복으로 인한 INSERT 미수행 → 후속 포인트 차감/적립도 skip.
-    const inserted = await this.sql<{ id: number }[]>`
-      INSERT INTO consultation (
-        member_id, mb_id, counselor_id, csrid, cpid, dtmfno,
-        callee_phone, caller_phone, telno, reason, usetm,
-        amt, amt_free, amt_pro, preflag,
-        is_paid, membid, roomid, callid,
-        skip_charge, mrtn,
-        started_at, ended_at, eventtm, created_at,
-        unit_cost_snapshot, grade_at_session
-      ) VALUES (
-        ${memberId}, ${memberMbId || null}, ${counselorId}, ${csrid || null},
-        ${cpid || null}, ${dtmfno || null},
-        ${toPhone || null}, ${fromPhone || null}, ${telno || null},
-        ${reason}, ${chatUsetm},
-        ${amt}, ${amtFree}, ${amtPro}, ${preflag || null},
-        ${isPaid}, ${membid || null}, ${roomid || null}, ${callid || null},
-        ${skipCharge}, ${raw},
-        ${startedAt}, ${endedAt}, ${eventAt}, ${wrAt},
-        ${snapUnitCost}, ${snapGrade}
-      )
-      ON CONFLICT DO NOTHING
-      RETURNING id
-    `;
-    if (inserted.length === 0) {
-      // 중복 콜백 — 이미 처리된 통화 (callid 또는 roomid 기반 UNIQUE 위반)
+    const svcType = isCall ? '[전화]' : '[채팅]';
+    let txResult: { dup: boolean; consultationId?: number };
+    try {
+      txResult = await this.sql.begin(async (tx): Promise<{ dup: boolean; consultationId?: number }> => {
+        const inserted = await tx<{ id: number }[]>`
+          INSERT INTO consultation (
+            member_id, mb_id, counselor_id, csrid, cpid, dtmfno,
+            callee_phone, caller_phone, telno, reason, usetm,
+            amt, amt_free, amt_pro, preflag,
+            is_paid, membid, roomid, callid,
+            skip_charge, mrtn,
+            started_at, ended_at, eventtm, created_at,
+            unit_cost_snapshot, grade_at_session
+          ) VALUES (
+            ${memberId}, ${memberMbId || null}, ${counselorId}, ${csrid || null},
+            ${cpid || null}, ${dtmfno || null},
+            ${toPhone || null}, ${fromPhone || null}, ${telno || null},
+            ${reason}, ${chatUsetm},
+            ${amt}, ${amtFree}, ${amtPro}, ${preflag || null},
+            ${isPaid}, ${membid || null}, ${roomid || null}, ${callid || null},
+            ${skipCharge}, ${raw},
+            ${startedAt}, ${endedAt}, ${eventAt}, ${wrAt},
+            ${snapUnitCost}, ${snapGrade}
+          )
+          ON CONFLICT DO NOTHING
+          RETURNING id
+        `;
+        if (inserted.length === 0) {
+          return { dup: true };
+        }
+        const consultationId = Number(inserted[0]?.id ?? 0);
+
+        // ─── 포인트 정산 ───
+        //   정책 (2026-05-13): m2net push 의 amt 그대로 사용.
+        //   - 회원 차감: amt>0 && !refund_eligible && !is_postpaid
+        //   - 상담사 적립: amt>0 (후불 포함)
+        //   - m2net 은 자체 차감 완료 → fill 호출 X (이중 차감 방지)
+        if (endsHere && amt > 0) {
+          this.logger.log(
+            `[handleCallPush] 차감 svc=${svcType} memberId=${memberId} counselorId=${counselorId} membid=${membid} pushAmt=${amt} reason=${reason} refundEligible=${refundEligible} isPostpaid=${isPostpaid}`,
+          );
+
+          // 회원 차감 — 트랜잭션 내부 호출. 실패 시 throw → 전체 롤백.
+          if (!refundEligible && !isPostpaid && memberId !== null) {
+            await this.deductMemberPointInTx(
+              tx,
+              memberId, amt, amtFree, amtPro,
+              `${svcType}상담코인 차감`,
+              consultationId,
+              `${consultationId}@상담코인 차감@${eventtm}`,
+              isPaid,
+            );
+          }
+
+          // 상담사 적립 — 동일 트랜잭션. 실패 시 회원 차감/consultation 모두 롤백.
+          if (counselorId !== null) {
+            await this.creditCounselorPointInTx(
+              tx,
+              counselorId, amt,
+              `${svcType}상담코인 증가`,
+              consultationId,
+              `${consultationId}@상담코인 증가@${eventtm}`,
+              isPaid,
+            );
+          }
+        }
+
+        return { dup: false, consultationId };
+      });
+    } catch (e) {
+      // [Audit #4] 트랜잭션 전체 실패 — consultation/deduct/credit 모두 롤백된 상태.
+      //   M2NET 이 push 재전송 시 ON CONFLICT 안 걸리므로 재시도 자동 처리.
+      //   하지만 운영자 인지가 중요 → OpsAlert 1회 발송.
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(
+        `[handleCallPush] 트랜잭션 실패 — 롤백됨. callid=${callid} roomid=${roomid} memberId=${memberId} counselorId=${counselorId}: ${msg}`,
+      );
+      void this.opsAlert.send(
+        'M2NET 콜백 트랜잭션 실패 (전체 롤백)',
+        `callid=${callid} roomid=${roomid}\nmemberId=${memberId} counselorId=${counselorId}\namt=${amt} reason=${reason}\n\n${msg}\n\nM2NET 재전송 시 자동 재시도 가능. 그래도 영구 실패하면 수동 점검 필요.`,
+      );
+      throw e;
+    }
+
+    if (txResult.dup) {
+      // 멱등 — consultation UNIQUE 위반 (이미 처리된 통화)
       this.logger.warn(
         `[handleCallPush] consultation 중복 INSERT 차단 — callid=${callid} roomid=${roomid} counselorId=${counselorId} memberId=${memberId}`,
       );
       return { ok: true, idempotent: true };
-    }
-    const consultationId = Number(inserted[0]?.id ?? 0);
-
-    // ─── 포인트 정산 — sample/mtonet/mtonet_rcv.php 정책 1:1 매핑 ─────────
-    //
-    // 정책 (2026-05-13, 사용자 명시):
-    //   "엠투넷에서 반환되는 값(push amt)으로만 차감해야 정확하다."
-    //
-    //   - push 의 amt 를 그대로 사용 (sample 그대로). m2net 잔액 재조회/diff 보정 X.
-    //   - 회원 차감: amt > 0 && !refund_eligible && !is_postpaid → -amt
-    //     (채팅은 후불 없음 — is_postpaid 는 to=5000878 전화에만 해당)
-    //   - 상담사 적립: amt > 0 → +amt (후불 포함)
-    //   - m2net 은 이미 자체 차감 완료 — fill 호출 안 함 (이중 차감 방지)
-    if (endsHere && amt > 0) {
-      const svcType = isCall ? '[전화]' : '[채팅]';
-      this.logger.log(
-        `[handleCallPush] 차감 svc=${svcType} memberId=${memberId} counselorId=${counselorId} membid=${membid} pushAmt=${amt} reason=${reason} refundEligible=${refundEligible} isPostpaid=${isPostpaid}`,
-      );
-
-      // 회원 차감 — 환불대상/후불은 제외 (채팅은 후불 없음)
-      if (!refundEligible && !isPostpaid && memberId !== null) {
-        try {
-          await this.deductMemberPoint(
-            memberId,
-            amt,
-            amtFree,
-            amtPro,
-            `${svcType}상담코인 차감`,
-            consultationId,
-            `${consultationId}@상담코인 차감@${eventtm}`,
-            isPaid,
-            // m2net 은 이미 자체 차감 완료 — fill 호출 절대 금지 (이중 차감).
-            false,
-          );
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          this.logger.error(
-            `회원 포인트 차감 실패 (memberId=${memberId}, consultationId=${consultationId}): ${msg}`,
-          );
-          // 운영자 알림 — 회원-상담사 포인트 불일치 가능, 즉시 인지 필요
-          void this.opsAlert.send(
-            'M2NET 회원 차감 실패',
-            `memberId=${memberId} consultationId=${consultationId}\namt=${amt} reason=${reason}\n\n${msg}`,
-          );
-        }
-      }
-
-      // 상담사 적립 — 후불 포함 모든 정상 통화
-      if (counselorId !== null) {
-        try {
-          await this.creditCounselorPoint(
-            counselorId,
-            amt,
-            `${svcType}상담코인 증가`,
-            consultationId,
-            `${consultationId}@상담코인 증가@${eventtm}`,
-            isPaid,
-            // 상담사 잔액도 m2net 측에서 자동 처리되므로 fill 생략.
-            false,
-          );
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e);
-          this.logger.error(
-            `상담사 포인트 적립 실패 (counselorId=${counselorId}, consultationId=${consultationId}): ${msg}`,
-          );
-          // [Audit A-#11] 상담사 적립 실패도 OpsAlert — 상담사 수익 미적립 = 정산 분쟁 직결.
-          void this.opsAlert.send(
-            'M2NET 상담사 적립 실패',
-            `counselorId=${counselorId} consultationId=${consultationId}\namt=${amt} reason=${reason}\n\n${msg}`,
-          );
-        }
-      }
     }
 
     // 사용 안 함 (TS unused 경고 회피, 추후 알림톡 트리거에 사용 예정)
@@ -552,87 +544,96 @@ export class M2netPushService {
       }
     }
 
-    // consultation INSERT — reason='END_CHAT_LOCAL' 로 push 와 구분
-    // [Audit B-#3] DB UNIQUE 제약 (roomid, member, counselor, reason) 위반 시 graceful skip.
-    const inserted = await this.sql<{ id: number }[]>`
-      INSERT INTO consultation (
-        member_id, counselor_id, csrid, reason, usetm,
-        amt, amt_free, amt_pro,
-        is_paid, roomid,
-        started_at, ended_at, created_at,
-        unit_cost_snapshot, grade_at_session
-      ) VALUES (
-        ${room.member_id}, ${room.counselor_id}, ${room.csrid || null},
-        'END_CHAT_LOCAL', ${secs},
-        ${amt}, ${amtFree}, ${amtPro},
-        ${isPaid}, ${room.roomid || null},
-        ${room.started_at}, ${room.ended_at ?? new Date()}, now(),
-        ${snapUnitCostLocal}, ${snapGradeLocal}
-      )
-      ON CONFLICT DO NOTHING
-      RETURNING id
-    `;
-    if (inserted.length === 0) {
+    // [Audit #4-B] handleCallPush 와 동일하게 consultation + deduct + credit + chat_room.settle_status
+    //   를 단일 트랜잭션으로 통합. 부분 실패 시 전체 롤백 → retry cron 이 다시 처리 가능.
+    let txResult: { dup: boolean; consultationId?: number };
+    try {
+      txResult = await this.sql.begin(async (tx): Promise<{ dup: boolean; consultationId?: number }> => {
+        // consultation INSERT — reason='END_CHAT_LOCAL' 로 push 와 구분
+        // [Audit B-#3] UNIQUE 제약 (roomid, member, counselor, reason) 위반 시 graceful skip.
+        const inserted = await tx<{ id: number }[]>`
+          INSERT INTO consultation (
+            member_id, counselor_id, csrid, reason, usetm,
+            amt, amt_free, amt_pro,
+            is_paid, roomid,
+            started_at, ended_at, created_at,
+            unit_cost_snapshot, grade_at_session
+          ) VALUES (
+            ${room.member_id}, ${room.counselor_id}, ${room.csrid || null},
+            'END_CHAT_LOCAL', ${secs},
+            ${amt}, ${amtFree}, ${amtPro},
+            ${isPaid}, ${room.roomid || null},
+            ${room.started_at}, ${room.ended_at ?? new Date()}, now(),
+            ${snapUnitCostLocal}, ${snapGradeLocal}
+          )
+          ON CONFLICT DO NOTHING
+          RETURNING id
+        `;
+        if (inserted.length === 0) {
+          return { dup: true };
+        }
+        const consultationId = Number(inserted[0]?.id ?? 0);
+
+        // 회원 차감 — 실패 시 throw → 전체 롤백
+        if (room.member_id) {
+          await this.deductMemberPointInTx(
+            tx,
+            room.member_id, amt, amtFree, amtPro,
+            '[채팅]상담코인 차감',
+            consultationId,
+            `${consultationId}@상담코인 차감@${nowIso}`,
+            isPaid,
+          );
+        }
+
+        // 상담사 적립 — 실패 시 throw → 회원 차감/consultation 도 롤백
+        if (room.counselor_id) {
+          await this.creditCounselorPointInTx(
+            tx,
+            room.counselor_id, amt,
+            '[채팅]상담코인 증가',
+            consultationId,
+            `${consultationId}@상담코인 증가@${nowIso}`,
+            isPaid,
+          );
+        }
+
+        // chat_room 정산 성공 마킹 — 같은 트랜잭션이므로 retry cron 가 다시 시도하지 않게 atomic 보장
+        await tx`
+          UPDATE chat_room
+             SET settle_status = 'completed',
+                 settle_failure_reason = NULL
+           WHERE id = ${chatRoomId}
+        `;
+
+        return { dup: false, consultationId };
+      });
+    } catch (e) {
+      // [Audit #4-B] 트랜잭션 전체 실패 — 모든 변경 롤백. retry cron 이 chat_room.settle_status
+      // 가 여전히 m2net_failed/누락 상태이므로 다시 시도. 운영자에게 알림 1회.
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.error(
+        `[settleChatRoomLocal] 트랜잭션 실패 — 롤백됨. chatRoomId=${chatRoomId} memberId=${room.member_id} counselorId=${room.counselor_id}: ${msg}`,
+      );
+      void this.opsAlert.send(
+        '채팅 정산 트랜잭션 실패 (전체 롤백)',
+        `chatRoomId=${chatRoomId}\nmemberId=${room.member_id} counselorId=${room.counselor_id}\namt=${amt}\n\n${msg}\n\nretry cron 이 다시 시도. 영구 실패 시 수동 점검 필요.`,
+      );
+      // 실패 마킹 (트랜잭션 밖) — retry cron 이 다음 cycle 에 다시 시도
+      await this.markChatRoomSettleFailed(chatRoomId, `tx_rollback: ${msg.slice(0, 200)}`);
+      return { ok: true, settled: false, marked_for_retry: true };
+    }
+
+    if (txResult.dup) {
       this.logger.warn(
         `[settleChatRoomLocal] consultation 중복 INSERT 차단 — roomid=${room.roomid} chatRoomId=${chatRoomId}`,
       );
       return { ok: true, settled: false };
     }
-    const consultationId = Number(inserted[0]?.id ?? 0);
-
-    // 회원 차감 + 상담사 적립
-    try {
-      await this.deductMemberPoint(
-        room.member_id, amt, amtFree, amtPro,
-        '[채팅]상담코인 차감',
-        consultationId,
-        `${consultationId}@상담코인 차감@${nowIso}`,
-        isPaid,
-        // 채팅은 m2net 가 자체 차감을 마친 상태 → fill 금지 (이중 차감 방지).
-        false,
-      );
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      this.logger.error(
-        `[settleChatRoomLocal] 회원 차감 실패 memberId=${room.member_id} consultationId=${consultationId}: ${msg}`,
-      );
-      void this.opsAlert.send(
-        'M2NET 채팅 정산 회원 차감 실패',
-        `memberId=${room.member_id} consultationId=${consultationId}\namt=${amt}\n\n${msg}`,
-      );
-    }
-    try {
-      await this.creditCounselorPoint(
-        room.counselor_id, amt,
-        '[채팅]상담코인 증가',
-        consultationId,
-        `${consultationId}@상담코인 증가@${nowIso}`,
-        isPaid,
-        // 채팅은 m2net 측 fill 생략
-        false,
-      );
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      this.logger.error(
-        `[settleChatRoomLocal] 상담사 적립 실패 counselorId=${room.counselor_id} consultationId=${consultationId}: ${msg}`,
-      );
-      // [Audit A-#11] 채팅 정산 시 상담사 적립 실패도 OpsAlert.
-      void this.opsAlert.send(
-        'M2NET 채팅 정산 상담사 적립 실패',
-        `counselorId=${room.counselor_id} consultationId=${consultationId}\namt=${amt}\n\n${msg}`,
-      );
-    }
 
     this.logger.log(
       `[settleChatRoomLocal] chatRoomId=${chatRoomId} secs=${secs} amt=${amt} amtFree=${amtFree} amtPro=${amtPro}`,
     );
-    // [Audit C-#9] 정산 성공 마킹 — retry cron 이 다시 처리 안 하게
-    await this.sql`
-      UPDATE chat_room
-         SET settle_status = 'completed',
-             settle_failure_reason = NULL
-       WHERE id = ${chatRoomId}
-    `;
     return { ok: true, settled: true };
   }
 
@@ -851,7 +852,17 @@ export class M2netPushService {
    * 회원 포인트 차감 — free_balance 우선 차감, 부족분은 paid_balance.
    * point_history 1행 + point/member 집계 갱신. (rel_table='consultation', rel_action) 멱등.
    */
-  private async deductMemberPoint(
+  /**
+   * [Audit #4] 회원 차감 (DB 부분만, 트랜잭션 인자 받음).
+   *
+   *   handleCallPush 가 consultation INSERT 와 같은 트랜잭션 내에서 호출하면
+   *   원자성 보장 → 시나리오 A/B 차단.
+   *
+   *   m2net.addMemberCoin 동기화는 호출자(wrapper)에서 커밋 후 수행.
+   *   반환값의 membid 가 null 이 아니고 applied=true 일 때만 호출자가 m2net fill 함.
+   */
+  private async deductMemberPointInTx(
+    tx: TxSql,
     memberId: number,
     amt: number,
     amtFree: number,
@@ -860,12 +871,8 @@ export class M2netPushService {
     consultationId: number,
     relAction: string,
     isPaid: boolean,
-    // 채팅 정산이면 m2net 측이 이미 자체 차감을 수행하므로 fill 호출 금지 (이중 차감 방지).
-    // 전화 정산은 m2net 가 amt 를 push 로 알려주는 표준 흐름이라 fill 필요.
-    syncToM2net: boolean = true,
-  ): Promise<void> {
-    const result = await this.sql.begin(async (tx) => {
-      // 잔액 row 보장
+  ): Promise<{ applied: boolean; membid: string | null }> {
+    // 잔액 row 보장
       let pt = await tx<{ free_balance: number; paid_balance: number }[]>`
         SELECT free_balance, paid_balance FROM point WHERE member_id = ${memberId} FOR UPDATE
       `;
@@ -958,11 +965,32 @@ export class M2netPushService {
         SELECT csrid FROM member WHERE id = ${memberId} LIMIT 1
       `;
       return { applied: true, membid: r[0]?.csrid ?? null };
-    });
+  }
+
+  /**
+   * 회원 차감 wrapper — 자체 트랜잭션 + 커밋 후 m2net 동기화.
+   *
+   *   호출처 (handleCallPush 외):
+   *     - settleChatRoomLocal: 자체 트랜잭션 유지 (m2net 차감 이미 끝 → syncToM2net=false)
+   *
+   *   handleCallPush 는 wrapper 대신 deductMemberPointInTx 직접 호출 (단일 트랜잭션 통합).
+   */
+  private async deductMemberPoint(
+    memberId: number,
+    amt: number,
+    amtFree: number,
+    amtPro: number,
+    content: string,
+    consultationId: number,
+    relAction: string,
+    isPaid: boolean,
+    syncToM2net: boolean = true,
+  ): Promise<void> {
+    const result = await this.sql.begin(async (tx) =>
+      this.deductMemberPointInTx(tx, memberId, amt, amtFree, amtPro, content, consultationId, relAction, isPaid),
+    );
 
     // 트랜잭션 커밋 후에만 m2net 동기화. 멱등 skip 케이스는 호출 안 함.
-    // 채팅 정산(syncToM2net=false)에서는 m2net 가 이미 자체 차감을 마친 상태라 추가 fill 시
-    // 이중 차감(=1유닛 만큼 더 차감) 됨. sample 도 채팅 케이스에서 fill 안 함.
     if (syncToM2net && result.applied && result.membid) {
       this.m2net
         .addMemberCoin(result.membid, -amt)
@@ -985,19 +1013,22 @@ export class M2netPushService {
    * 상담사 포인트 적립 — paid_balance 누적 (정산 대상).
    * (rel_table='consultation', rel_action) 멱등.
    */
-  private async creditCounselorPoint(
+  /**
+   * [Audit #4] 상담사 적립 (DB 부분만, 트랜잭션 인자 받음).
+   *
+   *   handleCallPush 가 consultation INSERT 와 같은 트랜잭션 내에서 호출 시 원자성 보장.
+   *   m2net 동기화는 wrapper 가 커밋 후 수행.
+   */
+  private async creditCounselorPointInTx(
+    tx: TxSql,
     counselorId: number,
     amt: number,
     content: string,
     consultationId: number,
     relAction: string,
     isPaid: boolean,
-    // 채팅 정산이면 m2net 측은 상담사 코인 적립을 별도 처리하므로 fill 금지.
-    // 상담사 csrid 가 다른 회원 mb_id 와 충돌하면 엉뚱한 회원 잔액에 적립될 위험도 있음.
-    syncToM2net: boolean = true,
-  ): Promise<void> {
-    const result = await this.sql.begin(async (tx) => {
-      let pt = await tx<{ free_balance: number; paid_balance: number }[]>`
+  ): Promise<{ applied: boolean; csrMembid: string | null }> {
+    let pt = await tx<{ free_balance: number; paid_balance: number }[]>`
         SELECT free_balance, paid_balance FROM point WHERE member_id = ${counselorId} FOR UPDATE
       `;
       if (pt.length === 0) {
@@ -1049,10 +1080,25 @@ export class M2netPushService {
         SELECT csrid FROM member WHERE id = ${counselorId} LIMIT 1
       `;
       return { applied: true, csrMembid: r[0]?.csrid ?? null };
-    });
+  }
 
-    // 상담사가 m2net 회원으로도 등록된 경우에만 fill (csrid 가 회원/상담사 양쪽 가능).
-    // 상담사 적립은 일반적으로 정산용이라 m2net 잔액 반영은 선택적이지만 정합성 위해 시도.
+  /**
+   * 상담사 적립 wrapper — 자체 트랜잭션 + 커밋 후 m2net 동기화.
+   * settleChatRoomLocal 등 자체 트랜잭션이 필요한 곳에서 사용.
+   */
+  private async creditCounselorPoint(
+    counselorId: number,
+    amt: number,
+    content: string,
+    consultationId: number,
+    relAction: string,
+    isPaid: boolean,
+    syncToM2net: boolean = true,
+  ): Promise<void> {
+    const result = await this.sql.begin(async (tx) =>
+      this.creditCounselorPointInTx(tx, counselorId, amt, content, consultationId, relAction, isPaid),
+    );
+
     if (syncToM2net && result.applied && result.csrMembid) {
       this.m2net
         .addMemberCoin(result.csrMembid, amt)

@@ -950,10 +950,16 @@ export class AuthController {
       if (!body.phone) {
         throw new BadRequestException('휴대폰번호를 입력해주세요.');
       }
-      // 휴대폰 인증 검증: 프론트가 인증번호 입력 시점에 /sms/verify 를 1회 호출하여
-      // 코드 일치 + 만료 시간(3분) 검증을 완료. 가입 폼 제출 시점에 다시 시간 검사를 하면
-      // 사용자가 주소검색/약관 정독 등으로 시간을 보낸 후 "인증 만료" 로 막히는 문제 발생 →
-      // 1단계 verify 만으로 충분하다는 정책에 따라 여기선 추가 검증을 하지 않는다.
+      // [Audit E-W8] 휴대폰 인증 상태 재검증 — 30분 윈도우.
+      //   1단계 verify (3분 코드 만료) 만으로 충분하다는 기존 정책 유지하되,
+      //   verify 미수행 / 매우 오래된 verify 인 phone 으로 가입 시도하면 거부.
+      //   윈도우 30분: 주소검색/약관 정독 시간 충분히 포함 (99%+ 정상 사용자 통과).
+      const isVerified = await this.sms.isVerifiedRecently(body.phone, 30);
+      if (!isVerified) {
+        throw new BadRequestException(
+          '휴대폰 인증이 만료되었습니다. 인증번호를 다시 받아주세요.',
+        );
+      }
 
       // 같은 휴대폰번호로 다른 경로(카카오/네이버/일반) 가입 차단
       await this.authService.assertPhoneAvailable(body.phone);
@@ -1014,9 +1020,15 @@ export class AuthController {
       body.captcha_input ?? '',
     );
 
-    // (2) 휴대폰 인증 검증은 프론트의 인증번호 입력 시점(/sms/verify, 3분 만료)에 완료됨.
-    // 가입 폼 제출 시점에 시간 검사를 다시 하면 주소검색/약관 정독 등으로 시간이 지난 사용자가
-    // "인증 만료" 로 막히는 문제가 있어, 여기선 추가 검증을 하지 않는다.
+    // [Audit E-W8] 휴대폰 인증 상태 재검증 — 30분 윈도우.
+    //   1단계 verify (3분 코드 만료) 후 30분 안에 가입 완료해야 함.
+    //   주소검색/약관 정독 시간 충분히 포함하면서, verify 안 한 phone 으로의 가입 시도 차단.
+    const isVerified = await this.sms.isVerifiedRecently(body.phone, 30);
+    if (!isVerified) {
+      throw new BadRequestException(
+        '휴대폰 인증이 만료되었습니다. 인증번호를 다시 받아주세요.',
+      );
+    }
 
     // (3) DB 회원 생성 + m2net 외부 등록 (실패 시 롤백)
     const created = await this.authService.createLocalMember({

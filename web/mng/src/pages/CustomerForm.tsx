@@ -117,7 +117,7 @@ export default function CustomerForm() {
   if (loading) return <div className="p-6 text-sm text-gray-500">로딩...</div>
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 max-w-[1100px]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/members/customers')} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
@@ -204,8 +204,8 @@ export default function CustomerForm() {
         </Row>
       </Section>
 
-      <Section title="주소" cols={1}>
-        <Row label="우편번호" hint="다음 우편번호 검색으로 자동 입력">
+      <Section title="주소" cols={3}>
+        <Row label="우편번호" hint="다음 우편번호 검색으로 자동 입력" fullWidth>
           <div className="flex flex-wrap items-center gap-2">
             <input
               type="text"
@@ -248,7 +248,7 @@ export default function CustomerForm() {
             value={data.addr1}
             readOnly
             placeholder="주소 검색 후 자동 입력"
-            className={`${inputCls} bg-gray-50 dark:bg-gray-800/60`}
+            className={`${inputLong} bg-gray-50 dark:bg-gray-800/60`}
           />
         </Row>
         <Row label="상세 주소">
@@ -257,12 +257,12 @@ export default function CustomerForm() {
             value={data.addr2}
             onChange={(e) => set('addr2', e.target.value)}
             placeholder="동/호수 등"
-            className={inputCls}
+            className={inputLong}
           />
         </Row>
         {data.addr_jibeon && (
           <Row label="지번 주소" hint="참고용">
-            <input type="text" value={data.addr_jibeon} readOnly className={`${inputCls} bg-gray-50 dark:bg-gray-800/60 text-xs`} />
+            <input type="text" value={data.addr_jibeon} readOnly className={`${inputLong} bg-gray-50 dark:bg-gray-800/60 text-xs`} />
           </Row>
         )}
       </Section>
@@ -317,7 +317,8 @@ export default function CustomerForm() {
 
 // ─── 헬퍼 ─────────────────────────────────────
 const inputBase = 'px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none disabled:bg-gray-50 disabled:text-gray-500'
-const inputCls = `w-full ${inputBase}`
+const inputCls = `w-full max-w-[140px] ${inputBase}`
+const inputLong = `w-full max-w-[400px] ${inputBase}`
 
 function formatPhone(s: string): string {
   const d = s.replace(/[^0-9]/g, '').slice(0, 11)
@@ -347,14 +348,12 @@ function toLocalInput(s: string): string {
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`
 }
 
-function Section({ title, children, cols = 2 }: { title: string; children: React.ReactNode; cols?: 1 | 2 }) {
-  const inner =
-    cols === 2
-      ? 'p-5 grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4'
-      : 'p-5 space-y-4'
+function Section({ title, children, cols = 4 }: { title: string; children: React.ReactNode; cols?: 1 | 2 | 3 | 4 }) {
+  // cols prop 은 호환 유지용. 실제 레이아웃은 flex-wrap 으로 좌측 응집.
+  const inner = cols === 1 ? 'p-4 space-y-3' : 'p-4 flex flex-wrap gap-x-5 gap-y-3'
   return (
     <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
-      <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 text-sm font-semibold text-gray-700 dark:text-gray-200">
+      <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 text-sm font-semibold text-gray-700 dark:text-gray-200">
         {title}
       </div>
       <div className={inner}>{children}</div>
@@ -389,13 +388,13 @@ function Row({
   fullWidth?: boolean
 }) {
   return (
-    <div className={`grid grid-cols-1 md:grid-cols-[160px_1fr] gap-2 md:gap-4 ${fullWidth ? 'lg:col-span-2' : ''}`}>
-      <div className="pt-2">
+    <div className={`grid grid-cols-[90px_auto] gap-1.5 md:gap-2 items-start ${fullWidth ? 'w-full' : ''}`}>
+      <div className="md:pt-2">
         <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
           {label}
           {required && <span className="text-rose-500 ml-1">*</span>}
         </label>
-        {hint && <div className="text-[11px] text-gray-400 mt-0.5">{hint}</div>}
+        {hint && <div className="text-[11px] text-gray-400 mt-0.5 leading-tight">{hint}</div>}
       </div>
       <div>{children}</div>
     </div>

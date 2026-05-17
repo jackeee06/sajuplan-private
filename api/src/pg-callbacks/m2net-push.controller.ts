@@ -1,8 +1,10 @@
-import { Body, Controller, ForbiddenException, Get, HttpCode, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 import { M2netPushService } from './m2net-push.service';
+import { CallbackIpAllowlistGuard } from './callback-ip-allowlist.guard';
 
 // m2net push 도착 진단용 파일 로그. 채팅 종료 시 push 가 실제로 진입하는지,
 // payload 내용은 무엇인지 (특히 reason / amt / usetm / roomid) 추적용.
@@ -42,7 +44,10 @@ function appendPushLog(kind: string, ip: string, body: unknown): void {
  * 인증:
  *   - 토큰 검증 없음. 운영에서는 PassCall.co.kr 도메인 IP 화이트리스트로 nginx 또는 미들웨어 차단 권장.
  */
+// [Audit E-C1] m2net push 라우트 — IP 화이트리스트 (log 모드) + throttle 분당 120회.
 @Controller('pg/m2net')
+@UseGuards(CallbackIpAllowlistGuard)
+@Throttle({ default: { limit: 120, ttl: 60_000 } })
 export class M2netPushController {
   constructor(private readonly svc: M2netPushService) {}
 

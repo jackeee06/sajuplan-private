@@ -27,7 +27,8 @@ export class UserPointsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
-    const p = page ? Math.max(1, Number(page) || 1) : 1;
+    // [Audit E-W2] page 상한 — offset 오버플로/DB 부하 방지
+    const p = page ? Math.max(1, Math.min(Number(page) || 1, 10_000)) : 1;
     const l = limit ? Math.min(100, Math.max(1, Number(limit) || 30)) : 30;
     return this.svc.getHistory(req.user.sub, p, l);
   }

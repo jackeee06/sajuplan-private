@@ -23,6 +23,9 @@ export class UserConsultController {
     @Body() body: { counselor_id?: number | string; variant?: 'prepaid' | 'postpaid' },
   ) {
     const counselorId = Number(body.counselor_id);
+    if (!Number.isFinite(counselorId) || counselorId <= 0) {
+      throw new BadRequestException('상담사 ID가 올바르지 않습니다.');
+    }
     const variant = body.variant === 'postpaid' ? 'postpaid' : 'prepaid';
     return this.svc.startPhone({
       memberId: req.user.sub,
@@ -42,6 +45,9 @@ export class UserConsultController {
     @Body() body: { counselor_id?: number | string },
   ) {
     const counselorId = Number(body.counselor_id);
+    if (!Number.isFinite(counselorId) || counselorId <= 0) {
+      throw new BadRequestException('상담사 ID가 올바르지 않습니다.');
+    }
     return this.svc.startChat({
       memberId: req.user.sub,
       counselorId,

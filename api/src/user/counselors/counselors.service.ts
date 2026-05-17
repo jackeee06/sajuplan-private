@@ -281,6 +281,8 @@ export class UserCounselorsService {
     limit?: number;
     /** 로그인된 회원 ID — is_liked 계산용. 비로그인이면 undefined → 항상 false */
     requesterId?: number;
+    /** [이벤트 상담사] true 시 현재 활성 이벤트 (event_starts_at <= now < event_ends_at) 만 노출 */
+    eventOnly?: boolean;
   }): Promise<PublicCounselor[]> {
     const tab = params.tab ?? 'all';
     const limit = Math.min(50, Math.max(1, params.limit ?? 13));
@@ -387,6 +389,13 @@ export class UserCounselorsService {
         ? this.sql`AND m.id <> ${params.requesterId}`
         : this.sql``;
 
+    // [이벤트 상담사] 활성 기간 (event_starts_at <= now < event_ends_at) 인 상담사만 노출
+    const eventWhere = params.eventOnly
+      ? this.sql`AND pc.event_starts_at IS NOT NULL
+                 AND pc.event_starts_at <= now()
+                 AND (pc.event_ends_at IS NULL OR pc.event_ends_at > now())`
+      : this.sql``;
+
     type Row = {
       id: number;
       mb_id: string | null;
@@ -440,6 +449,7 @@ export class UserCounselorsService {
          ${tabWhere}
          ${categoryWhere}
          ${selfExclude}
+         ${eventWhere}
        ORDER BY ${orderBy}
        LIMIT ${limit}
     `;

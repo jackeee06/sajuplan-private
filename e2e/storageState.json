@@ -1,0 +1,15 @@
+{
+  "cookies": [
+    {
+      "name": "sjm_admin",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibWJfaWQiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImxldmVsIjoxMCwiaWF0IjoxNzc5MDAyOTUxLCJleHAiOjE3NzkwMzE3NTEsImlzcyI6InNhanVtb29uLWFkbWluIn0.kznMjgXKeQRDfQ4439kmzCLgKhSgnXs7o7mTu4a9YwE",
+      "domain": "api.sajumoon.co.kr",
+      "path": "/",
+      "expires": 1779031755.967138,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Strict"
+    }
+  ],
+  "origins": []
+}

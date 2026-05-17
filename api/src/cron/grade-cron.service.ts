@@ -42,16 +42,16 @@ export class GradeCronService {
     const policy = await this.loadPolicy();
     this.logger.log(`[grade-cron] month=${targetMonth} range=${range.startday}~${range.endday} test=${testOnly}`);
 
-    // 상담사 목록
+    // [role/level 정리] level=5 → role='counselor' 통일 (이중 진실원천 제거)
     const counselors = mbId
       ? await this.sql<{ id: number; mb_id: string | null; grade: string; grade_recalculated_at: string | null }[]>`
           SELECT id, mb_id, grade, grade_recalculated_at FROM member
-           WHERE level = 5 AND left_at IS NULL AND mb_id = ${mbId}
+           WHERE role = 'counselor' AND left_at IS NULL AND mb_id = ${mbId}
            LIMIT 1
         `
       : await this.sql<{ id: number; mb_id: string | null; grade: string; grade_recalculated_at: string | null }[]>`
           SELECT id, mb_id, grade, grade_recalculated_at FROM member
-           WHERE level = 5 AND left_at IS NULL
+           WHERE role = 'counselor' AND left_at IS NULL
            ORDER BY id
         `;
 

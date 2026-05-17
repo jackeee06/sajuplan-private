@@ -1,0 +1,13 @@
+{
+  "name": "sajumoon-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:test": "TARGET=test playwright test",
+    "test:prod": "TARGET=prod playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}

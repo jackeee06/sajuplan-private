@@ -1,14 +1,31 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Search, ImageIcon, FileText } from 'lucide-react'
 import { api } from '../lib/api'
+import {
+  Th,
+  Td,
+  Tr,
+  IdCell,
+  TableShell,
+  THead,
+  TBody,
+  EmptyRow,
+  Chip,
+  Badge,
+  BadgeColor,
+  PaginationBar,
+  ResultCount,
+  inputCls,
+  fmtDate,
+} from '../components/table'
 
 /**
  * 상담사 신청 내역 — 사용자 가입 페이지에서 들어온 신청을 관리자에 노출.
  *
  *  - 사용자 측: web/user/src/pages/CounselorApplyNew.tsx → POST /api/user/counselor-apply
  *  - 백엔드:   api/src/admin/counselor-apply/counselor-apply.{controller,service}.ts
- *  - status:  pending(검토중) / accepted(승인) / rejected(반려) / cancelled(취소)
+ *  - status:  pending(검토중) / accepted(승인) / rejected(반려) / cancelled(취소) / superseded(대체됨)
  */
 
 interface ApplyItem {
@@ -38,21 +55,24 @@ interface Resp {
   limit: number
 }
 
-const STATUS_FILTERS: Array<{ value: string; label: string }> = [
+type StatusValue = 'all' | 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'superseded'
+type CategoryValue = 'all' | 'application' | 'inquiry' | 'other'
+
+const STATUS_FILTERS: Array<{ value: StatusValue; label: string; dot?: BadgeColor }> = [
   { value: 'all', label: '전체' },
-  { value: 'pending', label: '검토중' },
-  { value: 'accepted', label: '승인' },
-  { value: 'rejected', label: '반려' },
-  { value: 'cancelled', label: '취소' },
-  { value: 'superseded', label: '대체됨' },
+  { value: 'pending', label: '검토중', dot: 'amber' },
+  { value: 'accepted', label: '승인', dot: 'emerald' },
+  { value: 'rejected', label: '반려', dot: 'rose' },
+  { value: 'cancelled', label: '취소', dot: 'gray' },
+  { value: 'superseded', label: '대체됨', dot: 'gray' },
 ]
 
-const STATUS_BADGE: Record<string, string> = {
-  pending: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-  accepted: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-  rejected: 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
-  cancelled: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-  superseded: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+const STATUS_BADGE_COLOR: Record<string, BadgeColor> = {
+  pending: 'amber',
+  accepted: 'emerald',
+  rejected: 'rose',
+  cancelled: 'gray',
+  superseded: 'gray',
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -63,16 +83,11 @@ const STATUS_LABEL: Record<string, string> = {
   superseded: '대체됨',
 }
 
-// 2026-05-16: 신청 종류 (post_apply.category)
-//   application: 상담사 지원 (풀폼 — 계정/사진/분야)
-//   inquiry:     상담사 문의 (간단폼)
-//   other:       기타 문의   (간단폼)
-//   레거시: null / 'general' 은 application 으로 매핑
-const CATEGORY_FILTERS: Array<{ value: string; label: string }> = [
+const CATEGORY_FILTERS: Array<{ value: CategoryValue; label: string; dot?: BadgeColor }> = [
   { value: 'all', label: '전체' },
-  { value: 'application', label: '상담사 지원' },
-  { value: 'inquiry', label: '상담사 문의' },
-  { value: 'other', label: '기타 문의' },
+  { value: 'application', label: '상담사 지원', dot: 'indigo' },
+  { value: 'inquiry', label: '상담사 문의', dot: 'blue' },
+  { value: 'other', label: '기타 문의', dot: 'gray' },
 ]
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -82,18 +97,19 @@ const CATEGORY_LABEL: Record<string, string> = {
   other: '기타',
 }
 
-const CATEGORY_BADGE: Record<string, string> = {
-  application: 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-  general: 'bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
-  inquiry: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-  other: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+const CATEGORY_BADGE_COLOR: Record<string, BadgeColor> = {
+  application: 'indigo',
+  general: 'indigo',
+  inquiry: 'blue',
+  other: 'gray',
 }
 
 const PAGE_SIZE = 20
 
 export default function CounselorApplyList() {
-  const [status, setStatus] = useState('all')
-  const [category, setCategory] = useState('all')
+  const navigate = useNavigate()
+  const [status, setStatus] = useState<StatusValue>('all')
+  const [category, setCategory] = useState<CategoryValue>('all')
   const [q, setQ] = useState('')
   const [pendingQ, setPendingQ] = useState('')
   const [page, setPage] = useState(1)
@@ -119,96 +135,91 @@ export default function CounselorApplyList() {
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
+  const onSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setQ(pendingQ.trim())
+    setPage(1)
+  }
+  const onReset = () => {
+    setQ('')
+    setPendingQ('')
+    setStatus('all')
+    setCategory('all')
+    setPage(1)
+  }
+
   return (
     <div className="space-y-5">
+      {/* 타이틀 */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">상담사 신청 내역</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">상담사 신청 내역</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           사용자 가입 페이지에서 접수된 상담사 신청 — 사진/사업자 파일 확인 후 상담사로 등록하세요.
         </p>
       </div>
 
-      {/* 필터 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-3">
-        <div className="flex items-start gap-3">
-          <span className="shrink-0 w-12 pt-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">상태</span>
-          <div className="flex flex-wrap items-center gap-1.5 flex-1">
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => {
-                  setStatus(f.value)
-                  setPage(1)
-                }}
-                className={`px-3 py-1.5 rounded-md text-xs border transition ${
-                  status === f.value
-                    ? 'bg-brand-500 text-white border-brand-500'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-start gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-          <span className="shrink-0 w-12 pt-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">종류</span>
-          <div className="flex flex-wrap items-center gap-1.5 flex-1">
-            {CATEGORY_FILTERS.map((f) => (
-              <button
-                key={f.value}
-                type="button"
-                onClick={() => {
-                  setCategory(f.value)
-                  setPage(1)
-                }}
-                className={`px-3 py-1.5 rounded-md text-xs border transition ${
-                  category === f.value
-                    ? 'bg-violet-500 text-white border-violet-500'
-                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <form
-          className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-800"
-          onSubmit={(e) => {
-            e.preventDefault()
-            setQ(pendingQ.trim())
-            setPage(1)
-          }}
-        >
-          <input
-            type="text"
-            value={pendingQ}
-            onChange={(e) => setPendingQ(e.target.value)}
-            placeholder="휴대폰/이메일/예명/실명/제목"
-            className="w-64 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+      {/* 상태 칩 */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <span className="text-xs text-gray-500 mr-1">상태</span>
+        {STATUS_FILTERS.map((f) => (
+          <Chip
+            key={f.value}
+            label={f.label}
+            dotColor={f.dot}
+            active={status === f.value}
+            onClick={() => {
+              setStatus(f.value)
+              setPage(1)
+            }}
           />
-          <button
-            type="submit"
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs rounded-md bg-brand-500 hover:bg-brand-600 text-white"
-          >
-            <Search className="w-3.5 h-3.5" />
-            검색
-          </button>
-          {q && (
+        ))}
+      </div>
+
+      {/* 종류 칩 */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <span className="text-xs text-gray-500 mr-1">종류</span>
+        {CATEGORY_FILTERS.map((f) => (
+          <Chip
+            key={f.value}
+            label={f.label}
+            dotColor={f.dot}
+            active={category === f.value}
+            onClick={() => {
+              setCategory(f.value)
+              setPage(1)
+            }}
+          />
+        ))}
+      </div>
+
+      {/* 검색 */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
+        <form className="flex flex-wrap gap-3 items-end" onSubmit={onSearch}>
+          <div className="w-[260px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
+            <input
+              type="text"
+              value={pendingQ}
+              onChange={(e) => setPendingQ(e.target.value)}
+              placeholder="휴대폰 / 이메일 / 예명 / 실명 / 제목"
+              className={inputCls}
+            />
+          </div>
+          <div className="flex gap-2 ml-auto">
+            <button
+              type="submit"
+              className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium"
+            >
+              <Search className="w-4 h-4" /> 검색
+            </button>
             <button
               type="button"
-              onClick={() => {
-                setQ('')
-                setPendingQ('')
-                setPage(1)
-              }}
-              className="px-3 py-2 text-xs rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+              onClick={onReset}
+              className="px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               초기화
             </button>
-          )}
+          </div>
         </form>
       </div>
 
@@ -218,162 +229,122 @@ export default function CounselorApplyList() {
         </div>
       )}
 
-      {/* 목록 테이블 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800/40 text-gray-600 dark:text-gray-300 text-xs">
-              <tr>
-                <th className="px-4 py-2 text-left font-medium">번호</th>
-                <th className="px-4 py-2 text-left font-medium">종류</th>
-                <th className="px-4 py-2 text-left font-medium">상태</th>
-                <th className="px-4 py-2 text-left font-medium">예명 / 실명</th>
-                <th className="px-4 py-2 text-left font-medium">분야 / 지역</th>
-                <th className="px-4 py-2 text-left font-medium">휴대폰</th>
-                <th className="px-4 py-2 text-left font-medium">이메일</th>
-                <th className="px-4 py-2 text-left font-medium">회원</th>
-                <th className="px-4 py-2 text-left font-medium">첨부</th>
-                <th className="px-4 py-2 text-left font-medium">신청일시</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
-                    로딩 중…
-                  </td>
-                </tr>
-              )}
-              {!loading && data && data.items.length === 0 && (
-                <tr>
-                  <td colSpan={11} className="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
-                    신청 내역이 없습니다.
-                  </td>
-                </tr>
-              )}
-              {!loading &&
-                data?.items.map((it) => {
-                  // 카테고리 매핑 — null/general 은 application 으로 간주
-                  const catKey = it.category && it.category !== 'general' ? it.category : 'application'
-                  return (
-                  <tr key={it.id} className="border-t border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                    <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{it.id}</td>
-                    <td className="px-4 py-2.5">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
-                          CATEGORY_BADGE[catKey] ?? 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {CATEGORY_LABEL[catKey] ?? catKey}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
-                          STATUS_BADGE[it.status] ?? 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {STATUS_LABEL[it.status] ?? it.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-800 dark:text-gray-100">
-                      <div className="font-medium">{it.pen_name ?? '-'}</div>
-                      <div className="text-[11px] text-gray-500 dark:text-gray-400">{it.real_name ?? '-'}</div>
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">
-                      <div>{it.field ?? '-'}</div>
-                      <div className="text-[11px] text-gray-500 dark:text-gray-400">{it.region ?? '-'}</div>
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300 font-mono text-xs">
-                      {it.applicant_phone ?? '-'}
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300 text-xs">
-                      {it.applicant_email ?? '-'}
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300 text-xs">
-                      {it.member_id ? (
-                        <Link
-                          to={`/members/customers/${it.member_id}`}
-                          className="text-brand-600 hover:underline"
-                        >
-                          {it.member_mb_id ?? it.member_name ?? `#${it.member_id}`}
-                        </Link>
-                      ) : (
-                        <span className="text-gray-400">비회원</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                        <span className={`inline-flex items-center gap-0.5 ${it.has_profile_photo ? '' : 'text-gray-300 dark:text-gray-600'}`} title="프로필 사진">
-                          <ImageIcon className="w-3.5 h-3.5" />
-                          P
-                        </span>
-                        <span className={`inline-flex items-center gap-0.5 ${it.has_wide_photo ? '' : 'text-gray-300 dark:text-gray-600'}`} title="와이드 사진">
-                          <ImageIcon className="w-3.5 h-3.5" />
-                          W
-                        </span>
-                        <span className={`inline-flex items-center gap-0.5 ${it.contract_count > 0 ? '' : 'text-gray-300 dark:text-gray-600'}`} title="사업자/계약서">
-                          <FileText className="w-3.5 h-3.5" />
-                          {it.contract_count}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 text-gray-600 dark:text-gray-400 text-xs whitespace-nowrap">
-                      {formatDate(it.created_at)}
-                    </td>
-                    <td className="px-4 py-2.5 text-right">
-                      <Link
-                        to={`/members/counselor-apply/${it.id}`}
-                        className="text-xs text-brand-600 hover:underline"
-                      >
-                        상세
-                      </Link>
-                    </td>
-                  </tr>
-                  )
-                })}
-            </tbody>
-          </table>
-        </div>
+      {/* 결과 카운트 */}
+      {data && !loading && <ResultCount total={data.total} unit="건" />}
 
-        {/* 페이지네이션 + 총 건수 */}
-        {data && data.total > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-500 dark:text-gray-400">
-            <div>
-              총 <span className="font-medium text-gray-800 dark:text-gray-100">{data.total.toLocaleString()}</span>건 · {page} / {totalPages} 페이지
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="px-2.5 py-1 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-800"
-              >
-                이전
-              </button>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="px-2.5 py-1 rounded border border-gray-200 dark:border-gray-700 disabled:opacity-40 hover:bg-gray-50 dark:hover:bg-gray-800"
-              >
-                다음
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* 목록 테이블 */}
+      <TableShell>
+        <THead>
+          <Th align="right">번호</Th>
+          <Th align="center">종류</Th>
+          <Th align="center">상태</Th>
+          <Th align="left">예명 / 실명</Th>
+          <Th align="left">분야 / 지역</Th>
+          <Th align="left">휴대폰</Th>
+          <Th align="left">이메일</Th>
+          <Th align="left">회원</Th>
+          <Th align="center">첨부</Th>
+          <Th align="left">신청일시</Th>
+        </THead>
+        <TBody>
+          {loading ? (
+            <EmptyRow colSpan={10} loading />
+          ) : !data || data.items.length === 0 ? (
+            <EmptyRow colSpan={10} />
+          ) : (
+            data.items.map((it) => {
+              const catKey = it.category && it.category !== 'general' ? it.category : 'application'
+              return (
+                <Tr key={it.id} onClick={() => navigate(`/members/counselor-apply/${it.id}`)}>
+                  <IdCell id={it.id} />
+                  <Td align="center">
+                    <Badge color={CATEGORY_BADGE_COLOR[catKey] ?? 'gray'}>
+                      {CATEGORY_LABEL[catKey] ?? catKey}
+                    </Badge>
+                  </Td>
+                  <Td align="center">
+                    <Badge color={STATUS_BADGE_COLOR[it.status] ?? 'gray'}>
+                      {STATUS_LABEL[it.status] ?? it.status}
+                    </Badge>
+                  </Td>
+                  <Td align="left">
+                    <div className="font-medium text-gray-900 dark:text-gray-100">
+                      {it.pen_name ?? '-'}
+                    </div>
+                    <div className="text-[11px] text-gray-500">{it.real_name ?? '-'}</div>
+                  </Td>
+                  <Td align="left" className="text-xs">
+                    <div className="text-gray-700">{it.field ?? '-'}</div>
+                    <div className="text-[11px] text-gray-500">{it.region ?? '-'}</div>
+                  </Td>
+                  <Td align="left" className="font-mono text-xs text-gray-600">
+                    {it.applicant_phone ?? <span className="text-gray-300">-</span>}
+                  </Td>
+                  <Td align="left" className="text-xs text-gray-600">
+                    {it.applicant_email ?? <span className="text-gray-300">-</span>}
+                  </Td>
+                  <Td align="left" className="text-xs">
+                    {it.member_id ? (
+                      <Link
+                        to={`/members/customers/${it.member_id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-brand-600 hover:underline"
+                      >
+                        {it.member_mb_id ?? it.member_name ?? `#${it.member_id}`}
+                      </Link>
+                    ) : (
+                      <span className="text-gray-400">비회원</span>
+                    )}
+                  </Td>
+                  <Td align="center">
+                    <div className="inline-flex items-center gap-2 text-xs text-gray-600">
+                      <span
+                        className={`inline-flex items-center gap-0.5 ${
+                          it.has_profile_photo ? '' : 'text-gray-300'
+                        }`}
+                        title="프로필 사진"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" />P
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-0.5 ${
+                          it.has_wide_photo ? '' : 'text-gray-300'
+                        }`}
+                        title="와이드 사진"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" />W
+                      </span>
+                      <span
+                        className={`inline-flex items-center gap-0.5 ${
+                          it.contract_count > 0 ? '' : 'text-gray-300'
+                        }`}
+                        title="사업자/계약서"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        {it.contract_count}
+                      </span>
+                    </div>
+                  </Td>
+                  <Td align="left" className="text-xs text-gray-500 tabular-nums">
+                    {fmtDate(it.created_at)}
+                  </Td>
+                </Tr>
+              )
+            })
+          )}
+        </TBody>
+      </TableShell>
+
+      {data && (
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          total={data.total}
+          pageSize={PAGE_SIZE}
+          onChange={setPage}
+          unit="건"
+        />
+      )}
     </div>
   )
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${y}-${m}-${day} ${hh}:${mm}`
 }

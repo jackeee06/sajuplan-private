@@ -3,6 +3,28 @@ import * as bcrypt from 'bcrypt';
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { M2netService } from '../../shared/m2net/m2net.service';
 
+// [Audit E-C3] 휴대폰 마스킹 — list 응답용 (단건 조회는 평문 유지).
+//   01012345678 / 010-1234-5678 모두 처리 → 010-****-5678 형식 반환.
+function maskPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const digits = String(phone).replace(/\D/g, '');
+  if (digits.length < 7) return phone;
+  return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
+}
+
+// [role/level 이중 진실원천] role 기반 level 매핑 — 향후 role 변경 API 추가 시 강제 동기화용.
+//   현재 prod 매핑: admin=10, counselor=5, user=2 (전수 일관 검증됨, 2026-05-15)
+//   정산 cron 이 level=5 기준이라 어긋나면 정산 누락. 반드시 이 매핑 사용.
+//   health-check C-18 이 자동 감지 + Critical OpsAlert.
+export function roleToLevel(role: string): number {
+  switch (role) {
+    case 'admin': return 10;
+    case 'counselor': return 5;
+    case 'user': return 2;
+    default: throw new Error(`unknown role: ${role}`);
+  }
+}
+
 export interface MemberRow {
   id: number;
   mb_id: string | null;
@@ -352,8 +374,16 @@ export class MembersService {
       FROM member WHERE role = 'user'
     `;
 
+    // [Audit E-C3] list 응답은 phone 마스킹 — 대량 노출/CSV 유출 방지.
+    //   단건 조회 (getCustomerDetail) 는 평문 유지 (편집/연락 업무용).
+    //   UI 검토 완료: web/mng CustomerList 는 표시만 (tel: 링크 없음).
+    const maskedItems = items.map((it) => ({
+      ...it,
+      phone: maskPhone(it.phone),
+    }));
+
     return {
-      items,
+      items: maskedItems,
       total,
       summary: {
         total: Number(summaryRows[0].total),
@@ -452,8 +482,14 @@ export class MembersService {
       by_category[k] = Number(r.cnt);
     }
 
+    // [Audit E-C3] 상담사 list 도 phone 마스킹 (단건 조회는 평문 유지).
+    const maskedItems = items.map((it) => ({
+      ...it,
+      phone: maskPhone(it.phone),
+    }));
+
     return {
-      items,
+      items: maskedItems,
       total,
       summary: {
         total: Number(summaryRows[0].total),
@@ -526,8 +562,19 @@ export class MembersService {
     setIf('left_at');
     setIf('zip'); setIf('addr1'); setIf('addr2'); setIf('addr_jibeon');
     // point 는 직접 수정 금지 — 별도 포인트 조정 기능(point_history 기록)으로만 변경
-    if (input.phone !== undefined) updates.phone = input.phone ? input.phone.replace(/[^0-9]/g, '') : null;
-    if (input.password) updates.password = await bcrypt.hash(input.password, 10);
+    // [Audit E-W4] phone 타입 강제 — 객체/배열 등 비문자열 injection 방지
+    if (input.phone !== undefined) {
+      if (input.phone !== null && typeof input.phone !== 'string') {
+        throw new BadRequestException('휴대폰 번호는 문자열이어야 합니다.');
+      }
+      updates.phone = input.phone ? input.phone.replace(/[^0-9]/g, '') : null;
+    }
+    if (input.password !== undefined && input.password !== null) {
+      if (typeof input.password !== 'string') {
+        throw new BadRequestException('비밀번호는 문자열이어야 합니다.');
+      }
+      if (input.password) updates.password = await bcrypt.hash(input.password, 10);
+    }
 
     if (Object.keys(updates).length > 0) {
       await this.sql`UPDATE member SET ${this.sql(updates)}, updated_at = now() WHERE id = ${id}`;

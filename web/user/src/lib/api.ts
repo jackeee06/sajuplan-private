@@ -970,11 +970,12 @@ export const counselorsApi = {
    * @param category '사주' | '타로' | '신점' (생략 또는 '전체' 시 필터 없음)
    * @param limit  1~50, 기본 13
    */
-  list: (params: { tab?: string; category?: string; limit?: number }) => {
+  list: (params: { tab?: string; category?: string; limit?: number; event?: boolean }) => {
     const qs = new URLSearchParams()
     if (params.tab) qs.set('tab', params.tab)
     if (params.category) qs.set('category', params.category)
     if (params.limit) qs.set('limit', String(params.limit))
+    if (params.event) qs.set('event', '1')
     const q = qs.toString()
     return api.get<{ items: PublicCounselor[] }>(
       `/user/counselors${q ? `?${q}` : ''}`,

@@ -21,7 +21,7 @@ const MENU_ITEMS: MenuItem[] = [
   { to: '/mypage/help', label: '이용안내', icon: '/img/ic_my_book.svg' },
   { to: '/mypage/notices', label: '공지사항', icon: '/img/ic_my_notice.svg' },
   { to: '/mypage/new-counselors', label: '신규상담사', icon: '/img/ic_my_headset.svg' },
-  { to: '/mypage/counselor-apply', label: '상담사 신청', icon: '/img/ic_my_user_plus.svg' },
+  { to: '/mypage/counselor-apply', label: '상담사 신청 및 기타 문의', icon: '/img/ic_my_user_plus.svg' },
 ]
 
 export default function MyPage() {

@@ -84,9 +84,24 @@ export class OpsAlertService {
           );
           if (r.ok) {
             sent++;
+            continue;
+          }
+          // BizM 알림톡 실패 시 SMS(LMS) 폴백 — 운영자가 사고 인지 못 하는 사태 방지.
+          //   BizM 템플릿 미등록(K104) 등은 외부 작업이 끝날 때까지 시간 걸려서
+          //   그 동안 SMS 라도 보내야 알림이 끊기지 않는다.
+          this.logger.warn(`[OpsAlert] BizM 거부 phone=${phone} reason=${r.reason ?? '?'} → SMS 폴백 시도`);
+          const smsBody =
+            `[사주문 운영 알림]\n` +
+            `유형: ${category}\n` +
+            `시각: ${at}\n\n` +
+            truncatedDetail;
+          const smsOk = await this.sms.sendAdminSms(phone, smsBody);
+          if (smsOk) {
+            sent++;
+            this.logger.log(`[OpsAlert] SMS 폴백 성공 phone=${phone}`);
           } else {
             failed++;
-            this.logger.warn(`[OpsAlert] 발송 실패 phone=${phone} reason=${r.reason ?? '?'}`);
+            this.logger.error(`[OpsAlert] BizM + SMS 모두 실패 phone=${phone}`);
           }
         } catch (e) {
           failed++;

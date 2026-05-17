@@ -238,28 +238,22 @@ const NS_FIELDS: Record<Namespace, { title: string; fields: FieldDef[] }> = {
         key: 'admin_alert.enabled',
         label: '운영자 알림 활성',
         kind: 'bool',
-        hint: '크론 실패/M2NET 차감 실패/자동충전 사고 시 카카오 알림톡 발송 여부.',
+        hint: '시스템에 사고가 발생하면 등록된 휴대폰으로 카카오 알림톡을 자동 발송합니다. 끄면 알림이 오지 않습니다. 평상시 켜둔 채로 두세요.',
       },
-      {
-        key: 'admin_alert.recipients',
-        label: '수신 휴대폰 번호',
-        kind: 'text',
-        placeholder: '01012345678,01087654321',
-        hint: '콤마 구분. 등록된 번호 전원에게 동일 메시지 발송. 빈 값이면 발송 안 함.',
-      },
+      // admin_alert.recipients / admin_alert.recipient_labels 는 RecipientsEditor 가 별도 렌더 — 여기 fields 에서 제외
       {
         key: 'admin_alert.template_code',
         label: '알림톡 템플릿 코드',
         kind: 'text',
         placeholder: 'ops_admin_alert',
-        hint: 'BizM 콘솔에 사전 등록된 템플릿 코드. 변경 시 alimtalk_template 테이블에도 동일 코드의 행 필요.',
+        hint: '⚠️ 기본값 그대로 두세요. 카카오 알림톡은 미리 등록한 양식으로만 보낼 수 있습니다. 여기 적힌 이름이 알림톡 발송 회사(비즈엠)에 등록된 양식 이름이에요. 함부로 바꾸면 알림이 멈춥니다. 새 양식을 등록한 경우에만 개발자에게 알려 바꾸세요.',
       },
       {
         key: 'admin_alert.cooldown_sec',
-        label: '쿨다운(초)',
+        label: '대기 시간(초)',
         kind: 'number',
         placeholder: '300',
-        hint: '같은 카테고리 알림이 N초 이내 반복되면 발송 차단. 알림 폭주 방지.',
+        hint: '같은 사고가 짧은 시간에 여러 번 일어날 때, 카톡이 도배되지 않도록 막는 시간이에요. 예: 300(=5분) 으로 두면, 같은 사고가 5분 안에 100번 일어나도 카톡은 처음 1번만 옵니다. 단위는 "초". 기본 300 권장.',
       },
     ],
   },
@@ -399,8 +393,87 @@ export default function Settings() {
             />
           ))}
         </div>
+      ) : tab === 'ops' ? (
+        // 운영알림 — 관리자 이해용 안내 박스 + 설정 그리드
+        <div className="space-y-4">
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-5 text-base dark:border-blue-800 dark:bg-blue-950/40">
+            <h3 className="text-lg font-bold text-blue-900 dark:text-blue-200 mb-3">📋 운영자 알림이란?</h3>
+            <p className="text-blue-800 dark:text-blue-300 mb-4 leading-relaxed">
+              사주문 시스템이 자동으로 도는 5개 작업(<b>크론</b>) 또는 결제·상담 처리 중
+              사고가 발생하면 등록된 운영자 휴대폰으로 <b>카카오 알림톡</b>이 즉시 발송됩니다.
+            </p>
+
+            <p className="text-base font-bold text-blue-900 dark:text-blue-200 mt-4 mb-2">⏰ 사주문이 자동으로 도는 5가지 작업</p>
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-blue-200 dark:border-blue-800">
+                  <th className="text-left py-2 pr-3 font-semibold text-blue-900 dark:text-blue-200 w-[35%]">시간</th>
+                  <th className="text-left py-2 font-semibold text-blue-900 dark:text-blue-200">하는 일</th>
+                </tr>
+              </thead>
+              <tbody className="text-blue-800 dark:text-blue-300">
+                <tr className="border-b border-blue-100 dark:border-blue-900/50">
+                  <td className="py-2 pr-3">매월 1일 00:05</td>
+                  <td className="py-2">상담사 등급 자동 재계산</td>
+                </tr>
+                <tr className="border-b border-blue-100 dark:border-blue-900/50">
+                  <td className="py-2 pr-3">매월 1일 04:00</td>
+                  <td className="py-2">지난달 정산 자동 계산</td>
+                </tr>
+                <tr className="border-b border-blue-100 dark:border-blue-900/50">
+                  <td className="py-2 pr-3">10분마다</td>
+                  <td className="py-2">채팅 정산 실패 건 재시도</td>
+                </tr>
+                <tr className="border-b border-blue-100 dark:border-blue-900/50">
+                  <td className="py-2 pr-3">10분마다</td>
+                  <td className="py-2">충전 적립 실패 건 재시도</td>
+                </tr>
+                <tr>
+                  <td className="py-2 pr-3">매시간</td>
+                  <td className="py-2">DB 사고 자동 감지 (18가지 점검)</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <p className="text-base font-bold text-blue-900 dark:text-blue-200 mt-5 mb-2">🚨 어떤 사고일 때 알림이 오나?</p>
+            <ul className="list-disc pl-6 text-blue-800 dark:text-blue-300 space-y-1 leading-relaxed">
+              <li><b>크론 실패</b>: 위 5가지 자동 작업 중 하나가 에러로 멈춤</li>
+              <li><b>M2NET 차감/적립 실패</b>: 통화·채팅 종료 후 회원 포인트 차감 또는 상담사 수익 적립이 안 됨</li>
+              <li><b>자동충전 사고</b>: 회원 자동충전 처리 실패</li>
+              <li><b>DB 사고</b>: 매시간 점검에서 음수 잔액·환불 불일치 등 발견</li>
+              <li><b>위조 시도</b>: 정상이 아닌 IP 에서 결제/통화 콜백 도착</li>
+            </ul>
+
+            <p className="text-base font-bold text-blue-900 dark:text-blue-200 mt-5 mb-2">📱 알림이 도착했을 때 어떻게?</p>
+            <p className="text-blue-800 dark:text-blue-300 leading-relaxed">
+              운영팀에 카톡 내용을 전달하시면 됩니다. 운영팀이 코드 기반 매뉴얼(<code className="text-sm bg-blue-100 dark:bg-blue-900 px-1.5 py-0.5 rounded">_OPS_RUNBOOK.md</code>)
+              에 따라 즉시 점검·복구합니다.
+            </p>
+
+            <p className="text-blue-700 dark:text-blue-400 mt-4 italic">
+              💡 평소에 알림이 안 오면 = 모든 자동 작업 정상. 안심하셔도 됩니다.
+            </p>
+          </div>
+
+          <RecipientsEditor
+            recipients={(data.ops ?? {})['admin_alert.recipients'] ?? ''}
+            labels={(data.ops ?? {})['admin_alert.recipient_labels'] ?? ''}
+            onChange={(rec, lab) => {
+              setField('ops', 'admin_alert.recipients', rec)
+              setField('ops', 'admin_alert.recipient_labels', lab)
+            }}
+          />
+
+          <SettingsSection
+            title={NS_FIELDS[tab as Namespace].title}
+            fields={NS_FIELDS[tab as Namespace].fields}
+            values={data[tab as Namespace] ?? {}}
+            onChange={(key, value) => setField(tab as Namespace, key, value)}
+            hideHeader
+          />
+        </div>
       ) : (
-        // ops 등 단일 namespace 탭 — 그리드 레이아웃
+        // 그 외 단일 namespace 탭 — 그리드 레이아웃
         <SettingsSection
           title={NS_FIELDS[tab as Namespace].title}
           fields={NS_FIELDS[tab as Namespace].fields}
@@ -409,6 +482,126 @@ export default function Settings() {
           hideHeader
         />
       )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 운영자 알림 — 수신자 (이름 + 휴대폰 번호) 행 단위 추가/삭제 UI
+//   백엔드 호환: admin_alert.recipients (번호 콤마 구분, 백엔드 사용)
+//               admin_alert.recipient_labels (이름 콤마 구분, UI 표시용)
+// ─────────────────────────────────────────────────────────────────
+
+type Recipient = { name: string; phone: string }
+
+function parseRecipients(rec: string, labels: string): Recipient[] {
+  const phones = (rec || '').split(',').map((s) => s.trim()).filter(Boolean)
+  const names = (labels || '').split(',').map((s) => s.trim())
+  return phones.map((phone, i) => ({ name: names[i] ?? '', phone }))
+}
+
+function serializeRecipients(rows: Recipient[]): { recipients: string; labels: string } {
+  const valid = rows.filter((r) => r.phone.replace(/\D/g, '').length >= 10)
+  return {
+    recipients: valid.map((r) => r.phone.replace(/\D/g, '')).join(','),
+    labels: valid.map((r) => r.name.trim()).join(','),
+  }
+}
+
+function RecipientsEditor({
+  recipients,
+  labels,
+  onChange,
+}: {
+  recipients: string
+  labels: string
+  onChange: (recipients: string, labels: string) => void
+}) {
+  // 자체 state — 빈 행 추가/이름만 입력한 중간 상태도 보존 (부모에는 valid 만 전달)
+  const [rows, setRows] = useState<Recipient[]>(() => {
+    const parsed = parseRecipients(recipients, labels)
+    return parsed.length === 0 ? [{ name: '', phone: '' }] : parsed
+  })
+
+  const update = (next: Recipient[]) => {
+    setRows(next)
+    const s = serializeRecipients(next)
+    onChange(s.recipients, s.labels)
+  }
+
+  const visibleRows = rows
+
+  return (
+    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h4 className="text-base font-bold text-gray-800 dark:text-gray-200">수신자 목록</h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+            사고 알림을 받을 사람의 이름과 휴대폰 번호. <b>비워두면 알림 발송 안 됨.</b>
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => update([...visibleRows, { name: '', phone: '' }])}
+          className="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium rounded-md bg-brand-600 hover:bg-brand-700 text-white"
+        >
+          + 추가
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        {visibleRows.map((r, i) => {
+          const digits = r.phone.replace(/\D/g, '')
+          const phoneInvalid = r.phone.length > 0 && !/^01[0-9]{8,9}$/.test(digits)
+          return (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={r.name}
+                onChange={(e) => {
+                  const next = [...visibleRows]
+                  next[i] = { ...next[i], name: e.target.value }
+                  update(next)
+                }}
+                placeholder="이름 (예: 사장님)"
+                className="w-[30%] px-3 py-2.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-base focus:ring-2 focus:ring-brand-500 outline-none"
+              />
+              <input
+                type="text"
+                inputMode="numeric"
+                value={r.phone}
+                onChange={(e) => {
+                  const next = [...visibleRows]
+                  next[i] = { ...next[i], phone: e.target.value }
+                  update(next)
+                }}
+                placeholder="휴대폰 (01012345678)"
+                className={`flex-1 px-3 py-2.5 rounded-md border bg-white dark:bg-gray-800 text-base focus:ring-2 focus:ring-brand-500 outline-none ${
+                  phoneInvalid
+                    ? 'border-rose-300 dark:border-rose-700'
+                    : 'border-gray-200 dark:border-gray-700'
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const next = visibleRows.filter((_, idx) => idx !== i)
+                  update(next.length === 0 ? [{ name: '', phone: '' }] : next)
+                }}
+                className="px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-md"
+                aria-label="삭제"
+              >
+                삭제
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="text-sm text-gray-600 dark:text-gray-400 mt-4 leading-relaxed">
+        💡 하이픈(-) 없이 11자리 숫자만 입력. 형식이 맞지 않으면 입력란이 빨갛게 표시됩니다.
+        이름은 누가 누구인지 관리용 (실제 알림에는 영향 없음).
+      </p>
     </div>
   )
 }
@@ -447,14 +640,14 @@ function SettingsSection({
             <div key={f.key} className={wide ? 'md:col-span-3 lg:col-span-4' : ''}>
               <label
                 htmlFor={`field-${f.key}`}
-                className="block text-xs font-medium text-gray-700 dark:text-gray-300"
+                className="block text-sm font-semibold text-gray-800 dark:text-gray-200"
               >
                 {f.label}
               </label>
               {f.hint && (
-                <div className="text-[10px] text-gray-400 mt-0.5 mb-1 leading-tight">{f.hint}</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1 mb-2 leading-relaxed">{f.hint}</div>
               )}
-              <div className={f.hint ? '' : 'mt-1'}>
+              <div className={f.hint ? '' : 'mt-1.5'}>
                 <FieldInput
                   id={`field-${f.key}`}
                   def={f}

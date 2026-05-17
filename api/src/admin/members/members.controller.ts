@@ -25,11 +25,29 @@ import { convertImageToWebp } from '../../shared/common/image-to-webp';
 const MEMBER_FILE_DIR = join(process.cwd(), 'uploads', 'member');
 mkdirSync(MEMBER_FILE_DIR, { recursive: true });
 
-const FILE_KIND_LIMITS: Record<string, { exts: string[]; maxBytes: number }> = {
-  profile: { exts: ['.jpg', '.jpeg', '.png', '.gif', '.webp'], maxBytes: 5 * 1024 * 1024 },
-  thumbnail: { exts: ['.jpg', '.jpeg', '.png', '.gif', '.webp'], maxBytes: 5 * 1024 * 1024 },
-  wide: { exts: ['.jpg', '.jpeg', '.png', '.gif', '.webp'], maxBytes: 5 * 1024 * 1024 },
-  contract: { exts: ['.pdf', '.jpg', '.jpeg', '.png'], maxBytes: 10 * 1024 * 1024 },
+// [Audit E-I2] MIME 타입도 화이트리스트 — 확장자 위조 (.exe → .jpg 리네임) 차단.
+//   브라우저가 보낸 mimetype 만 검사 (서버 magic-byte 검사는 별도 도구 필요).
+const FILE_KIND_LIMITS: Record<string, { exts: string[]; mimes: string[]; maxBytes: number }> = {
+  profile: {
+    exts: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+    mimes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    maxBytes: 5 * 1024 * 1024,
+  },
+  thumbnail: {
+    exts: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+    mimes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    maxBytes: 5 * 1024 * 1024,
+  },
+  wide: {
+    exts: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+    mimes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    maxBytes: 5 * 1024 * 1024,
+  },
+  contract: {
+    exts: ['.pdf', '.jpg', '.jpeg', '.png'],
+    mimes: ['application/pdf', 'image/jpeg', 'image/png'],
+    maxBytes: 10 * 1024 * 1024,
+  },
 };
 
 @Controller('admin/members')
@@ -138,6 +156,10 @@ export class MembersController {
         const ext = extname(file.originalname).toLowerCase();
         if (!limit.exts.includes(ext)) {
           return cb(new BadRequestException(`허용되지 않은 확장자: ${ext}. (${kind} → ${limit.exts.join(', ')})`), false);
+        }
+        // [Audit E-I2] MIME 타입 검사 — 확장자만으로는 위조 가능
+        if (!limit.mimes.includes(file.mimetype)) {
+          return cb(new BadRequestException(`허용되지 않은 파일 형식: ${file.mimetype}`), false);
         }
         cb(null, true);
       },

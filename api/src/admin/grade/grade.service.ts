@@ -224,12 +224,12 @@ export class AdminGradeService {
     });
   }
 
-  /** 등급별 상담사 분포 (대시보드/필터용). level=5 + left_at IS NULL 기준. */
+  /** 등급별 상담사 분포 (대시보드/필터용). [role/level 정리] role='counselor' 기준 통일. */
   async getDistribution() {
     const rows = await this.sql<{ grade: string; cnt: string }[]>`
       SELECT grade, COUNT(*)::text AS cnt
         FROM member
-       WHERE level = 5 AND left_at IS NULL
+       WHERE role = 'counselor' AND left_at IS NULL
        GROUP BY grade
        ORDER BY grade
     `;

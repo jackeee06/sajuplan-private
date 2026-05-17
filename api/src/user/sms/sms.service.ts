@@ -438,6 +438,52 @@ export class SmsService {
     }
   }
 
+  /**
+   * 운영자 알림용 generic SMS 발송 (OpsAlert BizM 실패 시 폴백).
+   *   - 메시지 길이가 90 byte 초과면 LMS (장문), 이하면 SMS
+   *   - 알리고 미설정 시 false
+   */
+  async sendAdminSms(phone: string, message: string): Promise<boolean> {
+    if (!this.aligoEnabled) {
+      this.logger.warn(`[sendAdminSms] aligo 미설정 — skip phone=${phone}`);
+      return false;
+    }
+    const normalized = this.normalize(phone);
+    if (!/^01[0-9]{8,9}$/.test(normalized)) return false;
+    // 한글은 UTF-8 3byte. 안전하게 LMS 강제 (장문). 본문은 1000자 cap.
+    const body = message.slice(0, 1000);
+    const url = 'https://apis.aligo.in/send/';
+    const params = new URLSearchParams({
+      user_id: this.aligoUserId,
+      key: this.aligoKey,
+      sender: this.aligoSender.replace(/[^0-9]/g, ''),
+      receiver: normalized,
+      msg: body,
+      title: '[사주문 운영]',
+      msg_type: 'LMS',
+      testmode_yn: 'N',
+    });
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: params.toString(),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        this.logger.error(`[sendAdminSms] HTTP ${res.status}: ${text.slice(0, 200)}`);
+        return false;
+      }
+      this.logger.log(`[sendAdminSms ok] phone=${normalized} → ${text.slice(0, 200)}`);
+      return true;
+    } catch (e) {
+      this.logger.error(
+        `[sendAdminSms] 발송 예외: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      return false;
+    }
+  }
+
   /** 알리고 SMS 폴백 발송 */
   private async sendViaAligo(phone: string, code: string): Promise<boolean> {
     const url = 'https://apis.aligo.in/send/';

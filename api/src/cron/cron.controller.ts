@@ -40,6 +40,17 @@ export class CronController {
     return this.healthCheck.runAll();
   }
 
+  // 운영자 알림 테스트 — 휴대폰 등록 확인용. CronTokenGuard 보호.
+  //   GET /api/cron/test-alert?token=...
+  @Get('test-alert')
+  async testAlert() {
+    const r = await this.opsAlert.send(
+      '테스트 알림',
+      '운영자 휴대폰 등록 확인 테스트입니다. 이 메시지를 받으셨다면 OpsAlert 정상 작동입니다.',
+    );
+    return { ok: true, result: r };
+  }
+
   // [Audit C-#9] 채팅 정산 재시도 — M2NET 일시 장애로 미정산된 chat_room 처리.
   //   GET /api/cron/retry/chat-settle
   //   crontab 예 (10분 간격): '0,10,20,30,40,50 * * * * curl ...retry/chat-settle?token=...'
@@ -128,13 +139,33 @@ export class CronController {
   /**
    * 롤백: POST /api/cron/settlement/rollback?month=YYYY-MM
    * 해당 월의 settlement_monthly 전 row + 정산 차감 point_history + 플래그 되돌림.
+   *
+   * [Audit E-W9] 토큰 누출 시 매출 손실 큼 — 실행 시작/완료 양쪽 OpsAlert 발송.
    */
   @Post('settlement/rollback')
   async rollback(@Query('month') month?: string) {
     if (!month || !/^\d{4}-\d{2}$/.test(month)) {
       throw new BadRequestException('month=YYYY-MM required');
     }
-    return this.settlement.rollbackMonth(month);
+    await this.opsAlert.send(
+      '⚠️ 정산 롤백 요청',
+      `month=${month}\n— 실행 시작. 정상 요청이 아니라면 즉시 CRON_TOKEN 회전 + 로그 점검.`,
+    );
+    try {
+      const result = await this.settlement.rollbackMonth(month);
+      await this.opsAlert.send(
+        '정산 롤백 완료',
+        `month=${month}\n복원된 row 수: ${(result as { restored?: number })?.restored ?? '?'}`,
+      );
+      return result;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await this.opsAlert.send(
+        '정산 롤백 실패',
+        `month=${month}\n${msg}`,
+      );
+      throw e;
+    }
   }
 
   /**

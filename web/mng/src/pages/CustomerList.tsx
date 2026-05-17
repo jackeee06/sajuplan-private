@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Pencil, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { api } from '../lib/api'
 
 interface Customer {
@@ -43,6 +43,7 @@ interface Filter {
 const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 10)
 
 export default function CustomerList() {
+  const navigate = useNavigate()
   const [filter, setFilter] = useState<Filter>({ q: '', fr_date: '', to_date: '', status: 'all', page: 1 })
   const [pending, setPending] = useState<Pick<Filter, 'q' | 'fr_date' | 'to_date'>>({ q: '', fr_date: '', to_date: '' })
   const [data, setData] = useState<Resp | null>(null)
@@ -75,12 +76,13 @@ export default function CustomerList() {
 
   return (
     <div className="space-y-5">
+      {/* 페이지 타이틀 */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">고객 리스트</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">고객 리스트</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">일반 회원(role=user) 현황</p>
       </div>
 
-      {/* 요약 칩 */}
+      {/* 상태 칩 — active는 모두 brand 컬러로 통일, 상태 의미는 좌측 dot 으로 */}
       {data && (
         <div className="flex flex-wrap gap-2">
           <Chip
@@ -92,132 +94,145 @@ export default function CustomerList() {
           <Chip
             label="활동"
             value={data.summary.active}
-            color="emerald"
+            dotColor="emerald"
             active={filter.status === 'active'}
             onClick={() => setFilter((f) => ({ ...f, status: 'active', page: 1 }))}
           />
           <Chip
             label="차단"
             value={data.summary.blocked}
-            color="rose"
+            dotColor="rose"
             active={filter.status === 'blocked'}
             onClick={() => setFilter((f) => ({ ...f, status: 'blocked', page: 1 }))}
           />
           <Chip
             label="탈퇴"
             value={data.summary.left}
-            color="gray"
+            dotColor="gray"
             active={filter.status === 'left'}
             onClick={() => setFilter((f) => ({ ...f, status: 'left', page: 1 }))}
           />
         </div>
       )}
 
-      {/* 검색 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-wrap gap-3 items-end">
-        <div className="flex-1 min-w-[240px]">
-          <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
-          <input
-            type="text"
-            value={pending.q}
-            onChange={(e) => setPending((p) => ({ ...p, q: e.target.value }))}
-            onKeyDown={(e) => e.key === 'Enter' && onSearch()}
-            placeholder="아이디 / 이름 / 닉네임 / 휴대폰"
-            className={inputCls}
-          />
+      {/* 검색 — 좌측은 검색어, 우측은 날짜/액션 그룹 */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="w-[260px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
+            <input
+              type="text"
+              value={pending.q}
+              onChange={(e) => setPending((p) => ({ ...p, q: e.target.value }))}
+              onKeyDown={(e) => e.key === 'Enter' && onSearch()}
+              placeholder="아이디 / 이름 / 닉네임 / 휴대폰"
+              className={inputCls}
+            />
+          </div>
+          <div className="w-[160px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">가입일 시작</label>
+            <input
+              type="date"
+              value={pending.fr_date}
+              onChange={(e) => setPending((p) => ({ ...p, fr_date: e.target.value }))}
+              className={inputCls}
+            />
+          </div>
+          <div className="w-[160px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">가입일 종료</label>
+            <input
+              type="date"
+              value={pending.to_date}
+              onChange={(e) => setPending((p) => ({ ...p, to_date: e.target.value }))}
+              className={inputCls}
+            />
+          </div>
+          <div className="flex gap-2 ml-auto">
+            <button
+              onClick={onSearch}
+              className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium"
+            >
+              <Search className="w-4 h-4" /> 검색
+            </button>
+            <button
+              onClick={onReset}
+              className="px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              초기화
+            </button>
+          </div>
         </div>
-        <div>
-          <label className="block text-[11px] font-medium text-gray-500 mb-1">가입일 시작</label>
-          <input
-            type="date"
-            value={pending.fr_date}
-            onChange={(e) => setPending((p) => ({ ...p, fr_date: e.target.value }))}
-            className={inputCls}
-          />
-        </div>
-        <div>
-          <label className="block text-[11px] font-medium text-gray-500 mb-1">가입일 종료</label>
-          <input
-            type="date"
-            value={pending.to_date}
-            onChange={(e) => setPending((p) => ({ ...p, to_date: e.target.value }))}
-            className={inputCls}
-          />
-        </div>
-        <button onClick={onSearch} className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5">
-          <Search className="w-4 h-4" /> 검색
-        </button>
-        <button onClick={onReset} className="px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
-          초기화
-        </button>
       </div>
 
       {error && (
         <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>
       )}
 
-      {/* 표 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+      {/* 결과 카운트 + (향후 정렬 영역) */}
+      {data && !loading && (
+        <div className="flex items-center justify-between px-1">
+          <p className="text-xs text-gray-500">
+            전체 <span className="text-brand-600 font-semibold">{num(data.total)}</span>건
+          </p>
+        </div>
+      )}
+
+      {/* 표 — w-fit 으로 콘텐츠 기반 폭, 화면 초과 시 가로 스크롤 */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1200px] text-sm">
-            <thead className="bg-brand-500 text-xs text-white">
+          <table className="text-sm w-auto">
+            <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
               <tr>
-                <Th>관리</Th>
-                <Th>번호</Th>
-                <Th>가입일</Th>
-                <Th>아이디</Th>
-                <Th>이름</Th>
-                <Th>휴대폰</Th>
-                <Th align="right">권한</Th>
+                <Th align="right">번호</Th>
+                <Th align="left">가입일</Th>
+                <Th align="left">아이디</Th>
+                <Th align="left">이름</Th>
+                <Th align="left">휴대폰</Th>
+                <Th align="left">권한</Th>
                 <Th align="right">포인트</Th>
-                <Th>성별</Th>
+                <Th align="center">성별</Th>
                 <Th align="right">연령</Th>
                 <Th align="right">결제</Th>
                 <Th align="right">선불(070)</Th>
                 <Th align="right">후불(060)</Th>
                 <Th align="right">채팅</Th>
-                <Th>가입출처</Th>
-                <Th>최근접속</Th>
-                <Th>상태</Th>
+                <Th align="left">가입출처</Th>
+                <Th align="left">최근접속</Th>
+                <Th align="center">상태</Th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading ? (
-                <tr><td colSpan={17} className="px-3 py-8 text-center text-gray-400">로딩...</td></tr>
+                <tr><td colSpan={16} className="px-3 py-12 text-center text-gray-400">로딩...</td></tr>
               ) : !data || data.items.length === 0 ? (
-                <tr><td colSpan={17} className="px-3 py-12 text-center text-gray-400">자료가 없습니다.</td></tr>
+                <tr><td colSpan={16} className="px-3 py-16 text-center text-gray-400">자료가 없습니다.</td></tr>
               ) : data.items.map((m) => (
-                <tr key={m.id} className="text-gray-700 dark:text-gray-200">
-                  <Td>
-                    <Link
-                      to={`/members/customers/${m.id}`}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                    >
-                      <Pencil className="w-3 h-3" />
-                      수정
-                    </Link>
-                  </Td>
-                  <Td className="text-gray-400">{m.id}</Td>
-                  <Td className="text-xs">{fmtDate(m.created_at)}</Td>
-                  <Td>
-                    <div className="font-medium">{m.mb_id ?? '-'}</div>
+                <tr
+                  key={m.id}
+                  onClick={() => navigate(`/members/customers/${m.id}`)}
+                  className="group cursor-pointer text-gray-700 dark:text-gray-200 hover:bg-brand-50 hover:shadow-[inset_3px_0_0_0_theme(colors.brand.500)] dark:hover:bg-brand-500/10 transition-all"
+                >
+                  <Td align="right" className="text-gray-400 tabular-nums group-hover:text-brand-600 group-hover:font-medium">{m.id}</Td>
+                  <Td align="left" className="text-xs text-gray-500 tabular-nums">{fmtDate(m.created_at)}</Td>
+                  <Td align="left">
+                    <div className="font-medium text-gray-900 dark:text-gray-100">{m.mb_id ?? '-'}</div>
                     {m.social_provider && (
                       <div className="text-[10px] text-gray-400">via {m.social_provider}</div>
                     )}
                   </Td>
-                  <Td>{m.name}</Td>
-                  <Td className="font-mono text-xs">{fmtPhone(m.phone)}</Td>
-                  <Td className="text-xs">{levelLabel(m.level)}</Td>
-                  <Td align="right" className="font-medium">{num(m.point)}</Td>
-                  <Td>{m.gender ?? '-'}</Td>
-                  <Td align="right" className="text-xs">{age(m.birth_date)}</Td>
-                  <Td align="right" className="text-xs">{num(m.pay_count)}</Td>
-                  <Td align="right" className="text-xs text-emerald-600">{num(m.consult_070)}</Td>
-                  <Td align="right" className="text-xs text-amber-600">{num(m.consult_060)}</Td>
-                  <Td align="right" className="text-xs text-blue-600">{num(m.consult_chat)}</Td>
-                  <Td className="text-xs text-gray-500 max-w-[120px] truncate">{m.acquisition_source ?? '신규앱'}</Td>
-                  <Td className="text-xs text-gray-500">{fmtDate(m.last_login_at)}</Td>
-                  <Td><CustomerStatus row={m} /></Td>
+                  <Td align="left">{m.name}</Td>
+                  <Td align="left" className="font-mono text-xs text-gray-600">{fmtPhone(m.phone)}</Td>
+                  <Td align="left" className="text-xs text-gray-600">{levelLabel(m.level)}</Td>
+                  <Td align="right"><NumCell value={m.point} bold /></Td>
+                  <Td align="center"><GenderCell gender={m.gender} /></Td>
+                  <Td align="right" className="text-xs tabular-nums text-gray-600">{age(m.birth_date)}</Td>
+                  <Td align="right"><NumCell value={m.pay_count} /></Td>
+                  <Td align="right"><NumCell value={m.consult_070} /></Td>
+                  <Td align="right"><NumCell value={m.consult_060} /></Td>
+                  <Td align="right"><NumCell value={m.consult_chat} /></Td>
+                  <Td align="left" className="text-xs text-gray-500 max-w-[120px] truncate">{m.acquisition_source ?? '신규앱'}</Td>
+                  <Td align="left" className="text-xs text-gray-500 tabular-nums">{fmtDate(m.last_login_at)}</Td>
+                  <Td align="center"><CustomerStatus row={m} /></Td>
                 </tr>
               ))}
             </tbody>
@@ -225,16 +240,21 @@ export default function CustomerList() {
         </div>
       </div>
 
-      {data && data.total > PAGE_SIZE && (
-        <Pagination
-          page={filter.page}
-          totalPages={totalPages}
-          onChange={(p) => setFilter((f) => ({ ...f, page: p }))}
-        />
-      )}
       {data && (
-        <div className="text-xs text-gray-400 text-center">
-          총 {num(data.total)}명 (페이지 {filter.page} / {totalPages})
+        <div className="flex items-center gap-6 pt-1 w-fit max-w-full">
+          <p className="text-xs text-gray-400">
+            페이지 <span className="text-gray-600 font-medium">{filter.page}</span> / {totalPages}
+          </p>
+          {data.total > PAGE_SIZE && (
+            <Pagination
+              page={filter.page}
+              totalPages={totalPages}
+              onChange={(p) => setFilter((f) => ({ ...f, page: p }))}
+            />
+          )}
+          <p className="text-xs text-gray-400">
+            총 <span className="text-gray-700 font-medium">{num(data.total)}</span>명
+          </p>
         </div>
       )}
     </div>
@@ -242,40 +262,108 @@ export default function CustomerList() {
 }
 
 // ─── 헬퍼 ─────────────────────────────────────
-const inputCls = 'w-full px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
+const inputCls = 'w-full px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400 outline-none transition'
 
-function Th({ children }: { children: React.ReactNode; align?: 'right' }) {
-  return <th className="px-3 py-2 text-center font-semibold whitespace-nowrap">{children}</th>
+type Align = 'left' | 'right' | 'center'
+
+function Th({ children, align = 'left' }: { children: React.ReactNode; align?: Align }) {
+  const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
+  return (
+    <th className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap ${alignCls}`}>
+      {children}
+    </th>
+  )
 }
-function Td({ children, align, className }: { children: React.ReactNode; align?: 'right'; className?: string }) {
-  return <td className={`px-3 py-2 ${align === 'right' ? 'text-right' : ''} ${className ?? ''}`}>{children}</td>
+
+function Td({ children, align = 'left', className }: { children: React.ReactNode; align?: Align; className?: string }) {
+  const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
+  return <td className={`px-3 py-1.5 ${alignCls} ${className ?? ''}`}>{children}</td>
 }
-function Chip({ label, value, color = 'gray', active, onClick }: { label: string; value: number; color?: 'gray' | 'emerald' | 'rose'; active?: boolean; onClick?: () => void }) {
-  const colors: Record<string, string> = {
-    gray: active ? 'bg-gray-800 text-white border-gray-800' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50',
-    emerald: active ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50',
-    rose: active ? 'bg-rose-600 text-white border-rose-600' : 'bg-white text-rose-700 border-rose-200 hover:bg-rose-50',
+
+function Chip({
+  label,
+  value,
+  dotColor,
+  active,
+  onClick,
+}: {
+  label: string
+  value: number
+  dotColor?: 'emerald' | 'rose' | 'gray'
+  active?: boolean
+  onClick?: () => void
+}) {
+  const dotCls: Record<string, string> = {
+    emerald: 'bg-emerald-500',
+    rose: 'bg-rose-500',
+    gray: 'bg-gray-400',
   }
   return (
-    <button onClick={onClick} className={`px-3 py-1.5 text-xs rounded-full border transition ${colors[color]}`}>
-      {label} <span className="font-semibold ml-1">{num(value)}</span>
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs rounded-full border transition ${
+        active
+          ? 'bg-brand-600 text-white border-brand-600 shadow-sm'
+          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300'
+      }`}
+    >
+      {dotColor && (
+        <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-white/80' : dotCls[dotColor]}`} />
+      )}
+      <span className="font-medium">{label}</span>
+      <span className={`font-semibold tabular-nums ${active ? 'text-white' : 'text-gray-900 dark:text-gray-100'}`}>
+        {num(value)}
+      </span>
     </button>
   )
 }
+
+function NumCell({ value, bold }: { value: number | string | null | undefined; bold?: boolean }) {
+  const n = value === null || value === undefined ? null : Number(value)
+  const isZero = n === 0
+  const isNull = n === null
+  return (
+    <span
+      className={`tabular-nums text-xs ${
+        isNull
+          ? 'text-gray-300'
+          : isZero
+            ? 'text-gray-300'
+            : bold
+              ? 'text-gray-900 font-medium dark:text-gray-100'
+              : 'text-gray-700 dark:text-gray-200'
+      }`}
+    >
+      {isNull ? '-' : num(n!)}
+    </span>
+  )
+}
+
+function GenderCell({ gender }: { gender: string | null }) {
+  if (!gender) return <span className="text-gray-300">-</span>
+  const isMale = gender === 'M' || gender === '남'
+  return (
+    <span className={`text-xs font-medium ${isMale ? 'text-blue-600' : 'text-rose-500'}`}>
+      {gender}
+    </span>
+  )
+}
+
 function CustomerStatus({ row }: { row: Customer }) {
   if (row.left_at) return <Badge color="gray">탈퇴</Badge>
   if (row.intercept_until && new Date(row.intercept_until) > new Date()) return <Badge color="rose">차단</Badge>
   return <Badge color="emerald">활동</Badge>
 }
+
 function Badge({ children, color }: { children: React.ReactNode; color: 'emerald' | 'rose' | 'gray' | 'amber' | 'blue' }) {
   const cls: Record<string, string> = {
-    emerald: 'bg-emerald-100 text-emerald-700',
-    rose: 'bg-rose-100 text-rose-700',
-    gray: 'bg-gray-100 text-gray-600',
-    amber: 'bg-amber-100 text-amber-700',
-    blue: 'bg-blue-100 text-blue-700',
+    emerald: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    rose: 'bg-rose-50 text-rose-700 border border-rose-200',
+    gray: 'bg-gray-50 text-gray-600 border border-gray-200',
+    amber: 'bg-amber-50 text-amber-700 border border-amber-200',
+    blue: 'bg-blue-50 text-blue-700 border border-blue-200',
   }
-  return <span className={`px-2 py-0.5 text-xs rounded ${cls[color]}`}>{children}</span>
+  return <span className={`inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full ${cls[color]}`}>{children}</span>
 }
 
 function num(v: number | string | null | undefined): string {
@@ -309,23 +397,45 @@ function age(birth: string | null): string {
   return `${a}`
 }
 
+/** 페이지네이션 — 활성: 보라 원형 / 비활성: 정사각 텍스트 */
 function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (p: number) => void }) {
+  const windowSize = 5
+  const start = Math.max(1, Math.min(page - Math.floor(windowSize / 2), totalPages - windowSize + 1))
+  const end = Math.min(totalPages, start + windowSize - 1)
   const pages: number[] = []
-  const start = Math.max(1, page - 4)
-  const end = Math.min(totalPages, start + 9)
-  for (let i = start; i <= end; i++) pages.push(i)
+  for (let i = Math.max(1, start); i <= end; i++) pages.push(i)
+
   return (
-    <div className="flex justify-center gap-1">
-      <button onClick={() => onChange(1)} disabled={page <= 1} className={pgBtn}>«</button>
-      <button onClick={() => onChange(page - 1)} disabled={page <= 1} className={pgBtn}>‹</button>
+    <div className="flex items-center gap-1">
+      <PgIcon disabled={page <= 1} onClick={() => onChange(1)}><ChevronsLeft className="w-3.5 h-3.5" /></PgIcon>
+      <PgIcon disabled={page <= 1} onClick={() => onChange(page - 1)}><ChevronLeft className="w-3.5 h-3.5" /></PgIcon>
       {pages.map((p) => (
-        <button key={p} onClick={() => onChange(p)} className={`px-3 py-1.5 text-xs rounded-md ${p === page ? 'bg-brand-600 text-white' : 'border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+        <button
+          key={p}
+          onClick={() => onChange(p)}
+          className={
+            p === page
+              ? 'inline-flex w-8 h-8 items-center justify-center rounded-full bg-brand-600 text-white text-xs font-semibold tabular-nums shadow-sm'
+              : 'inline-flex w-8 h-8 items-center justify-center rounded-md text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 tabular-nums'
+          }
+        >
           {p}
         </button>
       ))}
-      <button onClick={() => onChange(page + 1)} disabled={page >= totalPages} className={pgBtn}>›</button>
-      <button onClick={() => onChange(totalPages)} disabled={page >= totalPages} className={pgBtn}>»</button>
+      <PgIcon disabled={page >= totalPages} onClick={() => onChange(page + 1)}><ChevronRight className="w-3.5 h-3.5" /></PgIcon>
+      <PgIcon disabled={page >= totalPages} onClick={() => onChange(totalPages)}><ChevronsRight className="w-3.5 h-3.5" /></PgIcon>
     </div>
   )
 }
-const pgBtn = 'px-3 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed'
+
+function PgIcon({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick?: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="inline-flex w-8 h-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-700 dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+    >
+      {children}
+    </button>
+  )
+}

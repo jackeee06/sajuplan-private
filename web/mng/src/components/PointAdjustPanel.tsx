@@ -113,24 +113,24 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
           <span className="ml-2 text-xs font-normal text-gray-400">트랜잭션 + 감사로그 (관리자 ID/IP 자동 기록)</span>
         </div>
 
-        <div className="p-5 space-y-3">
+        <div className="p-4 space-y-3">
           {error && (
             <div className="p-3 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 text-sm">
               {error}
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+          <div className="flex flex-wrap gap-x-4 gap-y-3 items-end">
             <div>
               <label className="block text-xs text-gray-500 mb-1">현재 잔액</label>
-              <div className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+              <div className="text-base font-semibold text-gray-800 dark:text-gray-100 py-2 min-w-[90px]">
                 {currentPoint.toLocaleString()} P
               </div>
             </div>
             <div>
-              <label className="block text-xs text-gray-500 mb-1">조정 후 예상 잔액</label>
+              <label className="block text-xs text-gray-500 mb-1">조정 후 예상</label>
               <div
-                className={`text-lg font-semibold ${
+                className={`text-base font-semibold py-2 min-w-[90px] ${
                   isValidNum
                     ? numDelta > 0
                       ? 'text-emerald-600 dark:text-emerald-400'
@@ -140,7 +140,7 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
               >
                 {balanceAfter.toLocaleString()} P
                 {isValidNum && (
-                  <span className="ml-2 text-xs">
+                  <span className="ml-1 text-xs">
                     ({numDelta > 0 ? '+' : ''}
                     {numDelta.toLocaleString()})
                   </span>
@@ -148,19 +148,29 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
               </div>
             </div>
 
-            <div className="md:col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">변동값 (양수=적립 / 음수=차감)</label>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">변동값 (±)</label>
               <input
                 type="text"
                 inputMode="numeric"
                 value={delta}
                 onChange={(e) => setDelta(e.target.value.replace(/[^\-0-9]/g, ''))}
-                placeholder="예: 1000 또는 -500"
-                className="w-full px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+                placeholder="1000 / -500"
+                className="w-[140px] px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">소멸 예정일 (옵션)</label>
+              <input
+                type="date"
+                value={expireDate}
+                onChange={(e) => setExpireDate(e.target.value)}
+                className="w-[160px] px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs text-gray-500 mb-1">
                 사유 <span className="text-rose-500">*</span>
               </label>
@@ -169,14 +179,14 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 maxLength={500}
-                placeholder="예: 이벤트 보상, 시스템 오류 보정, 환불 처리 등"
-                className="w-full px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
+                placeholder="이벤트 보상, 시스템 오류 보정 등"
+                className="w-[300px] px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
               />
             </div>
 
             <div>
               <label className="block text-xs text-gray-500 mb-1">포인트 종류</label>
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <button
                   type="button"
                   onClick={() => setIsPaid(false)}
@@ -202,18 +212,6 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">소멸 예정일 (옵션)</label>
-              <input
-                type="date"
-                value={expireDate}
-                onChange={(e) => setExpireDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-2">
             <button
               type="button"
               onClick={onSubmitClick}

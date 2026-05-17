@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { UserAuthGuard, type UserAuthedRequest } from '../auth/user-auth.guard';
 import { UserSettlementsService } from './settlements.service';
 
@@ -43,14 +43,30 @@ export class UserSettlementsController {
     @Query('to_date') to?: string,
   ) {
     const validMd: 'Y' | 'N' | null = md === 'Y' || md === 'N' ? md : null;
-    const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+    // [Audit E-W3] 정규식 통과해도 비현실적인 날짜(2099-99-99, 2024-02-31 등)는 차단
+    const validDate = (s: string | undefined): string | null => {
+      if (!s) return null;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+      const [y, mo, d] = s.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, mo - 1, d));
+      if (
+        dt.getUTCFullYear() !== y ||
+        dt.getUTCMonth() !== mo - 1 ||
+        dt.getUTCDate() !== d
+      ) {
+        throw new BadRequestException(`유효하지 않은 날짜: ${s}`);
+      }
+      return s;
+    };
+    // [Audit E-W2 후속] page 상한 — offset 오버플로/DB 부하 방지
+    const pageNum = page ? Math.max(1, Math.min(Number(page) || 1, 10_000)) : undefined;
     return this.svc.incomeList({
       memberId: req.user.sub,
-      page: page ? Number(page) : undefined,
+      page: pageNum,
       limit: limit ? Number(limit) : undefined,
       md: validMd,
-      fromDate: from && dateRe.test(from) ? from : null,
-      toDate: to && dateRe.test(to) ? to : null,
+      fromDate: validDate(from),
+      toDate: validDate(to),
     });
   }
 
@@ -61,9 +77,11 @@ export class UserSettlementsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
+    // [Audit E-W2 후속] page 상한
+    const pageNum = page ? Math.max(1, Math.min(Number(page) || 1, 10_000)) : undefined;
     return this.svc.monthlyList({
       memberId: req.user.sub,
-      page: page ? Number(page) : undefined,
+      page: pageNum,
       limit: limit ? Number(limit) : undefined,
     });
   }

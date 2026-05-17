@@ -26,12 +26,14 @@ export class UserCounselorsController {
     @Query('tab') tab?: string,
     @Query('category') category?: string,
     @Query('limit') limit?: string,
+    @Query('event') event?: string,
   ) {
     const items = await this.svc.list({
       tab: parseTab(tab),
       category,
       limit: limit ? Math.min(50, Math.max(1, Number(limit) || 13)) : 13,
       requesterId: req.user?.sub,
+      eventOnly: event === '1' || event === 'true',
     });
     return { items };
   }

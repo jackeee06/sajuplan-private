@@ -39,6 +39,11 @@ export class UserCounselorMypageGradeController {
     if (!Number.isFinite(unitCost) || unitCost <= 0) {
       throw new BadRequestException('단가가 올바르지 않습니다.');
     }
+    // [Audit E-W1] 비현실적 고액 단가 차단 — 분당 10만원 이상은 거부 (현행 정책상 상한)
+    const MAX_UNIT_COST = 100_000;
+    if (unitCost > MAX_UNIT_COST) {
+      throw new BadRequestException(`단가는 분당 ${MAX_UNIT_COST.toLocaleString()}원 이하여야 합니다.`);
+    }
     return this.svc.changeUnitCost({
       memberId: req.user.sub,
       newUnitCost: unitCost,

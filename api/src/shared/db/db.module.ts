@@ -11,6 +11,8 @@ import postgres from 'postgres';
  */
 export const SQL = Symbol('postgres.sql');
 export type Sql = ReturnType<typeof postgres>;
+// 트랜잭션 내 sql 핸들 (sql.begin 콜백의 첫 인자). InTx 패턴 helper 에서 사용.
+export type TxSql = postgres.TransactionSql<Record<string, never>>;
 
 /**
  * SQL 클라이언트 종료 매니저 (App 종료 시 connection pool drain)

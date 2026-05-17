@@ -51,15 +51,18 @@ export class SettlementCronService {
     const targetMonth = month && /^\d{4}-\d{2}$/.test(month) ? month : this.prevMonthKst();
     const range = this.monthRange(targetMonth);
 
+    // [role/level 정리] level=5 → role='counselor' 로 통일.
+    //   이중 진실원천 위험 제거 (level 만 수정/role 만 수정되는 동기화 누락 방지).
+    //   현재 데이터는 둘 다 일치하지만 향후 안정성을 위해 role 기준.
     const counselors = mbId
       ? await this.sql<{ id: number; mb_id: string | null }[]>`
           SELECT id, mb_id FROM member
-           WHERE level = 5 AND left_at IS NULL AND mb_id = ${mbId}
+           WHERE role = 'counselor' AND left_at IS NULL AND mb_id = ${mbId}
            LIMIT 1
         `
       : await this.sql<{ id: number; mb_id: string | null }[]>`
           SELECT id, mb_id FROM member
-           WHERE level = 5 AND left_at IS NULL
+           WHERE role = 'counselor' AND left_at IS NULL
            ORDER BY id
         `;
 

@@ -27,6 +27,7 @@ export default function CounselorList() {
   const [category, setCategory] = useState<Category>('전체')
   const [field, setField] = useState<string | null>(null)
   const [availableOnly, setAvailableOnly] = useState(false)
+  const [eventOnly, setEventOnly] = useState(false)
   const [page, setPage] = useState(1)
   const [counselors, setCounselors] = useState<PublicCounselor[]>([])
   const [fieldOptions, setFieldOptions] = useState<string[]>([])
@@ -56,7 +57,7 @@ export default function CounselorList() {
         setError(null)
       }
       counselorsApi
-        .list({ tab: 'all', category: cat, limit: 50 })
+        .list({ tab: 'all', category: cat, limit: 50, event: eventOnly })
         .then((r) => {
           if (alive) setCounselors(r.items)
         })
@@ -91,7 +92,7 @@ export default function CounselorList() {
       document.removeEventListener('visibilitychange', onVisible)
       window.removeEventListener('pageshow', onPageShow)
     }
-  }, [category])
+  }, [category, eventOnly])
 
   // 클라이언트 필터: 분야(hashtag 포함) + 상담가능만
   const filtered = useMemo(
@@ -162,6 +163,25 @@ export default function CounselorList() {
               </button>
             )
           })}
+        </section>
+
+        {/* 이벤트 필터 칩 — 활성 이벤트 상담사만 노출 (최대 3명, 자동 활성/해제) */}
+        <section className="px-4 pb-3">
+          <button
+            type="button"
+            onClick={() => {
+              setEventOnly((v) => !v)
+              resetPage()
+            }}
+            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[13px] font-medium transition ${
+              eventOnly
+                ? 'bg-[#F3EEFE] text-[#8259F5] border border-[#9B7AF7]'
+                : 'bg-[#F9FAFB] text-[#6A7282] border border-[#F3F4F6]'
+            }`}
+          >
+            <span aria-hidden>⭐</span>
+            <span>이벤트 상담사</span>
+          </button>
         </section>
 
         {/* filter_select — 분야만 (스타일/성별은 신 DB 컬럼 미보유라 제외) */}

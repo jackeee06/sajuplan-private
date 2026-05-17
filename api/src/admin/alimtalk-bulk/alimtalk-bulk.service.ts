@@ -54,10 +54,11 @@ export class AlimtalkBulkService {
            AND phone != ''
       `;
     } else if (target === 'all_counselors') {
+      // [role/level 정리] role='counselor' 기준 통일
       recipients = await this.sql<Recipient[]>`
         SELECT phone, id AS member_id
           FROM member
-         WHERE level = 5
+         WHERE role = 'counselor'
            AND left_at IS NULL
            AND phone IS NOT NULL
            AND phone != ''

@@ -19,10 +19,12 @@ import { CronModule } from './cron/cron.module';
       cache: true,
       envFilePath: ['.env', '.env.defaults'],
     }),
-    // 관리자 페이지는 내부 사용 — 사실상 제한 해제. 로그인만 brute-force 방지 유지.
+    // [Audit E-W6/I-1] 비정상 트래픽 차단 — 정상 사용자(페이지당 ajax 다중 호출 포함)는 절대 안 닿는 수준.
+    //   default: 분당 1200회 = 초당 20회. 한 페이지 로드에 ajax 30개 가정해도 분당 40페이지 가능.
+    //   login: 분당 20회 (정상 사용자는 1~5회. 20회면 brute-force 차단 충분).
     ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60_000, limit: 1_000_000 }, // 사실상 무제한
-      { name: 'login', ttl: 60_000, limit: 100 },         // 로그인만 분당 100회 (brute-force 완화)
+      { name: 'default', ttl: 60_000, limit: 1_200 },
+      { name: 'login', ttl: 60_000, limit: 20 },
     ]),
     SharedModule,
     AdminModule,

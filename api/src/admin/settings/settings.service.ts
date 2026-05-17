@@ -66,16 +66,18 @@ export class SettingsService {
         `;
         const before = beforeRows[0]?.value ?? null;
 
+        // UPSERT — 신규 key (예: admin_alert.recipient_labels) 도 자동 INSERT.
+        //   기존: UPDATE 만 → row 없으면 0건 → 저장 안 됨 (이름 저장 안 되던 사고)
         const result = await tx`
-          UPDATE setting
-             SET value = ${value},
-                 updated_by_id = ${adminId},
-                 updated_at = now()
-           WHERE namespace = ${namespace} AND key = ${key}
+          INSERT INTO setting (namespace, key, value, updated_by_id, updated_at)
+          VALUES (${namespace}, ${key}, ${value}, ${adminId}, now())
+          ON CONFLICT (namespace, key) DO UPDATE
+             SET value = EXCLUDED.value,
+                 updated_by_id = EXCLUDED.updated_by_id,
+                 updated_at = EXCLUDED.updated_at
         `;
         if (result.count > 0) {
           updated += result.count;
-          // 실제 변경된 경우에만 이력 INSERT (값 동일하면 SKIP)
           if (before !== value) {
             await tx`
               INSERT INTO setting_history (namespace, key, value_before, value_after, changed_by)

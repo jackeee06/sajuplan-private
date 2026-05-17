@@ -102,7 +102,7 @@ export default function CounselorApply() {
           <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
         </button>
         <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">
-          상담사 신청
+          상담사 신청 및 기타 문의
         </h1>
         <div className="flex items-center gap-3">
           <Link to="/search" aria-label="검색" className="w-[30px] h-[30px] flex items-center justify-center">

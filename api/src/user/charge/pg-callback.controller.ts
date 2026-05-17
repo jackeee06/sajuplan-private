@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import * as fs from 'fs';
@@ -7,6 +8,7 @@ import { ChargeService } from './charge.service';
 import type { PgCallbackPayload } from '../../shared/ag9/ag9.types';
 import { runtimeEnv } from '../../shared/env/runtime-env';
 import { OpsAlertService } from '../../shared/ops-alert/ops-alert.service';
+import { CallbackIpAllowlistGuard } from '../../pg-callbacks/callback-ip-allowlist.guard';
 
 // 자동결제 push 도착 진단용 파일 로그.
 // /api/pg/m2net/call-push 와 동일 패턴 (pg-callbacks/m2net-push.controller.ts:12-29).
@@ -42,7 +44,10 @@ function appendAutopayLog(kind: string, ip: string, body: unknown): void {
  *   - 운영팀에서 받은 passcall.co.kr 도메인 IP를 setting 테이블에 등록 후
  *     본 컨트롤러 진입 시 미들웨어 또는 가드로 검증 (별도 PR에서 보강 예정).
  */
+// [Audit E-C1] 콜백 라우트 전용 throttle — 분당 60회.
+//   정상 PG 트래픽은 회원당 결제 후 1~2회만 도착. 분당 60회 = 사실상 무제한 정상 + 위조 brute-force 차단.
 @Controller('pg/charge')
+@Throttle({ default: { limit: 60, ttl: 60_000 } })
 export class PgCallbackController {
   constructor(
     private readonly svc: ChargeService,
@@ -52,6 +57,7 @@ export class PgCallbackController {
 
   /** AG9 카드/간편결제 결과 push (returnurl) */
   @Post('callback')
+  @UseGuards(CallbackIpAllowlistGuard)
   @HttpCode(200)
   async callback(@Req() req: Request, @Body() body: PgCallbackPayload) {
     // PG는 form-urlencoded 또는 JSON 둘 다 보낼 수 있음
@@ -62,6 +68,7 @@ export class PgCallbackController {
 
   /** AG9 가상계좌 입금 완료 통지 */
   @Post('vbank-callback')
+  @UseGuards(CallbackIpAllowlistGuard)
   @HttpCode(200)
   async vbankCallback(@Req() req: Request, @Body() body: PgCallbackPayload) {
     const payload = (body && Object.keys(body).length ? body : (req as any).body) as PgCallbackPayload;
@@ -71,6 +78,7 @@ export class PgCallbackController {
 
   /** 엠투넷 자동결제 결과 push (autopaypushurl) */
   @Post('autopay-push')
+  @UseGuards(CallbackIpAllowlistGuard)
   @HttpCode(200)
   async autopayPush(@Req() req: Request, @Body() body: PgCallbackPayload) {
     const payload = (body && Object.keys(body).length ? body : (req as any).body) as PgCallbackPayload;

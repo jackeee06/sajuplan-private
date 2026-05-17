@@ -1,7 +1,22 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Search, Download } from 'lucide-react'
 import { api } from '../lib/api'
+import {
+  Th,
+  Td,
+  Tr,
+  IdCell,
+  TableShell,
+  THead,
+  TBody,
+  EmptyRow,
+  Chip,
+  Badge,
+  BadgeColor,
+  PaginationBar,
+  inputCls,
+} from '../components/table'
 
 /**
  * sample/adm/coin_pay_history.php (메뉴 350420 "결제 내역") 정확 매핑.
@@ -9,15 +24,6 @@ import { api } from '../lib/api'
  * 컬럼: 번호 / 날짜 / 결제방법 / 사용자코드 / 아이디 / 닉네임 / 핸드폰번호 / 결제금액 / 충전금액 / 결과
  * 탭:   전체목록 / 카드 / 가상결제 / 카드취소
  * 검색: 회원아이디 / 이름 / 닉네임 / 휴대폰 / 일반전화 / 등급 / 잔액
- * 기간: od_time → created_at
- *
- * 결과 메시지 매핑:
- *   "ok" → "입금완료" (sample 동일)
- *
- * 결제방법 매핑 (한국어 표시):
- *   DIR_CARD / GNRC_AUTO_PAY_CARD / *PACA*  → 카드(직접결제 / 자동결제)
- *   GNR_VRBANK / GNR_PC_PAVC / GNR_MOB_PAVC / VRBANK_PAY → 가상결제
- *   그 외 → 원본 표시
  */
 
 interface Payment {
@@ -85,11 +91,20 @@ const SFL_OPTIONS: { value: Sfl; label: string }[] = [
 const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 20)
 
 export default function PaymentList() {
+  const navigate = useNavigate()
   const [filter, setFilter] = useState<Filter>({
-    sfl: 'mb_id', stx: '', fr_date: '', to_date: '', smode: '', page: 1,
+    sfl: 'mb_id',
+    stx: '',
+    fr_date: '',
+    to_date: '',
+    smode: '',
+    page: 1,
   })
   const [pending, setPending] = useState<Omit<Filter, 'page' | 'smode'>>({
-    sfl: 'mb_id', stx: '', fr_date: '', to_date: '',
+    sfl: 'mb_id',
+    stx: '',
+    fr_date: '',
+    to_date: '',
   })
   const [data, setData] = useState<Resp | null>(null)
   const [loading, setLoading] = useState(false)
@@ -109,7 +124,10 @@ export default function PaymentList() {
 
     setLoading(true)
     setError(null)
-    api<Resp>(`/admin/payments?${params}`).then(setData).catch((e) => setError(e.message)).finally(() => setLoading(false))
+    api<Resp>(`/admin/payments?${params}`)
+      .then(setData)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
   }, [filter])
 
   const onSearch = () => setFilter((f) => ({ ...f, ...pending, page: 1 }))
@@ -119,179 +137,214 @@ export default function PaymentList() {
 
   return (
     <div className="space-y-5">
+      {/* 타이틀 + 엑셀 */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">결제 내역</h1>
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">결제 내역</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">결제·충전 이력 (카드 / 가상계좌 / 취소)</p>
+        </div>
         <button
-          type="button" disabled
+          type="button"
+          disabled
           title="엑셀 다운로드는 추후 단계에서 추가"
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-emerald-600 text-white opacity-50 cursor-not-allowed"
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md border border-gray-200 text-gray-400 dark:border-gray-700 opacity-50 cursor-not-allowed"
         >
           <Download className="w-4 h-4" /> 엑셀다운로드
         </button>
       </div>
 
-      {/* 상단 탭 — sample: 전체목록 / 총건수 / 카드 / 가상결제 / 총 결제금액 */}
+      {/* 칩 + 총 결제금액 */}
       {data && (
         <div className="flex flex-wrap items-center gap-2">
-          <Tab label="전체목록" active={filter.smode === ''} onClick={onResetTab} primary />
-          <CountChip label="총건수" count={data.total} />
-          <CountChip label="카드" count={data.summary.cnt_card} active={filter.smode === 'card'} onClick={() => setFilter((f) => ({ ...f, smode: 'card', page: 1 }))} />
-          <CountChip label="가상결제" count={data.summary.cnt_vbank} active={filter.smode === 'vbank'} onClick={() => setFilter((f) => ({ ...f, smode: 'vbank', page: 1 }))} />
-          <CountChip label="카드취소" count={data.summary.cnt_cancle} active={filter.smode === 'card_cancle'} onClick={() => setFilter((f) => ({ ...f, smode: 'card_cancle', page: 1 }))} />
+          <Chip label="전체목록" active={filter.smode === ''} onClick={onResetTab} />
+          <Chip label="총건수" value={data.total} />
+          <Chip
+            label="카드"
+            value={data.summary.cnt_card}
+            dotColor="blue"
+            active={filter.smode === 'card'}
+            onClick={() => setFilter((f) => ({ ...f, smode: 'card', page: 1 }))}
+          />
+          <Chip
+            label="가상결제"
+            value={data.summary.cnt_vbank}
+            dotColor="amber"
+            active={filter.smode === 'vbank'}
+            onClick={() => setFilter((f) => ({ ...f, smode: 'vbank', page: 1 }))}
+          />
+          <Chip
+            label="카드취소"
+            value={data.summary.cnt_cancle}
+            dotColor="rose"
+            active={filter.smode === 'card_cancle'}
+            onClick={() => setFilter((f) => ({ ...f, smode: 'card_cancle', page: 1 }))}
+          />
           <span className="text-gray-300 mx-1">|</span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             <span>총 결제금액</span>
-            <span>{data.summary.total_price.toLocaleString()}원</span>
+            <span className="font-semibold tabular-nums">{data.summary.total_price.toLocaleString()}원</span>
           </span>
         </div>
       )}
 
       {/* 검색 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <select value={pending.sfl} onChange={(e) => setPending({ ...pending, sfl: e.target.value as Sfl })} className={inputCls}>
-            {SFL_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-          </select>
-          <input
-            type="text" value={pending.stx}
-            onChange={(e) => setPending({ ...pending, stx: e.target.value })}
-            placeholder="검색어"
-            className={`flex-1 min-w-[180px] ${inputCls}`}
-            onKeyDown={(e) => e.key === 'Enter' && onSearch()}
-          />
-          <span className="text-xs text-gray-500 ml-2 font-medium">기간별검색</span>
-          <input type="date" value={pending.fr_date} onChange={(e) => setPending({ ...pending, fr_date: e.target.value })} className={inputCls} />
-          <span className="text-gray-400">~</span>
-          <input type="date" value={pending.to_date} onChange={(e) => setPending({ ...pending, to_date: e.target.value })} className={inputCls} />
-          <button onClick={onSearch} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">
-            <Search className="w-4 h-4" /> 검색
-          </button>
-        </div>
-      </div>
-
-      {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 text-sm">{error}</div>}
-
-      {/* 11 컬럼 테이블 (sample 그대로) */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-brand-600 dark:bg-brand-700 text-[11px] text-white">
-              <tr>
-                <Th>번호</Th>
-                <Th>날짜</Th>
-                <Th>결제방법</Th>
-                <Th>사용자코드</Th>
-                <Th>아이디</Th>
-                <Th>닉네임</Th>
-                <Th>핸드폰번호</Th>
-                <Th align="right">결제금액</Th>
-                <Th align="right">충전금액</Th>
-                <Th>결과</Th>
-                <Th>상세</Th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading && !data ? (
-                <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-500">로딩...</td></tr>
-              ) : !data || data.items.length === 0 ? (
-                <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-gray-400">자료가 없습니다.</td></tr>
-              ) : (
-                data.items.map((p, idx) => {
-                  const num = data.total - (filter.page - 1) * PAGE_SIZE - idx
-                  return <Row key={p.id} p={p} num={num} />
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {data && data.total > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-500">
-            <div>총 {data.total.toLocaleString()}건 · {filter.page} / {totalPages} 페이지</div>
-            <div className="flex gap-1">
-              <button onClick={() => setFilter((f) => ({ ...f, page: Math.max(1, f.page - 1) }))} disabled={filter.page <= 1} className="px-2 py-1 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40">이전</button>
-              <button onClick={() => setFilter((f) => ({ ...f, page: Math.min(totalPages, f.page + 1) }))} disabled={filter.page >= totalPages} className="px-2 py-1 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-40">다음</button>
-            </div>
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="w-[140px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색기준</label>
+            <select
+              value={pending.sfl}
+              onChange={(e) => setPending({ ...pending, sfl: e.target.value as Sfl })}
+              className={inputCls}
+            >
+              {SFL_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
           </div>
-        )}
+          <div className="w-[260px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색어</label>
+            <input
+              type="text"
+              value={pending.stx}
+              onChange={(e) => setPending({ ...pending, stx: e.target.value })}
+              placeholder="검색어"
+              className={inputCls}
+              onKeyDown={(e) => e.key === 'Enter' && onSearch()}
+            />
+          </div>
+          <div className="w-[160px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 시작</label>
+            <input
+              type="date"
+              value={pending.fr_date}
+              onChange={(e) => setPending({ ...pending, fr_date: e.target.value })}
+              className={inputCls}
+            />
+          </div>
+          <div className="w-[160px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 종료</label>
+            <input
+              type="date"
+              value={pending.to_date}
+              onChange={(e) => setPending({ ...pending, to_date: e.target.value })}
+              className={inputCls}
+            />
+          </div>
+          <div className="ml-auto">
+            <button
+              onClick={onSearch}
+              className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium"
+            >
+              <Search className="w-4 h-4" /> 검색
+            </button>
+          </div>
+        </div>
       </div>
+
+      {error && (
+        <div className="p-3 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* 테이블 */}
+      <TableShell>
+        <THead>
+          <Th align="right">번호</Th>
+          <Th align="left">날짜</Th>
+          <Th align="left">결제방법</Th>
+          <Th align="left">사용자코드</Th>
+          <Th align="left">아이디</Th>
+          <Th align="left">닉네임</Th>
+          <Th align="left">핸드폰번호</Th>
+          <Th align="right">결제금액</Th>
+          <Th align="right">충전금액</Th>
+          <Th align="center">결과</Th>
+        </THead>
+        <TBody>
+          {loading && !data ? (
+            <EmptyRow colSpan={10} loading />
+          ) : !data || data.items.length === 0 ? (
+            <EmptyRow colSpan={10} />
+          ) : (
+            data.items.map((p) => (
+              <PaymentRow key={p.id} p={p} onOpen={() => navigate(`/payments/${p.id}`)} />
+            ))
+          )}
+        </TBody>
+      </TableShell>
+
+      {data && (
+        <PaginationBar
+          page={filter.page}
+          totalPages={totalPages}
+          total={data.total}
+          pageSize={PAGE_SIZE}
+          onChange={(p) => setFilter((f) => ({ ...f, page: p }))}
+          unit="건"
+        />
+      )}
     </div>
   )
 }
 
-function Row({ p, num }: { p: Payment; num: number }) {
+function PaymentRow({ p, onOpen }: { p: Payment; onOpen: () => void }) {
   return (
-    <tr className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-      <Td>{num}</Td>
-      <Td className="text-gray-500">{formatDate(p.created_at)}</Td>
-      <Td>{labelPayMethod(p.pay_method)}</Td>
-      <Td className="text-gray-500 font-mono">{p.membid || '-'}</Td>
-      <Td>
-        {p.member_id && p.mb_id ? (
-          <Link to={`/members/customers/${p.member_id}`} className="text-brand-600 hover:underline">{p.mb_id}</Link>
-        ) : <span className="text-gray-400">-</span>}
+    <Tr onClick={onOpen}>
+      <IdCell id={p.id} />
+      <Td align="left" className="text-xs text-gray-600 tabular-nums">
+        {formatDate(p.created_at)}
       </Td>
-      <Td>{p.member_nickname || '-'}</Td>
-      <Td className="text-gray-500">{formatPhone(p.member_phone)}</Td>
-      <Td align="right" className="font-medium">{p.amount.toLocaleString()}</Td>
-      <Td align="right" className="text-gray-500">{p.coin_amount.toLocaleString()}</Td>
-      <Td>
+      <Td align="left" className="text-gray-700">{labelPayMethod(p.pay_method)}</Td>
+      <Td align="left" className="text-xs text-gray-500 font-mono">
+        {p.membid || <span className="text-gray-300">-</span>}
+      </Td>
+      <Td align="left">
+        {p.member_id && p.mb_id ? (
+          <Link
+            to={`/members/customers/${p.member_id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-brand-600 hover:underline font-medium"
+          >
+            {p.mb_id}
+          </Link>
+        ) : (
+          <span className="text-gray-300">-</span>
+        )}
+      </Td>
+      <Td align="left">{p.member_nickname || <span className="text-gray-300">-</span>}</Td>
+      <Td align="left" className="font-mono text-xs text-gray-600">
+        {formatPhone(p.member_phone)}
+      </Td>
+      <Td align="right" className="font-medium tabular-nums text-gray-900 dark:text-gray-100">
+        {p.amount.toLocaleString()}
+      </Td>
+      <Td align="right" className="tabular-nums text-gray-600">
+        {p.coin_amount.toLocaleString()}
+      </Td>
+      <Td align="center">
         <ResultBadge msg={p.result_message} status={p.status} />
       </Td>
-      <Td>
-        <Link to={`/payments/${p.id}`} className="text-brand-600 hover:underline">확인</Link>
-      </Td>
-    </tr>
+    </Tr>
   )
 }
 
 function ResultBadge({ msg, status }: { msg: string | null; status: string }) {
-  // sample 변환: "ok" → "입금완료"
   let label = msg ?? '-'
   if (msg === 'ok') label = '입금완료'
 
-  let cls = 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
-  if (label === '취소완료' || status === 'cancelled') cls = 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
-  else if (label === '입금완료' || label === '정상처리' || status === 'completed') cls = 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-  else if (label === '입금전' || status === 'pending') cls = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-  else if (status === 'failed') cls = 'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+  let color: BadgeColor = 'gray'
+  if (label === '취소완료' || status === 'cancelled') color = 'rose'
+  else if (label === '입금완료' || label === '정상처리' || status === 'completed') color = 'emerald'
+  else if (label === '입금전' || status === 'pending') color = 'amber'
 
-  return <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-medium ${cls}`}>{label}</span>
+  return <Badge color={color}>{label}</Badge>
 }
 
-function Tab({ label, active, onClick, primary }: { label: string; active: boolean; onClick: () => void; primary?: boolean }) {
-  const cls = active
-    ? primary ? 'bg-brand-600 text-white' : 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'
-    : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-  return <button onClick={onClick} className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${cls}`}>{label}</button>
-}
-
-function CountChip({ label, count, active, onClick }: { label: string; count: number; active?: boolean; onClick?: () => void }) {
-  const interactive = !!onClick
-  const cls = active
-    ? 'bg-brand-100 text-brand-700 dark:bg-brand-900/40 dark:text-brand-300'
-    : interactive
-    ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer'
-    : 'bg-gray-50 text-gray-500 dark:bg-gray-800/50 dark:text-gray-400'
-  return (
-    <button onClick={onClick} disabled={!interactive} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition ${cls} disabled:cursor-default`}>
-      <span>{label}</span>
-      <span className="opacity-90">{count.toLocaleString()}건</span>
-    </button>
-  )
-}
-
-function Th({ children, align }: { children: React.ReactNode; align?: 'left' | 'right' }) {
-  return <th scope="col" className={`px-3 py-2 ${align === 'right' ? 'text-right' : 'text-left'} font-medium whitespace-nowrap`}>{children}</th>
-}
-
-function Td({ children, align, className }: { children: React.ReactNode; align?: 'left' | 'right'; className?: string }) {
-  return <td className={`px-3 py-2 ${align === 'right' ? 'text-right' : 'text-left'} whitespace-nowrap ${className ?? 'text-gray-700 dark:text-gray-300'}`}>{children}</td>
-}
-
-const inputCls = 'px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
-
-/** sample PayMethod 매핑 → 한국어 */
 function labelPayMethod(m: string | null): string {
   if (!m) return '-'
   if (m === 'DIR_CARD') return '카드(직접)'
@@ -317,8 +370,9 @@ function formatPhone(v: string | null): string {
   const n = v.replace(/\D+/g, '')
   if (!n) return v
   if (n.length === 11) return n.replace(/^(\d{3})(\d{4})(\d{4})$/, '$1-$2-$3')
-  if (n.length === 10) return n.startsWith('02')
-    ? n.replace(/^(02)(\d{4})(\d{4})$/, '$1-$2-$3')
-    : n.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3')
+  if (n.length === 10)
+    return n.startsWith('02')
+      ? n.replace(/^(02)(\d{4})(\d{4})$/, '$1-$2-$3')
+      : n.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3')
   return n
 }

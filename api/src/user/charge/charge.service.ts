@@ -275,9 +275,15 @@ export class ChargeService {
           `cardLen=${dto?.cardno?.replace(/\D/g, '').length} expMM=${dto?.expMonth} expYY=${dto?.expYear} ` +
           `error=${e instanceof Error ? `${e.name}: ${e.message}\n${e.stack}` : String(e)}`,
       );
+      // HttpException 류는 사용자 입력 에러라 OpsAlert 안 보냄. 외부 예외만 운영자 통지.
       if (e instanceof BadRequestException || e instanceof BadGatewayException || e instanceof NotFoundException) {
         throw e;
       }
+      // [Audit #11 후속] 외부(DB/encryption/PG) 예외는 결제 흐름 차단 → 즉시 운영자 알림
+      void this.opsAlert.send(
+        '자동결제 카드 등록 실패 (외부 예외)',
+        `memberId=${memberId} pkg=${dto?.packageId}\n${e instanceof Error ? `${e.name}: ${e.message}` : String(e)}`,
+      );
       throw new BadRequestException(
         `자동결제 등록 중 오류가 발생했습니다: ${e instanceof Error ? e.message : String(e)}`,
       );
@@ -881,6 +887,40 @@ export class ChargeService {
 
     const amount = Number(payload.amount) || 0;
     const coinamt = Number(payload.coinamt) || 0;
+
+    // [Audit E-C5] 위조 방어 — payload.membid 가 위조 가능하므로 DB 진실원천으로 교차 검증.
+    //   1) 자동결제 등록된 회원만 통과 (auto_enabled 카드 보유)
+    //   2) amount 가 등록된 자동결제 패키지 금액과 일치해야 함
+    //   둘 다 통과해도 m2net 매뉴얼이 도착하면 IP/HMAC 추가 (defense in depth).
+    const autoCheck = await this.sql<{
+      auto_pkg_amount: number | null;
+    }[]>`
+      SELECT asg.amount AS auto_pkg_amount
+        FROM payment_method pm
+        LEFT JOIN account_setting asg ON asg.id = pm.auto_package_id
+       WHERE pm.member_id = ${member.id}
+         AND pm.auto_enabled = TRUE
+         AND pm.is_active = TRUE
+       ORDER BY pm.id DESC
+       LIMIT 1
+    `;
+    if (autoCheck.length === 0) {
+      // 자동결제 등록 없는 회원에 push 도착 → 위조 의심
+      void this.opsAlert.send(
+        '⚠️ autopay-push 위조 의심 (자동결제 미등록)',
+        `membid=${membid} member_id=${member.id}\noid=${oid} amount=${amount}\n자동결제 등록 안 된 회원에게 push 도착.`,
+      );
+      throw new BadRequestException('자동결제 미등록 회원');
+    }
+    const expectedAmount = autoCheck[0].auto_pkg_amount;
+    if (expectedAmount !== null && Number(expectedAmount) !== amount) {
+      // 금액이 등록된 패키지와 불일치 → 위조 또는 PG 측 오류
+      void this.opsAlert.send(
+        '⚠️ autopay-push 금액 불일치',
+        `member_id=${member.id} membid=${membid}\noid=${oid}\n등록 금액=${expectedAmount} push 금액=${amount}`,
+      );
+      throw new BadRequestException(`자동결제 등록 금액과 불일치 (expected=${expectedAmount} got=${amount})`);
+    }
 
     // 2) 중복 적립 방지 — `autoPayCharge` 가 이미 자체 oid(`AUTO_PAY_CARD_*`) 로 row INSERT
     //    한 케이스. m2net push 는 사후 통지일 뿐.
