@@ -1,5 +1,6 @@
-import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
+import { SmsService } from '../sms/sms.service';
 
 export interface PublicRecentReview {
   id: number;
@@ -31,7 +32,12 @@ export interface PublicRecentReview {
  */
 @Injectable()
 export class UserReviewsService {
-  constructor(@Inject(SQL) private readonly sql: Sql) {}
+  private readonly logger = new Logger(UserReviewsService.name);
+
+  constructor(
+    @Inject(SQL) private readonly sql: Sql,
+    private readonly sms: SmsService,
+  ) {}
 
   async recent(params: {
     category?: string;
@@ -571,7 +577,42 @@ export class UserReviewsService {
       /* 지급 실패는 응답에 노출하지 않음 — 후기 자체는 정상 저장됨 */
     }
 
+    // 상담사에게 알림톡 발송 (best-effort — BizM 미등록 시 자동 실패, 후기 자체는 성공).
+    //   템플릿: review_for_counselor (BizM 콘솔 등록 필요)
+    //   변수: 상담사명 / url (후기 상세 페이지)
+    void this.notifyCounselorOfReview(resolvedCounselorId, inserted[0].id).catch((e) => {
+      this.logger.warn(`[notifyCounselorOfReview] 발송 예외 reviewId=${inserted[0].id}: ${e instanceof Error ? e.message : String(e)}`);
+    });
+
     return this.getMine(inserted[0].id, memberId);
+  }
+
+  /**
+   * 후기 작성 시 상담사에게 BizM 알림톡 발송.
+   *  - 템플릿: review_for_counselor (BizM 콘솔 등록 필요)
+   *  - 발송 실패는 흡수 (후기 작성 본 흐름에 영향 X)
+   */
+  private async notifyCounselorOfReview(counselorId: number, reviewId: number): Promise<void> {
+    const rows = await this.sql<{ phone: string | null; nickname: string | null; name: string | null }[]>`
+      SELECT phone, nickname, name FROM member WHERE id = ${counselorId} AND role = 'counselor' LIMIT 1
+    `;
+    const c = rows[0];
+    if (!c?.phone) {
+      this.logger.warn(`[notifyCounselorOfReview] 상담사 phone 없음 counselorId=${counselorId}`);
+      return;
+    }
+    const displayName = (c.nickname || c.name || '').trim();
+    const r = await this.sms.sendAlimtalkByCode(
+      'review_for_counselor',
+      c.phone,
+      { 상담사명: displayName, url: `counselor-mypage/reviews/${reviewId}` },
+      '새 후기 알림',
+    );
+    if (!r.ok) {
+      this.logger.warn(`[notifyCounselorOfReview] BizM 거부 reason=${r.reason ?? '?'} counselorId=${counselorId} reviewId=${reviewId}`);
+    } else {
+      this.logger.log(`[notifyCounselorOfReview] 발송 성공 counselorId=${counselorId} reviewId=${reviewId}`);
+    }
   }
 
   /**
