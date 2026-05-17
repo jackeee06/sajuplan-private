@@ -27,6 +27,7 @@ import { AdminAttendanceModule } from './attendance/attendance.module';
 import { AdminGradeModule } from './grade/grade.module';
 import { AdminRefundsModule } from './refunds/refunds.module';
 import { AlimtalkBulkModule } from './alimtalk-bulk/alimtalk-bulk.module';
+import { AdminReferralsModule } from './referrals/referrals.module';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { AlimtalkBulkModule } from './alimtalk-bulk/alimtalk-bulk.module';
     AdminGradeModule,
     AdminRefundsModule,
     AlimtalkBulkModule,
+    AdminReferralsModule,
   ],
 })
 export class AdminModule {}

@@ -23,11 +23,46 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 # 옮길 파일: (로컬 상대경로, 원격 상대경로)
-# 2026-05-17: Phase G — DB 일관성 health-check (18 invariants)
+# 2026-05-17: 상담사 후기 알림톡 추가
+# audit A~G 전체 변경분 외과 패치 (18개 파일) — 이전 배포 분
 FILES = [
-    ("api/src/cron/health-check.service.ts", "src/cron/health-check.service.ts"),
-    ("api/src/cron/cron.module.ts", "src/cron/cron.module.ts"),
+    # 상담사 추천 수당 (2026-05-17 추가)
+    ("api/src/admin/referrals/referrals.service.ts", "src/admin/referrals/referrals.service.ts"),
+    ("api/src/admin/referrals/referrals.controller.ts", "src/admin/referrals/referrals.controller.ts"),
+    ("api/src/admin/referrals/referrals.module.ts", "src/admin/referrals/referrals.module.ts"),
+    ("api/src/admin/admin.module.ts", "src/admin/admin.module.ts"),
+    # 상담사 후기 알림톡 (2026-05-17 추가)
+    ("api/src/user/reviews/reviews.module.ts", "src/user/reviews/reviews.module.ts"),
+    ("api/src/user/reviews/reviews.service.ts", "src/user/reviews/reviews.service.ts"),
+    # 이전 audit 변경분 ↓
+    ("api/src/admin/alimtalk-bulk/alimtalk-bulk.service.ts", "src/admin/alimtalk-bulk/alimtalk-bulk.service.ts"),
+    ("api/src/admin/grade/grade.service.ts", "src/admin/grade/grade.service.ts"),
+    ("api/src/admin/members/members.controller.ts", "src/admin/members/members.controller.ts"),
+    ("api/src/admin/members/members.service.ts", "src/admin/members/members.service.ts"),
+    ("api/src/admin/settings/settings.service.ts", "src/admin/settings/settings.service.ts"),
+    ("api/src/app.module.ts", "src/app.module.ts"),
     ("api/src/cron/cron.controller.ts", "src/cron/cron.controller.ts"),
+    ("api/src/cron/grade-cron.service.ts", "src/cron/grade-cron.service.ts"),
+    ("api/src/cron/health-check.service.ts", "src/cron/health-check.service.ts"),
+    ("api/src/cron/settlement-cron.service.ts", "src/cron/settlement-cron.service.ts"),
+    ("api/src/main.ts", "src/main.ts"),
+    ("api/src/pg-callbacks/m2net-push.controller.ts", "src/pg-callbacks/m2net-push.controller.ts"),
+    ("api/src/pg-callbacks/m2net-push.module.ts", "src/pg-callbacks/m2net-push.module.ts"),
+    ("api/src/pg-callbacks/m2net-push.service.ts", "src/pg-callbacks/m2net-push.service.ts"),
+    ("api/src/pg-callbacks/callback-ip-allowlist.guard.ts", "src/pg-callbacks/callback-ip-allowlist.guard.ts"),
+    ("api/src/shared/db/db.module.ts", "src/shared/db/db.module.ts"),
+    ("api/src/shared/ops-alert/ops-alert.service.ts", "src/shared/ops-alert/ops-alert.service.ts"),
+    ("api/src/user/auth/auth.controller.ts", "src/user/auth/auth.controller.ts"),
+    ("api/src/user/charge/charge.module.ts", "src/user/charge/charge.module.ts"),
+    ("api/src/user/charge/charge.service.ts", "src/user/charge/charge.service.ts"),
+    ("api/src/user/charge/pg-callback.controller.ts", "src/user/charge/pg-callback.controller.ts"),
+    ("api/src/user/consult/consult.controller.ts", "src/user/consult/consult.controller.ts"),
+    ("api/src/user/counselor-mypage-grade/counselor-mypage-grade.controller.ts", "src/user/counselor-mypage-grade/counselor-mypage-grade.controller.ts"),
+    ("api/src/user/counselors/counselors.controller.ts", "src/user/counselors/counselors.controller.ts"),
+    ("api/src/user/counselors/counselors.service.ts", "src/user/counselors/counselors.service.ts"),
+    ("api/src/user/points/points.controller.ts", "src/user/points/points.controller.ts"),
+    ("api/src/user/settlements/settlements.controller.ts", "src/user/settlements/settlements.controller.ts"),
+    ("api/src/user/sms/sms.service.ts", "src/user/sms/sms.service.ts"),
 ]
 
 

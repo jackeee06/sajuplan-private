@@ -40,6 +40,7 @@ import CounselorGradeDetail from './pages/CounselorGradeDetail'
 import ConsultationDetail from './pages/ConsultationDetail'
 import RefundList from './pages/RefundList'
 import OpsKpi from './pages/OpsKpi'
+import ReferralList from './pages/ReferralList'
 import AlimtalkBulk from './pages/AlimtalkBulk'
 import PostsOverview from './pages/PostsOverview'
 import PopupLayerForm from './pages/PopupLayerForm'
@@ -83,6 +84,7 @@ export default function App() {
               <Route path="/payments/:id" element={<PaymentDetail />} />
               <Route path="/points/history" element={<PointHistoryList />} />
               <Route path="/settlements" element={<SettlementList />} />
+              <Route path="/referrals" element={<ReferralList />} />
 
               {/* 쿠폰존 관리 */}
               <Route path="/coupon-zones" element={<CouponZoneList />} />
