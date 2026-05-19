@@ -173,7 +173,7 @@ export default function PointHistoryList() {
   const sm = data?.summary.searched_member
 
   return (
-    <div className="space-y-3 max-w-[1400px]">
+    <div className="space-y-3 max-w-[1100px]">
       {/* 타이틀 */}
       <div>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">

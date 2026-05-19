@@ -122,19 +122,19 @@ export default function AlimtalkBulk() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-[1100px]">
       <div>
-        <h1 className="text-xl font-semibold">일괄 알림톡 발송</h1>
-        <p className="text-xs text-gray-500 mt-1">
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">일괄 알림톡 발송</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           템플릿 선택 후 회원/상담사 전원 또는 특정 번호로 발송. 모든 결과는 자동 기록.
         </p>
       </div>
 
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
         <button
           onClick={() => setTab('send')}
           className={`px-4 py-2 text-sm border-b-2 -mb-px ${
-            tab === 'send' ? 'border-brand-600 text-brand-600 font-medium' : 'border-transparent text-gray-500'
+            tab === 'send' ? 'border-brand-600 text-brand-600 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
           발송
@@ -142,23 +142,23 @@ export default function AlimtalkBulk() {
         <button
           onClick={() => setTab('history')}
           className={`px-4 py-2 text-sm border-b-2 -mb-px ${
-            tab === 'history' ? 'border-brand-600 text-brand-600 font-medium' : 'border-transparent text-gray-500'
+            tab === 'history' ? 'border-brand-600 text-brand-600 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
           이력
         </button>
       </div>
 
-      {error && <div className="p-3 rounded bg-rose-50 text-rose-700 text-sm">{error}</div>}
+      {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm w-fit max-w-full">{error}</div>}
 
       {tab === 'send' ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
-            <label className="text-sm font-medium">템플릿</label>
+            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 block mb-1">템플릿</label>
             <select
               value={tplCode}
               onChange={(e) => setTplCode(e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded text-sm bg-white"
+              className="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-white dark:bg-gray-800"
             >
               <option value="">템플릿 선택</option>
               {templates.map((t) => (
@@ -168,23 +168,23 @@ export default function AlimtalkBulk() {
               ))}
             </select>
             {selectedTpl && (
-              <div className="mt-2 p-3 bg-gray-50 rounded text-xs whitespace-pre-wrap text-gray-700 max-h-40 overflow-y-auto">
+              <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800/60 rounded-md text-xs whitespace-pre-wrap text-gray-700 dark:text-gray-300 max-h-40 overflow-y-auto max-w-md">
                 {selectedTpl.message}
               </div>
             )}
           </div>
 
           <div>
-            <label className="text-sm font-medium">대상</label>
-            <div className="mt-1 flex gap-2">
+            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 block mb-1">대상</label>
+            <div className="flex gap-2 flex-wrap">
               {(['all_members', 'all_counselors', 'phones'] as const).map((t) => (
                 <button
                   key={t}
                   onClick={() => setTarget(t)}
-                  className={`px-3 py-2 text-sm rounded border ${
+                  className={`px-3 py-1.5 text-xs rounded-md border ${
                     target === t
                       ? 'bg-brand-600 text-white border-brand-600'
-                      : 'bg-white border-gray-200 text-gray-700'
+                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >
                   {TARGET_LABEL[t]}
@@ -195,35 +195,35 @@ export default function AlimtalkBulk() {
 
           {target === 'phones' && (
             <div>
-              <label className="text-sm font-medium">전화번호 (콤마 또는 줄바꿈 구분)</label>
+              <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 block mb-1">전화번호 (콤마 또는 줄바꿈 구분)</label>
               <textarea
                 value={phones}
                 onChange={(e) => setPhones(e.target.value)}
-                rows={5}
+                rows={4}
                 placeholder="01012345678, 01087654321&#10;01099998888"
-                className="w-full mt-1 px-3 py-2 border rounded text-sm font-mono"
+                className="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-xs font-mono bg-white dark:bg-gray-800"
               />
             </div>
           )}
 
           <div>
-            <label className="text-sm font-medium">변수 (JSON)</label>
+            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 block mb-1">변수 (JSON)</label>
             <textarea
               value={varsText}
               onChange={(e) => setVarsText(e.target.value)}
               rows={3}
               placeholder='{"이름": "홍길동"}'
-              className="w-full mt-1 px-3 py-2 border rounded text-sm font-mono"
+              className="w-full max-w-md px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-xs font-mono bg-white dark:bg-gray-800"
             />
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-[10px] text-gray-400 mt-1">
               템플릿 본문의 #&#123;변수명&#125; 을 치환. 회원별 변동 변수가 있으면 일괄 발송 부적합 (별도 흐름 필요).
             </p>
           </div>
 
           {result && (
-            <div className="p-4 rounded bg-emerald-50 border border-emerald-200 text-sm">
-              <div className="font-medium">발송 완료 — Job #{result.job_id}</div>
-              <div className="mt-1 text-xs text-emerald-700">
+            <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-sm w-fit max-w-full">
+              <div className="font-medium text-emerald-800 dark:text-emerald-200">발송 완료 — Job #{result.job_id}</div>
+              <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
                 전체 {result.total} · 성공 {result.sent} · 실패 {result.failed}
               </div>
             </div>
@@ -232,49 +232,53 @@ export default function AlimtalkBulk() {
           <button
             disabled={!tplCode || sending}
             onClick={() => void handleSend()}
-            className="px-5 py-2.5 rounded bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium disabled:opacity-50"
+            className="px-4 py-2 rounded-md bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium disabled:opacity-50"
           >
             {sending ? '발송 중... (최대 수분)' : '일괄 발송'}
           </button>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-3">
           {/* 일괄 작업 요약 */}
           <section>
-            <h2 className="text-base font-medium mb-3">최근 일괄 발송 작업</h2>
+            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">최근 일괄 발송 작업</h2>
             {logsLoading ? (
-              <div className="text-sm text-gray-500">로딩...</div>
+              <div className="text-xs text-gray-500">로딩...</div>
             ) : jobs.length === 0 ? (
-              <div className="p-6 text-sm text-gray-500 text-center bg-white rounded">아직 발송 없음</div>
+              <div className="px-4 py-3 text-xs text-gray-500 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl w-fit">아직 발송 없음</div>
             ) : (
-              <table className="w-full text-sm bg-white rounded shadow overflow-hidden">
-                <thead className="bg-gray-50 text-xs">
-                  <tr>
-                    <th className="px-3 py-2 text-left">시각</th>
-                    <th className="px-3 py-2 text-left">Job ID</th>
-                    <th className="px-3 py-2 text-left">템플릿</th>
-                    <th className="px-3 py-2 text-right">전체</th>
-                    <th className="px-3 py-2 text-right">성공</th>
-                    <th className="px-3 py-2 text-right">실패</th>
-                    <th className="px-3 py-2 text-left">발송자</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {jobs.map((j) => (
-                    <tr key={j.bulk_job_id}>
-                      <td className="px-3 py-2 text-xs">{j.created_at.slice(0, 16).replace('T', ' ')}</td>
-                      <td className="px-3 py-2 text-xs">#{j.bulk_job_id}</td>
-                      <td className="px-3 py-2 text-xs font-mono">{j.template_code}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{Number(j.total)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums text-emerald-700">{Number(j.sent)}</td>
-                      <td className={`px-3 py-2 text-right tabular-nums ${Number(j.failed) > 0 ? 'text-rose-600' : ''}`}>
-                        {Number(j.failed)}
-                      </td>
-                      <td className="px-3 py-2 text-xs text-gray-500">{j.initiated_by ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
+                <div className="overflow-x-auto">
+                  <table className="text-sm w-auto">
+                    <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
+                      <tr>
+                        <th className="px-3 py-1.5 text-left font-medium">시각</th>
+                        <th className="px-3 py-1.5 text-left font-medium">Job ID</th>
+                        <th className="px-3 py-1.5 text-left font-medium">템플릿</th>
+                        <th className="px-3 py-1.5 text-right font-medium">전체</th>
+                        <th className="px-3 py-1.5 text-right font-medium">성공</th>
+                        <th className="px-3 py-1.5 text-right font-medium">실패</th>
+                        <th className="px-3 py-1.5 text-left font-medium">발송자</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {jobs.map((j) => (
+                        <tr key={j.bulk_job_id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
+                          <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{j.created_at.slice(0, 16).replace('T', ' ')}</td>
+                          <td className="px-3 py-1.5 text-xs whitespace-nowrap">#{j.bulk_job_id}</td>
+                          <td className="px-3 py-1.5 text-xs font-mono whitespace-nowrap">{j.template_code}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums">{Number(j.total)}</td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-emerald-700">{Number(j.sent)}</td>
+                          <td className={`px-3 py-1.5 text-right tabular-nums ${Number(j.failed) > 0 ? 'text-rose-600' : 'text-gray-300'}`}>
+                            {Number(j.failed)}
+                          </td>
+                          <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{j.initiated_by ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </section>
 

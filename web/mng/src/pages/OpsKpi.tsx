@@ -91,7 +91,7 @@ export default function OpsKpi() {
   }, [days])
 
   return (
-    <div className="space-y-3 max-w-[1400px]">
+    <div className="space-y-3 max-w-[1100px]">
       {/* 타이틀 + 기간 칩 */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>

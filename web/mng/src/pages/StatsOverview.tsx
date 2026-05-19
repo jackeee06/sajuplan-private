@@ -33,7 +33,7 @@ export default function StatsOverview() {
   }, [days])
 
   return (
-    <div className="space-y-3 max-w-[1400px]">
+    <div className="space-y-3 max-w-[1100px]">
       <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">통계</h1>
 
       {/* KPI */}
