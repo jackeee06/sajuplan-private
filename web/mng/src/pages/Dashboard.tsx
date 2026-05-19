@@ -41,9 +41,11 @@ interface SalesPoint {
   chat: number
   charge: number
 }
-interface VisitorPoint {
+interface ConsultationPoint {
   date: string
-  visitors: number
+  call_070: number
+  call_060: number
+  chat: number
 }
 interface TopRow {
   id: number
@@ -87,7 +89,7 @@ interface AlertItem {
 interface DashboardData {
   summary: Summary
   sales: SalesPoint[]
-  visitors: VisitorPoint[]
+  consultations: ConsultationPoint[]
   topByAmount: TopRow[]
   topByCount: TopRow[]
   topCustomers: TopRow[]
@@ -98,11 +100,11 @@ interface DashboardData {
 }
 
 async function fetchDashboardData(): Promise<DashboardData> {
-  const [summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts] =
+  const [summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts] =
     await Promise.all([
       api<Summary>('/admin/dashboard/summary'),
       api<SalesPoint[]>('/admin/dashboard/sales-trend?days=14'),
-      api<VisitorPoint[]>('/admin/dashboard/visitor-trend?days=14'),
+      api<ConsultationPoint[]>('/admin/dashboard/consultation-trend?days=14').catch(() => [] as ConsultationPoint[]),
       api<TopRow[]>('/admin/dashboard/top-counselors?metric=amount'),
       api<TopRow[]>('/admin/dashboard/top-counselors?metric=count'),
       api<TopRow[]>('/admin/dashboard/top-customers'),
@@ -111,7 +113,7 @@ async function fetchDashboardData(): Promise<DashboardData> {
       api<RecentPost[]>('/admin/dashboard/recent-posts'),
       api<AlertItem[]>('/admin/dashboard/alerts').catch(() => [] as AlertItem[]),
     ])
-  return { summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts }
+  return { summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts }
 }
 
 const won = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 })
@@ -231,7 +233,7 @@ export default function Dashboard() {
   const {
     summary,
     sales,
-    visitors,
+    consultations,
     topByAmount,
     topByCount,
     topCustomers,
@@ -408,15 +410,18 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        <Card title="14일 방문자 추이" to="/stats">
+        <Card title="14일 상담 건수" to="/consultations">
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={visitors} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+              <LineChart data={consultations} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.4} />
                 <XAxis dataKey="date" tickFormatter={dateShort} fontSize={10} stroke="#9ca3af" />
-                <YAxis tickFormatter={(v) => num.format(v)} fontSize={10} stroke="#9ca3af" width={40} />
-                <Tooltip formatter={(v: number) => `${num.format(v)}명`} contentStyle={{ borderRadius: 6, fontSize: 11 }} />
-                <Line type="monotone" dataKey="visitors" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} />
+                <YAxis tickFormatter={(v) => num.format(v)} fontSize={10} stroke="#9ca3af" width={28} />
+                <Tooltip formatter={(v: number) => `${num.format(v)}건`} contentStyle={{ borderRadius: 6, fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />
+                <Line type="monotone" dataKey="call_070" name="070" stroke="#3b82f6" strokeWidth={2} dot={{ r: 2 }} />
+                <Line type="monotone" dataKey="call_060" name="060" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 2 }} />
+                <Line type="monotone" dataKey="chat" name="채팅" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

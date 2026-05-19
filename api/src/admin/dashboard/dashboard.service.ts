@@ -350,7 +350,7 @@ export class DashboardService {
     const prevM = now.getMonth() === 0 ? 12 : now.getMonth();
     const monthStart = `${prevY}-${String(prevM).padStart(2, '0')}-01`;
 
-    const [referralCnt, paymentFailedCnt, reportCnt] = await Promise.all([
+    const [referralCnt, paymentFailedCnt, reportCnt, settleNegCnt, alimtalkFailCnt, refundRecentCnt] = await Promise.all([
       safeCount(() => this.sql<{ cnt: string }[]>`
         SELECT count(*)::text AS cnt
           FROM counselor_referral r
@@ -370,13 +370,57 @@ export class DashboardService {
       safeCount(() => this.sql<{ cnt: string }[]>`
         SELECT count(*)::text AS cnt FROM post_report WHERE status = 0
       `),
+      // 정산 음수 (price < 0) — 환불이 매출보다 많은 비정상 케이스
+      safeCount(() => this.sql<{ cnt: string }[]>`
+        SELECT count(*)::text AS cnt FROM settlement_monthly
+         WHERE price < 0 AND month >= (CURRENT_DATE - INTERVAL '60 days')
+      `),
+      // 알림톡 발송 실패 (24h)
+      safeCount(() => this.sql<{ cnt: string }[]>`
+        SELECT count(*)::text AS cnt FROM alimtalk_send_log
+         WHERE status = 'failed' AND created_at >= NOW() - INTERVAL '24 hours'
+      `),
+      // 최근 24시간 환불 발생 (참고용 — 평소 0 이면 OK, 갑자기 늘면 점검 필요)
+      safeCount(() => this.sql<{ cnt: string }[]>`
+        SELECT count(*)::text AS cnt FROM refund_request
+         WHERE created_at >= NOW() - INTERVAL '24 hours'
+      `),
     ]);
 
     return [
       { key: 'referral', label: '추천수당 미지급', count: referralCnt, to: '/referrals', tone: 'amber' },
       { key: 'payment_failed', label: '결제 실패(24h)', count: paymentFailedCnt, to: '/payments', tone: 'rose' },
       { key: 'reports', label: '신고 대기', count: reportCnt, to: '/post-reports', tone: 'rose' },
+      { key: 'settle_negative', label: '정산 음수(60일)', count: settleNegCnt, to: '/settlements', tone: 'rose' },
+      { key: 'alimtalk_failed', label: '알림톡 실패(24h)', count: alimtalkFailCnt, to: '/alimtalk-bulk', tone: 'amber' },
+      { key: 'refund_24h', label: '환불 발생(24h)', count: refundRecentCnt, to: '/refunds', tone: 'amber' },
     ];
+  }
+
+  /** 최근 N일 상담 건수 추이 — 일별 060/070/채팅 분리 (대시보드 차트용) */
+  async consultationTrend(days: number) {
+    const rows = await this.sql<{ date: string; call_070: string; call_060: string; chat: string }[]>`
+      WITH d AS (
+        SELECT generate_series((CURRENT_DATE - (${days} - 1) * INTERVAL '1 day')::date,
+                                CURRENT_DATE,
+                                INTERVAL '1 day')::date AS date
+      )
+      SELECT d.date::text AS date,
+             COALESCE(SUM(CASE WHEN c.consult_type = '070' THEN 1 ELSE 0 END), 0)::text AS call_070,
+             COALESCE(SUM(CASE WHEN c.consult_type = '060' THEN 1 ELSE 0 END), 0)::text AS call_060,
+             COALESCE(SUM(CASE WHEN c.consult_type = 'chat' THEN 1 ELSE 0 END), 0)::text AS chat
+        FROM d
+        LEFT JOIN consultation c
+          ON c.created_at::date = d.date AND c.is_paid = true
+       GROUP BY d.date
+       ORDER BY d.date
+    `;
+    return rows.map((r) => ({
+      date: r.date,
+      call_070: Number(r.call_070),
+      call_060: Number(r.call_060),
+      chat: Number(r.chat),
+    }));
   }
 }
 

@@ -56,4 +56,11 @@ export class DashboardController {
   alerts() {
     return this.service.alerts();
   }
+
+  /** 최근 N일 상담 건수 추이 — 일별 060/070/채팅 분리 */
+  @Get('consultation-trend')
+  consultationTrend(@Query('days') days?: string) {
+    const n = days ? Math.min(Math.max(Number(days), 1), 90) : 14;
+    return this.service.consultationTrend(n);
+  }
 }
