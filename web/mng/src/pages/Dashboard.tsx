@@ -306,25 +306,25 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Row 2 — 알림 큐 (항상 표시, 0건은 회색) */}
+      {/* Row 2 — 알림 큐 (항상 표시, 0건은 회색 / 폰트·색 강화 7차) */}
       {alerts.length > 0 && (() => {
         const hasActive = alerts.some((a) => a.count > 0)
         return (
-          <div className={`rounded-lg border p-2.5 ${
+          <div className={`rounded-lg border p-3 ${
             hasActive
-              ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
+              ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20'
               : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/40'
           }`}>
             <div className="flex items-center gap-2 flex-wrap">
               <AlertTriangle
-                className={`w-4 h-4 flex-shrink-0 ${
+                className={`w-5 h-5 flex-shrink-0 ${
                   hasActive ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'
                 }`}
               />
-              <span className={`text-xs font-semibold ${
+              <span className={`text-sm font-bold ${
                 hasActive
                   ? 'text-amber-800 dark:text-amber-200'
-                  : 'text-gray-500 dark:text-gray-400'
+                  : 'text-gray-600 dark:text-gray-300'
               }`}>
                 {hasActive ? '즉시 처리 필요' : '알림 현황'}
               </span>
@@ -334,17 +334,17 @@ export default function Dashboard() {
                   const colorCls = !isActive
                     ? 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700/50 dark:text-gray-400'
                     : a.tone === 'rose'
-                    ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-300'
-                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300'
+                    ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-300 ring-1 ring-rose-200 dark:ring-rose-800'
+                    : 'bg-amber-100 text-amber-800 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-200 ring-1 ring-amber-200 dark:ring-amber-800'
                   return (
                     <Link
                       key={a.key}
                       to={a.to}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${colorCls}`}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold ${colorCls}`}
                     >
                       {a.label}
-                      <span className="tabular-nums font-bold">{a.count}</span>
-                      <ChevronRight className="w-3 h-3" />
+                      <span className={`tabular-nums font-bold ${isActive ? 'text-base' : ''}`}>{a.count}</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </Link>
                   )
                 })}
