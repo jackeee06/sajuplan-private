@@ -50,4 +50,10 @@ export class DashboardController {
   recentPosts() {
     return this.service.recentPosts();
   }
+
+  /** 즉시 액션 알림 — 운영자가 매일 처리해야 할 큐 카운트 */
+  @Get('alerts')
+  alerts() {
+    return this.service.alerts();
+  }
 }

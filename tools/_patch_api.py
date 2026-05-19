@@ -26,6 +26,9 @@ import paramiko
 # 2026-05-17: 상담사 후기 알림톡 추가
 # audit A~G 전체 변경분 외과 패치 (18개 파일) — 이전 배포 분
 FILES = [
+    # 대시보드 alerts (2026-05-19 추가)
+    ("api/src/admin/dashboard/dashboard.controller.ts", "src/admin/dashboard/dashboard.controller.ts"),
+    ("api/src/admin/dashboard/dashboard.service.ts", "src/admin/dashboard/dashboard.service.ts"),
     # 상담사 추천 수당 (2026-05-17 추가)
     ("api/src/admin/referrals/referrals.service.ts", "src/admin/referrals/referrals.service.ts"),
     ("api/src/admin/referrals/referrals.controller.ts", "src/admin/referrals/referrals.controller.ts"),

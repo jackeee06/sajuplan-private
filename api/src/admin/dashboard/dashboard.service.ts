@@ -320,6 +320,72 @@ export class DashboardService {
     if (rows.length === 0) return dummyPosts(limit);
     return rows.map((r) => ({ ...r, id: Number(r.id) }));
   }
+
+  /**
+   * 즉시 액션 알림 — 운영자가 매일 처리해야 할 큐 카운트.
+   *
+   * 각 source 는 try-catch 로 감싸 schema 변경/오류 시에도 다른 항목은 정상 노출.
+   * 응답 형식: [{ key, label, count, to, tone }]
+   * count 0 이면 응답에서 제외 (UI 깨끗하게).
+   */
+  async alerts(): Promise<Array<{
+    key: string;
+    label: string;
+    count: number;
+    to: string;
+    tone: 'rose' | 'amber';
+  }>> {
+    const result: Array<{ key: string; label: string; count: number; to: string; tone: 'rose' | 'amber' }> = [];
+
+    // 1) 추천수당 미지급 (이번달 = 전월 settlement 기준)
+    try {
+      const now = new Date();
+      const prevY = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const prevM = now.getMonth() === 0 ? 12 : now.getMonth();
+      const monthStart = `${prevY}-${String(prevM).padStart(2, '0')}-01`;
+      const rows = await this.sql<{ cnt: string }[]>`
+        SELECT count(*)::text AS cnt
+          FROM counselor_referral r
+         WHERE r.status = 'active'
+           AND COALESCE((SELECT price FROM settlement_monthly
+                          WHERE member_id = r.referee_id AND month = ${monthStart} LIMIT 1), 0) > 0
+           AND NOT EXISTS (
+             SELECT 1 FROM counselor_referral_payment
+              WHERE referral_id = r.id AND pay_month = ${monthStart}
+           )
+      `;
+      const cnt = Number(rows[0]?.cnt ?? 0);
+      if (cnt > 0) result.push({ key: 'referral', label: '추천수당 미지급', count: cnt, to: '/referrals', tone: 'amber' });
+    } catch {
+      // schema 미스 — skip
+    }
+
+    // 2) 결제 실패 (최근 24h)
+    try {
+      const rows = await this.sql<{ cnt: string }[]>`
+        SELECT count(*)::text AS cnt
+          FROM payment
+         WHERE status = 'failed' AND created_at >= NOW() - INTERVAL '24 hours'
+      `;
+      const cnt = Number(rows[0]?.cnt ?? 0);
+      if (cnt > 0) result.push({ key: 'payment_failed', label: '결제 실패(24h)', count: cnt, to: '/payments', tone: 'rose' });
+    } catch {
+      // skip
+    }
+
+    // 3) 후기/게시판 신고 대기 (status = 0)
+    try {
+      const rows = await this.sql<{ cnt: string }[]>`
+        SELECT count(*)::text AS cnt FROM post_report WHERE status = 0
+      `;
+      const cnt = Number(rows[0]?.cnt ?? 0);
+      if (cnt > 0) result.push({ key: 'reports', label: '신고 대기', count: cnt, to: '/post-reports', tone: 'rose' });
+    } catch {
+      // skip
+    }
+
+    return result;
+  }
 }
 
 // ────────── 더미 데이터 ──────────

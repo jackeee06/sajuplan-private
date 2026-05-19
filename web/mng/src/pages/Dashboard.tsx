@@ -77,12 +77,12 @@ interface RecentPost {
   board: string
   created_at: string | Date
 }
-interface ReferralItem {
-  id: number
-  status: string
-  rate_pct: number
-  expected_payment: number
-  paid_this_month: boolean
+interface AlertItem {
+  key: string
+  label: string
+  count: number
+  to: string
+  tone: 'rose' | 'amber'
 }
 interface DashboardData {
   summary: Summary
@@ -94,11 +94,11 @@ interface DashboardData {
   recentMembers: RecentMember[]
   recentPoints: RecentPoint[]
   recentPosts: RecentPost[]
-  referrals: ReferralItem[]
+  alerts: AlertItem[]
 }
 
 async function fetchDashboardData(): Promise<DashboardData> {
-  const [summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, referrals] =
+  const [summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts] =
     await Promise.all([
       api<Summary>('/admin/dashboard/summary'),
       api<SalesPoint[]>('/admin/dashboard/sales-trend?days=14'),
@@ -109,9 +109,9 @@ async function fetchDashboardData(): Promise<DashboardData> {
       api<RecentMember[]>('/admin/dashboard/recent-members'),
       api<RecentPoint[]>('/admin/dashboard/recent-points'),
       api<RecentPost[]>('/admin/dashboard/recent-posts'),
-      api<{ items: ReferralItem[] }>('/admin/referrals?status=active').then((r) => r.items).catch(() => [] as ReferralItem[]),
+      api<AlertItem[]>('/admin/dashboard/alerts').catch(() => [] as AlertItem[]),
     ])
-  return { summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, referrals }
+  return { summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts }
 }
 
 const won = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 })
@@ -238,7 +238,7 @@ export default function Dashboard() {
     recentMembers,
     recentPoints,
     recentPosts,
-    referrals,
+    alerts,
   } = data
 
   const sumDay = (p?: SalesPoint) => (p ? p.call_070 + p.call_060 + p.chat + p.charge : 0)
@@ -250,15 +250,6 @@ export default function Dashboard() {
   const now = new Date()
   const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const monthTotal = sales.reduce((s, p) => (p.date.startsWith(monthKey) ? s + sumDay(p) : s), 0)
-
-  // 알림: 추천수당 미지급 count
-  const referralPending = referrals.filter((r) => r.status === 'active' && r.rate_pct > 0 && r.expected_payment > 0 && !r.paid_this_month).length
-
-  const alerts: { key: string; label: string; count: number; to: string; tone: 'rose' | 'amber' }[] = []
-  if (referralPending > 0) {
-    alerts.push({ key: 'referral', label: '추천수당 미지급', count: referralPending, to: '/referrals', tone: 'amber' })
-  }
-  // 환불 대기 / 결제 실패 / BizM 실패 — 백엔드 API 추가 후 2차
 
   const counselorPie = [
     { name: '상담 가능', value: summary.counselors.idle, color: '#10b981' },
