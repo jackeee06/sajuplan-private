@@ -87,6 +87,16 @@ interface AlertItem {
   to: string
   tone: 'rose' | 'amber'
 }
+interface CounselorPanel {
+  today_active: Array<{ id: number; mb_id: string | null; nickname: string | null; count: number }>
+  inactive_7d: Array<{ id: number; mb_id: string | null; nickname: string | null; last_at: string | null }>
+  unreplied_reviews: Array<{ id: number; rating: number; content_preview: string; counselor_id: number; counselor_nickname: string | null; created_at: string }>
+}
+interface QualityKpi {
+  avg_rating: number
+  low_rating_count: number
+  total_reviews: number
+}
 interface DashboardData {
   summary: Summary
   sales: SalesPoint[]
@@ -98,10 +108,14 @@ interface DashboardData {
   recentPoints: RecentPoint[]
   recentPosts: RecentPost[]
   alerts: AlertItem[]
+  counselorPanel: CounselorPanel
+  quality: QualityKpi
 }
 
 async function fetchDashboardData(): Promise<DashboardData> {
-  const [summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts] =
+  const emptyPanel: CounselorPanel = { today_active: [], inactive_7d: [], unreplied_reviews: [] }
+  const emptyQuality: QualityKpi = { avg_rating: 0, low_rating_count: 0, total_reviews: 0 }
+  const [summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts, counselorPanel, quality] =
     await Promise.all([
       api<Summary>('/admin/dashboard/summary'),
       api<SalesPoint[]>('/admin/dashboard/sales-trend?days=14'),
@@ -113,8 +127,10 @@ async function fetchDashboardData(): Promise<DashboardData> {
       api<RecentPoint[]>('/admin/dashboard/recent-points'),
       api<RecentPost[]>('/admin/dashboard/recent-posts'),
       api<AlertItem[]>('/admin/dashboard/alerts').catch(() => [] as AlertItem[]),
+      api<CounselorPanel>('/admin/dashboard/counselor-panel').catch(() => emptyPanel),
+      api<QualityKpi>('/admin/dashboard/quality-kpi').catch(() => emptyQuality),
     ])
-  return { summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts }
+  return { summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts, counselorPanel, quality }
 }
 
 const won = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 })
@@ -242,6 +258,8 @@ export default function Dashboard() {
     recentPoints,
     recentPosts,
     alerts,
+    counselorPanel,
+    quality,
   } = data
 
   const sumDay = (p?: SalesPoint) => (p ? p.call_070 + p.call_060 + p.chat + p.charge : 0)
@@ -270,8 +288,8 @@ export default function Dashboard() {
         </span>
       </div>
 
-      {/* Row 1 — KPI 8개 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
+      {/* Row 1 — KPI 9개 (별점 추가) */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2">
         <Kpi
           label="오늘 매출"
           value={won.format(todayTotal)}
@@ -303,6 +321,13 @@ export default function Dashboard() {
           sub={`유료 ${won.format(summary.balance?.paid ?? 0)}`}
           tone="rose"
           to="/points/history"
+        />
+        <Kpi
+          label="평균 별점(30일)"
+          value={quality.avg_rating > 0 ? `★ ${quality.avg_rating.toFixed(2)}` : '—'}
+          sub={`낮은 별점 ${quality.low_rating_count}건 / 전체 ${quality.total_reviews}`}
+          tone={quality.avg_rating === 0 ? 'default' : quality.avg_rating >= 4.5 ? 'emerald' : quality.avg_rating >= 4 ? 'amber' : 'rose'}
+          to="/posts/review"
         />
       </div>
 
@@ -441,7 +466,65 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Row 4 + 5 — TOP5 3개 + 최근활동 3개 → 한 줄 6컬럼 (와이드 모니터) */}
+      {/* Row 4 (신규) — 상담사 운영 패널: 오늘 활성 / 이탈 위험 / 미답변 후기 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <Card title="오늘 활성 상담사 TOP5" to="/members/counselors">
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {counselorPanel.today_active.length === 0 ? (
+              <li className="py-2 text-xs text-gray-400">오늘 상담한 상담사 없음</li>
+            ) : counselorPanel.today_active.map((c, i) => (
+              <li key={c.id} className="py-1 flex items-center justify-between text-xs">
+                <Link to={`/members/counselors/${c.id}`} className="flex items-center gap-1.5 min-w-0 flex-1 hover:text-brand-600">
+                  <span className={`flex-shrink-0 w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold ${i === 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {i + 1}
+                  </span>
+                  <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{c.nickname ?? c.mb_id ?? `#${c.id}`}</span>
+                </Link>
+                <span className="text-[11px] font-semibold tabular-nums text-emerald-600 flex-shrink-0 ml-2">{c.count}건</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card title="이탈 위험 (7일 0건)" to="/members/counselors">
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {counselorPanel.inactive_7d.length === 0 ? (
+              <li className="py-2 text-xs text-gray-400">모든 상담사 활동 중 ✓</li>
+            ) : counselorPanel.inactive_7d.map((c) => (
+              <li key={c.id} className="py-1 flex items-center justify-between text-xs">
+                <Link to={`/members/counselors/${c.id}`} className="min-w-0 flex-1 hover:text-brand-600">
+                  <span className="font-medium text-gray-800 dark:text-gray-100">{c.nickname ?? c.mb_id ?? `#${c.id}`}</span>
+                  <span className="text-[10px] text-gray-400 ml-1">{c.mb_id ?? ''}</span>
+                </Link>
+                <span className="text-[10px] text-rose-500 tabular-nums flex-shrink-0 ml-2">
+                  {c.last_at ? `${formatRelative(c.last_at)} 전` : '활동 0'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card title="미답변 후기" to="/posts/review">
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {counselorPanel.unreplied_reviews.length === 0 ? (
+              <li className="py-2 text-xs text-gray-400">미답변 후기 없음 ✓</li>
+            ) : counselorPanel.unreplied_reviews.map((r) => (
+              <li key={r.id} className="py-1 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-amber-500 flex-shrink-0">{'★'.repeat(r.rating)}<span className="text-gray-300">{'★'.repeat(5 - r.rating)}</span></span>
+                  <span className="text-[10px] text-gray-400 flex-shrink-0">{formatRelative(r.created_at)}</span>
+                </div>
+                <Link to={`/members/counselors/${r.counselor_id}`} className="block text-gray-600 dark:text-gray-300 truncate hover:text-brand-600">
+                  <span className="font-medium">{r.counselor_nickname ?? `#${r.counselor_id}`}</span>
+                  <span className="text-gray-400 ml-1">· {r.content_preview}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      </div>
+
+      {/* Row 5 + 6 — TOP5 3개 + 최근활동 3개 → 한 줄 6컬럼 (와이드 모니터) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
         <TopList title="TOP5 상담사 (금액)" to="/members/counselors" rows={topByAmount} valueKey="total" valueFormat={won.format} />
         <TopList title="TOP5 상담사 (건수)" to="/members/counselors" rows={topByCount} valueKey="count" valueFormat={(v) => `${num.format(v)}건`} />

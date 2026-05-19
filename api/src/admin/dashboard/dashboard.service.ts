@@ -443,6 +443,96 @@ export class DashboardService {
     ];
   }
 
+  /**
+   * 상담사 운영 패널 — 오늘 활성 TOP5 + 7일 0건 위험 TOP5 + 미답변 후기 5건.
+   * 매일 운영자가 챙겨야 할 핵심 명단.
+   */
+  async counselorPanel(): Promise<{
+    today_active: Array<{ id: number; mb_id: string | null; nickname: string | null; count: number }>;
+    inactive_7d: Array<{ id: number; mb_id: string | null; nickname: string | null; last_at: string | null }>;
+    unreplied_reviews: Array<{ id: number; rating: number; content_preview: string; counselor_id: number; counselor_nickname: string | null; created_at: string }>;
+  }> {
+    const empty = { today_active: [], inactive_7d: [], unreplied_reviews: [] };
+    try {
+      // 오늘 활성 — 오늘 상담 건수 많은 상담사 TOP5
+      const todayActive = await this.sql<{ id: number; mb_id: string | null; nickname: string | null; cnt: string }[]>`
+        SELECT m.id, m.mb_id, m.nickname, COUNT(c.id)::text AS cnt
+          FROM consultation c
+          JOIN member m ON m.id = c.counselor_id
+         WHERE c.created_at::date = CURRENT_DATE
+         GROUP BY m.id, m.mb_id, m.nickname
+         ORDER BY COUNT(c.id) DESC
+         LIMIT 5
+      `;
+
+      // 7일 0건 — 활성 상담사 중 최근 7일 상담 없는 사람 (이탈 위험)
+      const inactive7d = await this.sql<{ id: number; mb_id: string | null; nickname: string | null; last_at: string | null }[]>`
+        SELECT m.id, m.mb_id, m.nickname,
+               (SELECT MAX(created_at)::text FROM consultation WHERE counselor_id = m.id) AS last_at
+          FROM member m
+         WHERE m.role = 'counselor' AND m.left_at IS NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM consultation c
+              WHERE c.counselor_id = m.id
+                AND c.created_at >= NOW() - INTERVAL '7 days'
+           )
+         ORDER BY m.created_at DESC
+         LIMIT 5
+      `;
+
+      // 미답변 후기 (3일+ 또는 최신순) — 운영 품질 핵심
+      const unreplied = await this.sql<{ id: number; rating: number; content: string; counselor_id: number; nickname: string | null; created_at: string }[]>`
+        SELECT r.id, r.rating, r.content, r.counselor_id,
+               m.nickname, r.created_at::text AS created_at
+          FROM post_review r
+          LEFT JOIN member m ON m.id = r.counselor_id
+         WHERE NOT EXISTS (SELECT 1 FROM post_review_reply WHERE review_id = r.id)
+         ORDER BY r.created_at DESC
+         LIMIT 5
+      `;
+
+      return {
+        today_active: todayActive.map((r) => ({
+          id: Number(r.id), mb_id: r.mb_id, nickname: r.nickname, count: Number(r.cnt),
+        })),
+        inactive_7d: inactive7d.map((r) => ({
+          id: Number(r.id), mb_id: r.mb_id, nickname: r.nickname, last_at: r.last_at,
+        })),
+        unreplied_reviews: unreplied.map((r) => ({
+          id: Number(r.id),
+          rating: Number(r.rating),
+          content_preview: (r.content ?? '').slice(0, 40),
+          counselor_id: Number(r.counselor_id),
+          counselor_nickname: r.nickname,
+          created_at: r.created_at,
+        })),
+      };
+    } catch {
+      return empty;
+    }
+  }
+
+  /** 품질 지표 — 평균 별점, 별점 1~2점 후기 카운트 */
+  async qualityKpi(): Promise<{ avg_rating: number; low_rating_count: number; total_reviews: number }> {
+    try {
+      const rows = await this.sql<{ avg: string | null; low: string; total: string }[]>`
+        SELECT
+          AVG(rating)::text AS avg,
+          COUNT(*) FILTER (WHERE rating <= 2)::text AS low,
+          COUNT(*)::text AS total
+          FROM post_review
+         WHERE created_at >= NOW() - INTERVAL '30 days'
+      `;
+      return {
+        avg_rating: rows[0]?.avg ? Number(Number(rows[0].avg).toFixed(2)) : 0,
+        low_rating_count: Number(rows[0]?.low ?? 0),
+        total_reviews: Number(rows[0]?.total ?? 0),
+      };
+    } catch {
+      return { avg_rating: 0, low_rating_count: 0, total_reviews: 0 };
+    }
+  }
+
   /** 최근 N일 상담 건수 추이 — 일별 060/070/채팅 분리 (대시보드 차트용) */
   async consultationTrend(days: number) {
     const rows = await this.sql<{ date: string; call_070: string; call_060: string; chat: string }[]>`

@@ -63,4 +63,16 @@ export class DashboardController {
     const n = days ? Math.min(Math.max(Number(days), 1), 90) : 14;
     return this.service.consultationTrend(n);
   }
+
+  /** 상담사 운영 패널 — 오늘 활성 / 7일 0건 / 미답변 후기 명단 */
+  @Get('counselor-panel')
+  counselorPanel() {
+    return this.service.counselorPanel();
+  }
+
+  /** 품질 지표 — 평균 별점 / 별점 1~2점 후기 카운트 */
+  @Get('quality-kpi')
+  qualityKpi() {
+    return this.service.qualityKpi();
+  }
 }
