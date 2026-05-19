@@ -247,7 +247,7 @@ export default function AllMenus() {
       <div>
         <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">전체 메뉴</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          메뉴명·카테고리·페이지 내부 탭/섹션까지 검색됩니다. 별표(★) 클릭으로 즐겨찾기.
+          모든 관리자 기능을 한눈에. 페이지 내부 탭/섹션까지 펼쳐서 노출. 검색으로 위치 즉시 확인 가능.
         </p>
       </div>
 
@@ -351,16 +351,16 @@ export default function AllMenus() {
                         </button>
                       </div>
 
-                      {/* 검색 시: 매칭된 sub-feature 들여쓰기로 노출 */}
-                      {isSearching && subHits.length > 0 && (
-                        <ul className="ml-5 mt-0.5 mb-1 border-l border-violet-200 dark:border-violet-800 pl-2 space-y-0.5">
-                          {subHits.map((s) => (
+                      {/* 페이지 내부 탭/섹션 — 평소에도 항상 노출 (검색 시 매칭 강조) */}
+                      {(it.subFeatures?.length ?? 0) > 0 && (
+                        <ul className="ml-5 mt-0.5 mb-1 border-l border-violet-100 dark:border-violet-900/40 pl-2 space-y-0.5">
+                          {(isSearching ? subHits : it.subFeatures!).map((s) => (
                             <li key={s}>
                               <Link
                                 to={it.path}
                                 className="block text-[11px] text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-300"
                               >
-                                <span className="text-violet-400 mr-1">›</span>
+                                <span className="text-violet-300 mr-1">›</span>
                                 <span dangerouslySetInnerHTML={{ __html: highlight(s, q) }} />
                               </Link>
                             </li>
