@@ -48,19 +48,36 @@ export function useHighlightOnLoad() {
   }, [location.key])
 }
 
-/** DOM 에서 키워드 포함하는 가장 가까운 element 찾기. main 영역 안에서만 검색. */
+/** 공백/조사 영향 줄이기 위한 정규화 (한국어 매칭 보조). */
+function normalize(s: string): string {
+  return s.replace(/\s+/g, '').toLowerCase()
+}
+
+/**
+ * DOM 에서 키워드와 매칭되는 텍스트 노드 찾기. main 영역 안에서만 검색.
+ * 양방향 매칭: 페이지가 키워드를 포함 OR 키워드가 페이지 텍스트를 포함 (최소 길이 2).
+ * 후자는 false positive 줄이려 keyword.length >= 3 일 때만.
+ */
 function findElement(keyword: string): HTMLElement | null {
   const root = document.querySelector('main') ?? document.body
-  // TreeWalker 로 텍스트 노드 순회
+  const kw = keyword.trim()
+  const nkw = normalize(kw)
+  if (!nkw) return null
+
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
     acceptNode: (node) => {
-      const t = node.nodeValue ?? ''
-      return t.includes(keyword) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+      const raw = (node.nodeValue ?? '').trim()
+      if (raw.length < 2) return NodeFilter.FILTER_REJECT
+      const nt = normalize(raw)
+      // 1순위: 페이지 텍스트에 키워드가 들어 있음 (정확)
+      if (nt.includes(nkw)) return NodeFilter.FILTER_ACCEPT
+      // 2순위: 키워드가 페이지 텍스트를 포함 (긴 라벨이 짧은 페이지 텍스트 매칭)
+      if (nkw.length >= 3 && nt.length >= 2 && nkw.includes(nt)) return NodeFilter.FILTER_ACCEPT
+      return NodeFilter.FILTER_REJECT
     },
   })
   const node = walker.nextNode()
   if (!node) return null
-  // 텍스트 노드의 부모 element 반환
   let el: Node | null = node.parentNode
   while (el && el.nodeType !== 1) el = el.parentNode
   return (el as HTMLElement) ?? null
@@ -122,16 +139,17 @@ function tryFind(keyword: string): boolean {
   return true
 }
 
-/** 비활성 탭일 가능성 — 페이지 내 button/role=tab 중 키워드 포함 버튼 자동 클릭. */
+/** 비활성 탭일 가능성 — 페이지 내 button/role=tab 중 키워드 매칭 버튼 자동 클릭. */
 function tryClickTab(keyword: string): boolean {
   const root = document.querySelector('main') ?? document.body
   const candidates = root.querySelectorAll('button, [role="tab"], a')
+  const nkw = normalize(keyword)
   for (const c of Array.from(candidates)) {
     const text = (c.textContent ?? '').trim()
-    if (!text) continue
-    // 탭/필터 칩 같은 짧은 버튼만 (전체 내용이 너무 길면 메인 액션일 확률↑ — 스킵)
-    if (text.length > 30) continue
-    if (text.includes(keyword) || keyword.includes(text)) {
+    if (!text || text.length > 30) continue // 메인 액션 버튼 스킵
+    const nt = normalize(text)
+    // 공백 무시한 양방향 부분일치
+    if (nt.includes(nkw) || (nkw.length >= 3 && nt.length >= 2 && nkw.includes(nt))) {
       try {
         (c as HTMLElement).click()
         return true

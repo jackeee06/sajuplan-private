@@ -52,14 +52,14 @@ const GROUPS: MenuGroup[] = [
     icon: CreditCard,
     items: [
       { label: '사용(상담) 내역', path: '/consultations',
-        subFeatures: ['전체 상담', '060', '070', '채팅'] },
+        subFeatures: ['전체목록', '060', '070', '채팅'] },
       { label: '환불 이력', path: '/refunds', star: true,
         subFeatures: ['회원 아이디 검색', '상태별 필터'] },
       { label: '운영 KPI', path: '/ops-kpi', star: true,
         subFeatures: ['최근 7일', '최근 30일', '최근 90일', 'KPI 카드', '상담사 순위'] },
       { label: '충전금액 설정', path: '/charge-amounts' },
       { label: '결제 내역', path: '/payments',
-        subFeatures: ['전체 결제', '카드', '가상결제', '카드취소'] },
+        subFeatures: ['전체목록', '카드', '가상결제', '카드취소'] },
       { label: '포인트 관리', path: '/points/history',
         subFeatures: ['포인트 이력', '개별회원 포인트 증감 설정'] },
       { label: '정산 이력', path: '/settlements',
@@ -103,7 +103,7 @@ const GROUPS: MenuGroup[] = [
     items: [
       { label: '푸시 알림', path: '/push-notifications' },
       { label: '알림톡 발송', path: '/alimtalk-bulk', star: true,
-        subFeatures: ['발송', '발송 이력'] },
+        subFeatures: ['발송', '이력'] },
       { label: '알림톡 템플릿', path: '/alimtalk-templates' },
     ],
   },
@@ -112,7 +112,7 @@ const GROUPS: MenuGroup[] = [
     icon: BarChart3,
     items: [
       { label: '통계', path: '/stats',
-        subFeatures: ['KPI', '일별 방문자', '일별 매출', '월별 매출', '기간 선택'] },
+        subFeatures: ['일별 방문자', '일별 매출', '월별 매출', '일별 추이 기간'] },
     ],
   },
   {
@@ -139,16 +139,17 @@ const GROUPS: MenuGroup[] = [
     items: [
       { label: '기본환경설정', path: '/settings',
         subFeatures: [
-          '기본환경 (사이트/회원가입/후기 포인트/소셜로그인/보안/푸터)',
-          '등급/단가 정책',
+          '기본환경',
+          '등급/단가',
           '단가 옵션',
           '정산률',
           '임계값',
           '월 1일 락',
           '재산정 일자/시각',
           '강등 최대 단계',
-          '운영자 알림',
-          '알림 수신자 목록',
+          '운영알림',
+          '운영자 알림 활성',
+          '수신자 목록',
           '약관/처리방침',
         ] },
       { label: '내용 관리 (약관/처리방침)', path: '/contents' },
@@ -159,7 +160,7 @@ const GROUPS: MenuGroup[] = [
     icon: BarChart3,
     items: [
       { label: '대시보드', path: '/dashboard',
-        subFeatures: ['KPI', '매출 추이', '상담사 상태', '방문자 추이', 'TOP5 순위', '최근 가입', '최근 게시물', '최근 포인트'] },
+        subFeatures: ['14일 매출 추이', '상담사 상태', '14일 방문자 추이', 'TOP5 상담사', 'TOP5 고객', '최근 가입', '최근 게시물', '최근 포인트'] },
     ],
   },
 ]
