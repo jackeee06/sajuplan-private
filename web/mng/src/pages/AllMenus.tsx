@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Users, CreditCard, Headphones, FileText, Bell, BarChart3, Shield,
   MoreHorizontal, Settings as SettingsIcon, Ticket, Search, Star, X,
@@ -78,7 +78,7 @@ const GROUPS: MenuGroup[] = [
         subFeatures: ['포인트 이력', '개별회원 포인트 증감 설정'] },
       { label: '정산 이력', path: '/settlements',
         subFeatures: ['총건수', '총정산금액', '부가세', '원천세', '회선비'] },
-      { label: '추천 수당', path: '/referrals', star: true,
+      { label: '상담사 추천 수당 (프로모션)', path: '/referrals', star: true,
         subFeatures: ['활성 관계', '이번 달 지급대상', '지급 완료', '미지급', '월별 필터', '상태별 필터'] },
     ],
   },
@@ -231,7 +231,13 @@ function matchItem(item: MenuItem, groupTitle: string, q: string): { matched: bo
 }
 
 export default function AllMenus() {
-  const [query, setQuery] = useState('')
+  // 검색어를 URL ?q=... 에 저장 — 사이드바 '전체 메뉴' 재클릭 시 자동 초기화
+  const [searchParams, setSearchParams] = useSearchParams()
+  const query = searchParams.get('q') ?? ''
+  const setQuery = (v: string) => {
+    if (v) setSearchParams({ q: v }, { replace: true })
+    else setSearchParams({}, { replace: true })
+  }
   const [favs, setFavs] = useState<string[]>(() => readFavs())
 
   useEffect(() => {

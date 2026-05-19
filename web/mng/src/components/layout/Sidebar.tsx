@@ -90,7 +90,7 @@ export default function Sidebar() {
                     <li><NavLink to="/payments" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>결제 내역</NavLink></li>
                     <li><NavLink to="/points/history" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>포인트 관리</NavLink></li>
                     <li><NavLink to="/settlements" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>정산 이력</NavLink></li>
-                    <li><NavLink to="/referrals" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 추천 수당</NavLink></li>
+                    <li><NavLink to="/referrals" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 프로모션</NavLink></li>
                   </ul>
                 )}
               </li>

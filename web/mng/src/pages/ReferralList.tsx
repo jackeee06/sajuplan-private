@@ -140,7 +140,7 @@ export default function ReferralList() {
     <div className="space-y-4 text-sm">
       {/* 타이틀 */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">상담사 추천 수당</h1>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">상담사 추천 수당 (프로모션)</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           가입 후 6개월 한정 · 1~3개월 2% · 4~6개월 1% · 매월 1~5일 수동 지급 (전월 매출 기준)
         </p>

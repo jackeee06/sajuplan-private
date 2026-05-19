@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Inject, Injectable, Logger, Not
 import { SQL, type Sql } from '../../shared/db/db.module';
 
 /**
- * 상담사 추천 수당 정책 (어드민 수동 운영).
+ * 상담사 추천 수당 (프로모션) 정책 — 어드민 수동 운영.
  *
  * 정책 (2026-05-17 사장님 결정):
  *   - 추천자(A) 가 피추천자(B) 를 추천 → B 가입 후 6개월 한정

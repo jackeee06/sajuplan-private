@@ -89,16 +89,17 @@ export default function GradeManagement() {
   const total = dist.reduce((s, r) => s + r.count, 0)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      {/* 페이지 타이틀 */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">등급 관리</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">등급 관리</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           상담사 등급 분포 + 최근 등급 변동 + 정책 변경 이력. 개별 상담사 수정은 상담사 상세 페이지에서.
         </p>
       </div>
 
       {error && (
-        <div className="p-3 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 text-sm">
+        <div className="p-3 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 text-sm w-fit max-w-full">
           {error}
         </div>
       )}
@@ -107,20 +108,20 @@ export default function GradeManagement() {
         <div className="text-sm text-gray-500">로딩...</div>
       ) : (
         <>
-          {/* 1) 분포 카드 */}
+          {/* 1) 분포 카드 — 좌측 정렬 + 콘텐츠 폭만큼 (inline-flex) */}
           <section>
-            <h2 className="text-base font-medium text-gray-700 dark:text-gray-200 mb-3">
-              등급별 분포 <span className="text-xs text-gray-400">(활동 상담사 {total}명)</span>
+            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+              등급별 분포 <span className="text-[11px] text-gray-400">(활동 상담사 {total}명)</span>
             </h2>
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
+            <div className="flex flex-wrap gap-2">
               {dist.map((r) => (
                 <div
                   key={r.grade}
-                  className={`rounded-lg px-4 py-3 ${GRADE_COLORS[r.grade] ?? 'bg-gray-50 text-gray-700'}`}
+                  className={`rounded-md px-3 py-2 min-w-[110px] ${GRADE_COLORS[r.grade] ?? 'bg-gray-50 text-gray-700'}`}
                 >
-                  <div className="text-xs opacity-70">{r.grade_label}</div>
-                  <div className="text-2xl font-bold mt-1 tabular-nums">{r.count}</div>
-                  <div className="text-[10px] opacity-60 mt-0.5">
+                  <div className="text-[11px] opacity-70">{r.grade_label}</div>
+                  <div className="text-lg font-bold mt-0.5 tabular-nums leading-tight">{r.count}</div>
+                  <div className="text-[10px] opacity-60">
                     {total > 0 ? `${Math.round((r.count / total) * 100)}%` : '0%'}
                   </div>
                 </div>
@@ -128,33 +129,33 @@ export default function GradeManagement() {
             </div>
           </section>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 2) 최근 등급 변동 */}
-            <section>
-              <h2 className="text-base font-medium text-gray-700 dark:text-gray-200 mb-3">
-                최근 등급 변동 <span className="text-xs text-gray-400">({changes.length}건)</span>
-              </h2>
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                {changes.length === 0 ? (
-                  <div className="p-6 text-sm text-gray-500 text-center">아직 변동 없음</div>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-300">
+          {/* 2) 최근 등급 변동 — w-fit max-w-full 콘텐츠 폭 */}
+          <section>
+            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+              최근 등급 변동 <span className="text-[11px] text-gray-400">({changes.length}건)</span>
+            </h2>
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
+              {changes.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-gray-500">아직 변동 없음</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="text-sm w-auto">
+                    <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
                       <tr>
-                        <th className="px-3 py-2 text-left">시각</th>
-                        <th className="px-3 py-2 text-left">상담사</th>
-                        <th className="px-3 py-2 text-left">변경</th>
-                        <th className="px-3 py-2 text-left">유형</th>
-                        <th className="px-3 py-2 text-left">주체</th>
+                        <th className="px-3 py-1.5 text-left font-medium">시각</th>
+                        <th className="px-3 py-1.5 text-left font-medium">상담사</th>
+                        <th className="px-3 py-1.5 text-left font-medium">변경</th>
+                        <th className="px-3 py-1.5 text-left font-medium">유형</th>
+                        <th className="px-3 py-1.5 text-left font-medium">주체</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                       {changes.map((c) => (
-                        <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                          <td className="px-3 py-2 text-xs text-gray-500">
+                        <tr key={c.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
+                          <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">
                             {c.created_at.slice(0, 16).replace('T', ' ')}
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-1.5 text-xs">
                             <Link
                               to={`/members/counselors/${c.member_id}`}
                               className="text-brand-600 hover:underline"
@@ -162,65 +163,67 @@ export default function GradeManagement() {
                               {c.nickname || c.mb_id || `#${c.member_id}`}
                             </Link>
                           </td>
-                          <td className="px-3 py-2 text-xs">
+                          <td className="px-3 py-1.5 text-xs whitespace-nowrap">
                             <span className="text-gray-500">{c.grade_before ?? '—'}</span>
                             <span className="mx-1">→</span>
                             <span className="font-medium">{c.grade_after}</span>
                           </td>
-                          <td className="px-3 py-2 text-xs">
+                          <td className="px-3 py-1.5 text-xs whitespace-nowrap">
                             {CHANGE_TYPE_LABEL[c.change_type] ?? c.change_type}
                           </td>
-                          <td className="px-3 py-2 text-xs text-gray-500">{c.changed_by}</td>
+                          <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{c.changed_by}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                )}
-              </div>
-            </section>
+                </div>
+              )}
+            </div>
+          </section>
 
-            {/* 3) 정책 변경 이력 */}
-            <section>
-              <h2 className="text-base font-medium text-gray-700 dark:text-gray-200 mb-3">
-                정책 변경 이력{' '}
-                <span className="text-xs text-gray-400">(grade ns, {settings.length}건)</span>
-              </h2>
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-                {settings.length === 0 ? (
-                  <div className="p-6 text-sm text-gray-500 text-center">아직 변경 없음</div>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-300">
+          {/* 3) 정책 변경 이력 — 동일 패턴 */}
+          <section>
+            <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+              정책 변경 이력{' '}
+              <span className="text-[11px] text-gray-400">(grade ns, {settings.length}건)</span>
+            </h2>
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
+              {settings.length === 0 ? (
+                <div className="px-4 py-3 text-xs text-gray-500">아직 변경 없음</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="text-sm w-auto">
+                    <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
                       <tr>
-                        <th className="px-3 py-2 text-left">시각</th>
-                        <th className="px-3 py-2 text-left">키</th>
-                        <th className="px-3 py-2 text-left">변경</th>
-                        <th className="px-3 py-2 text-left">주체</th>
+                        <th className="px-3 py-1.5 text-left font-medium">시각</th>
+                        <th className="px-3 py-1.5 text-left font-medium">키</th>
+                        <th className="px-3 py-1.5 text-left font-medium">변경</th>
+                        <th className="px-3 py-1.5 text-left font-medium">주체</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                       {settings.map((s) => (
-                        <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                          <td className="px-3 py-2 text-xs text-gray-500">
+                        <tr key={s.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
+                          <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">
                             {s.created_at.slice(0, 16).replace('T', ' ')}
                           </td>
-                          <td className="px-3 py-2 text-xs font-mono">{s.key}</td>
-                          <td className="px-3 py-2 text-xs">
+                          <td className="px-3 py-1.5 text-xs font-mono whitespace-nowrap">{s.key}</td>
+                          <td className="px-3 py-1.5 text-xs">
                             <span className="text-gray-500">
-                              {s.value_before ? s.value_before.slice(0, 20) : '—'}
+                              {s.value_before ? s.value_before.slice(0, 30) : '—'}
                             </span>
                             <span className="mx-1">→</span>
                             <span className="font-medium">{s.value_after ?? '—'}</span>
                           </td>
-                          <td className="px-3 py-2 text-xs text-gray-500">{s.changed_by}</td>
+                          <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{s.changed_by}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                )}
-              </div>
-            </section>
-          </div>
+                </div>
+              )}
+            </div>
+          </section>
         </>
       )}
     </div>
