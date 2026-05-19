@@ -324,9 +324,9 @@ export class DashboardService {
   /**
    * 즉시 액션 알림 — 운영자가 매일 처리해야 할 큐 카운트.
    *
-   * 각 source 는 try-catch 로 감싸 schema 변경/오류 시에도 다른 항목은 정상 노출.
-   * 응답 형식: [{ key, label, count, to, tone }]
-   * count 0 이면 응답에서 제외 (UI 깨끗하게).
+   * 각 source 는 try-catch 로 감싸 schema 변경/오류 시에도 다른 항목 정상 노출.
+   * count 0 인 항목도 항상 반환 (운영자가 매일 같은 위치에서 0건 확인하는 가치).
+   * UI 에서 count 0 은 회색 톤으로 표시.
    */
   async alerts(): Promise<Array<{
     key: string;
@@ -335,15 +335,23 @@ export class DashboardService {
     to: string;
     tone: 'rose' | 'amber';
   }>> {
-    const result: Array<{ key: string; label: string; count: number; to: string; tone: 'rose' | 'amber' }> = [];
+    const safeCount = async (query: () => Promise<{ cnt: string }[]>): Promise<number> => {
+      try {
+        const rows = await query();
+        return Number(rows[0]?.cnt ?? 0);
+      } catch {
+        return 0;
+      }
+    };
 
     // 1) 추천수당 미지급 (이번달 = 전월 settlement 기준)
-    try {
-      const now = new Date();
-      const prevY = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-      const prevM = now.getMonth() === 0 ? 12 : now.getMonth();
-      const monthStart = `${prevY}-${String(prevM).padStart(2, '0')}-01`;
-      const rows = await this.sql<{ cnt: string }[]>`
+    const now = new Date();
+    const prevY = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+    const prevM = now.getMonth() === 0 ? 12 : now.getMonth();
+    const monthStart = `${prevY}-${String(prevM).padStart(2, '0')}-01`;
+
+    const [referralCnt, paymentFailedCnt, reportCnt] = await Promise.all([
+      safeCount(() => this.sql<{ cnt: string }[]>`
         SELECT count(*)::text AS cnt
           FROM counselor_referral r
          WHERE r.status = 'active'
@@ -353,38 +361,22 @@ export class DashboardService {
              SELECT 1 FROM counselor_referral_payment
               WHERE referral_id = r.id AND pay_month = ${monthStart}
            )
-      `;
-      const cnt = Number(rows[0]?.cnt ?? 0);
-      if (cnt > 0) result.push({ key: 'referral', label: '추천수당 미지급', count: cnt, to: '/referrals', tone: 'amber' });
-    } catch {
-      // schema 미스 — skip
-    }
-
-    // 2) 결제 실패 (최근 24h)
-    try {
-      const rows = await this.sql<{ cnt: string }[]>`
+      `),
+      safeCount(() => this.sql<{ cnt: string }[]>`
         SELECT count(*)::text AS cnt
           FROM payment
          WHERE status = 'failed' AND created_at >= NOW() - INTERVAL '24 hours'
-      `;
-      const cnt = Number(rows[0]?.cnt ?? 0);
-      if (cnt > 0) result.push({ key: 'payment_failed', label: '결제 실패(24h)', count: cnt, to: '/payments', tone: 'rose' });
-    } catch {
-      // skip
-    }
-
-    // 3) 후기/게시판 신고 대기 (status = 0)
-    try {
-      const rows = await this.sql<{ cnt: string }[]>`
+      `),
+      safeCount(() => this.sql<{ cnt: string }[]>`
         SELECT count(*)::text AS cnt FROM post_report WHERE status = 0
-      `;
-      const cnt = Number(rows[0]?.cnt ?? 0);
-      if (cnt > 0) result.push({ key: 'reports', label: '신고 대기', count: cnt, to: '/post-reports', tone: 'rose' });
-    } catch {
-      // skip
-    }
+      `),
+    ]);
 
-    return result;
+    return [
+      { key: 'referral', label: '추천수당 미지급', count: referralCnt, to: '/referrals', tone: 'amber' },
+      { key: 'payment_failed', label: '결제 실패(24h)', count: paymentFailedCnt, to: '/payments', tone: 'rose' },
+      { key: 'reports', label: '신고 대기', count: reportCnt, to: '/post-reports', tone: 'rose' },
+    ];
   }
 }
 

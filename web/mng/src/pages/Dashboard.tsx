@@ -291,32 +291,53 @@ export default function Dashboard() {
         <Kpi label="총 회원" value={num.format(summary.members.total)} to="/members/customers" />
       </div>
 
-      {/* Row 2 — 즉시 액션 필요 알림 (0건이면 숨김) */}
-      {alerts.length > 0 && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-2.5">
-          <div className="flex items-center gap-2 flex-wrap">
-            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
-            <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">즉시 처리 필요</span>
-            <div className="flex flex-wrap gap-2 ml-2">
-              {alerts.map((a) => (
-                <Link
-                  key={a.key}
-                  to={a.to}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${
-                    a.tone === 'rose'
-                      ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-300'
-                      : 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300'
-                  }`}
-                >
-                  {a.label}
-                  <span className="tabular-nums font-bold">{a.count}</span>
-                  <ChevronRight className="w-3 h-3" />
-                </Link>
-              ))}
+      {/* Row 2 — 알림 큐 (항상 표시, 0건은 회색) */}
+      {alerts.length > 0 && (() => {
+        const hasActive = alerts.some((a) => a.count > 0)
+        return (
+          <div className={`rounded-lg border p-2.5 ${
+            hasActive
+              ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
+              : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/40'
+          }`}>
+            <div className="flex items-center gap-2 flex-wrap">
+              <AlertTriangle
+                className={`w-4 h-4 flex-shrink-0 ${
+                  hasActive ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'
+                }`}
+              />
+              <span className={`text-xs font-semibold ${
+                hasActive
+                  ? 'text-amber-800 dark:text-amber-200'
+                  : 'text-gray-500 dark:text-gray-400'
+              }`}>
+                {hasActive ? '즉시 처리 필요' : '알림 현황'}
+              </span>
+              <div className="flex flex-wrap gap-2 ml-2">
+                {alerts.map((a) => {
+                  const isActive = a.count > 0
+                  const colorCls = !isActive
+                    ? 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700/50 dark:text-gray-400'
+                    : a.tone === 'rose'
+                    ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-300'
+                    : 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300'
+                  return (
+                    <Link
+                      key={a.key}
+                      to={a.to}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${colorCls}`}
+                    >
+                      {a.label}
+                      <span className="tabular-nums font-bold">{a.count}</span>
+                      <ChevronRight className="w-3 h-3" />
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Row 3 — 매출 / 상담사 상태 / 방문자 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">

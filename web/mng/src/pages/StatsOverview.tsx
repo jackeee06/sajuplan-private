@@ -33,12 +33,12 @@ export default function StatsOverview() {
   }, [days])
 
   return (
-    <div className="space-y-5">
-      <h1 className="text-xl font-semibold">통계</h1>
+    <div className="space-y-3 max-w-[1400px]">
+      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">통계</h1>
 
       {/* KPI */}
       {ov && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
           <Kpi label="회원" value={ov.member_total.toLocaleString()} unit="명" />
           <Kpi label="상담사" value={ov.counselor_total.toLocaleString()} unit="명" />
           <Kpi label="오늘 방문" value={ov.today_visits.toLocaleString()} unit="건" />
@@ -61,7 +61,7 @@ export default function StatsOverview() {
       {/* 일별 방문/매출 테이블 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-          <div className="px-4 py-2.5 bg-brand-600 text-white text-sm font-semibold">일별 방문자</div>
+          <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200">일별 방문자</div>
           <div className="max-h-[400px] overflow-y-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-500">
@@ -81,7 +81,7 @@ export default function StatsOverview() {
         </div>
 
         <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-          <div className="px-4 py-2.5 bg-brand-600 text-white text-sm font-semibold">일별 매출</div>
+          <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200">일별 매출</div>
           <div className="max-h-[400px] overflow-y-auto">
             <table className="w-full text-xs">
               <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-500">
@@ -110,7 +110,7 @@ export default function StatsOverview() {
 
       {/* 월별 매출 */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        <div className="px-4 py-2.5 bg-brand-600 text-white text-sm font-semibold">월별 매출 (최근 12개월)</div>
+        <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200">월별 매출 (최근 12개월)</div>
         <table className="w-full text-xs">
           <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-500">
             <tr>
@@ -142,12 +142,12 @@ function Kpi({ label, value, unit, sub, highlight }: { label: string; value: str
     ? 'bg-brand-50 border-brand-200 dark:bg-brand-900/30 dark:border-brand-800'
     : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700'
   return (
-    <div className={`p-4 rounded-xl border ${cls}`}>
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-xl font-bold mt-1 text-gray-800 dark:text-gray-100">
-        {value}<span className="text-xs font-normal text-gray-500 ml-1">{unit}</span>
+    <div className={`px-3 py-2 rounded-lg border ${cls}`}>
+      <div className="text-[11px] text-gray-500">{label}</div>
+      <div className="text-lg font-bold mt-0.5 tabular-nums text-gray-800 dark:text-gray-100 leading-tight">
+        {value}<span className="text-[10px] font-normal text-gray-500 ml-1">{unit}</span>
       </div>
-      {sub && <div className="text-[11px] text-gray-400 mt-0.5">{sub}</div>}
+      {sub && <div className="text-[10px] text-gray-400 mt-0.5">{sub}</div>}
     </div>
   )
 }

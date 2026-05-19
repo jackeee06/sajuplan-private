@@ -136,7 +136,7 @@ export default function PaymentList() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 max-w-[1400px]">
       {/* 타이틀 + 엑셀 */}
       <div className="flex items-center justify-between">
         <div>
