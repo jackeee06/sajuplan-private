@@ -29,21 +29,23 @@ export default function NoticesList() {
   }, [filter])
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-[1100px]">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">공지사항 관리</h1>
-          {data && <p className="text-xs text-gray-500 mt-0.5">총 {data.total.toLocaleString()}건</p>}
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">공지사항 관리</h1>
+          {data && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            총 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건
+          </p>}
         </div>
         <Link
           to="/notices/new"
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-500 hover:bg-brand-600 text-white"
+          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white"
         >
           <Plus className="w-4 h-4" /> 공지 추가
         </Link>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 w-fit max-w-full">
         <div className="flex flex-wrap items-center gap-1.5">
           <input
             type="text"
@@ -53,45 +55,45 @@ export default function NoticesList() {
             placeholder="제목/본문 검색"
             className={`w-72 ${cls}`}
           />
-          <button onClick={() => setFilter({ q: pending.q, page: 1 })} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-500 hover:bg-brand-600 text-white">
+          <button onClick={() => setFilter({ q: pending.q, page: 1 })} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">
             <Search className="w-4 h-4" /> 검색
           </button>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-brand-500 text-xs text-white">
+          <table className="text-sm w-auto">
+            <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
               <tr>
-                <th className="px-3 py-2 text-center font-semibold w-20">관리</th>
-                <th className="px-3 py-2 text-center font-semibold w-16">번호</th>
-                <th className="px-3 py-2 text-center font-semibold">제목</th>
-                <th className="px-3 py-2 text-center font-semibold w-20">카테고리</th>
-                <th className="px-3 py-2 text-center font-semibold w-20">조회수</th>
-                <th className="px-3 py-2 text-center font-semibold w-40">작성일</th>
+                <th className="px-3 py-1.5 text-left font-medium">번호</th>
+                <th className="px-3 py-1.5 text-left font-medium">제목</th>
+                <th className="px-3 py-1.5 text-left font-medium">카테고리</th>
+                <th className="px-3 py-1.5 text-right font-medium">조회수</th>
+                <th className="px-3 py-1.5 text-left font-medium">작성일</th>
+                <th className="px-3 py-1.5 text-left font-medium">관리</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading && !data ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">로딩...</td></tr>
+                <tr><td colSpan={6} className="px-3 py-3 text-xs text-gray-400">로딩...</td></tr>
               ) : !data || data.items.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">공지가 없습니다.</td></tr>
+                <tr><td colSpan={6} className="px-3 py-3 text-xs text-gray-400">공지가 없습니다.</td></tr>
               ) : data.items.map((n) => (
-                <tr key={n.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                  <td className="px-3 py-2 text-center">
-                    <Link to={`/notices/${n.id}`} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 whitespace-nowrap">
+                <tr key={n.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
+                  <td className="px-3 py-1.5 text-xs text-gray-400 tabular-nums">{n.id}</td>
+                  <td className="px-3 py-1.5 text-xs">
+                    {n.is_pinned && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] mr-1.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"><Pin className="w-2.5 h-2.5" /> 고정</span>}
+                    <span className="font-medium text-gray-800 dark:text-gray-100">{n.title}</span>
+                  </td>
+                  <td className="px-3 py-1.5 text-xs text-gray-500">{n.category ?? <span className="text-gray-300">—</span>}</td>
+                  <td className="px-3 py-1.5 text-xs text-gray-500 text-right tabular-nums">{n.view_count.toLocaleString()}</td>
+                  <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{formatDT(n.created_at)}</td>
+                  <td className="px-3 py-1.5 text-xs">
+                    <Link to={`/notices/${n.id}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
                       <Pencil className="w-3 h-3" /> 수정
                     </Link>
                   </td>
-                  <td className="px-3 py-2 text-gray-400 text-center">{n.id}</td>
-                  <td className="px-3 py-2">
-                    {n.is_pinned && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] mr-1.5 rounded bg-rose-100 text-rose-700"><Pin className="w-2.5 h-2.5" /> 고정</span>}
-                    <span className="font-medium">{n.title}</span>
-                  </td>
-                  <td className="px-3 py-2 text-xs text-gray-500 text-center">{n.category ?? '-'}</td>
-                  <td className="px-3 py-2 text-xs text-gray-500 text-right">{n.view_count.toLocaleString()}</td>
-                  <td className="px-3 py-2 text-xs text-gray-500 whitespace-nowrap text-center">{formatDT(n.created_at)}</td>
                 </tr>
               ))}
             </tbody>
@@ -102,7 +104,7 @@ export default function NoticesList() {
   )
 }
 
-const cls = 'px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
+const cls = 'px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
 
 function formatDT(s: string): string {
   if (!s) return '-'

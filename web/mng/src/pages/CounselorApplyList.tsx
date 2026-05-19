@@ -149,7 +149,7 @@ export default function CounselorApplyList() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-[1100px]">
       {/* 타이틀 */}
       <div>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">상담사 신청 내역</h1>
