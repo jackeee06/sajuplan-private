@@ -162,7 +162,7 @@ function Card({
           </Link>
         )}
       </div>
-      <div className="p-2.5">{children}</div>
+      <div className="p-2">{children}</div>
     </div>
   )
 }
@@ -261,7 +261,7 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2.5 max-w-[1500px]">
       {/* 타이틀 */}
       <div className="flex items-end justify-between">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">대시보드</h1>
@@ -357,7 +357,7 @@ export default function Dashboard() {
       {/* Row 3 — 매출 / 상담사 상태 / 방문자 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         <Card title="14일 매출 추이" to="/stats">
-          <div className="h-48">
+          <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={sales} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                 <defs>
@@ -398,7 +398,7 @@ export default function Dashboard() {
         </Card>
 
         <Card title="상담사 상태" to="/members/counselors">
-          <div className="h-48 flex">
+          <div className="h-44 flex">
             <div className="flex-1 min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -424,7 +424,7 @@ export default function Dashboard() {
         </Card>
 
         <Card title="14일 상담 건수" to="/consultations">
-          <div className="h-48">
+          <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={consultations} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.4} />
