@@ -126,7 +126,7 @@ export default function AdminUsers() {
 
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-brand-600 dark:bg-brand-700 text-[11px] text-white">
+          <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
             <tr>
               <th className="px-3 py-2 text-left font-medium">아이디</th>
               <th className="px-3 py-2 text-left font-medium">이름</th>
@@ -140,7 +140,7 @@ export default function AdminUsers() {
             {loading ? <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">로딩...</td></tr>
               : items.length === 0 ? <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">관리자가 없습니다.</td></tr>
               : items.map((a) => (
-                <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                <tr key={a.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
                   <td className="px-3 py-2 font-medium">{a.mb_id}</td>
                   <td className="px-3 py-2">{a.name}</td>
                   <td className="px-3 py-2 text-gray-500">{a.nickname}</td>

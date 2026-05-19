@@ -37,18 +37,20 @@ export default function PushNotifications() {
   }, [filter, reload])
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-[1100px]">
       <div className="flex items-center gap-2">
-        <Bell className="w-5 h-5 text-brand-500" />
-        <h1 className="text-xl font-semibold">푸시 알림</h1>
+        <Bell className="w-5 h-5 text-brand-600" />
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">푸시 알림</h1>
       </div>
 
       {/* ─── 발송 이력 ─── */}
-      <section className="space-y-3">
+      <section className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">푸시알림 내역</h2>
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">푸시알림 내역</h2>
           <div className="flex items-center gap-3">
-            {data && <span className="text-xs text-gray-500">총 {data.total.toLocaleString()}건</span>}
+            {data && <span className="text-xs text-gray-500">
+              총 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건
+            </span>}
             <button
               onClick={async () => {
                 if (!data || data.total === 0) return
@@ -62,9 +64,9 @@ export default function PushNotifications() {
                 }
               }}
               disabled={!data || data.total === 0}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md border border-rose-200 dark:border-rose-700 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 disabled:opacity-40"
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-rose-200 dark:border-rose-700 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 disabled:opacity-40"
             >
-              <Trash2 className="w-3.5 h-3.5" /> 내역 비우기
+              <Trash2 className="w-3 h-3" /> 내역 비우기
             </button>
           </div>
         </div>
@@ -80,10 +82,10 @@ export default function PushNotifications() {
             <button
               key={c.v}
               onClick={() => setFilter((f) => ({ ...f, category: c.v as CategoryFilter, page: 1 }))}
-              className={`px-3 py-1.5 text-xs rounded-full border transition ${
+              className={`px-3 py-1 text-xs rounded-full border transition ${
                 filter.category === c.v
-                  ? 'bg-brand-500 text-white border-brand-500'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
               }`}
             >
               {c.label}
@@ -92,7 +94,7 @@ export default function PushNotifications() {
         </div>
 
         {/* 검색 */}
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 w-fit max-w-full">
           <div className="flex flex-wrap items-center gap-1.5">
             <select value={pending.sfl} onChange={(e) => setPending({ ...pending, sfl: e.target.value as 'title' | 'content' | 'mb_id' })} className={cls}>
               <option value="title">제목</option>
@@ -105,11 +107,11 @@ export default function PushNotifications() {
               onChange={(e) => setPending({ ...pending, q: e.target.value })}
               onKeyDown={(e) => e.key === 'Enter' && setFilter({ ...filter, q: pending.q, sfl: pending.sfl, page: 1 })}
               placeholder="검색어"
-              className={`w-64 ${cls}`}
+              className={`w-60 ${cls}`}
             />
             <button
               onClick={() => setFilter({ ...filter, q: pending.q, sfl: pending.sfl, page: 1 })}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-500 hover:bg-brand-600 text-white"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white"
             >
               <Search className="w-4 h-4" /> 검색
             </button>
@@ -117,31 +119,31 @@ export default function PushNotifications() {
         </div>
 
         {/* 표 */}
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-brand-500 text-xs text-white">
+            <table className="text-sm w-auto">
+              <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
                 <tr>
-                  <th className="px-3 py-2 text-center font-semibold w-40">일시</th>
-                  <th className="px-3 py-2 text-center font-semibold w-24">분류</th>
-                  <th className="px-3 py-2 text-center font-semibold">제목</th>
-                  <th className="px-3 py-2 text-center font-semibold w-24">아이디</th>
-                  <th className="px-3 py-2 text-center font-semibold">URL</th>
+                  <th className="px-3 py-1.5 text-left font-medium">일시</th>
+                  <th className="px-3 py-1.5 text-left font-medium">분류</th>
+                  <th className="px-3 py-1.5 text-left font-medium">제목</th>
+                  <th className="px-3 py-1.5 text-left font-medium">아이디</th>
+                  <th className="px-3 py-1.5 text-left font-medium">URL</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {loading && !data ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">로딩…</td></tr>
+                  <tr><td colSpan={5} className="px-3 py-3 text-xs text-gray-400">로딩…</td></tr>
                 ) : !data || data.items.length === 0 ? (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">발송 내역이 없습니다.</td></tr>
+                  <tr><td colSpan={5} className="px-3 py-3 text-xs text-gray-400">발송 내역이 없습니다.</td></tr>
                 ) : data.items.map((h) => (
-                  <tr key={h.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                    <td className="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">{formatDT(h.created_at)}</td>
-                    <td className="px-3 py-2 text-xs text-gray-600 text-center">{h.category ?? '-'}</td>
-                    <td className="px-3 py-2 font-medium">{h.title}</td>
-                    <td className="px-3 py-2 text-xs text-gray-500">{h.mb_id ?? '-'}</td>
-                    <td className="px-3 py-2 text-xs text-brand-600 max-w-[300px] truncate">
-                      {h.link_url ? <a href={h.link_url} target="_blank" rel="noreferrer" className="hover:underline">{h.link_url}</a> : '-'}
+                  <tr key={h.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
+                    <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap tabular-nums">{formatDT(h.created_at)}</td>
+                    <td className="px-3 py-1.5 text-xs text-gray-600 whitespace-nowrap">{h.category ?? <span className="text-gray-300">—</span>}</td>
+                    <td className="px-3 py-1.5 text-xs font-medium text-gray-800 dark:text-gray-100">{h.title}</td>
+                    <td className="px-3 py-1.5 text-xs text-gray-500">{h.mb_id ?? <span className="text-gray-300">—</span>}</td>
+                    <td className="px-3 py-1.5 text-xs text-brand-600 max-w-[280px] truncate">
+                      {h.link_url ? <a href={h.link_url} target="_blank" rel="noreferrer" className="hover:underline">{h.link_url}</a> : <span className="text-gray-300">—</span>}
                     </td>
                   </tr>
                 ))}
@@ -187,12 +189,12 @@ function Compose({ onSent }: { onSent: () => void }) {
   }
 
   return (
-    <section className="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-      <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100">푸시 알림 입력</h2>
+    <section className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+      <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">푸시 알림 입력</h2>
 
-      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 rounded-xl p-3 text-xs">
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 rounded-xl p-3 text-xs w-fit max-w-full">
         <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             <div className="font-semibold flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> 푸시알림 전송방법</div>
             <div><b>Step 1. 알림내용</b> : 고객에게 전달할 뉴스 또는 이벤트 내용을 입력합니다.</div>
             <div><b>Step 2. 주소</b> : 공지사항에 전달하실 내용의 글을 쓰고 해당 게시물의 URL을 "주소" 항목에 붙여넣기 하시면 됩니다.</div>
@@ -202,70 +204,59 @@ function Compose({ onSent }: { onSent: () => void }) {
             href="/mng/notices/new"
             target="_blank"
             rel="noreferrer"
-            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-xs rounded-md bg-white dark:bg-gray-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40 whitespace-nowrap"
+            className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-white dark:bg-gray-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40 whitespace-nowrap"
           >
             공지사항 쓰러가기 →
           </a>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
-        <table className="w-full text-sm">
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            <tr>
-              <th className="text-left align-middle px-4 py-3 w-32 font-medium bg-gray-50 dark:bg-gray-800/50">구분 <span className="text-rose-500">*</span></th>
-              <td className="px-4 py-3">
-                <select value={target} onChange={(e) => setTarget(e.target.value as 'all' | 'user' | 'counselor')} className={cls + ' w-48'}>
-                  <option value="all">전체공지</option>
-                  <option value="user">일반회원</option>
-                  <option value="counselor">상담사</option>
-                </select>
-              </td>
-            </tr>
-            <tr>
-              <th className="text-left align-middle px-4 py-3 font-medium bg-gray-50 dark:bg-gray-800/50">알림내용 <span className="text-rose-500">*</span></th>
-              <td className="px-4 py-3">
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  maxLength={60}
-                  placeholder="푸시알림 제목"
-                  className={cls + ' w-full'}
-                />
-              </td>
-            </tr>
-            <tr>
-              <th className="text-left align-middle px-4 py-3 font-medium bg-gray-50 dark:bg-gray-800/50">본문</th>
-              <td className="px-4 py-3">
-                <textarea
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  rows={2}
-                  maxLength={200}
-                  placeholder="알림 본문 (선택)"
-                  className={cls + ' w-full'}
-                />
-              </td>
-            </tr>
-            <tr>
-              <th className="text-left align-middle px-4 py-3 font-medium bg-gray-50 dark:bg-gray-800/50">주소</th>
-              <td className="px-4 py-3">
-                <input
-                  type="url"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  placeholder="전송할 게시물 URL"
-                  className={cls + ' w-full font-mono text-xs'}
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      {/* 입력 폼 — 좌측 라벨 + 좁은 input 폭 */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-2 max-w-[800px]">
+        <div className="flex items-center gap-3">
+          <label className="text-[11px] font-medium text-gray-500 w-20">구분 <span className="text-rose-500">*</span></label>
+          <select value={target} onChange={(e) => setTarget(e.target.value as 'all' | 'user' | 'counselor')} className={`${cls} w-40`}>
+            <option value="all">전체공지</option>
+            <option value="user">일반회원</option>
+            <option value="counselor">상담사</option>
+          </select>
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-[11px] font-medium text-gray-500 w-20">알림내용 <span className="text-rose-500">*</span></label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            maxLength={60}
+            placeholder="푸시알림 제목"
+            className={`${cls} flex-1 max-w-md`}
+          />
+        </div>
+        <div className="flex items-start gap-3">
+          <label className="text-[11px] font-medium text-gray-500 w-20 pt-2">본문</label>
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={2}
+            maxLength={200}
+            placeholder="알림 본문 (선택)"
+            className={`${cls} flex-1 max-w-md`}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <label className="text-[11px] font-medium text-gray-500 w-20">주소</label>
+          <input
+            type="url"
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            placeholder="전송할 게시물 URL"
+            className={`${cls} flex-1 max-w-md font-mono text-xs`}
+          />
+        </div>
       </div>
 
       {result && (
-        <div className={`p-3 rounded-lg text-sm ${
+        <div className={`p-3 rounded-lg text-sm w-fit max-w-full ${
           result.ok ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
                     : 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
         }`}>
@@ -282,7 +273,7 @@ function Compose({ onSent }: { onSent: () => void }) {
         <button
           onClick={onSend}
           disabled={sending || !title.trim()}
-          className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm rounded-lg bg-brand-500 hover:bg-brand-600 text-white disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50"
         >
           <Send className="w-4 h-4" />
           {sending ? '발송 중…' : '푸시알림 보내기'}
@@ -296,7 +287,7 @@ function labelFor(t: 'all' | 'user' | 'counselor'): string {
   return t === 'all' ? '전체공지' : t === 'user' ? '일반회원' : '상담사'
 }
 
-const cls = 'px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
+const cls = 'px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
 
 function formatDT(s: string): string {
   if (!s) return '-'

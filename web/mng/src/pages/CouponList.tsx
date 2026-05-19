@@ -122,7 +122,7 @@ export default function CouponList() {
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
-            <thead className="bg-brand-600 dark:bg-brand-700 text-[11px] text-white">
+            <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
               <tr>
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap">등록일시</th>
                 <th className="px-3 py-2 text-left font-medium whitespace-nowrap">쿠폰종류</th>
@@ -142,7 +142,7 @@ export default function CouponList() {
                 <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">자료가 없습니다.</td></tr>
               ) : (
                 data.items.map((c) => (
-                  <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+                  <tr key={c.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
                     <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{formatDate(c.created_at)}</td>
                     <td className="px-3 py-2 whitespace-nowrap">{METHOD_MAP[c.method] ?? `종류${c.method}`}</td>
                     <td className="px-3 py-2 font-mono text-gray-600 whitespace-nowrap">{c.cp_id || '-'}</td>

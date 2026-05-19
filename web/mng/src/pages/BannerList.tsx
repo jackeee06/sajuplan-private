@@ -59,17 +59,18 @@ export default function BannerList() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">배너 관리</h1>
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">배너 관리</h1>
+          {data && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            총 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건
+          </p>}
+        </div>
         <Link to="/banners/new" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">
           <Plus className="w-4 h-4" /> 배너추가
         </Link>
       </div>
 
-      {data && (
-        <div className="text-xs text-gray-500">{data.total ? `${data.total.toLocaleString()}` : '등록된'} 배너</div>
-      )}
-
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 w-fit max-w-full">
         <div className="flex flex-wrap items-center gap-1.5">
           <select value={filter.position} onChange={(e) => setFilter((f) => ({ ...f, position: e.target.value, page: 1 }))} className={cls}>
             <option value="">위치 전체</option>
@@ -83,52 +84,52 @@ export default function BannerList() {
         </div>
       </div>
 
-      {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}
-      {success && <div className="p-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm">{success}</div>}
+      {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm w-fit max-w-full">{error}</div>}
+      {success && <div className="p-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm w-fit max-w-full">{success}</div>}
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-brand-600 dark:bg-brand-700 text-[11px] text-white">
+          <table className="text-sm w-auto">
+            <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
               <tr>
-                <th className="px-3 py-2 text-left font-medium">ID</th>
-                <th className="px-3 py-2 text-left font-medium">위치</th>
-                <th className="px-3 py-2 text-left font-medium">이미지</th>
-                <th className="px-3 py-2 text-left font-medium">제목/링크</th>
-                <th className="px-3 py-2 text-left font-medium">시작일시</th>
-                <th className="px-3 py-2 text-left font-medium">종료일시</th>
-                <th className="px-3 py-2 text-right font-medium">순서</th>
-                <th className="px-3 py-2 text-right font-medium">조회</th>
-                <th className="px-3 py-2 text-right font-medium">관리</th>
+                <th className="px-3 py-1.5 text-left font-medium">ID</th>
+                <th className="px-3 py-1.5 text-left font-medium">위치</th>
+                <th className="px-3 py-1.5 text-left font-medium">이미지</th>
+                <th className="px-3 py-1.5 text-left font-medium">제목/링크</th>
+                <th className="px-3 py-1.5 text-left font-medium">시작일시</th>
+                <th className="px-3 py-1.5 text-left font-medium">종료일시</th>
+                <th className="px-3 py-1.5 text-right font-medium">순서</th>
+                <th className="px-3 py-1.5 text-right font-medium">조회</th>
+                <th className="px-3 py-1.5 text-left font-medium">관리</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading && !data ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">로딩...</td></tr>
+                <tr><td colSpan={9} className="px-3 py-3 text-xs text-gray-400">로딩...</td></tr>
               ) : !data || data.items.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-400">자료가 없습니다.</td></tr>
+                <tr><td colSpan={9} className="px-3 py-3 text-xs text-gray-400">자료가 없습니다.</td></tr>
               ) : (
                 data.items.map((b) => (
-                  <tr key={b.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                    <td className="px-3 py-2 text-gray-500">{b.id}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">{b.position || '-'}</td>
-                    <td className="px-3 py-2">
+                  <tr key={b.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
+                    <td className="px-3 py-1.5 text-xs text-gray-400 tabular-nums">{b.id}</td>
+                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">{b.position || <span className="text-gray-300">—</span>}</td>
+                    <td className="px-3 py-1.5">
                       {b.image_url ? (
-                        <UploadedImage src={b.image_url} srcWebp={b.image_url_webp} alt={b.title || ''} className="h-12 max-w-[120px] object-contain" />
-                      ) : <span className="text-gray-300">-</span>}
+                        <UploadedImage src={b.image_url} srcWebp={b.image_url_webp} alt={b.title || ''} className="h-10 max-w-[100px] object-contain" />
+                      ) : <span className="text-[10px] text-gray-300">—</span>}
                     </td>
-                    <td className="px-3 py-2 max-w-[280px] truncate">
-                      <div>{b.title || '-'}</div>
+                    <td className="px-3 py-1.5 text-xs max-w-[260px] truncate">
+                      <div className="font-medium text-gray-800 dark:text-gray-100">{b.title || '-'}</div>
                       {b.link_url && <a href={b.link_url} target="_blank" rel="noreferrer" className="text-[10px] text-brand-600 hover:underline">{b.link_url}</a>}
                     </td>
-                    <td className="px-3 py-2 text-gray-500 whitespace-nowrap text-[11px]">{formatDT(b.starts_at)}</td>
-                    <td className="px-3 py-2 text-gray-500 whitespace-nowrap text-[11px]">{formatDT(b.ends_at)}</td>
-                    <td className="px-3 py-2 text-right">{b.display_order}</td>
-                    <td className="px-3 py-2 text-right text-gray-500">{b.hit_count.toLocaleString()}</td>
-                    <td className="px-3 py-2 text-right whitespace-nowrap">
-                      <Link to={`/banners/${b.id}`} className="inline-flex items-center px-2 py-1 text-xs rounded border hover:bg-gray-50 mr-1">수정</Link>
-                      <button onClick={() => onDelete(b)} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-rose-200 text-rose-700 hover:bg-rose-50">
-                        <Trash2 className="w-3.5 h-3.5" />
+                    <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap tabular-nums">{formatDT(b.starts_at)}</td>
+                    <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap tabular-nums">{formatDT(b.ends_at)}</td>
+                    <td className="px-3 py-1.5 text-xs text-right tabular-nums">{b.display_order}</td>
+                    <td className="px-3 py-1.5 text-xs text-right text-gray-500 tabular-nums">{b.hit_count === 0 ? <span className="text-gray-300">0</span> : b.hit_count.toLocaleString()}</td>
+                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
+                      <Link to={`/banners/${b.id}`} className="inline-flex items-center px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 mr-1">수정</Link>
+                      <button onClick={() => onDelete(b)} className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 dark:hover:bg-rose-900/20">
+                        <Trash2 className="w-3 h-3" />
                       </button>
                     </td>
                   </tr>
