@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Plus, Pencil, Search, Pin } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Plus, Search, Pin } from 'lucide-react'
 import { api } from '../lib/api'
+import { Th, Td, Tr, IdCell, TableShell, THead, TBody, EmptyRow, PaginationBar, inputCls } from '../components/table'
 
 interface Notice {
   id: number
