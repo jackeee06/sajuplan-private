@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Plus, Search, X } from 'lucide-react'
 import { api, ApiError } from '../lib/api'
+import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Badge, BadgeColor, inputCls } from '../components/table'
 
 /**
  * 어드민 — 상담사 추천 수당 관리 (2026-05-17).
@@ -47,10 +48,10 @@ const STATUS_LABEL: Record<string, string> = {
   disabled: '비활성',
 }
 
-const STATUS_STYLE: Record<string, string> = {
-  active: 'bg-emerald-50 text-emerald-700',
-  expired: 'bg-gray-100 text-gray-600',
-  disabled: 'bg-rose-50 text-rose-700',
+const STATUS_COLOR: Record<string, BadgeColor> = {
+  active: 'emerald',
+  expired: 'gray',
+  disabled: 'rose',
 }
 
 function defaultMonth(): string {
@@ -137,66 +138,66 @@ export default function ReferralList() {
   }
 
   return (
-    <div className="space-y-4 text-sm">
-      {/* 타이틀 */}
-      <div>
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">상담사 추천 수당 (프로모션)</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          가입 후 6개월 한정 · 1~3개월 2% · 4~6개월 1% · 매월 1~5일 수동 지급 (전월 매출 기준)
-        </p>
+    <div className="space-y-4 text-sm max-w-[1400px]">
+      {/* 타이틀 + 등록 */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">상담사 추천 수당 (프로모션)</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            가입 후 6개월 한정 · 1~3개월 2% · 4~6개월 1% · 매월 1~5일 수동 지급 (전월 매출 기준)
+          </p>
+        </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium"
+        >
+          <Plus className="w-4 h-4" /> 새 추천 등록
+        </button>
       </div>
 
-      {/* 요약 + 필터 */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <label className="text-xs text-gray-500">대상 월</label>
+      {/* 필터 */}
+      <div className="flex items-end gap-3 flex-wrap">
+        <div className="w-[140px]">
+          <label className="block text-[11px] font-medium text-gray-500 mb-1">대상 월</label>
           <input
             type="month"
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            className="h-8 px-2 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs"
+            className={inputCls}
           />
-          <label className="text-xs text-gray-500 ml-2">상태</label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="h-8 px-2 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs"
-          >
+        </div>
+        <div className="w-[120px]">
+          <label className="block text-[11px] font-medium text-gray-500 mb-1">상태</label>
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls}>
             <option value="">전체</option>
             <option value="active">활성</option>
             <option value="expired">만료</option>
             <option value="disabled">비활성</option>
           </select>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="h-8 px-3 rounded bg-violet-600 hover:bg-violet-700 text-white text-xs font-medium flex items-center gap-1"
-        >
-          <Plus className="w-3.5 h-3.5" /> 새 추천 등록
-        </button>
       </div>
 
       {/* 요약 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-        <div className="px-3 py-2 rounded bg-gray-50 dark:bg-gray-800/50">
-          <div className="text-[10px] text-gray-500">활성 관계</div>
-          <div className="text-base font-semibold">{summary.active}</div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="px-3 py-2.5 rounded-lg bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-700">
+          <div className="text-[11px] text-gray-500">활성 관계</div>
+          <div className="text-lg font-semibold tabular-nums text-gray-900 dark:text-gray-100">{summary.active}</div>
         </div>
-        <div className="px-3 py-2 rounded bg-blue-50 dark:bg-blue-900/20">
-          <div className="text-[10px] text-blue-700 dark:text-blue-300">이번 달 지급대상</div>
-          <div className="text-base font-semibold text-blue-700 dark:text-blue-300">{summary.eligible}</div>
+        <div className="px-3 py-2.5 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
+          <div className="text-[11px] text-blue-700 dark:text-blue-300">이번 달 지급대상</div>
+          <div className="text-lg font-semibold tabular-nums text-blue-700 dark:text-blue-300">{summary.eligible}</div>
         </div>
-        <div className="px-3 py-2 rounded bg-emerald-50 dark:bg-emerald-900/20">
-          <div className="text-[10px] text-emerald-700 dark:text-emerald-300">지급 완료</div>
-          <div className="text-base font-semibold text-emerald-700 dark:text-emerald-300">{summary.paid}</div>
+        <div className="px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800">
+          <div className="text-[11px] text-emerald-700 dark:text-emerald-300">지급 완료</div>
+          <div className="text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{summary.paid}</div>
         </div>
-        <div className="px-3 py-2 rounded bg-amber-50 dark:bg-amber-900/20">
-          <div className="text-[10px] text-amber-700 dark:text-amber-300">미지급</div>
-          <div className="text-base font-semibold text-amber-700 dark:text-amber-300">{summary.pending}</div>
+        <div className="px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
+          <div className="text-[11px] text-amber-700 dark:text-amber-300">미지급</div>
+          <div className="text-lg font-semibold tabular-nums text-amber-700 dark:text-amber-300">{summary.pending}</div>
         </div>
-        <div className="px-3 py-2 rounded bg-violet-50 dark:bg-violet-900/20">
-          <div className="text-[10px] text-violet-700 dark:text-violet-300">미지급 합계</div>
-          <div className="text-base font-semibold text-violet-700 dark:text-violet-300">{fmt(summary.totalExpected)}원</div>
+        <div className="px-3 py-2.5 rounded-lg bg-brand-50 border border-brand-200 dark:bg-brand-900/20 dark:border-brand-800">
+          <div className="text-[11px] text-brand-700 dark:text-brand-300">미지급 합계</div>
+          <div className="text-lg font-semibold tabular-nums text-brand-700 dark:text-brand-300">{fmt(summary.totalExpected)}원</div>
         </div>
       </div>
 
@@ -207,92 +208,88 @@ export default function ReferralList() {
       )}
 
       {/* 테이블 */}
-      <div className="overflow-x-auto rounded border border-gray-200 dark:border-gray-700">
-        <table className="w-fit min-w-full text-left">
-          <thead className="bg-gray-50 dark:bg-gray-800/50 text-[11px] text-gray-500 uppercase">
-            <tr>
-              <th className="px-3 py-2 whitespace-nowrap">ID</th>
-              <th className="px-3 py-2 whitespace-nowrap">추천자 (A)</th>
-              <th className="px-3 py-2 whitespace-nowrap">피추천자 (B)</th>
-              <th className="px-3 py-2 whitespace-nowrap">가입일</th>
-              <th className="px-3 py-2 whitespace-nowrap">만료일</th>
-              <th className="px-3 py-2 whitespace-nowrap">개월차</th>
-              <th className="px-3 py-2 whitespace-nowrap">비율</th>
-              <th className="px-3 py-2 whitespace-nowrap text-right">B 매출</th>
-              <th className="px-3 py-2 whitespace-nowrap text-right">예상 지급</th>
-              <th className="px-3 py-2 whitespace-nowrap">상태</th>
-              <th className="px-3 py-2 whitespace-nowrap">메모</th>
-              <th className="px-3 py-2 whitespace-nowrap">액션</th>
-            </tr>
-          </thead>
-          <tbody className="text-xs">
-            {loading && (
-              <tr><td colSpan={12} className="px-3 py-6 text-center text-gray-400">로딩 중...</td></tr>
-            )}
-            {!loading && items.length === 0 && (
-              <tr><td colSpan={12} className="px-3 py-6 text-center text-gray-400">등록된 추천 관계가 없습니다.</td></tr>
-            )}
-            {!loading && items.map((it) => (
-              <tr key={it.id} className="border-t border-gray-100 dark:border-gray-800 hover:bg-violet-50/30 dark:hover:bg-violet-900/10">
-                <td className="px-3 py-2 text-gray-400">{it.id}</td>
-                <td className="px-3 py-2">
-                  <div className="font-medium">{it.referrer_nickname ?? '-'}</div>
+      <TableShell>
+        <THead>
+          <Th align="right">ID</Th>
+          <Th align="left">추천자 (A)</Th>
+          <Th align="left">피추천자 (B)</Th>
+          <Th align="left">가입일</Th>
+          <Th align="left">만료일</Th>
+          <Th align="center">개월차</Th>
+          <Th align="center">비율</Th>
+          <Th align="right">B 매출</Th>
+          <Th align="right">예상 지급</Th>
+          <Th align="center">상태</Th>
+          <Th align="left">메모</Th>
+          <Th align="center">액션</Th>
+        </THead>
+        <TBody>
+          {loading ? (
+            <EmptyRow colSpan={12} loading />
+          ) : items.length === 0 ? (
+            <EmptyRow colSpan={12} />
+          ) : (
+            items.map((it) => (
+              <Tr key={it.id}>
+                <Td align="right" className="text-gray-400 tabular-nums">{it.id}</Td>
+                <Td align="left">
+                  <div className="font-medium text-gray-900 dark:text-gray-100">{it.referrer_nickname ?? '-'}</div>
                   <div className="text-[10px] text-gray-400">{it.referrer_mb_id ?? `#${it.referrer_id}`}</div>
-                </td>
-                <td className="px-3 py-2">
-                  <div className="font-medium">{it.referee_nickname ?? '-'}</div>
+                </Td>
+                <Td align="left">
+                  <div className="font-medium text-gray-900 dark:text-gray-100">{it.referee_nickname ?? '-'}</div>
                   <div className="text-[10px] text-gray-400">{it.referee_mb_id ?? `#${it.referee_id}`}</div>
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap text-gray-600">{fmtDate(it.registered_at)}</td>
-                <td className="px-3 py-2 whitespace-nowrap text-gray-600">{fmtDate(it.expires_at)}</td>
-                <td className="px-3 py-2 text-center">{it.months_since}개월</td>
-                <td className="px-3 py-2">
+                </Td>
+                <Td align="left" className="text-xs text-gray-600 tabular-nums">{fmtDate(it.registered_at)}</Td>
+                <Td align="left" className="text-xs text-gray-600 tabular-nums">{fmtDate(it.expires_at)}</Td>
+                <Td align="center" className="text-xs">{it.months_since}개월</Td>
+                <Td align="center">
                   {it.rate_pct > 0 ? (
-                    <span className="font-medium text-violet-700">{it.rate_pct}%</span>
+                    <span className="font-medium text-brand-700">{it.rate_pct}%</span>
                   ) : (
-                    <span className="text-gray-400">—</span>
+                    <span className="text-gray-300">—</span>
                   )}
-                </td>
-                <td className="px-3 py-2 text-right whitespace-nowrap">{fmt(it.referee_sales)}</td>
-                <td className="px-3 py-2 text-right whitespace-nowrap font-semibold">
-                  {it.expected_payment > 0 ? fmt(it.expected_payment) : '—'}
-                </td>
-                <td className="px-3 py-2">
-                  <span className={`inline-block px-2 py-0.5 rounded text-[10px] ${STATUS_STYLE[it.status]}`}>
-                    {STATUS_LABEL[it.status]}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-gray-500 text-[10px] max-w-[180px] truncate" title={it.memo ?? ''}>
-                  {it.memo ?? ''}
-                </td>
-                <td className="px-3 py-2 whitespace-nowrap">
-                  {it.status === 'active' && it.expected_payment > 0 && !it.paid_this_month && (
-                    <button
-                      onClick={() => onPay(it)}
-                      className="px-2 py-1 rounded bg-violet-600 hover:bg-violet-700 text-white text-[11px] mr-1"
-                    >
-                      이번 달 지급
-                    </button>
-                  )}
-                  {it.paid_this_month && (
-                    <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 text-[11px] mr-1">
-                      지급 완료 ({fmt(it.paid_amount ?? 0)})
-                    </span>
-                  )}
-                  {it.status === 'active' && (
-                    <button
-                      onClick={() => onDisable(it)}
-                      className="px-2 py-1 rounded border border-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 text-[11px] text-gray-500"
-                    >
-                      비활성
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                </Td>
+                <Td align="right" className="tabular-nums text-gray-700">
+                  {it.referee_sales === 0 ? <span className="text-gray-300">0</span> : fmt(it.referee_sales)}
+                </Td>
+                <Td align="right" className="tabular-nums font-semibold">
+                  {it.expected_payment > 0 ? fmt(it.expected_payment) : <span className="text-gray-300">—</span>}
+                </Td>
+                <Td align="center">
+                  <Badge color={STATUS_COLOR[it.status]}>{STATUS_LABEL[it.status]}</Badge>
+                </Td>
+                <Td align="left" className="text-gray-500 text-[10px] max-w-[180px] truncate" >
+                  <span title={it.memo ?? ''}>{it.memo ?? ''}</span>
+                </Td>
+                <Td align="center">
+                  <div className="flex items-center justify-center gap-1">
+                    {it.status === 'active' && it.expected_payment > 0 && !it.paid_this_month && (
+                      <button
+                        onClick={() => onPay(it)}
+                        className="px-2 py-1 rounded-md bg-brand-600 hover:bg-brand-700 text-white text-[11px] font-medium"
+                      >
+                        이번 달 지급
+                      </button>
+                    )}
+                    {it.paid_this_month && (
+                      <Badge color="emerald">지급 완료 ({fmt(it.paid_amount ?? 0)})</Badge>
+                    )}
+                    {it.status === 'active' && (
+                      <button
+                        onClick={() => onDisable(it)}
+                        className="px-2 py-1 rounded-md border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-[11px] text-gray-500"
+                      >
+                        비활성
+                      </button>
+                    )}
+                  </div>
+                </Td>
+              </Tr>
+            ))
+          )}
+        </TBody>
+      </TableShell>
 
       {showCreate && (
         <CreateModal
@@ -372,7 +369,7 @@ function CreateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (
           <button
             onClick={onSubmit}
             disabled={submitting || !referrer || !referee}
-            className="h-9 px-4 rounded bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-sm"
+            className="h-9 px-4 rounded bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm"
           >
             {submitting ? '등록 중...' : '등록'}
           </button>
@@ -413,7 +410,7 @@ function CounselorPicker({ label, value, onChange }: {
     return (
       <div>
         <label className="block text-xs text-gray-500 mb-1">{label}</label>
-        <div className="flex items-center gap-2 px-3 py-2 rounded bg-violet-50 dark:bg-violet-900/20">
+        <div className="flex items-center gap-2 px-3 py-2 rounded bg-brand-50 dark:bg-brand-900/20">
           <div className="flex-1">
             <div className="font-medium">{value.nickname ?? value.name}</div>
             <div className="text-[10px] text-gray-500">{value.mb_id ?? `#${value.id}`} · 가입 {value.created_at.slice(0, 10)}</div>
@@ -450,7 +447,7 @@ function CounselorPicker({ label, value, onChange }: {
                 onChange(o)
                 setQ('')
               }}
-              className="px-3 py-2 hover:bg-violet-50 dark:hover:bg-violet-900/20 cursor-pointer text-sm"
+              className="px-3 py-2 hover:bg-brand-50 dark:hover:bg-brand-900/20 cursor-pointer text-sm"
             >
               <div className="font-medium">{o.nickname ?? o.name}</div>
               <div className="text-[10px] text-gray-500">{o.mb_id ?? `#${o.id}`} · 가입 {o.created_at.slice(0, 10)}</div>

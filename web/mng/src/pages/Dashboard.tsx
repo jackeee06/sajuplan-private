@@ -14,25 +14,26 @@ import {
   PieChart,
   Legend,
 } from 'recharts'
-import {
-  Users,
-  UserPlus,
-  CalendarDays,
-  Headphones,
-  TrendingUp,
-  Wallet,
-  ArrowRight,
-} from 'lucide-react'
+import { Wallet } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 
-// ───────────────────────────────────────────────
-// 타입
-// ───────────────────────────────────────────────
+/**
+ * 대시보드 — 한 화면(1080p) 안에 핵심 정보 압축.
+ *
+ * 레이아웃 (위→아래):
+ *   Row 1: KPI 6개 (오늘 매출 / 어제 매출 / 진행중 / 활성 상담사 / 오늘 가입 / 이번달 가입)
+ *   Row 2: 매출 14일 + 상담사 상태 + 방문자 14일 (3 컬럼)
+ *   Row 3: TOP5 상담사 금액 / 건수 / 고객 (3 컬럼)
+ *   Row 4: 최근 가입 / 최근 게시물 / 최근 포인트 (3 컬럼)
+ *
+ * 조밀 원칙: 좌측 정렬, p-3, text-sm, 차트 h-44, 카드 5건 컴팩트 리스트.
+ */
+
 interface Summary {
   members: { total: number; today: number; this_month: number }
   counselors: { total: number; idle: number; busy: number; absent: number }
 }
-
 interface SalesPoint {
   date: string
   call_070: number
@@ -40,12 +41,10 @@ interface SalesPoint {
   chat: number
   charge: number
 }
-
 interface VisitorPoint {
   date: string
   visitors: number
 }
-
 interface TopRow {
   id: number
   name: string
@@ -53,7 +52,6 @@ interface TopRow {
   total: number
   count: number
 }
-
 interface RecentMember {
   id: number
   name: string
@@ -62,7 +60,6 @@ interface RecentMember {
   role: string
   created_at: string | Date
 }
-
 interface RecentPoint {
   id: number
   member_name: string | null
@@ -73,7 +70,6 @@ interface RecentPoint {
   balance_after: number
   created_at: string | Date
 }
-
 interface RecentPost {
   id: number
   title: string
@@ -81,7 +77,6 @@ interface RecentPost {
   board: string
   created_at: string | Date
 }
-
 interface DashboardData {
   summary: Summary
   sales: SalesPoint[]
@@ -94,62 +89,37 @@ interface DashboardData {
   recentPosts: RecentPost[]
 }
 
-// ───────────────────────────────────────────────
-// 데이터 페치 (Next.js 포팅 시 getServerSideProps로 옮기기 쉬움)
-// ───────────────────────────────────────────────
 async function fetchDashboardData(): Promise<DashboardData> {
-  const [
-    summary,
-    sales,
-    visitors,
-    topByAmount,
-    topByCount,
-    topCustomers,
-    recentMembers,
-    recentPoints,
-    recentPosts,
-  ] = await Promise.all([
-    api<Summary>('/admin/dashboard/summary'),
-    api<SalesPoint[]>('/admin/dashboard/sales-trend?days=14'),
-    api<VisitorPoint[]>('/admin/dashboard/visitor-trend?days=14'),
-    api<TopRow[]>('/admin/dashboard/top-counselors?metric=amount'),
-    api<TopRow[]>('/admin/dashboard/top-counselors?metric=count'),
-    api<TopRow[]>('/admin/dashboard/top-customers'),
-    api<RecentMember[]>('/admin/dashboard/recent-members'),
-    api<RecentPoint[]>('/admin/dashboard/recent-points'),
-    api<RecentPost[]>('/admin/dashboard/recent-posts'),
-  ])
-  return {
-    summary,
-    sales,
-    visitors,
-    topByAmount,
-    topByCount,
-    topCustomers,
-    recentMembers,
-    recentPoints,
-    recentPosts,
-  }
+  const [summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts] =
+    await Promise.all([
+      api<Summary>('/admin/dashboard/summary'),
+      api<SalesPoint[]>('/admin/dashboard/sales-trend?days=14'),
+      api<VisitorPoint[]>('/admin/dashboard/visitor-trend?days=14'),
+      api<TopRow[]>('/admin/dashboard/top-counselors?metric=amount'),
+      api<TopRow[]>('/admin/dashboard/top-counselors?metric=count'),
+      api<TopRow[]>('/admin/dashboard/top-customers'),
+      api<RecentMember[]>('/admin/dashboard/recent-members'),
+      api<RecentPoint[]>('/admin/dashboard/recent-points'),
+      api<RecentPost[]>('/admin/dashboard/recent-posts'),
+    ])
+  return { summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts }
 }
 
-// ───────────────────────────────────────────────
-// 포맷 헬퍼
-// ───────────────────────────────────────────────
 const won = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 })
 const num = new Intl.NumberFormat('ko-KR')
-const dateShort = (d: string) => d.slice(5) // 'MM-DD'
+const dateShort = (d: string) => d.slice(5)
 
 function formatRelative(d: string | Date): string {
   const date = typeof d === 'string' ? new Date(d) : d
   const diff = Date.now() - date.getTime()
   const min = Math.floor(diff / 60_000)
-  if (min < 1) return '방금 전'
-  if (min < 60) return `${min}분 전`
+  if (min < 1) return '방금'
+  if (min < 60) return `${min}분`
   const hr = Math.floor(min / 60)
-  if (hr < 24) return `${hr}시간 전`
+  if (hr < 24) return `${hr}시간`
   const day = Math.floor(hr / 24)
-  if (day < 7) return `${day}일 전`
-  return date.toLocaleDateString('ko-KR', { year: '2-digit', month: '2-digit', day: '2-digit' })
+  if (day < 7) return `${day}일`
+  return date.toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
 }
 
 const boardLabel: Record<string, string> = {
@@ -159,35 +129,30 @@ const boardLabel: Record<string, string> = {
   notice: '공지',
 }
 
-// ───────────────────────────────────────────────
-// 작은 빌딩 블록
-// ───────────────────────────────────────────────
 function Card({
   title,
-  action,
+  to,
   children,
   className = '',
 }: {
-  title?: string
-  action?: React.ReactNode
+  title: string
+  to?: string
   children: React.ReactNode
   className?: string
 }) {
   return (
     <div
-      className={`rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 ${className}`}
+      className={`rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 ${className}`}
     >
-      {(title || action) && (
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 dark:border-gray-700">
-          {title && (
-            <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
-              {title}
-            </h3>
-          )}
-          {action}
-        </div>
-      )}
-      <div className="p-5">{children}</div>
+      <div className="flex items-center justify-between px-3 pt-2 pb-1.5 border-b border-gray-100 dark:border-gray-700">
+        <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200">{title}</h3>
+        {to && (
+          <Link to={to} className="text-[10px] text-gray-400 hover:text-brand-600">
+            더보기 ›
+          </Link>
+        )}
+      </div>
+      <div className="p-2.5">{children}</div>
     </div>
   )
 }
@@ -195,37 +160,31 @@ function Card({
 function Kpi({
   label,
   value,
-  delta,
-  icon: Icon,
-  tint,
+  sub,
+  tone = 'default',
 }: {
   label: string
   value: string
-  delta?: string
-  icon: React.ComponentType<{ className?: string }>
-  tint: string
+  sub?: string
+  tone?: 'default' | 'brand' | 'rose' | 'emerald' | 'blue' | 'amber'
 }) {
+  const valueTone: Record<string, string> = {
+    default: 'text-gray-900 dark:text-gray-100',
+    brand: 'text-brand-600 dark:text-brand-400',
+    rose: 'text-rose-600 dark:text-rose-400',
+    emerald: 'text-emerald-600 dark:text-emerald-400',
+    blue: 'text-blue-600 dark:text-blue-400',
+    amber: 'text-amber-600 dark:text-amber-400',
+  }
   return (
-    <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-800 p-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</div>
-          <div className="mt-2 text-2xl font-bold text-gray-800 dark:text-white">{value}</div>
-          {delta && (
-            <div className="mt-1 text-xs text-emerald-600 dark:text-emerald-400">{delta}</div>
-          )}
-        </div>
-        <div className={`p-2.5 rounded-xl ${tint}`}>
-          <Icon className="w-5 h-5" />
-        </div>
-      </div>
+    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
+      <div className="text-[11px] text-gray-500 dark:text-gray-400">{label}</div>
+      <div className={`text-xl font-bold tabular-nums leading-tight mt-0.5 ${valueTone[tone]}`}>{value}</div>
+      {sub && <div className="text-[10px] text-gray-400 mt-0.5">{sub}</div>}
     </div>
   )
 }
 
-// ───────────────────────────────────────────────
-// 페이지
-// ───────────────────────────────────────────────
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -233,12 +192,8 @@ export default function Dashboard() {
   useEffect(() => {
     let alive = true
     fetchDashboardData()
-      .then((d) => {
-        if (alive) setData(d)
-      })
-      .catch((e: Error) => {
-        if (alive) setError(e.message ?? String(e))
-      })
+      .then((d) => alive && setData(d))
+      .catch((e: Error) => alive && setError(e.message ?? String(e)))
     return () => {
       alive = false
     }
@@ -246,18 +201,14 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-900/20 p-6 text-sm text-red-700 dark:text-red-300">
+      <div className="rounded-lg border border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-900/20 p-3 text-sm text-red-700 dark:text-red-300 w-fit max-w-full">
         대시보드 데이터를 불러오지 못했습니다: {error}
       </div>
     )
   }
 
   if (!data) {
-    return (
-      <div className="space-y-6">
-        <Skeleton />
-      </div>
-    )
+    return <Skeleton />
   }
 
   const {
@@ -272,10 +223,10 @@ export default function Dashboard() {
     recentPosts,
   } = data
 
-  const todaySales =
-    sales[sales.length - 1] ??
-    ({ call_070: 0, call_060: 0, chat: 0, charge: 0 } as SalesPoint)
-  const todayTotal = todaySales.call_070 + todaySales.call_060 + todaySales.chat + todaySales.charge
+  const sumDay = (p?: SalesPoint) => (p ? p.call_070 + p.call_060 + p.chat + p.charge : 0)
+  const todayTotal = sumDay(sales[sales.length - 1])
+  const yesterdayTotal = sumDay(sales[sales.length - 2])
+  const deltaPct = yesterdayTotal > 0 ? Math.round(((todayTotal - yesterdayTotal) / yesterdayTotal) * 100) : null
 
   const counselorPie = [
     { name: '상담 가능', value: summary.counselors.idle, color: '#10b981' },
@@ -284,57 +235,50 @@ export default function Dashboard() {
   ]
 
   return (
-    <div className="space-y-6">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white">대시보드</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            오늘의 운영 현황을 한 눈에 확인합니다.
-          </p>
-        </div>
-        <span className="hidden sm:inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-          <CalendarDays className="w-3.5 h-3.5" />
+    <div className="space-y-2.5">
+      {/* 타이틀 */}
+      <div className="flex items-end justify-between">
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">대시보드</h1>
+        <span className="text-[11px] text-gray-400">
           {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}
         </span>
       </div>
 
-      {/* KPI */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Row 1 — KPI 6개 */}
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
         <Kpi
-          label="총 회원"
-          value={num.format(summary.members.total)}
-          icon={Users}
-          tint="bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300"
+          label="오늘 매출"
+          value={won.format(todayTotal)}
+          sub={deltaPct != null ? `어제 대비 ${deltaPct >= 0 ? '+' : ''}${deltaPct}%` : '—'}
+          tone="brand"
+        />
+        <Kpi label="어제 매출" value={won.format(yesterdayTotal)} tone="default" />
+        <Kpi label="진행 중 상담" value={`${num.format(summary.counselors.busy)}건`} tone="blue" />
+        <Kpi
+          label="활성 상담사"
+          value={`${num.format(summary.counselors.idle)}명`}
+          sub={`전체 ${num.format(summary.counselors.total)}명`}
+          tone="emerald"
         />
         <Kpi
           label="오늘 가입"
           value={num.format(summary.members.today)}
-          delta={`이번달 +${num.format(summary.members.this_month)}`}
-          icon={UserPlus}
-          tint="bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300"
+          sub={`이번달 +${num.format(summary.members.this_month)}`}
+          tone="amber"
         />
         <Kpi
-          label="활성 상담사"
-          value={num.format(summary.counselors.total)}
-          delta={`상담 가능 ${summary.counselors.idle}명`}
-          icon={Headphones}
-          tint="bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-300"
-        />
-        <Kpi
-          label="오늘 매출"
-          value={won.format(todayTotal)}
-          icon={TrendingUp}
-          tint="bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-300"
+          label="총 회원"
+          value={num.format(summary.members.total)}
+          tone="default"
         />
       </div>
 
-      {/* 차트 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card title="최근 14일 매출 추이" className="lg:col-span-2">
-          <div className="h-72">
+      {/* Row 2 — 매출 추이 + 상담사 상태 + 방문자 추이 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+        <Card title="14일 매출 추이" to="/stats" className="lg:col-span-1">
+          <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={sales} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+              <AreaChart data={sales} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                 <defs>
                   <linearGradient id="g070" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4} />
@@ -354,20 +298,20 @@ export default function Dashboard() {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.4} />
-                <XAxis dataKey="date" tickFormatter={dateShort} fontSize={11} stroke="#9ca3af" />
+                <XAxis dataKey="date" tickFormatter={dateShort} fontSize={10} stroke="#9ca3af" />
                 <YAxis
                   tickFormatter={(v) => (v >= 1_000_000 ? `${Math.round(v / 100_000) / 10}M` : `${Math.round(v / 1000)}K`)}
-                  fontSize={11}
+                  fontSize={10}
                   stroke="#9ca3af"
+                  width={40}
                 />
                 <Tooltip
                   formatter={(v: number) => won.format(v)}
-                  labelFormatter={(l: string) => l}
-                  contentStyle={{ borderRadius: 12, fontSize: 12 }}
+                  contentStyle={{ borderRadius: 6, fontSize: 11 }}
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Area type="monotone" dataKey="call_070" name="070 통화" stroke="#3b82f6" fill="url(#g070)" />
-                <Area type="monotone" dataKey="call_060" name="060 통화" stroke="#8b5cf6" fill="url(#g060)" />
+                <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />
+                <Area type="monotone" dataKey="call_070" name="070" stroke="#3b82f6" fill="url(#g070)" />
+                <Area type="monotone" dataKey="call_060" name="060" stroke="#8b5cf6" fill="url(#g060)" />
                 <Area type="monotone" dataKey="chat" name="채팅" stroke="#10b981" fill="url(#gchat)" />
                 <Area type="monotone" dataKey="charge" name="충전" stroke="#f43f5e" fill="url(#gchg)" />
               </AreaChart>
@@ -375,203 +319,132 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        <Card title="상담사 상태">
-          <div className="h-72 flex flex-col">
-            <div className="flex-1">
+        <Card title="상담사 상태" to="/members/counselors">
+          <div className="h-44 flex">
+            <div className="flex-1 min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={counselorPie}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={45}
-                    outerRadius={75}
-                    paddingAngle={2}
-                  >
+                  <Pie data={counselorPie} dataKey="value" nameKey="name" innerRadius={35} outerRadius={62} paddingAngle={2}>
                     {counselorPie.map((e) => (
                       <Cell key={e.name} fill={e.color} />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip contentStyle={{ borderRadius: 6, fontSize: 11 }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="flex flex-col justify-center gap-1.5 pl-2">
               {counselorPie.map((s) => (
-                <div key={s.name} className="text-center">
-                  <div className="flex items-center justify-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full" style={{ background: s.color }} />
-                    <span className="text-gray-500 dark:text-gray-400">{s.name}</span>
-                  </div>
-                  <div className="font-bold text-gray-800 dark:text-gray-100 mt-0.5">{s.value}명</div>
+                <div key={s.name} className="flex items-center gap-1.5 text-[11px]">
+                  <span className="w-2 h-2 rounded-full" style={{ background: s.color }} />
+                  <span className="text-gray-500 dark:text-gray-400">{s.name}</span>
+                  <span className="font-bold text-gray-800 dark:text-gray-100 tabular-nums">{s.value}</span>
                 </div>
               ))}
             </div>
           </div>
         </Card>
+
+        <Card title="14일 방문자 추이" to="/stats">
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={visitors} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.4} />
+                <XAxis dataKey="date" tickFormatter={dateShort} fontSize={10} stroke="#9ca3af" />
+                <YAxis tickFormatter={(v) => num.format(v)} fontSize={10} stroke="#9ca3af" width={40} />
+                <Tooltip formatter={(v: number) => `${num.format(v)}명`} contentStyle={{ borderRadius: 6, fontSize: 11 }} />
+                <Line type="monotone" dataKey="visitors" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
       </div>
 
-      {/* 방문자 추이 */}
-      <Card title="최근 14일 방문자 추이">
-        <div className="h-56">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={visitors} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.4} />
-              <XAxis dataKey="date" tickFormatter={dateShort} fontSize={11} stroke="#9ca3af" />
-              <YAxis tickFormatter={(v) => num.format(v)} fontSize={11} stroke="#9ca3af" />
-              <Tooltip formatter={(v: number) => `${num.format(v)}명`} contentStyle={{ borderRadius: 12, fontSize: 12 }} />
-              <Line
-                type="monotone"
-                dataKey="visitors"
-                stroke="#0ea5e9"
-                strokeWidth={2.5}
-                dot={{ r: 3 }}
-                activeDot={{ r: 5 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
-
-      {/* TOP5 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <TopList title="TOP5 상담사 (금액)" rows={topByAmount} valueKey="total" valueFormat={won.format} />
-        <TopList title="TOP5 상담사 (건수)" rows={topByCount} valueKey="count" valueFormat={(v) => `${num.format(v)}건`} />
-        <TopList title="TOP5 고객 (결제액)" rows={topCustomers} valueKey="total" valueFormat={won.format} />
+      {/* Row 3 — TOP5 3 컬럼 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+        <TopList title="TOP5 상담사 (금액)" to="/members/counselors" rows={topByAmount} valueKey="total" valueFormat={won.format} />
+        <TopList title="TOP5 상담사 (건수)" to="/members/counselors" rows={topByCount} valueKey="count" valueFormat={(v) => `${num.format(v)}건`} />
+        <TopList title="TOP5 고객 (결제액)" to="/members/customers" rows={topCustomers} valueKey="total" valueFormat={won.format} />
       </div>
 
-      {/* 최근 가입 + 최근 게시물 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card
-          title="최근 가입 회원"
-          action={
-            <a
-              href="/mng/members"
-              className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 inline-flex items-center gap-1"
-            >
-              더보기 <ArrowRight className="w-3 h-3" />
-            </a>
-          }
-        >
+      {/* Row 4 — 최근 가입 / 최근 게시물 / 최근 포인트 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+        <Card title="최근 가입" to="/members/customers">
           <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-            {recentMembers.map((m) => (
-              <li key={m.id} className="py-2.5 flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-7 h-7 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xs font-semibold text-gray-600 dark:text-gray-300 flex-shrink-0">
-                    {m.name.charAt(0)}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
-                      {m.name} <span className="text-gray-400 dark:text-gray-500">·</span>{' '}
-                      <span className="text-gray-500 dark:text-gray-400">{m.nickname}</span>
-                    </div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                      {m.mb_id ?? '소셜 가입'} · {roleLabel(m.role)}
-                    </div>
-                  </div>
+            {recentMembers.slice(0, 5).map((m) => (
+              <li key={m.id} className="py-1 flex items-center justify-between text-xs">
+                <div className="min-w-0 flex-1">
+                  <span className="font-medium text-gray-800 dark:text-gray-100">{m.name}</span>
+                  <span className="text-gray-400 mx-1">·</span>
+                  <span className="text-gray-500 dark:text-gray-400">{m.nickname}</span>
+                  <span className="text-[10px] text-gray-400 ml-1">({roleLabel(m.role)})</span>
                 </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
-                  {formatRelative(m.created_at)}
+                <span className="text-[10px] text-gray-400 flex-shrink-0 ml-2">{formatRelative(m.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card title="최근 게시물" to="/posts-overview">
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {recentPosts.slice(0, 5).map((p) => (
+              <li key={`${p.board}-${p.id}`} className="py-1 flex items-center justify-between text-xs gap-2">
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex-shrink-0">
+                    {boardLabel[p.board] ?? p.board}
+                  </span>
+                  <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{p.title}</span>
+                </div>
+                <span className="text-[10px] text-gray-400 flex-shrink-0">{formatRelative(p.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+
+        <Card title="최근 포인트" to="/points/history">
+          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+            {recentPoints.slice(0, 5).map((p) => (
+              <li key={p.id} className="py-1 flex items-center justify-between text-xs">
+                <div className="min-w-0 flex-1 flex items-center gap-1">
+                  <Wallet className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                  <span className="font-medium text-gray-800 dark:text-gray-100 flex-shrink-0">{p.member_name ?? '-'}</span>
+                  <span className="text-gray-400 truncate">· {p.content ?? '-'}</span>
+                </div>
+                <span className={`text-[11px] font-semibold tabular-nums flex-shrink-0 ml-1 ${p.earn_point > 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                  {p.earn_point > 0 ? `+${num.format(p.earn_point)}` : `-${num.format(p.use_point)}`}
                 </span>
               </li>
             ))}
           </ul>
         </Card>
-
-        <Card title="최근 게시물">
-          <ul className="divide-y divide-gray-100 dark:divide-gray-700">
-            {recentPosts.map((p) => (
-              <li key={`${p.board}-${p.id}`} className="py-2.5 flex items-center justify-between text-sm gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex-shrink-0">
-                    {boardLabel[p.board] ?? p.board}
-                  </span>
-                  <span className="font-medium text-gray-800 dark:text-gray-100 truncate">
-                    {p.title}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                  <span>{p.author ?? '-'}</span>
-                  <span>·</span>
-                  <span>{formatRelative(p.created_at)}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
       </div>
-
-      {/* 최근 포인트 내역 */}
-      <Card title="최근 포인트 발생 내역">
-        <div className="overflow-x-auto -mx-2">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700">
-                <th className="px-2 py-2 font-medium">시간</th>
-                <th className="px-2 py-2 font-medium">회원</th>
-                <th className="px-2 py-2 font-medium">내역</th>
-                <th className="px-2 py-2 font-medium text-right">적립</th>
-                <th className="px-2 py-2 font-medium text-right">사용</th>
-                <th className="px-2 py-2 font-medium text-right">잔액</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {recentPoints.map((p) => (
-                <tr key={p.id} className="text-gray-700 dark:text-gray-200">
-                  <td className="px-2 py-2 text-xs text-gray-500 dark:text-gray-400">
-                    {formatRelative(p.created_at)}
-                  </td>
-                  <td className="px-2 py-2">
-                    <div className="font-medium">{p.member_name ?? '-'}</div>
-                    {p.mb_id && <div className="text-xs text-gray-400">{p.mb_id}</div>}
-                  </td>
-                  <td className="px-2 py-2">
-                    <span className="inline-flex items-center gap-1.5">
-                      <Wallet className="w-3.5 h-3.5 text-gray-400" />
-                      {p.content ?? '-'}
-                    </span>
-                  </td>
-                  <td className="px-2 py-2 text-right text-emerald-600 dark:text-emerald-400">
-                    {p.earn_point > 0 ? `+${num.format(p.earn_point)}` : '-'}
-                  </td>
-                  <td className="px-2 py-2 text-right text-rose-500 dark:text-rose-400">
-                    {p.use_point > 0 ? `-${num.format(p.use_point)}` : '-'}
-                  </td>
-                  <td className="px-2 py-2 text-right font-medium">{num.format(p.balance_after)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
     </div>
   )
 }
 
-// ───────────────────────────────────────────────
-// Sub components
-// ───────────────────────────────────────────────
 function TopList({
   title,
+  to,
   rows,
   valueKey,
   valueFormat,
 }: {
   title: string
+  to?: string
   rows: TopRow[]
   valueKey: 'total' | 'count'
   valueFormat: (v: number) => string
 }) {
   return (
-    <Card title={title}>
-      <ol className="space-y-3">
-        {rows.map((r, idx) => {
+    <Card title={title} to={to}>
+      <ol className="space-y-0.5">
+        {rows.slice(0, 5).map((r, idx) => {
           const v = r[valueKey]
           return (
-            <li key={r.id} className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2 min-w-0">
+            <li key={r.id} className="flex items-center justify-between text-xs py-0.5">
+              <div className="flex items-center gap-1.5 min-w-0">
                 <span
-                  className={`flex-shrink-0 w-5 h-5 rounded-md flex items-center justify-center text-[11px] font-bold ${
+                  className={`flex-shrink-0 w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold ${
                     idx === 0
                       ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
                       : idx === 1
@@ -581,16 +454,10 @@ function TopList({
                 >
                   {idx + 1}
                 </span>
-                <div className="min-w-0">
-                  <div className="font-medium text-gray-800 dark:text-gray-100 truncate">
-                    {r.nickname}
-                  </div>
-                  <div className="text-xs text-gray-400 truncate">{r.name}</div>
-                </div>
+                <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{r.nickname}</span>
+                <span className="text-[10px] text-gray-400 truncate">({r.name})</span>
               </div>
-              <span className="font-semibold text-gray-800 dark:text-gray-100 ml-2 flex-shrink-0">
-                {valueFormat(v)}
-              </span>
+              <span className="font-semibold tabular-nums text-gray-800 dark:text-gray-100 ml-2 flex-shrink-0">{valueFormat(v)}</span>
             </li>
           )
         })}
@@ -605,16 +472,17 @@ function roleLabel(role: string): string {
 
 function Skeleton() {
   return (
-    <div className="animate-pulse space-y-6">
-      <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="h-28 rounded-2xl bg-gray-100 dark:bg-gray-800" />
+    <div className="animate-pulse space-y-2.5">
+      <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
+      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="h-16 rounded-lg bg-gray-100 dark:bg-gray-800" />
         ))}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 h-80 rounded-2xl bg-gray-100 dark:bg-gray-800" />
-        <div className="h-80 rounded-2xl bg-gray-100 dark:bg-gray-800" />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-52 rounded-lg bg-gray-100 dark:bg-gray-800" />
+        ))}
       </div>
     </div>
   )
