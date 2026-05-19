@@ -185,6 +185,25 @@ function writeFavs(paths: string[]): void {
   }
 }
 
+/**
+ * sub-feature 라벨에서 페이지 텍스트 매칭용 짧은 키워드 추출.
+ *   - "상태: 상담가능" → "상담가능"  (":" 뒤 값)
+ *   - "기본환경 (사이트/회원가입/...)" → "기본환경"  ("(" 앞 제목)
+ *   - 그 외 → 라벨 그대로
+ */
+function toKeyword(label: string): string {
+  const trimmed = label.trim()
+  if (trimmed.includes(':')) {
+    const after = trimmed.split(':').slice(-1)[0].trim()
+    if (after) return after
+  }
+  if (trimmed.includes('(')) {
+    const before = trimmed.split('(')[0].trim()
+    if (before) return before
+  }
+  return trimmed
+}
+
 function matchItem(item: MenuItem, groupTitle: string, q: string): { matched: boolean; subHits: string[] } {
   if (!q) return { matched: true, subHits: [] }
   const inLabel = item.label.toLowerCase().includes(q)
@@ -369,17 +388,21 @@ export default function AllMenus() {
                       {/* 페이지 내부 탭/섹션 — 평소에도 항상 노출 (검색 시 매칭 강조) */}
                       {(it.subFeatures?.length ?? 0) > 0 && (
                         <ul className="ml-5 mt-0.5 mb-1 border-l border-violet-100 dark:border-violet-900/40 pl-2 space-y-0.5">
-                          {(isSearching ? subHits : it.subFeatures!).map((s) => (
-                            <li key={s}>
-                              <Link
-                                to={it.path}
-                                className="block text-[11px] text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-300"
-                              >
-                                <span className="text-violet-300 mr-1">›</span>
-                                <span dangerouslySetInnerHTML={{ __html: highlight(s, q) }} />
-                              </Link>
-                            </li>
-                          ))}
+                          {(isSearching ? subHits : it.subFeatures!).map((s) => {
+                            const kw = toKeyword(s)
+                            const to = `${it.path}?hl=${encodeURIComponent(kw)}`
+                            return (
+                              <li key={s}>
+                                <Link
+                                  to={to}
+                                  className="block text-[11px] text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-300"
+                                >
+                                  <span className="text-violet-300 mr-1">›</span>
+                                  <span dangerouslySetInnerHTML={{ __html: highlight(s, q) }} />
+                                </Link>
+                              </li>
+                            )
+                          })}
                         </ul>
                       )}
                     </li>
