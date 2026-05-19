@@ -109,7 +109,7 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">관리자 계정</h1>
         <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">

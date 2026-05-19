@@ -367,7 +367,7 @@ export default function CounselorForm() {
   const wideBgUrl = wideFile ? FILE_BASE + (wideFile.stored_name_webp ?? wideFile.stored_name) : null
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* 페이지 헤더 — 신규: 단순 타이틀 / 수정: 상담사 카드 (사진·이름·뱃지) */}
       {isNew ? (
         <div className="flex items-center justify-between">

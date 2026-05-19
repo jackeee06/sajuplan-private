@@ -89,7 +89,7 @@ export default function GradeManagement() {
   const total = dist.reduce((s, r) => s + r.count, 0)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* 페이지 타이틀 */}
       <div>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">등급 관리</h1>

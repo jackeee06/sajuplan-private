@@ -2,6 +2,18 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Search, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
+import {
+  Th,
+  Td,
+  Tr,
+  TableShell,
+  THead,
+  TBody,
+  EmptyRow,
+  Badge,
+  PaginationBar,
+  inputCls,
+} from '../components/table'
 
 /**
  * 통합 게시판 리스트 (slug 기반).
@@ -39,15 +51,20 @@ interface Post {
   rating?: number | null
   counselor_id?: number | null
   counselor_name?: string | null
-  /** 후기 신고 누적 (review slug 응답에만 포함, 2026-05-15) */
+  /** 후기 신고 누적 */
   report_count?: number
   report_pending_count?: number
-  /** 어드민 답변 (qa / qa_counselor 만, Phase 12) */
+  /** 어드민 답변 (qa / qa_counselor 만) */
   extras?: { admin_reply?: AdminReply }
   created_at: string
 }
 
-interface Resp { items: Post[]; total: number; page: number; limit: number }
+interface Resp {
+  items: Post[]
+  total: number
+  page: number
+  limit: number
+}
 
 const SLUG_INFO: Record<string, { title: string; desc: string }> = {
   review: { title: '상담후기 관리', desc: '회원이 작성한 상담사 후기' },
@@ -69,7 +86,6 @@ export default function PostList() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  // CS 답변 모달 (Phase 12 — qa, qa_counselor 만)
   const [replyPost, setReplyPost] = useState<Post | null>(null)
   const [replyContent, setReplyContent] = useState('')
   const [replySubmitting, setReplySubmitting] = useState(false)
@@ -114,7 +130,6 @@ export default function PostList() {
     }
   }
 
-  // slug 변경 시 검색 초기화
   useEffect(() => {
     setFilter({ q: '', fr_date: '', to_date: '', page: 1 })
     setPending({ q: '', fr_date: '', to_date: '' })
@@ -127,8 +142,12 @@ export default function PostList() {
     if (filter.to_date) params.set('to_date', filter.to_date)
     params.set('page', String(filter.page))
     params.set('limit', String(PAGE_SIZE))
-    setLoading(true); setError(null)
-    api<Resp>(`/admin/posts/${slug}?${params}`).then(setData).catch((e) => setError(e.message)).finally(() => setLoading(false))
+    setLoading(true)
+    setError(null)
+    api<Resp>(`/admin/posts/${slug}?${params}`)
+      .then(setData)
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false))
   }
   useEffect(load, [slug, filter])
 
@@ -138,157 +157,235 @@ export default function PostList() {
       await api(`/admin/posts/${slug}/${p.id}`, { method: 'DELETE' })
       setSuccess('삭제 완료')
       load()
-    } catch (e) { setError(e instanceof Error ? e.message : '삭제 실패') }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '삭제 실패')
+    }
   }
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
+  const colSpan = slug === 'review' ? 11 : 8
+
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 max-w-[1400px]">
+      {/* 타이틀 */}
       <div>
-        <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">{info.title}</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{info.title}</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{info.desc}</p>
       </div>
 
+      {/* 상단 카운트 */}
       {data && (
         <div className="text-xs text-gray-500">
-          전체 <span className="font-semibold text-gray-700 dark:text-gray-300">{data.total.toLocaleString()}</span>건
+          전체 <span className="text-brand-600 font-semibold">{data.total.toLocaleString()}</span>건
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <input type="text" value={pending.q} onChange={(e) => setPending({ ...pending, q: e.target.value })} placeholder="제목/내용/회원 검색"
-            className={`w-64 ${cls}`} onKeyDown={(e) => e.key === 'Enter' && setFilter({ ...filter, ...pending, page: 1 })} />
-          <span className="mx-1 text-xs text-gray-400">|</span>
-          <input type="date" value={pending.fr_date} onChange={(e) => setPending({ ...pending, fr_date: e.target.value })} className={`w-36 ${cls}`} />
-          <span className="text-gray-400">~</span>
-          <input type="date" value={pending.to_date} onChange={(e) => setPending({ ...pending, to_date: e.target.value })} className={`w-36 ${cls}`} />
-          <button onClick={() => setFilter({ ...filter, ...pending, page: 1 })} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">
-            <Search className="w-4 h-4" /> 검색
-          </button>
+      {/* 검색 */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="w-[260px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
+            <input
+              type="text"
+              value={pending.q}
+              onChange={(e) => setPending({ ...pending, q: e.target.value })}
+              placeholder="제목 / 내용 / 회원 검색"
+              className={inputCls}
+              onKeyDown={(e) => e.key === 'Enter' && setFilter({ ...filter, ...pending, page: 1 })}
+            />
+          </div>
+          <div className="w-[160px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">시작일</label>
+            <input
+              type="date"
+              value={pending.fr_date}
+              onChange={(e) => setPending({ ...pending, fr_date: e.target.value })}
+              className={inputCls}
+            />
+          </div>
+          <div className="w-[160px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">종료일</label>
+            <input
+              type="date"
+              value={pending.to_date}
+              onChange={(e) => setPending({ ...pending, to_date: e.target.value })}
+              className={inputCls}
+            />
+          </div>
+          <div className="ml-auto">
+            <button
+              onClick={() => setFilter({ ...filter, ...pending, page: 1 })}
+              className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium"
+            >
+              <Search className="w-4 h-4" /> 검색
+            </button>
+          </div>
         </div>
       </div>
 
       {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}
       {success && <div className="p-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm">{success}</div>}
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead className="bg-brand-600 dark:bg-brand-700 text-[11px] text-white">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium">번호</th>
-                <th className="px-3 py-2 text-left font-medium">제목</th>
-                {slug === 'review' && <th className="px-3 py-2 text-left font-medium">상담사</th>}
-                {slug === 'review' && <th className="px-3 py-2 text-right font-medium text-gray-400" title="현재 사용자 페이지에 노출하지 않는 비활성 기능 — 데이터는 누적 중">평점 <span className="text-[10px] font-normal">(미사용)</span></th>}
-                {slug === 'review' && <th className="px-3 py-2 text-center font-medium" title="후기 신고 누적 — 빨강은 미처리 신고">신고</th>}
-                <th className="px-3 py-2 text-left font-medium">작성자</th>
-                <th className="px-3 py-2 text-right font-medium">조회</th>
-                <th className="px-3 py-2 text-left font-medium">작성일</th>
-                <th className="px-3 py-2 text-center font-medium">상태</th>
-                <th className="px-3 py-2 text-right font-medium">관리</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading && !data ? (
-                <tr><td colSpan={slug === 'review' ? 11 : 8} className="px-4 py-8 text-center text-sm text-gray-500">로딩...</td></tr>
-              ) : !data || data.items.length === 0 ? (
-                <tr><td colSpan={slug === 'review' ? 11 : 8} className="px-4 py-8 text-center text-sm text-gray-400">자료가 없습니다.</td></tr>
-              ) : (
-                data.items.map((p, idx) => {
-                  const num = data.total - (filter.page - 1) * PAGE_SIZE - idx
-                  return (
-                    <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                      <td className="px-3 py-2 text-gray-500">{num}</td>
-                      <td className="px-3 py-2 max-w-[400px] truncate">
-                        {p.is_secret && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 mr-1" title={slug === 'review' ? '구버전 비밀후기 — 2026-05-15 이후 신규 비밀후기는 작성 불가' : '비밀글'}>비밀</span>}
-                        {p.has_file && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 mr-1">파일</span>}
-                        {p.title}
-                      </td>
-                      {slug === 'review' && (
-                        <td className="px-3 py-2 whitespace-nowrap">
-                          {p.counselor_id ? (
-                            <Link to={`/members/counselors/${p.counselor_id}`} className="text-brand-600 hover:underline">{p.counselor_name || `#${p.counselor_id}`}</Link>
-                          ) : <span className="text-gray-400">-</span>}
-                        </td>
+      {/* 테이블 */}
+      <TableShell>
+        <THead>
+          <Th align="right">번호</Th>
+          <Th align="left">제목</Th>
+          {slug === 'review' && <Th align="left">상담사</Th>}
+          {slug === 'review' && (
+            <Th align="right">
+              평점 <span className="text-[10px] font-normal normal-case tracking-normal">(미사용)</span>
+            </Th>
+          )}
+          {slug === 'review' && <Th align="center">신고</Th>}
+          <Th align="left">작성자</Th>
+          <Th align="right">조회</Th>
+          <Th align="left">작성일</Th>
+          <Th align="center">상태</Th>
+          <Th align="center">관리</Th>
+        </THead>
+        <TBody>
+          {loading && !data ? (
+            <EmptyRow colSpan={colSpan} loading />
+          ) : !data || data.items.length === 0 ? (
+            <EmptyRow colSpan={colSpan} />
+          ) : (
+            data.items.map((p, idx) => {
+              const num = data.total - (filter.page - 1) * PAGE_SIZE - idx
+              return (
+                <Tr key={p.id}>
+                  <Td align="right" className="text-gray-400 tabular-nums">{num}</Td>
+                  <Td align="left" className="max-w-[400px] truncate">
+                    {p.is_secret && (
+                      <Badge color="gray">
+                        <span title={slug === 'review' ? '구버전 비밀후기' : '비밀글'}>비밀</span>
+                      </Badge>
+                    )}
+                    {p.has_file && (
+                      <span className="ml-1">
+                        <Badge color="blue">파일</Badge>
+                      </span>
+                    )}
+                    <span className={p.is_secret || p.has_file ? 'ml-1.5' : ''}>{p.title}</span>
+                  </Td>
+                  {slug === 'review' && (
+                    <Td align="left">
+                      {p.counselor_id ? (
+                        <Link
+                          to={`/members/counselors/${p.counselor_id}`}
+                          className="text-brand-600 hover:underline font-medium"
+                        >
+                          {p.counselor_name || `#${p.counselor_id}`}
+                        </Link>
+                      ) : (
+                        <span className="text-gray-300">-</span>
                       )}
-                      {slug === 'review' && <td className="px-3 py-2 text-right text-gray-400">{p.rating ? `${p.rating}/5` : '-'}</td>}
-                      {slug === 'review' && (
-                        <td className="px-3 py-2 text-center whitespace-nowrap">
-                          {(p.report_count ?? 0) === 0 ? (
-                            <span className="text-gray-300">-</span>
-                          ) : (
-                            <Link to="/review-reports" title={`총 ${p.report_count}건 (미처리 ${p.report_pending_count ?? 0}건)`}>
-                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${(p.report_pending_count ?? 0) > 0 ? 'bg-rose-100 text-rose-700' : 'bg-gray-100 text-gray-600'}`}>
-                                {(p.report_pending_count ?? 0) > 0 ? '⚠' : ''}
-                                {p.report_count}건
-                              </span>
-                            </Link>
-                          )}
-                        </td>
+                    </Td>
+                  )}
+                  {slug === 'review' && (
+                    <Td align="right" className="text-xs text-gray-300 tabular-nums">
+                      {p.rating ? `${p.rating}/5` : '-'}
+                    </Td>
+                  )}
+                  {slug === 'review' && (
+                    <Td align="center">
+                      {(p.report_count ?? 0) === 0 ? (
+                        <span className="text-gray-300">-</span>
+                      ) : (
+                        <Link
+                          to="/review-reports"
+                          title={`총 ${p.report_count}건 (미처리 ${p.report_pending_count ?? 0}건)`}
+                        >
+                          <Badge color={(p.report_pending_count ?? 0) > 0 ? 'rose' : 'gray'}>
+                            {(p.report_pending_count ?? 0) > 0 ? '⚠ ' : ''}
+                            {p.report_count}건
+                          </Badge>
+                        </Link>
                       )}
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {p.member_id && p.mb_id ? (
-                          <Link to={`/members/customers/${p.member_id}`} className="text-brand-600 hover:underline">{p.mb_id}</Link>
-                        ) : (
-                          <span className="text-gray-400">{p.member_nickname || p.member_name || '-'}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right text-gray-500">{p.view_count.toLocaleString()}</td>
-                      <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{formatDT(p.created_at)}</td>
-                      <td className="px-3 py-2 text-center">
-                        <span className="text-[10px] text-gray-500">👍 {p.like_count} / 👎 {p.dislike_count}</span>
-                      </td>
-                      <td className="px-3 py-2 text-right whitespace-nowrap">
-                        {isQa && (
-                          <button
-                            onClick={() => openReply(p)}
-                            className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded border mr-1 ${
-                              p.extras?.admin_reply
-                                ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
-                                : 'border-amber-200 text-amber-700 hover:bg-amber-50'
-                            }`}
-                          >
-                            {p.extras?.admin_reply ? '✓ 답변완료' : '✋ 답변작성'}
-                          </button>
-                        )}
-                        <button onClick={() => onDelete(p)} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-rose-200 text-rose-700 hover:bg-rose-50">
-                          <Trash2 className="w-3.5 h-3.5" /> 삭제
+                    </Td>
+                  )}
+                  <Td align="left">
+                    {p.member_id && p.mb_id ? (
+                      <Link
+                        to={`/members/customers/${p.member_id}`}
+                        className="text-brand-600 hover:underline font-medium"
+                      >
+                        {p.mb_id}
+                      </Link>
+                    ) : (
+                      <span className="text-gray-400">
+                        {p.member_nickname || p.member_name || '-'}
+                      </span>
+                    )}
+                  </Td>
+                  <Td align="right" className="tabular-nums text-gray-500">
+                    {p.view_count === 0 ? (
+                      <span className="text-gray-300">0</span>
+                    ) : (
+                      p.view_count.toLocaleString()
+                    )}
+                  </Td>
+                  <Td align="left" className="text-xs text-gray-500 tabular-nums">
+                    {formatDT(p.created_at)}
+                  </Td>
+                  <Td align="center" className="text-[11px] text-gray-500">
+                    👍 {p.like_count} / 👎 {p.dislike_count}
+                  </Td>
+                  <Td align="center">
+                    <div className="flex items-center justify-center gap-1">
+                      {isQa && (
+                        <button
+                          onClick={() => openReply(p)}
+                          className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border font-medium ${
+                            p.extras?.admin_reply
+                              ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                              : 'border-amber-200 text-amber-700 hover:bg-amber-50'
+                          }`}
+                        >
+                          {p.extras?.admin_reply ? '✓ 답변완료' : '✋ 답변작성'}
                         </button>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                      )}
+                      <button
+                        onClick={() => onDelete(p)}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors"
+                        title="삭제"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </Td>
+                </Tr>
+              )
+            })
+          )}
+        </TBody>
+      </TableShell>
 
-        {data && data.total > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t text-xs text-gray-500">
-            <div>총 {data.total.toLocaleString()}건 · {filter.page} / {totalPages}</div>
-            <div className="flex gap-1">
-              <button onClick={() => setFilter((f) => ({ ...f, page: Math.max(1, f.page - 1) }))} disabled={filter.page <= 1} className="px-2 py-1 rounded border hover:bg-gray-50 disabled:opacity-40">이전</button>
-              <button onClick={() => setFilter((f) => ({ ...f, page: Math.min(totalPages, f.page + 1) }))} disabled={filter.page >= totalPages} className="px-2 py-1 rounded border hover:bg-gray-50 disabled:opacity-40">다음</button>
-            </div>
-          </div>
-        )}
-      </div>
+      {data && (
+        <PaginationBar
+          page={filter.page}
+          totalPages={totalPages}
+          total={data.total}
+          pageSize={PAGE_SIZE}
+          onChange={(p) => setFilter((f) => ({ ...f, page: p }))}
+          unit="건"
+        />
+      )}
 
-      {/* CS 답변 모달 (Phase 12) */}
+      {/* CS 답변 모달 */}
       {replyPost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-2xl mx-4 p-5 max-h-[85vh] overflow-y-auto">
+          <div className="bg-white dark:bg-gray-900 rounded-xl w-full max-w-2xl mx-4 p-5 max-h-[85vh] overflow-y-auto border border-gray-200 dark:border-gray-700 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-semibold">CS 답변</h3>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">CS 답변</h3>
               <button onClick={() => setReplyPost(null)} className="text-gray-400 hover:text-gray-600">
                 ✕
               </button>
             </div>
             <div className="space-y-3">
-              <div className="p-3 rounded bg-gray-50 dark:bg-gray-700 text-sm">
-                <div className="font-medium">{replyPost.title}</div>
+              <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 text-sm border border-gray-200 dark:border-gray-700">
+                <div className="font-medium text-gray-900 dark:text-gray-100">{replyPost.title}</div>
                 <div className="mt-1 text-xs text-gray-500">
                   작성자: {replyPost.mb_id || replyPost.member_nickname || '익명'} · {formatDT(replyPost.created_at)}
                 </div>
@@ -303,7 +400,7 @@ export default function PostList() {
                   onChange={(e) => setReplyContent(e.target.value)}
                   rows={6}
                   placeholder="답변을 작성해주세요. 회원/상담사가 이 내용을 볼 수 있습니다."
-                  className="w-full mt-1 px-3 py-2 border rounded text-sm bg-white dark:bg-gray-700"
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400 outline-none"
                 />
               </div>
               {replyPost.extras?.admin_reply && (
@@ -317,18 +414,21 @@ export default function PostList() {
                   <button
                     onClick={() => void deleteReply()}
                     disabled={replySubmitting}
-                    className="px-4 py-2 text-sm rounded border border-rose-200 text-rose-700 disabled:opacity-40"
+                    className="px-4 py-2 text-sm rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 disabled:opacity-40"
                   >
                     답변 삭제
                   </button>
                 )}
-                <button onClick={() => setReplyPost(null)} className="px-4 py-2 text-sm border rounded">
+                <button
+                  onClick={() => setReplyPost(null)}
+                  className="px-4 py-2 text-sm border border-gray-200 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
                   취소
                 </button>
                 <button
                   disabled={!replyContent.trim() || replySubmitting}
                   onClick={() => void submitReply()}
-                  className="px-4 py-2 text-sm rounded bg-brand-600 text-white disabled:opacity-50"
+                  className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white font-medium disabled:opacity-50"
                 >
                   {replySubmitting ? '처리 중...' : replyPost.extras?.admin_reply ? '답변 수정' : '답변 등록'}
                 </button>
@@ -341,10 +441,9 @@ export default function PostList() {
   )
 }
 
-const cls = 'px-3 py-1.5 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
-
 function formatDT(s: string): string {
-  const dt = new Date(s); if (isNaN(dt.getTime())) return s
+  const dt = new Date(s)
+  if (isNaN(dt.getTime())) return s
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`
 }

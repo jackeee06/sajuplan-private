@@ -57,7 +57,7 @@ export default function BannerList() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">배너 관리</h1>
         <Link to="/banners/new" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">

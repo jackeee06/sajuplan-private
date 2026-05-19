@@ -84,7 +84,7 @@ export default function CouponList() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">쿠폰 관리</h1>
         <Link to="/coupons/new" className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">

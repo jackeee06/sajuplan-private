@@ -110,7 +110,7 @@ export default function Login() {
             </div>
           )}
 
-          <form className="space-y-5" onSubmit={onSubmit}>
+          <form className="space-y-3" onSubmit={onSubmit}>
             <div>
               <label className="block mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
                 아이디 <span className="text-red-500">*</span>

@@ -45,7 +45,7 @@ export default function ChatHistoryList() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">채팅내역 리스트</h1>
 
       {data && (

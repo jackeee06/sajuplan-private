@@ -34,7 +34,7 @@ export default function EventsList() {
   }, [filter])
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">이벤트 관리</h1>

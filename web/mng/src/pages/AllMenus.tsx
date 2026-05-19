@@ -285,7 +285,7 @@ export default function AllMenus() {
     .filter((x): x is { path: string; label: string; groupTitle: string } => x != null)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* 타이틀 */}
       <div>
         <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">전체 메뉴</h1>

@@ -78,7 +78,7 @@ export default function ReviewReports() {
   }, [statusFilter, page])
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">후기 신고 관리</h1>

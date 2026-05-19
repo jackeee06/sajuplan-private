@@ -54,7 +54,7 @@ export default function AlimtalkTemplates() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">알림톡 템플릿</h1>
         <button onClick={() => setEdit({ template_code: '', message: '', is_active: true })} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">

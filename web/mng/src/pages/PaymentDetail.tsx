@@ -151,7 +151,7 @@ export default function PaymentDetail() {
   const canCancel = data.status === 'completed' && remaining > 0
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate('/payments')}

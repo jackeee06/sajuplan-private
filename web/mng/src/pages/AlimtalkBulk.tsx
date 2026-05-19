@@ -122,7 +122,7 @@ export default function AlimtalkBulk() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div>
         <h1 className="text-xl font-semibold">일괄 알림톡 발송</h1>
         <p className="text-xs text-gray-500 mt-1">

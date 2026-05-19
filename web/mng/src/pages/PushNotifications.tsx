@@ -37,7 +37,7 @@ export default function PushNotifications() {
   }, [filter, reload])
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center gap-2">
         <Bell className="w-5 h-5 text-brand-500" />
         <h1 className="text-xl font-semibold">푸시 알림</h1>

@@ -32,7 +32,7 @@ export default function EmailLog() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / 30)) : 1
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <h1 className="text-xl font-semibold">메일 발송 이력</h1>
 
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5">

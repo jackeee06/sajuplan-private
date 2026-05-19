@@ -29,7 +29,7 @@ export default function NoticesList() {
   }, [filter])
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">공지사항 관리</h1>

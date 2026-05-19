@@ -13,7 +13,7 @@ export default function PostsOverview() {
   }, [])
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <h1 className="text-xl font-semibold">글, 댓글 현황</h1>
 
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">

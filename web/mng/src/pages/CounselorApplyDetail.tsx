@@ -184,7 +184,7 @@ export default function CounselorApplyDetail() {
   const hasPasswordHash = Boolean(extras.password_hash)
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <button

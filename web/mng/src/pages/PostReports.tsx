@@ -48,7 +48,7 @@ export default function PostReports() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / 30)) : 1
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <h1 className="text-xl font-semibold">게시판 신고 관리</h1>
 
       <div className="flex flex-wrap items-center gap-2">

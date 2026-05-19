@@ -142,7 +142,7 @@ export default function CounselorList() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* 페이지 타이틀 + 추가 버튼 */}
       <div className="flex items-center justify-between">
         <div>

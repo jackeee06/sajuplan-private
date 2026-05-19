@@ -75,7 +75,7 @@ export default function CustomerList() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* 페이지 타이틀 */}
       <div>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">고객 리스트</h1>

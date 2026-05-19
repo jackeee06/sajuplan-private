@@ -55,7 +55,7 @@ export default function Attendance() {
   const [target, setTarget] = useState<Target>('user')
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       <div>
         <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">⭐ 출석 관리</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">매출 직결 기능 — 정책 변경 전 신중히 검토하세요</p>
