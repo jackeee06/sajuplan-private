@@ -8,17 +8,21 @@ import {
 /**
  * 전체 메뉴 — 관리자 페이지의 모든 기능을 한 화면에 나열한 인덱스.
  *
- *  - 상단 검색 박스: 메뉴명/카테고리 실시간 필터링
- *  - 즐겨찾기 섹션 (localStorage 기반): 자주 쓰는 메뉴 상단 고정
- *  - 카테고리별 카드 그리드: 사이드바 그룹과 동일한 분류로 메인 페이지 링크 나열
+ *  - 평소: 메인 페이지 링크만 깔끔하게 노출
+ *  - 검색어 입력 시: 매칭된 메인 메뉴 + 매칭된 sub-feature (탭/섹션) 평탄화 노출
+ *    예) "등급단가" → "기본환경설정 > 등급/단가 > 단가 정책" 위치 즉시 파악
+ *  - 즐겨찾기 (localStorage): 자주 쓰는 메뉴 상단 고정
  *
  * 메뉴 데이터는 Sidebar.tsx 와 동기화 필요 — 라우트 추가 시 양쪽 모두 업데이트.
+ * subFeatures 는 각 페이지의 탭/섹션/필터 라벨을 모은 것. 클릭 시 메인 페이지로 이동
+ * (자동 탭 활성화는 각 페이지에 hash/query 핸들러를 붙여야 가능 — 추후 점진 적용).
  */
 
 interface MenuItem {
   label: string
   path: string
-  star?: boolean // ⭐ 표시
+  star?: boolean
+  subFeatures?: string[]
 }
 
 interface MenuGroup {
@@ -32,25 +36,36 @@ const GROUPS: MenuGroup[] = [
     title: '회원현황',
     icon: Users,
     items: [
-      { label: '고객 리스트', path: '/members/customers' },
-      { label: '상담사 리스트', path: '/members/counselors' },
+      { label: '고객 리스트', path: '/members/customers',
+        subFeatures: ['전체', '활동 회원', '차단 회원', '탈퇴 회원'] },
+      { label: '상담사 리스트', path: '/members/counselors',
+        subFeatures: ['상태: 상담가능', '상태: 상담중', '상태: 부재', '분야: 타로', '분야: 신점', '분야: 사주', '분야: 심리'] },
       { label: '상담사 신청 내역', path: '/members/counselor-apply' },
-      { label: '출석 관리', path: '/attendance', star: true },
-      { label: '등급 관리', path: '/grade', star: true },
+      { label: '출석 관리', path: '/attendance', star: true,
+        subFeatures: ['정책 설정', '통계', '회원별 이력', '회원/상담사 토글'] },
+      { label: '등급 관리', path: '/grade', star: true,
+        subFeatures: ['등급별 분포', '최근 등급 변동', '정책 변경 이력'] },
     ],
   },
   {
     title: '매출현황',
     icon: CreditCard,
     items: [
-      { label: '사용(상담) 내역', path: '/consultations' },
-      { label: '환불 이력', path: '/refunds', star: true },
-      { label: '운영 KPI', path: '/ops-kpi', star: true },
+      { label: '사용(상담) 내역', path: '/consultations',
+        subFeatures: ['전체 상담', '060', '070', '채팅'] },
+      { label: '환불 이력', path: '/refunds', star: true,
+        subFeatures: ['회원 아이디 검색', '상태별 필터'] },
+      { label: '운영 KPI', path: '/ops-kpi', star: true,
+        subFeatures: ['최근 7일', '최근 30일', '최근 90일', 'KPI 카드', '상담사 순위'] },
       { label: '충전금액 설정', path: '/charge-amounts' },
-      { label: '결제 내역', path: '/payments' },
-      { label: '포인트 관리', path: '/points/history' },
-      { label: '정산 이력', path: '/settlements' },
-      { label: '추천 수당', path: '/referrals', star: true },
+      { label: '결제 내역', path: '/payments',
+        subFeatures: ['전체 결제', '카드', '가상결제', '카드취소'] },
+      { label: '포인트 관리', path: '/points/history',
+        subFeatures: ['포인트 이력', '개별회원 포인트 증감 설정'] },
+      { label: '정산 이력', path: '/settlements',
+        subFeatures: ['총건수', '총정산금액', '부가세', '원천세', '회선비'] },
+      { label: '추천 수당', path: '/referrals', star: true,
+        subFeatures: ['활성 관계', '이번 달 지급대상', '지급 완료', '미지급', '월별 필터', '상태별 필터'] },
     ],
   },
   {
@@ -87,7 +102,8 @@ const GROUPS: MenuGroup[] = [
     icon: Bell,
     items: [
       { label: '푸시 알림', path: '/push-notifications' },
-      { label: '알림톡 발송', path: '/alimtalk-bulk', star: true },
+      { label: '알림톡 발송', path: '/alimtalk-bulk', star: true,
+        subFeatures: ['발송', '발송 이력'] },
       { label: '알림톡 템플릿', path: '/alimtalk-templates' },
     ],
   },
@@ -95,7 +111,8 @@ const GROUPS: MenuGroup[] = [
     title: '통계',
     icon: BarChart3,
     items: [
-      { label: '통계', path: '/stats' },
+      { label: '통계', path: '/stats',
+        subFeatures: ['KPI', '일별 방문자', '일별 매출', '월별 매출', '기간 선택'] },
     ],
   },
   {
@@ -120,8 +137,29 @@ const GROUPS: MenuGroup[] = [
     title: '환경설정',
     icon: SettingsIcon,
     items: [
-      { label: '기본환경설정', path: '/settings' },
+      { label: '기본환경설정', path: '/settings',
+        subFeatures: [
+          '기본환경 (사이트/회원가입/후기 포인트/소셜로그인/보안/푸터)',
+          '등급/단가 정책',
+          '단가 옵션',
+          '정산률',
+          '임계값',
+          '월 1일 락',
+          '재산정 일자/시각',
+          '강등 최대 단계',
+          '운영자 알림',
+          '알림 수신자 목록',
+          '약관/처리방침',
+        ] },
       { label: '내용 관리 (약관/처리방침)', path: '/contents' },
+    ],
+  },
+  {
+    title: '대시보드',
+    icon: BarChart3,
+    items: [
+      { label: '대시보드', path: '/dashboard',
+        subFeatures: ['KPI', '매출 추이', '상담사 상태', '방문자 추이', 'TOP5 순위', '최근 가입', '최근 게시물', '최근 포인트'] },
     ],
   },
 ]
@@ -143,8 +181,16 @@ function writeFavs(paths: string[]): void {
   try {
     localStorage.setItem(FAV_KEY, JSON.stringify(paths))
   } catch {
-    // localStorage quota 또는 disabled 시 무시
+    // localStorage quota/disabled — 무시
   }
+}
+
+function matchItem(item: MenuItem, groupTitle: string, q: string): { matched: boolean; subHits: string[] } {
+  if (!q) return { matched: true, subHits: [] }
+  const inLabel = item.label.toLowerCase().includes(q)
+  const inGroup = groupTitle.toLowerCase().includes(q)
+  const subHits = (item.subFeatures ?? []).filter((s) => s.toLowerCase().includes(q))
+  return { matched: inLabel || inGroup || subHits.length > 0, subHits }
 }
 
 export default function AllMenus() {
@@ -159,7 +205,6 @@ export default function AllMenus() {
     setFavs((cur) => (cur.includes(path) ? cur.filter((p) => p !== path) : [...cur, path]))
   }
 
-  // path → {label, groupTitle} 인덱스 (즐겨찾기 표시용)
   const indexByPath = useMemo(() => {
     const m = new Map<string, { label: string; groupTitle: string }>()
     for (const g of GROUPS) for (const it of g.items) {
@@ -168,17 +213,26 @@ export default function AllMenus() {
     return m
   }, [])
 
-  // 검색 필터링
   const q = query.trim().toLowerCase()
+  const isSearching = q.length > 0
+
+  // 필터링 + 각 아이템에 subHits 부착
   const filteredGroups = useMemo(() => {
-    if (!q) return GROUPS
     return GROUPS.map((g) => ({
       ...g,
-      items: g.items.filter(
-        (it) => it.label.toLowerCase().includes(q) || g.title.toLowerCase().includes(q),
-      ),
+      items: g.items
+        .map((it) => {
+          const r = matchItem(it, g.title, q)
+          return r.matched ? { ...it, _subHits: r.subHits } : null
+        })
+        .filter((x): x is MenuItem & { _subHits: string[] } => x != null),
     })).filter((g) => g.items.length > 0)
   }, [q])
+
+  const totalSubHits = useMemo(() => {
+    if (!isSearching) return 0
+    return filteredGroups.reduce((s, g) => s + g.items.reduce((a, it) => a + (it as MenuItem & { _subHits: string[] })._subHits.length, 0), 0)
+  }, [filteredGroups, isSearching])
 
   const favItems = favs
     .map((path) => {
@@ -193,7 +247,7 @@ export default function AllMenus() {
       <div>
         <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">전체 메뉴</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          모든 관리자 기능을 한눈에. 검색하거나 별표(★)로 즐겨찾기에 추가하세요.
+          메뉴명·카테고리·페이지 내부 탭/섹션까지 검색됩니다. 별표(★) 클릭으로 즐겨찾기.
         </p>
       </div>
 
@@ -204,8 +258,9 @@ export default function AllMenus() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="메뉴명·카테고리로 검색..."
+          placeholder="예: 단가, 통계, 정산률, 환불, 알림수신자..."
           className="w-full h-9 pl-9 pr-9 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+          autoFocus
         />
         {query && (
           <button
@@ -218,8 +273,16 @@ export default function AllMenus() {
         )}
       </div>
 
+      {/* 검색 결과 요약 */}
+      {isSearching && (
+        <div className="text-xs text-gray-500">
+          검색 결과: 메뉴 {filteredGroups.reduce((s, g) => s + g.items.length, 0)}개
+          {totalSubHits > 0 && ` · 페이지 내부 항목 ${totalSubHits}개`}
+        </div>
+      )}
+
       {/* 즐겨찾기 (검색어 없을 때만) */}
-      {!q && favItems.length > 0 && (
+      {!isSearching && favItems.length > 0 && (
         <section>
           <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2 flex items-center gap-1">
             <Star className="w-4 h-4 text-amber-400 fill-amber-400" /> 즐겨찾기
@@ -266,13 +329,14 @@ export default function AllMenus() {
               </h2>
               <ul className="flex flex-col">
                 {g.items.map((it) => {
+                  const subHits = (it as MenuItem & { _subHits: string[] })._subHits ?? []
                   const isFav = favs.includes(it.path)
                   return (
                     <li key={it.path} className="group">
                       <div className="flex items-center justify-between px-2 py-1 rounded hover:bg-violet-50 dark:hover:bg-violet-900/20">
                         <Link to={it.path} className="flex-1 text-sm text-gray-700 dark:text-gray-200 hover:text-violet-700 dark:hover:text-violet-300">
                           {it.star && <span className="text-amber-500 mr-1">⭐</span>}
-                          {it.label}
+                          <span dangerouslySetInnerHTML={{ __html: highlight(it.label, q) }} />
                         </Link>
                         <button
                           onClick={() => toggleFav(it.path)}
@@ -286,6 +350,23 @@ export default function AllMenus() {
                           />
                         </button>
                       </div>
+
+                      {/* 검색 시: 매칭된 sub-feature 들여쓰기로 노출 */}
+                      {isSearching && subHits.length > 0 && (
+                        <ul className="ml-5 mt-0.5 mb-1 border-l border-violet-200 dark:border-violet-800 pl-2 space-y-0.5">
+                          {subHits.map((s) => (
+                            <li key={s}>
+                              <Link
+                                to={it.path}
+                                className="block text-[11px] text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-300"
+                              >
+                                <span className="text-violet-400 mr-1">›</span>
+                                <span dangerouslySetInnerHTML={{ __html: highlight(s, q) }} />
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </li>
                   )
                 })}
@@ -297,9 +378,19 @@ export default function AllMenus() {
 
       {filteredGroups.length === 0 && (
         <div className="text-sm text-gray-400 text-center py-8">
-          "{query}" 검색 결과 없음.
+          "{query}" 검색 결과 없음. 다른 단어로 시도해 보세요.
         </div>
       )}
     </div>
   )
+}
+
+/** 매칭된 부분 <mark> 강조. q 가 비어 있으면 escape 만 한 결과 반환. */
+function highlight(text: string, q: string): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  if (!q) return esc(text)
+  const lower = text.toLowerCase()
+  const idx = lower.indexOf(q)
+  if (idx === -1) return esc(text)
+  return esc(text.slice(0, idx)) + '<mark class="bg-amber-100 dark:bg-amber-900/40 text-inherit px-0.5 rounded">' + esc(text.slice(idx, idx + q.length)) + '</mark>' + esc(text.slice(idx + q.length))
 }
