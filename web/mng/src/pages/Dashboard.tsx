@@ -14,20 +14,20 @@ import {
   PieChart,
   Legend,
 } from 'recharts'
-import { Wallet } from 'lucide-react'
+import { Wallet, AlertTriangle, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 
 /**
- * 대시보드 — 한 화면(1080p) 안에 핵심 정보 압축.
+ * 대시보드 — 한 화면 안에 핵심 정보 압축.
  *
- * 레이아웃 (위→아래):
- *   Row 1: KPI 6개 (오늘 매출 / 어제 매출 / 진행중 / 활성 상담사 / 오늘 가입 / 이번달 가입)
- *   Row 2: 매출 14일 + 상담사 상태 + 방문자 14일 (3 컬럼)
- *   Row 3: TOP5 상담사 금액 / 건수 / 고객 (3 컬럼)
- *   Row 4: 최근 가입 / 최근 게시물 / 최근 포인트 (3 컬럼)
+ *   Row 1: KPI 8개 한 줄
+ *   Row 2: 즉시 액션 필요 알림 (0건이면 자동 숨김)
+ *   Row 3: 매출 14일 + 상담사 상태 + 방문자 14일 (3 컬럼)
+ *   Row 4: TOP5 상담사 금액 / 건수 / 고객 (3 컬럼)
+ *   Row 5: 최근 가입 / 최근 게시물 / 최근 포인트 (3 컬럼)
  *
- * 조밀 원칙: 좌측 정렬, p-3, text-sm, 차트 h-44, 카드 5건 컴팩트 리스트.
+ * 모든 KPI 카드 + Top5 + 차트 카드 클릭 시 상세 페이지 이동.
  */
 
 interface Summary {
@@ -77,6 +77,13 @@ interface RecentPost {
   board: string
   created_at: string | Date
 }
+interface ReferralItem {
+  id: number
+  status: string
+  rate_pct: number
+  expected_payment: number
+  paid_this_month: boolean
+}
 interface DashboardData {
   summary: Summary
   sales: SalesPoint[]
@@ -87,10 +94,11 @@ interface DashboardData {
   recentMembers: RecentMember[]
   recentPoints: RecentPoint[]
   recentPosts: RecentPost[]
+  referrals: ReferralItem[]
 }
 
 async function fetchDashboardData(): Promise<DashboardData> {
-  const [summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts] =
+  const [summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, referrals] =
     await Promise.all([
       api<Summary>('/admin/dashboard/summary'),
       api<SalesPoint[]>('/admin/dashboard/sales-trend?days=14'),
@@ -101,8 +109,9 @@ async function fetchDashboardData(): Promise<DashboardData> {
       api<RecentMember[]>('/admin/dashboard/recent-members'),
       api<RecentPoint[]>('/admin/dashboard/recent-points'),
       api<RecentPost[]>('/admin/dashboard/recent-posts'),
+      api<{ items: ReferralItem[] }>('/admin/referrals?status=active').then((r) => r.items).catch(() => [] as ReferralItem[]),
     ])
-  return { summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts }
+  return { summary, sales, visitors, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, referrals }
 }
 
 const won = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 })
@@ -141,9 +150,7 @@ function Card({
   className?: string
 }) {
   return (
-    <div
-      className={`rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 ${className}`}
-    >
+    <div className={`rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 ${className}`}>
       <div className="flex items-center justify-between px-3 pt-2 pb-1.5 border-b border-gray-100 dark:border-gray-700">
         <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-200">{title}</h3>
         {to && (
@@ -161,11 +168,13 @@ function Kpi({
   label,
   value,
   sub,
+  to,
   tone = 'default',
 }: {
   label: string
   value: string
   sub?: string
+  to?: string
   tone?: 'default' | 'brand' | 'rose' | 'emerald' | 'blue' | 'amber'
 }) {
   const valueTone: Record<string, string> = {
@@ -176,13 +185,23 @@ function Kpi({
     blue: 'text-blue-600 dark:text-blue-400',
     amber: 'text-amber-600 dark:text-amber-400',
   }
-  return (
-    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2">
+  const body = (
+    <>
       <div className="text-[11px] text-gray-500 dark:text-gray-400">{label}</div>
       <div className={`text-xl font-bold tabular-nums leading-tight mt-0.5 ${valueTone[tone]}`}>{value}</div>
       {sub && <div className="text-[10px] text-gray-400 mt-0.5">{sub}</div>}
-    </div>
+    </>
   )
+  const baseCls =
+    'rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2'
+  if (to) {
+    return (
+      <Link to={to} className={`${baseCls} block hover:border-brand-300 hover:shadow-sm transition`}>
+        {body}
+      </Link>
+    )
+  }
+  return <div className={baseCls}>{body}</div>
 }
 
 export default function Dashboard() {
@@ -207,9 +226,7 @@ export default function Dashboard() {
     )
   }
 
-  if (!data) {
-    return <Skeleton />
-  }
+  if (!data) return <Skeleton />
 
   const {
     summary,
@@ -221,12 +238,27 @@ export default function Dashboard() {
     recentMembers,
     recentPoints,
     recentPosts,
+    referrals,
   } = data
 
   const sumDay = (p?: SalesPoint) => (p ? p.call_070 + p.call_060 + p.chat + p.charge : 0)
   const todayTotal = sumDay(sales[sales.length - 1])
   const yesterdayTotal = sumDay(sales[sales.length - 2])
   const deltaPct = yesterdayTotal > 0 ? Math.round(((todayTotal - yesterdayTotal) / yesterdayTotal) * 100) : null
+
+  // 이번달 매출 누적 = sales 배열 중 이번달 데이터 합
+  const now = new Date()
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const monthTotal = sales.reduce((s, p) => (p.date.startsWith(monthKey) ? s + sumDay(p) : s), 0)
+
+  // 알림: 추천수당 미지급 count
+  const referralPending = referrals.filter((r) => r.status === 'active' && r.rate_pct > 0 && r.expected_payment > 0 && !r.paid_this_month).length
+
+  const alerts: { key: string; label: string; count: number; to: string; tone: 'rose' | 'amber' }[] = []
+  if (referralPending > 0) {
+    alerts.push({ key: 'referral', label: '추천수당 미지급', count: referralPending, to: '/referrals', tone: 'amber' })
+  }
+  // 환불 대기 / 결제 실패 / BizM 실패 — 백엔드 API 추가 후 2차
 
   const counselorPie = [
     { name: '상담 가능', value: summary.counselors.idle, color: '#10b981' },
@@ -244,39 +276,61 @@ export default function Dashboard() {
         </span>
       </div>
 
-      {/* Row 1 — KPI 6개 */}
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+      {/* Row 1 — KPI 8개 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
         <Kpi
           label="오늘 매출"
           value={won.format(todayTotal)}
           sub={deltaPct != null ? `어제 대비 ${deltaPct >= 0 ? '+' : ''}${deltaPct}%` : '—'}
           tone="brand"
+          to="/stats"
         />
-        <Kpi label="어제 매출" value={won.format(yesterdayTotal)} tone="default" />
-        <Kpi label="진행 중 상담" value={`${num.format(summary.counselors.busy)}건`} tone="blue" />
+        <Kpi label="어제 매출" value={won.format(yesterdayTotal)} to="/stats" />
+        <Kpi label="이번달 매출 누적" value={won.format(monthTotal)} tone="brand" to="/stats" />
+        <Kpi label="진행 중 상담" value={`${num.format(summary.counselors.busy)}건`} tone="blue" to="/consultations" />
         <Kpi
           label="활성 상담사"
           value={`${num.format(summary.counselors.idle)}명`}
           sub={`전체 ${num.format(summary.counselors.total)}명`}
           tone="emerald"
+          to="/members/counselors"
         />
-        <Kpi
-          label="오늘 가입"
-          value={num.format(summary.members.today)}
-          sub={`이번달 +${num.format(summary.members.this_month)}`}
-          tone="amber"
-        />
-        <Kpi
-          label="총 회원"
-          value={num.format(summary.members.total)}
-          tone="default"
-        />
+        <Kpi label="오늘 가입" value={num.format(summary.members.today)} tone="amber" to="/members/customers" />
+        <Kpi label="이번달 가입" value={`+${num.format(summary.members.this_month)}`} to="/members/customers" />
+        <Kpi label="총 회원" value={num.format(summary.members.total)} to="/members/customers" />
       </div>
 
-      {/* Row 2 — 매출 추이 + 상담사 상태 + 방문자 추이 */}
+      {/* Row 2 — 즉시 액션 필요 알림 (0건이면 숨김) */}
+      {alerts.length > 0 && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-2.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">즉시 처리 필요</span>
+            <div className="flex flex-wrap gap-2 ml-2">
+              {alerts.map((a) => (
+                <Link
+                  key={a.key}
+                  to={a.to}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${
+                    a.tone === 'rose'
+                      ? 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/40 dark:text-rose-300'
+                      : 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300'
+                  }`}
+                >
+                  {a.label}
+                  <span className="tabular-nums font-bold">{a.count}</span>
+                  <ChevronRight className="w-3 h-3" />
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Row 3 — 매출 / 상담사 상태 / 방문자 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
-        <Card title="14일 매출 추이" to="/stats" className="lg:col-span-1">
-          <div className="h-44">
+        <Card title="14일 매출 추이" to="/stats">
+          <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={sales} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                 <defs>
@@ -305,10 +359,7 @@ export default function Dashboard() {
                   stroke="#9ca3af"
                   width={40}
                 />
-                <Tooltip
-                  formatter={(v: number) => won.format(v)}
-                  contentStyle={{ borderRadius: 6, fontSize: 11 }}
-                />
+                <Tooltip formatter={(v: number) => won.format(v)} contentStyle={{ borderRadius: 6, fontSize: 11 }} />
                 <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />
                 <Area type="monotone" dataKey="call_070" name="070" stroke="#3b82f6" fill="url(#g070)" />
                 <Area type="monotone" dataKey="call_060" name="060" stroke="#8b5cf6" fill="url(#g060)" />
@@ -320,11 +371,11 @@ export default function Dashboard() {
         </Card>
 
         <Card title="상담사 상태" to="/members/counselors">
-          <div className="h-44 flex">
+          <div className="h-48 flex">
             <div className="flex-1 min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={counselorPie} dataKey="value" nameKey="name" innerRadius={35} outerRadius={62} paddingAngle={2}>
+                  <Pie data={counselorPie} dataKey="value" nameKey="name" innerRadius={38} outerRadius={68} paddingAngle={2}>
                     {counselorPie.map((e) => (
                       <Cell key={e.name} fill={e.color} />
                     ))}
@@ -346,7 +397,7 @@ export default function Dashboard() {
         </Card>
 
         <Card title="14일 방문자 추이" to="/stats">
-          <div className="h-44">
+          <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={visitors} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.4} />
@@ -360,14 +411,14 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Row 3 — TOP5 3 컬럼 */}
+      {/* Row 4 — TOP5 3 컬럼 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         <TopList title="TOP5 상담사 (금액)" to="/members/counselors" rows={topByAmount} valueKey="total" valueFormat={won.format} />
         <TopList title="TOP5 상담사 (건수)" to="/members/counselors" rows={topByCount} valueKey="count" valueFormat={(v) => `${num.format(v)}건`} />
         <TopList title="TOP5 고객 (결제액)" to="/members/customers" rows={topCustomers} valueKey="total" valueFormat={won.format} />
       </div>
 
-      {/* Row 4 — 최근 가입 / 최근 게시물 / 최근 포인트 */}
+      {/* Row 5 — 최근 활동 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         <Card title="최근 가입" to="/members/customers">
           <ul className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -474,14 +525,14 @@ function Skeleton() {
   return (
     <div className="animate-pulse space-y-2.5">
       <div className="h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded" />
-      <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-        {[0, 1, 2, 3, 4, 5].map((i) => (
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
           <div key={i} className="h-16 rounded-lg bg-gray-100 dark:bg-gray-800" />
         ))}
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="h-52 rounded-lg bg-gray-100 dark:bg-gray-800" />
+          <div key={i} className="h-56 rounded-lg bg-gray-100 dark:bg-gray-800" />
         ))}
       </div>
     </div>
