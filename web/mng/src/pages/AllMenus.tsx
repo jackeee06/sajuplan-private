@@ -313,14 +313,15 @@ export default function AllMenus() {
         </section>
       )}
 
-      {/* 카테고리 그리드 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+      {/* 카테고리 격자 — grid-flow-dense 로 빈 자리 자동 채움, 큰 카드는 row-span-2 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 grid-flow-dense auto-rows-min">
         {filteredGroups.map((g) => {
           const Icon = g.icon
+          const isBig = g.items.length >= 5
           return (
             <section
               key={g.title}
-              className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-3"
+              className={`${isBig ? 'row-span-2' : ''} rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2.5`}
             >
               <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2 pb-2 border-b border-gray-100 dark:border-gray-700">
                 <Icon className="w-4 h-4 text-violet-600" />
