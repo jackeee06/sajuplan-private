@@ -428,15 +428,11 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Row 4 — TOP5 3 컬럼 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
+      {/* Row 4 + 5 — TOP5 3개 + 최근활동 3개 → 한 줄 6컬럼 (와이드 모니터) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
         <TopList title="TOP5 상담사 (금액)" to="/members/counselors" rows={topByAmount} valueKey="total" valueFormat={won.format} />
         <TopList title="TOP5 상담사 (건수)" to="/members/counselors" rows={topByCount} valueKey="count" valueFormat={(v) => `${num.format(v)}건`} />
         <TopList title="TOP5 고객 (결제액)" to="/members/customers" rows={topCustomers} valueKey="total" valueFormat={won.format} />
-      </div>
-
-      {/* Row 5 — 최근 활동 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         <Card title="최근 가입" to="/members/customers">
           <ul className="divide-y divide-gray-100 dark:divide-gray-700">
             {recentMembers.slice(0, 5).map((m) => (
