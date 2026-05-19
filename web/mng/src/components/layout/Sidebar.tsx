@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   BarChart3, Bell, ChevronDown, CreditCard, FileText, Headphones,
-  LayoutDashboard, LogOut, MoreHorizontal, Settings, Shield, Ticket, Users,
+  LayoutDashboard, LayoutGrid, LogOut, MoreHorizontal, Settings, Shield, Ticket, Users,
 } from 'lucide-react'
 
 /**
@@ -46,6 +46,13 @@ export default function Sidebar() {
                 <NavLink to="/dashboard" className={({ isActive }) => `menu-item ${isActive ? 'menu-item-active' : 'menu-item-inactive'}`}>
                   <LayoutDashboard className="w-4 h-4 flex-shrink-0" />
                   <span>대시보드</span>
+                </NavLink>
+              </li>
+
+              <li>
+                <NavLink to="/all-menus" className={({ isActive }) => `menu-item ${isActive ? 'menu-item-active' : 'menu-item-inactive'}`}>
+                  <LayoutGrid className="w-4 h-4 flex-shrink-0" />
+                  <span>전체 메뉴</span>
                 </NavLink>
               </li>
 

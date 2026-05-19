@@ -22,6 +22,7 @@ import CounselorList from './pages/CounselorList'
 import CustomerForm from './pages/CustomerForm'
 import CustomerList from './pages/CustomerList'
 import Dashboard from './pages/Dashboard'
+import AllMenus from './pages/AllMenus'
 import EventsList from './pages/EventsList'
 import EventForm from './pages/EventForm'
 import FaqList from './pages/FaqList'
@@ -62,6 +63,7 @@ export default function App() {
           <Route element={<RequireAuth />}>
             <Route element={<AdminLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/all-menus" element={<AllMenus />} />
 
               {/* 회원현황 */}
               <Route path="/members/customers" element={<CustomerList />} />
