@@ -32,7 +32,8 @@ import { api } from '../lib/api'
 
 interface Summary {
   members: { total: number; today: number; this_month: number }
-  counselors: { total: number; idle: number; busy: number; absent: number }
+  counselors: { total: number; idle: number; busy: number; absent: number; today_active?: number }
+  balance?: { free: number; paid: number; total: number }
 }
 interface SalesPoint {
   date: string
@@ -289,8 +290,20 @@ export default function Dashboard() {
           to="/members/counselors"
         />
         <Kpi label="오늘 가입" value={num.format(summary.members.today)} tone="amber" to="/members/customers" />
-        <Kpi label="이번달 가입" value={`+${num.format(summary.members.this_month)}`} to="/members/customers" />
-        <Kpi label="총 회원" value={num.format(summary.members.total)} to="/members/customers" />
+        <Kpi
+          label="오늘 출석 상담사"
+          value={`${num.format(summary.counselors.today_active ?? 0)}명`}
+          sub={`전체 ${num.format(summary.counselors.total)}명`}
+          tone="emerald"
+          to="/members/counselors"
+        />
+        <Kpi
+          label="충전 잔액 (부채)"
+          value={won.format(summary.balance?.total ?? 0)}
+          sub={`유료 ${won.format(summary.balance?.paid ?? 0)}`}
+          tone="rose"
+          to="/points/history"
+        />
       </div>
 
       {/* Row 2 — 알림 큐 (항상 표시, 0건은 회색) */}

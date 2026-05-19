@@ -10,9 +10,13 @@ import { SQL, type Sql } from '../../shared/db/db.module';
 export class DashboardService {
   constructor(@Inject(SQL) private readonly sql: Sql) {}
 
-  /** 요약: 회원 수, 신규가입(오늘/이번달), 상담사 상태 등 */
+  /** 요약: 회원 수, 신규가입(오늘/이번달), 상담사 상태 + 충전잔액 + 오늘 활성 상담사 */
   async summary() {
-    const [memberStats, counselorStates] = await Promise.all([
+    const safeOne = async <T>(q: () => Promise<T[]>, fallback: T): Promise<T> => {
+      try { const r = await q(); return r[0] ?? fallback; } catch { return fallback; }
+    };
+
+    const [memberStats, counselorStates, balance, todayActive] = await Promise.all([
       this.sql<
         { total: string; today: string; this_month: string; counselors: string }[]
       >`
@@ -28,6 +32,19 @@ export class DashboardService {
          WHERE role = 'counselor' AND left_at IS NULL
          GROUP BY state
       `,
+      // 충전 잔액 총합 (회사 부채 = 사용자가 충전했지만 안 쓴 포인트)
+      safeOne(() => this.sql<{ free: string; paid: string }[]>`
+        SELECT COALESCE(SUM(free_balance), 0)::text AS free,
+               COALESCE(SUM(paid_balance), 0)::text AS paid
+          FROM point
+      `, { free: '0', paid: '0' }),
+      // 오늘 상담 1건 이상 한 상담사 수 (출석 = 활동성 기준)
+      safeOne(() => this.sql<{ cnt: string }[]>`
+        SELECT COUNT(DISTINCT counselor_id)::text AS cnt
+          FROM consultation
+         WHERE counselor_id IS NOT NULL
+           AND created_at::date = CURRENT_DATE
+      `, { cnt: '0' }),
     ]);
 
     const states = counselorStates.reduce<Record<string, number>>((acc, r) => {
@@ -53,6 +70,12 @@ export class DashboardService {
         idle: idle || 14,
         busy: busy || 6,
         absent: absent || 4,
+        today_active: Number(todayActive.cnt),
+      },
+      balance: {
+        free: Number(balance.free),
+        paid: Number(balance.paid),
+        total: Number(balance.free) + Number(balance.paid),
       },
     };
   }
@@ -350,7 +373,10 @@ export class DashboardService {
     const prevM = now.getMonth() === 0 ? 12 : now.getMonth();
     const monthStart = `${prevY}-${String(prevM).padStart(2, '0')}-01`;
 
-    const [referralCnt, paymentFailedCnt, reportCnt, settleNegCnt, alimtalkFailCnt, refundRecentCnt] = await Promise.all([
+    const [
+      referralCnt, paymentFailedCnt, reportCnt, settleNegCnt, alimtalkFailCnt, refundRecentCnt,
+      counselorApplyCnt, unrepliedReviewCnt, retryFailedCnt,
+    ] = await Promise.all([
       safeCount(() => this.sql<{ cnt: string }[]>`
         SELECT count(*)::text AS cnt
           FROM counselor_referral r
@@ -385,6 +411,23 @@ export class DashboardService {
         SELECT count(*)::text AS cnt FROM refund_request
          WHERE created_at >= NOW() - INTERVAL '24 hours'
       `),
+      // 상담사 신청 대기 — 운영자가 매일 검토해야 할 가입 신청
+      safeCount(() => this.sql<{ cnt: string }[]>`
+        SELECT count(*)::text AS cnt FROM counselor_apply WHERE status = 'pending'
+      `),
+      // 미답변 후기 3일+ — 상담사가 답을 안 한 후기 (운영 품질 핵심)
+      safeCount(() => this.sql<{ cnt: string }[]>`
+        SELECT count(*)::text AS cnt FROM post_review r
+         WHERE r.created_at < NOW() - INTERVAL '3 days'
+           AND NOT EXISTS (SELECT 1 FROM post_review_reply WHERE review_id = r.id)
+      `),
+      // retry 영구실패 — chat_room 정산 실패 또는 payment m2net 5회+ 재시도 실패
+      safeCount(() => this.sql<{ cnt: string }[]>`
+        SELECT (
+          (SELECT count(*) FROM chat_room WHERE settle_status = 'permanently_failed')
+          + (SELECT count(*) FROM payment WHERE m2net_retry_count >= 5)
+        )::text AS cnt
+      `),
     ]);
 
     return [
@@ -394,6 +437,9 @@ export class DashboardService {
       { key: 'settle_negative', label: '정산 음수(60일)', count: settleNegCnt, to: '/settlements', tone: 'rose' },
       { key: 'alimtalk_failed', label: '알림톡 실패(24h)', count: alimtalkFailCnt, to: '/alimtalk-bulk', tone: 'amber' },
       { key: 'refund_24h', label: '환불 발생(24h)', count: refundRecentCnt, to: '/refunds', tone: 'amber' },
+      { key: 'counselor_apply', label: '상담사 신청 대기', count: counselorApplyCnt, to: '/members/counselor-apply', tone: 'amber' },
+      { key: 'unreplied_review', label: '미답변 후기(3일+)', count: unrepliedReviewCnt, to: '/posts/review', tone: 'amber' },
+      { key: 'retry_failed', label: 'retry 영구실패', count: retryFailedCnt, to: '/settlements', tone: 'rose' },
     ];
   }
 
