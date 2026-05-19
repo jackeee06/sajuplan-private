@@ -313,15 +313,29 @@ export default function AllMenus() {
         </section>
       )}
 
-      {/* 카테고리 격자 — grid-flow-dense 로 빈 자리 자동 채움, 큰 카드는 row-span-2 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 grid-flow-dense auto-rows-min">
+      {/* 격자 + 카드별 정확한 row-span 으로 빈 공간 흡수 (콘텐츠 길이 기반 픽셀 계산) */}
+      <div
+        className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 grid-flow-dense"
+        style={{ gridAutoRows: '8px' }}
+      >
         {filteredGroups.map((g) => {
           const Icon = g.icon
-          const isBig = g.items.length >= 5
+          // 콘텐츠 길이 → 카드 픽셀 높이 추정 → row-span 계산
+          // padding(20) + header(36) + 각 메인 라벨(28px) + 각 sub 라벨(20px) + 카드 간 sub 사이 여유(8)
+          const subsCount = g.items.reduce((s, it) => s + ((it as MenuItem & { _subHits?: string[] })._subHits?.length ?? it.subFeatures?.length ?? 0), 0)
+          const itemsCount = g.items.length
+          // 검색 시 subHits 기준, 평소엔 전체 subFeatures
+          const subsForCalc = isSearching
+            ? g.items.reduce((s, it) => s + ((it as MenuItem & { _subHits: string[] })._subHits.length), 0)
+            : subsCount
+          const subFinal = isSearching ? subsForCalc : g.items.reduce((s, it) => s + (it.subFeatures?.length ?? 0), 0)
+          const heightPx = 20 + 36 + itemsCount * 28 + subFinal * 20 + 8
+          const rowSpan = Math.max(1, Math.ceil((heightPx + 8) / (8 + 8)))
           return (
             <section
               key={g.title}
-              className={`${isBig ? 'row-span-2' : ''} rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2.5`}
+              style={{ gridRow: `span ${rowSpan}` }}
+              className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 p-2.5"
             >
               <h2 className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2 pb-2 border-b border-gray-100 dark:border-gray-700">
                 <Icon className="w-4 h-4 text-violet-600" />
