@@ -23,18 +23,31 @@ export function useHighlightOnLoad() {
     if (!hl) return
     const keyword = hl.trim()
     if (!keyword) return
+    const tabHint = (params.get('tab') ?? '').trim()
 
     let cancelled = false
 
     const run = () => {
       const t1 = window.setTimeout(() => {
         if (cancelled) return
-        if (tryFind(keyword)) return
-        // 못 찾음 → 탭 자동 클릭 시도
-        if (tryClickTab(keyword)) {
+        // 1) tab 힌트가 있으면 먼저 그 탭 클릭
+        if (tabHint) {
+          tryClickTab(tabHint)
           window.setTimeout(() => {
-            if (!cancelled) tryFind(keyword)
-          }, 250)
+            if (cancelled) return
+            if (tryFind(keyword)) return
+            // 탭 클릭 후에도 못 찾으면 키워드로 탭 매칭 한 번 더 시도
+            if (tryClickTab(keyword)) {
+              window.setTimeout(() => !cancelled && tryFind(keyword), 250)
+            }
+          }, 280)
+          return
+        }
+        // 2) tab 힌트 없음 — 현재 화면에서 바로 찾기
+        if (tryFind(keyword)) return
+        // 3) 못 찾으면 키워드로 탭 자동 클릭 시도
+        if (tryClickTab(keyword)) {
+          window.setTimeout(() => !cancelled && tryFind(keyword), 250)
         }
       }, 300)
       return t1
@@ -44,7 +57,6 @@ export function useHighlightOnLoad() {
       cancelled = true
       window.clearTimeout(id)
     }
-    // location 전체 (pathname + search) 변경 시 재실행
   }, [location.key])
 }
 
@@ -107,28 +119,37 @@ function highlightElement(el: HTMLElement): void {
     boxShadow: el.style.boxShadow,
     borderRadius: el.style.borderRadius,
   }
-  el.style.transition = 'background-color 300ms ease, box-shadow 300ms ease'
-  el.style.backgroundColor = 'rgba(253, 224, 71, 0.6)' // amber-300/60
-  el.style.boxShadow = '0 0 0 4px rgba(251, 191, 36, 0.5)' // amber-400/50
+  el.style.transition = 'background-color 250ms ease, box-shadow 250ms ease'
+  // 빨간 강조 — 가독성 위해 배경은 옅게, 외곽선 진하고 두껍게
+  el.style.backgroundColor = 'rgba(254, 202, 202, 0.7)'  // red-200 / 70%
+  el.style.boxShadow = '0 0 0 4px rgba(220, 38, 38, 0.85)'  // red-600 / 85%
   el.style.borderRadius = '6px'
 
-  // 깜빡임: 500ms 후 fade-out → 800ms 후 다시 켜기 → 2500ms 후 정리
+  // 강한 깜빡임: 더 잘 눈에 띄게 0.4s 주기로 3번 깜빡 후 정리
   window.setTimeout(() => {
-    el.style.backgroundColor = 'rgba(253, 224, 71, 0.2)'
-    el.style.boxShadow = '0 0 0 2px rgba(251, 191, 36, 0.3)'
+    el.style.backgroundColor = 'rgba(254, 226, 226, 0.3)'
+    el.style.boxShadow = '0 0 0 2px rgba(220, 38, 38, 0.4)'
+  }, 400)
+  window.setTimeout(() => {
+    el.style.backgroundColor = 'rgba(254, 202, 202, 0.75)'
+    el.style.boxShadow = '0 0 0 4px rgba(220, 38, 38, 0.9)'
   }, 800)
   window.setTimeout(() => {
-    el.style.backgroundColor = 'rgba(253, 224, 71, 0.55)'
-    el.style.boxShadow = '0 0 0 4px rgba(251, 191, 36, 0.45)'
-  }, 1400)
+    el.style.backgroundColor = 'rgba(254, 226, 226, 0.3)'
+    el.style.boxShadow = '0 0 0 2px rgba(220, 38, 38, 0.4)'
+  }, 1200)
+  window.setTimeout(() => {
+    el.style.backgroundColor = 'rgba(254, 202, 202, 0.7)'
+    el.style.boxShadow = '0 0 0 4px rgba(220, 38, 38, 0.85)'
+  }, 1600)
   window.setTimeout(() => {
     el.style.backgroundColor = prev.background
     el.style.boxShadow = prev.boxShadow
-  }, 2500)
+  }, 2800)
   window.setTimeout(() => {
     el.style.transition = prev.transition
     el.style.borderRadius = prev.borderRadius
-  }, 2900)
+  }, 3100)
 }
 
 /** 키워드 발견 시 강조. 성공 여부 반환. */

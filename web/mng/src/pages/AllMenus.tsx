@@ -18,11 +18,20 @@ import {
  * (자동 탭 활성화는 각 페이지에 hash/query 핸들러를 붙여야 가능 — 추후 점진 적용).
  */
 
+type SubFeature = string | { label: string; tab?: string }
+
+function subLabel(s: SubFeature): string {
+  return typeof s === 'string' ? s : s.label
+}
+function subTab(s: SubFeature): string | undefined {
+  return typeof s === 'string' ? undefined : s.tab
+}
+
 interface MenuItem {
   label: string
   path: string
   star?: boolean
-  subFeatures?: string[]
+  subFeatures?: SubFeature[]
 }
 
 interface MenuGroup {
@@ -42,7 +51,12 @@ const GROUPS: MenuGroup[] = [
         subFeatures: ['상태: 상담가능', '상태: 상담중', '상태: 부재', '분야: 타로', '분야: 신점', '분야: 사주', '분야: 심리'] },
       { label: '상담사 신청 내역', path: '/members/counselor-apply' },
       { label: '출석 관리', path: '/attendance', star: true,
-        subFeatures: ['정책 설정', '통계', '회원별 이력', '회원/상담사 토글'] },
+        subFeatures: [
+          { label: '정책 설정', tab: '정책' },
+          { label: '통계', tab: '통계' },
+          { label: '회원별 이력', tab: '회원별 이력' },
+          '회원/상담사 토글',
+        ] },
       { label: '등급 관리', path: '/grade', star: true,
         subFeatures: ['등급별 분포', '최근 등급 변동', '정책 변경 이력'] },
     ],
@@ -103,7 +117,10 @@ const GROUPS: MenuGroup[] = [
     items: [
       { label: '푸시 알림', path: '/push-notifications' },
       { label: '알림톡 발송', path: '/alimtalk-bulk', star: true,
-        subFeatures: ['발송', '이력'] },
+        subFeatures: [
+          { label: '발송', tab: '발송' },
+          { label: '이력', tab: '이력' },
+        ] },
       { label: '알림톡 템플릿', path: '/alimtalk-templates' },
     ],
   },
@@ -140,17 +157,17 @@ const GROUPS: MenuGroup[] = [
       { label: '기본환경설정', path: '/settings',
         subFeatures: [
           '기본환경',
-          '등급/단가',
-          '단가 옵션',
-          '정산률',
-          '임계값',
-          '월 1일 락',
-          '재산정 일자/시각',
-          '강등 최대 단계',
-          '운영알림',
-          '운영자 알림 활성',
-          '수신자 목록',
-          '약관/처리방침',
+          { label: '등급/단가', tab: '등급/단가' },
+          { label: '단가 옵션', tab: '등급/단가' },
+          { label: '정산률', tab: '등급/단가' },
+          { label: '임계값', tab: '등급/단가' },
+          { label: '월 1일 락', tab: '등급/단가' },
+          { label: '재산정 일자/시각', tab: '등급/단가' },
+          { label: '강등 최대 단계', tab: '등급/단가' },
+          { label: '운영알림', tab: '운영알림' },
+          { label: '운영자 알림 활성', tab: '운영알림' },
+          { label: '수신자 목록', tab: '운영알림' },
+          { label: '약관/처리방침', tab: '약관/처리방침' },
         ] },
       { label: '내용 관리 (약관/처리방침)', path: '/contents' },
     ],
@@ -205,11 +222,11 @@ function toKeyword(label: string): string {
   return trimmed
 }
 
-function matchItem(item: MenuItem, groupTitle: string, q: string): { matched: boolean; subHits: string[] } {
+function matchItem(item: MenuItem, groupTitle: string, q: string): { matched: boolean; subHits: SubFeature[] } {
   if (!q) return { matched: true, subHits: [] }
   const inLabel = item.label.toLowerCase().includes(q)
   const inGroup = groupTitle.toLowerCase().includes(q)
-  const subHits = (item.subFeatures ?? []).filter((s) => s.toLowerCase().includes(q))
+  const subHits = (item.subFeatures ?? []).filter((s) => subLabel(s).toLowerCase().includes(q))
   return { matched: inLabel || inGroup || subHits.length > 0, subHits }
 }
 
@@ -390,16 +407,21 @@ export default function AllMenus() {
                       {(it.subFeatures?.length ?? 0) > 0 && (
                         <ul className="ml-5 mt-0.5 mb-1 border-l border-violet-100 dark:border-violet-900/40 pl-2 space-y-0.5">
                           {(isSearching ? subHits : it.subFeatures!).map((s) => {
-                            const kw = toKeyword(s)
-                            const to = `${it.path}?hl=${encodeURIComponent(kw)}`
+                            const lab = subLabel(s)
+                            const tab = subTab(s)
+                            const kw = toKeyword(lab)
+                            const params = new URLSearchParams()
+                            params.set('hl', kw)
+                            if (tab) params.set('tab', tab)
+                            const to = `${it.path}?${params.toString()}`
                             return (
-                              <li key={s}>
+                              <li key={lab}>
                                 <Link
                                   to={to}
                                   className="block text-[11px] text-gray-500 dark:text-gray-400 hover:text-violet-600 dark:hover:text-violet-300"
                                 >
                                   <span className="text-violet-300 mr-1">›</span>
-                                  <span dangerouslySetInnerHTML={{ __html: highlight(s, q) }} />
+                                  <span dangerouslySetInnerHTML={{ __html: highlight(lab, q) }} />
                                 </Link>
                               </li>
                             )
