@@ -25,7 +25,9 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 TARGETS = [
-    ("test", "172.235.211.75", "/data/wwwroot/api.sajumoon.kr/.env"),
+    # test 서버는 현재 미사용 (2026-05-29 사장님 결정)
+    # ("test", "172.235.211.75", "/data/wwwroot/api.sajumoon.kr/.env"),
+    # prod 실제 경로는 api.sajumoon.co.kr (도메인 api.sajuplan.com 과 다름!)
     ("prod", "104.64.128.103", "/data/wwwroot/api.sajumoon.co.kr/.env"),
 ]
 

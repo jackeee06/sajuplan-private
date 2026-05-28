@@ -409,7 +409,8 @@ payout_request.status='paid', paid_at=NOW()
 ### `settlement_monthly` (월별 정산 결과)
 - `(member_id, month)` UNIQUE
 - 정책 스냅샷 보존 → 재계산 가능
-- status: calculated / paid / voided
+- **실제 schema (2026-05-29 prod 확인)**: id, no, member_id, mb_id, month(varchar 'YYYY-MM'), **kind**, price_free, price_paid, price_other, price_tot, vat_amount, withholding_tax, reply_fee, price, early_payout_total, carry_over_negative, final_payout_amount, wr_datetime, created_at
+- ⚠️ `amt_free`, `amt_pro`, `status`, `calculated_at`, `paid_at` 컬럼은 **없음** — MONEY_FLOW.md §6.4 INSERT 예시는 산식 의도일 뿐 실제 컬럼 아님
 
 ### `payout_request` (선지급 신청)
 - status: pending / paid / rejected / cancelled

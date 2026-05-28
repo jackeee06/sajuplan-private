@@ -191,17 +191,29 @@ export class UserConsultService {
   async startChat(params: {
     memberId: number;
     counselorId: number;
+    /** [2026-05-24] 사전 시간 선택 — 15/30/45/60 분.
+     *  값이 들어오면 chat_room.alloc_seconds_member 를 그만큼만 배정.
+     *  실제 차감은 사용한 시간 × 단가 (기존 정산 모델 그대로).
+     *  값이 없으면 기존 "잔액 소진까지" 모드 — 하위 호환. */
+    chargeMinutes?: number;
   }): Promise<ChatConsultResult> {
     if (params.memberId === params.counselorId) {
       throw new BadRequestException('본인에게 상담을 요청할 수 없습니다.');
     }
+    // chargeMinutes 화이트리스트 검증
+    if (params.chargeMinutes != null) {
+      const allowed = [15, 30, 45, 60];
+      if (!allowed.includes(params.chargeMinutes)) {
+        throw new BadRequestException('상담 시간은 15/30/45/60분 중 하나여야 합니다.');
+      }
+    }
 
-    // 회원 m2net membid + 잔액 확인. snapshot_member_point + alloc_seconds 계산용.
-    const meRows = await this.sql<{ csrid: string | null; point: number }[]>`
-      SELECT csrid, point FROM member WHERE id = ${params.memberId} AND left_at IS NULL LIMIT 1
+    // 2026-05-22 ID 단일화: 회원 m2net id 는 m2net_membid 컬럼 (csrid 는 상담사 전용)
+    const meRows = await this.sql<{ m2net_membid: string | null; point: number }[]>`
+      SELECT m2net_membid, point FROM member WHERE id = ${params.memberId} AND left_at IS NULL LIMIT 1
     `;
     const me = meRows[0];
-    if (!me?.csrid) {
+    if (!me?.m2net_membid) {
       throw new BadRequestException(
         '채팅 시스템에 회원이 등록되어 있지 않습니다. 잠시 후 다시 시도해주세요.',
       );
@@ -274,9 +286,24 @@ export class UserConsultService {
     // 단가 스냅샷 + 잔여시간 계산 — chat_room INSERT 에 채워야 tick 이 즉시 종료시키지 않는다.
     const unitSec = Number(csr.chat_unit_seconds) > 0 ? Number(csr.chat_unit_seconds) : 30;
     const unitCost = Number(csr.chat_unit_cost) > 0 ? Number(csr.chat_unit_cost) : 1500;
-    const allocSeconds = unitCost > 0 ? Math.floor(memberPoint / unitCost) * unitSec : 0;
-    if (allocSeconds < unitSec) {
-      throw new ConflictException('포인트가 부족합니다. 충전 후 다시 시도해주세요.');
+
+    // [2026-05-24] 시간 사전 선택 모델 — chargeMinutes 가 있으면 alloc 을 그만큼 제한,
+    //   없으면 기존 "잔액 소진까지" 모드 (하위 호환).
+    //   실제 차감은 사용한 시간 × 단가 (m2net 정산이 아닌 사주플랜 자체 use_seconds 기준).
+    let allocSeconds: number;
+    if (params.chargeMinutes) {
+      const requiredCost = Math.ceil((params.chargeMinutes * 60) / unitSec) * unitCost;
+      if (requiredCost > memberPoint) {
+        throw new ConflictException(
+          `${params.chargeMinutes}분 상담에는 ${requiredCost.toLocaleString()}코인이 필요합니다. 충전 후 다시 시도해주세요.`,
+        );
+      }
+      allocSeconds = params.chargeMinutes * 60;
+    } else {
+      allocSeconds = unitCost > 0 ? Math.floor(memberPoint / unitCost) * unitSec : 0;
+      if (allocSeconds < unitSec) {
+        throw new ConflictException('포인트가 부족합니다. 충전 후 다시 시도해주세요.');
+      }
     }
 
     // m2net 매뉴얼 §3.3 상태머신: csrchat 호출 전 상담사 m2net 측 상태가
@@ -284,11 +311,11 @@ export class UserConsultService {
     // req_result=27 "채팅상담가능(RDCH)상태가 아님" 으로 거부됨.
     //
     // ⚠️ DB ↔ m2net 동기화 핵심 지점:
-    //  - 사주문 DB(member.state) 가 RDCH/RDVC 라도 m2net 측이 CNCH/CONN 로 stale 일 수 있다.
+    //  - 사주플랜 DB(member.state) 가 RDCH/RDVC 라도 m2net 측이 CNCH/CONN 로 stale 일 수 있다.
     //    (반대 케이스도 발생 — 위쪽 stale 자동 복구에서 처리.)
     //  - 따라서 csrchat 호출 직전에 m2net 측 상태를 명시적으로 RDCH/RDVC 로 동기 push (await).
     //  - 실패 시 한 번 재시도 — 일시적 네트워크 오류 흡수.
-    const memberMembid = String(me.csrid).padStart(6, '0');
+    const memberMembid = String(me.m2net_membid).padStart(6, '0');
     const counselorCsrid = String(csr.csrid).padStart(5, '0');
     const chatTargetState = csr.use_phone ? 'RDVC' : 'RDCH';
     let preflight = await this.m2net.updateCounselorState(counselorCsrid, chatTargetState);
@@ -303,7 +330,7 @@ export class UserConsultService {
         );
       }
     }
-    // 사주문 DB 측도 ready state 로 명시적 정렬 (선반영 제거 후의 추가 보장)
+    // 사주플랜 DB 측도 ready state 로 명시적 정렬 (선반영 제거 후의 추가 보장)
     await this.sql`
       UPDATE member
          SET state = ${chatTargetState}, updated_at = now()
@@ -350,6 +377,8 @@ export class UserConsultService {
       `;
       if (existing[0]) {
         // 재입장 시에도 단가/잔여 스냅샷 갱신 (충전 반영)
+        // [엄격검증 5차 fix 2026-05-27] 재입장 시 alloc 가 GREATEST 로 증가 가능 → five_min_alert_sent_at reset
+        //   (현재 alloc < 신규 allocSeconds 면 잔여 증가 → 다음 5분 진입 시 재발화 필요)
         await tx`
           UPDATE chat_room
              SET rejoin = TRUE,
@@ -359,7 +388,11 @@ export class UserConsultService {
                  unit_cost = ${unitCost},
                  alloc_seconds_member = GREATEST(alloc_seconds_member, ${allocSeconds}),
                  alloc_seconds_counselor = GREATEST(alloc_seconds_counselor, ${allocSeconds}),
-                 snapshot_member_point = ${memberPoint}
+                 snapshot_member_point = ${memberPoint},
+                 five_min_alert_sent_at = CASE
+                   WHEN ${allocSeconds}::int > alloc_seconds_member THEN NULL
+                   ELSE five_min_alert_sent_at
+                 END
            WHERE id = ${existing[0].id}
         `;
         // 재입장 — chat_room.roomid 는 절대 덮어쓰지 않는다. m2net 이 새 roomid 를 발급하더라도
@@ -422,7 +455,7 @@ export class UserConsultService {
     // 회원이 채팅 시작을 "요청"한 시점일 뿐, 상담사가 실제로 채팅방에 입장한 것이 아니기 때문이다.
     // 상담사가 입장하기 전에 DB/m2net 양쪽을 CNCH 로 바꿔버리면:
     //  - 다른 회원의 '상담가능' 목록에서 사라져 영업 손실
-    //  - m2net 측은 RDCH/RDVC 상태인데 사주문 DB 만 CNCH 라 동기화 깨짐
+    //  - m2net 측은 RDCH/RDVC 상태인데 사주플랜 DB 만 CNCH 라 동기화 깨짐
     //  - 상담사가 입장 거부/지연해도 영원히 CNCH 잠금
     //
     // 따라서 chat_room.status='STAY' 로만 두고, 상담사가 실제로 채팅방에 들어왔다는
@@ -456,7 +489,7 @@ export class UserConsultService {
   /**
    * 상담사 BizM 알림톡 — "채팅 상담방 개설" 안내.
    * 템플릿: chat_counseling2 (BizM 콘솔 승인)
-   *   ※ 사주문 긴급 상담 참여 요청 ※
+   *   ※ 사주플랜 긴급 상담 참여 요청 ※
    *   #{상담사명}님, 고객이 채팅 상담 입장을 기다리고 있습니다.
    *   지금 바로 상담에 참여해 주세요.
    *   ※ 상담 연결이 늦어지면 고객 연결이 자동 취소될 수 있습니다.
@@ -474,17 +507,152 @@ export class UserConsultService {
       return;
     }
     const displayName = (csr.nickname || csr.name || '상담사').trim();
-    // 버튼 url 의 #{url} 변수 → 채팅방 직접 진입 경로. ChatRoom 컴포넌트가 비로그인 시
-    // /login?redirect=/chat/{id} 로 자동 라우팅하고, 로그인 후 자동 복귀.
+    // [2026-05-23] BizM 신규 템플릿 chat_request_to_counselor 사용:
+    //   [ 사주플랜 ] 채팅 상담 요청
+    //   #{상담사닉네임} 선생님께 새로운 채팅 상담이 들어왔어요.
+    //   3분 안에 채팅방으로 입장하지 않으시면 해당 요청은 자동으로 종료됩니다.
+    // 버튼 url 은 채팅방 직접 진입 경로 (ChatRoom 가 비로그인 시 자동 redirect).
     const r = await this.sms.sendAlimtalkByCode(
-      'chat_counseling2',
+      'chat_request_to_counselor',
       csr.phone,
-      { 상담사명: displayName, url: `chat/${chatRoomId}` },
-      '채팅 상담방 개설',
+      { 상담사닉네임: displayName, url: `chat/${chatRoomId}` },
+      '채팅 상담 요청 알림',
     );
     if (!r.ok) {
       this.logger.warn(
         `[notifyCounselorChatRequest] BizM 발송 실패 counselorId=${counselorId} reason=${r.reason}`,
+      );
+    }
+  }
+
+  /**
+   * [2026-05-23] 상담사 미입장 채팅방 자동 취소.
+   *
+   * 조건: chat_room.status='STAY' (상담사 미입장) 이면서
+   *       created_at < NOW() - 3분 인 채팅방을 모두 자동 종료.
+   *
+   * 처리:
+   *   1) chat_room.status = 'DISCONNECT' + ended_at = now() 마킹
+   *   2) 회원에게 카톡 안내 알림톡 발송 (chat_auto_cancelled)
+   *   3) m2net 측 채팅방은 별도 END 콜백이 없어도 무방 — 사용 시간 0 이므로 차감 발생 X
+   *
+   * 호출: 매 1분마다 GET /api/cron/chat/auto-cancel?token=... 가 호출.
+   *       사용 시간 = 0 이라 회원 차감/상담사 적립 모두 0 (사주플랜 결제 모델: 사용 시간 기반).
+   */
+  async autoCancelStaleChats(): Promise<{ cancelled: number; details: Array<{ roomId: number; memberId: number; counselorId: number }> }> {
+    // 3분 이상 상담사 미입장 STAY 방
+    const stale = await this.sql<{
+      id: number;
+      member_id: number;
+      counselor_id: number;
+      roomid: string | null;
+    }[]>`
+      SELECT id, member_id, counselor_id, roomid
+        FROM chat_room
+       WHERE status = 'STAY'
+         AND started_at < NOW() - INTERVAL '3 minutes'
+       ORDER BY id
+       LIMIT 50
+    `;
+
+    const details: Array<{ roomId: number; memberId: number; counselorId: number }> = [];
+    for (const r of stale) {
+      try {
+        // 1) 채팅방 종료 마킹
+        await this.sql`
+          UPDATE chat_room
+             SET status = 'DISCONNECT',
+                 ended_at = NOW()
+           WHERE id = ${r.id} AND status = 'STAY'
+        `;
+        // 2) 회원에게 카톡 안내 발송 (실패해도 진행)
+        void this.notifyMemberChatAutoCancelled(r.member_id, r.counselor_id).catch((e) => {
+          this.logger.warn(
+            `[autoCancelStaleChats] 회원 알림 실패 chatRoomId=${r.id}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        });
+        details.push({ roomId: r.id, memberId: r.member_id, counselorId: r.counselor_id });
+        this.logger.log(`[autoCancelStaleChats] 자동 취소 chatRoomId=${r.id} member=${r.member_id} counselor=${r.counselor_id}`);
+      } catch (e) {
+        this.logger.warn(`[autoCancelStaleChats] 실패 chatRoomId=${r.id}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    return { cancelled: details.length, details };
+  }
+
+  /**
+   * [2026-05-23] 상담사 글로벌 polling — 들어온 채팅 요청(STAY 방) 목록.
+   *
+   *   사주플랜 앱이 백그라운드/다른 화면이어도 즉시 모달로 알림 띄우기 위한 글로벌 polling.
+   *   응답 시간 최소화 — counselor_id + status='STAY' 인덱스 활용.
+   *   가장 오래 기다린 (started_at ASC) 방 우선 정렬.
+   */
+  async listIncomingChats(counselorId: number): Promise<{
+    items: Array<{
+      chat_room_id: number;
+      member_id: number;
+      member_nickname: string | null;
+      member_name: string | null;
+      started_at: string;
+      waited_seconds: number;
+    }>;
+  }> {
+    const rows = await this.sql<{
+      chat_room_id: number;
+      member_id: number;
+      member_nickname: string | null;
+      member_name: string | null;
+      started_at: Date;
+      waited_seconds: number;
+    }[]>`
+      SELECT cr.id AS chat_room_id,
+             cr.member_id,
+             m.nickname AS member_nickname,
+             m.name AS member_name,
+             cr.started_at,
+             EXTRACT(EPOCH FROM (NOW() - cr.started_at))::int AS waited_seconds
+        FROM chat_room cr
+        LEFT JOIN member m ON m.id = cr.member_id
+       WHERE cr.counselor_id = ${counselorId}
+         AND cr.status = 'STAY'
+       ORDER BY cr.started_at ASC
+       LIMIT 10
+    `;
+    return {
+      items: rows.map((r) => ({
+        chat_room_id: Number(r.chat_room_id),
+        member_id: Number(r.member_id),
+        member_nickname: r.member_nickname,
+        member_name: r.member_name,
+        started_at: r.started_at instanceof Date ? r.started_at.toISOString() : String(r.started_at),
+        waited_seconds: Number(r.waited_seconds),
+      })),
+    };
+  }
+
+  /**
+   * 회원에게 채팅 자동 취소 안내 알림톡 발송.
+   * 템플릿: chat_auto_cancelled_to_member (BizM 콘솔 신규 등록 필요)
+   */
+  private async notifyMemberChatAutoCancelled(memberId: number, counselorId: number): Promise<void> {
+    const rows = await this.sql<{ phone: string | null; nickname: string | null; name: string | null }[]>`
+      SELECT phone, nickname, name FROM member WHERE id = ${memberId} LIMIT 1
+    `;
+    const mb = rows[0];
+    if (!mb || !mb.phone) return;
+    const csrRows = await this.sql<{ nickname: string | null; name: string | null }[]>`
+      SELECT nickname, name FROM member WHERE id = ${counselorId} LIMIT 1
+    `;
+    const counselorName = (csrRows[0]?.nickname || csrRows[0]?.name || '상담사').trim();
+    const r = await this.sms.sendAlimtalkByCode(
+      'chat_auto_cancelled_to_member',
+      mb.phone,
+      { 상담사닉네임: counselorName },
+      '채팅 상담 요청 자동 취소',
+    );
+    if (!r.ok) {
+      this.logger.warn(
+        `[notifyMemberChatAutoCancelled] BizM 발송 실패 memberId=${memberId} reason=${r.reason}`,
       );
     }
   }
@@ -508,6 +676,8 @@ export class UserConsultService {
     total: number;
     page: number;
     limit: number;
+    /** 반대 역할(회원↔상담사) 시점의 데이터 건수 — 0 이면 안내 비노출 */
+    other_role_count: number;
   }> {
     const page = Math.max(1, Math.trunc(params.page ?? 1));
     const limit = Math.min(50, Math.max(1, Math.trunc(params.limit ?? 10)));
@@ -714,6 +884,7 @@ export class UserConsultService {
           ${replyJoin}
          WHERE c.${ownerCol} = ${params.memberId}
            AND c.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
+           AND c.counselor_id IS NOT NULL
            -- 같은 상대와의 채팅방이 아직 진행 중(STAY/CNCH) 이면 ended 카드는 표시하지 않는다.
            -- 진행 중 방은 active_chat 분기로만 "채팅방 재입장하기" 카드 1개만 노출.
            -- 후기 작성하기는 채팅방이 완전히 종료된 후에만 가능해야 함.
@@ -770,7 +941,20 @@ export class UserConsultService {
       };
     });
 
-    return { items, total, page, limit };
+    // [2026-05-24] 동시 역할자(회원+상담사) 안내 — 반대 시점에 데이터가 있는지 항상 카운트.
+    //   total 과 무관하게 항상 계산 (사장님 케이스처럼 본인 시점에 1건만 있어도 반대 시점에
+    //   더 많은 데이터가 있을 수 있음). 일반 회원은 본인이 counselor_id 인 row 가 없어
+    //   other_role_count = 0 → 안내 절대 노출 X (상담사 브랜드 신뢰 보호).
+    const otherOwnerCol = isCounselor ? this.sql`member_id` : this.sql`counselor_id`;
+    const otherCount = await this.sql<{ cnt: string }[]>`
+      SELECT count(*)::text AS cnt
+        FROM consultation c
+       WHERE c.${otherOwnerCol} = ${params.memberId}
+         AND c.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
+    `;
+    const other_role_count = Number(otherCount[0]?.cnt ?? 0);
+
+    return { items, total, page, limit, other_role_count };
   }
 
   // ─────────────────────────────────────────────
