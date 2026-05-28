@@ -197,7 +197,68 @@ if (window.SajumoonBridge?.isNative) {
 
 ---
 
-## 9. 디렉토리 개요
+## 9. Release 빌드 & 스토어 배포
+
+### Android (Google Play)
+
+**서명 키는 이미 repo에 포함되어 있다.** 별도 다운로드/설정 불필요.
+
+| 파일 | 위치 | 내용 |
+|---|---|---|
+| 키스토어 | [`android/app/key.jks`](android/app/key.jks) | 업로드 키 (Play App Signing) |
+| 키 설정 | [`android/app/key.properties`](android/app/key.properties) | alias / store password / key password |
+
+현재 키 정보 (참고용 — 노출 시 즉시 재발급 필요):
+- `keyAlias` = `key`
+- `storePassword` = `keyPassword` = `pCRXsYQVWFHj4hwUDstj`
+
+빌드 명령:
+
+```bash
+cd mobile/android
+
+# Play Console 업로드용 (권장)
+./gradlew bundleRelease
+# → app/build/outputs/bundle/release/app-release.aab
+
+# 단말 직접 설치/배포용 APK
+./gradlew assembleRelease
+# → app/build/outputs/apk/release/app-release.apk
+```
+
+Play Console 업로드 절차:
+1. [Google Play Console](https://play.google.com/console) → `사주문(com.dmonster.sajumoon)` 앱 선택
+2. 좌측 **Production** (또는 Internal/Closed testing) → **새 버전 만들기**
+3. 위에서 만든 `app-release.aab` 업로드
+4. 출시 노트 작성 → **저장** → **버전 검토** → **출시 시작**
+5. 심사 1~3일 후 자동 배포
+
+> 버전 번호 올리는 곳 (이거 안 올리면 Play Console 이 반려):
+> - `android/app/build.gradle` 의 `versionCode` (정수, 매 빌드마다 +1 필수)
+> - `android/app/build.gradle` 의 `versionName` (사용자 노출용, 예: `1.1.5`)
+> - `mobile/src/appVersion.ts` 의 `APP_VERSION.android` 도 같은 값으로 맞출 것
+>   (강제 업데이트 모달 비교 로직이 이걸 기준으로 동작)
+
+### iOS (App Store)
+
+iOS는 Mac + Xcode + Apple Developer 계정 필요. 키 정보는 Apple 측 provisioning profile 로 관리되므로 repo 에 별도 키 없음.
+
+```bash
+cd mobile/ios
+pod install
+open Sajumoon.xcworkspace
+```
+
+Xcode → `Product` → `Archive` → Organizer 에서 `Distribute App` → App Store Connect 업로드.
+
+버전 올리는 곳:
+- Xcode 타겟 General 탭 또는 `ios/Sajumoon.xcodeproj/project.pbxproj` 의
+  `MARKETING_VERSION` (사용자 노출용) / `CURRENT_PROJECT_VERSION` (빌드번호)
+- `mobile/src/appVersion.ts` 의 `APP_VERSION.ios` 도 동일하게
+
+---
+
+## 10. 디렉토리 개요
 
 ```
 mobile/
