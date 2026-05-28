@@ -75,6 +75,18 @@ target 'Sajumoon' do
       end
     end
 
+    # Release Archive 업로드 시 "dSYM did not include UUID ..." 경고 회피.
+    # hermes-engine 등 모든 Pod 타겟의 Release config 가 dwarf-with-dsym 으로
+    # 떨어지도록 강제. (Pods 프로젝트 기본값이 빌드 환경에 따라 dwarf 로
+    # 떨어지는 경우가 있어 명시적으로 박는다.)
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        if config.name == 'Release'
+          config.build_settings['DEBUG_INFORMATION_FORMAT'] = 'dwarf-with-dsym'
+        end
+      end
+    end
+
     # react-native-exit-app 2.0.0 이 RN 0.78 의 Codegen 모듈 이름 변경
     # (React-Codegen → ReactCodegen) 을 따라가지 못해 빌드 실패.
     # .h: <React-Codegen/RNExitAppSpec/...>  → <ReactCodegen/...>

@@ -2,9 +2,8 @@
     <!--
       Android 12+ uses the system Splash Screen API which shows this color
       as the full-screen background BEFORE bootsplash's Dialog overlay can
-      take over. Match it to the top of the splash artwork (light purple)
-      so there's no visible white seam at the status bar / before the
-      gradient image fades in.
+      take over. Match it to the splash artwork (black) so there's no
+      visible white seam at the status bar before the bitmap fades in.
     -->
-    <color name="bootsplash_background">#AC90FF</color>
+    <color name="bootsplash_background">#000000</color>
 </resources>

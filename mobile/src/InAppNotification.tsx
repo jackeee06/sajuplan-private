@@ -22,13 +22,7 @@ type Props = {
   message: InAppMessage | null;
   onDismiss: () => void;
   onPress?: () => void;
-  /** ms */
-  duration?: number;
 };
-
-// 사용자가 직접 닫을 때까지 유지하는 게 기본. 자동 타이머는 너무 오래 떠 있는
-// 케이스를 막기 위한 백업.
-const DEFAULT_DURATION = 15000;
 
 /**
  * 포그라운드 푸시 인앱 배너 — Android 헤드업 알림 느낌의 상단 슬라이드 토스트.
@@ -36,13 +30,12 @@ const DEFAULT_DURATION = 15000;
  * - 시스템 알림은 앱이 백그라운드일 때만 자동 표시되므로 포그라운드에서는
  *   `messaging().onMessage()` 로 받은 알림을 이걸로 대신 띄워준다.
  * - 카드 탭 → onPress(딥링크 이동) + 닫힘. 우측 상단 X → 단순 닫힘.
- * - 자동 타이머(15초)는 백업이고, 사용자가 명시적으로 닫는 게 1차 흐름.
+ * - 자동 dismiss 없음. 사용자가 X 를 누르거나 카드를 탭할 때까지 유지.
  */
 export default function InAppNotification({
   message,
   onDismiss,
   onPress,
-  duration = DEFAULT_DURATION,
 }: Props) {
   const translateY = useRef(new Animated.Value(-200)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -82,13 +75,7 @@ export default function InAppNotification({
         useNativeDriver: true,
       }),
     ]).start();
-
-    const t = setTimeout(() => {
-      dismiss();
-    }, duration);
-
-    return () => clearTimeout(t);
-  }, [message, translateY, opacity, dismiss, duration]);
+  }, [message, translateY, opacity]);
 
   if (!message) return null;
 

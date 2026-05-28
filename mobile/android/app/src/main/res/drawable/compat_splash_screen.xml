@@ -3,24 +3,16 @@
   Override of react-native-bootsplash's compat_splash_screen.xml.
 
   Layered approach:
-   1. Linear purple gradient (top #AC90FF → bottom #7F55F5) — matches the
-      splash artwork's own gradient exactly. Fills the entire window.
+   1. Solid black background (#000000) — 사주플랜 로고의 검정 배경과 일치.
    2. The 3000x3000 splash bitmap, centered at native pixel size (no scale).
 
-  Because (a) the bitmap is larger than any phone width and (b) the gradient
-  beneath matches the splash edge colors, the user sees the splash filling
-  the screen edge-to-edge with no distortion. On extra-tall devices where
-  the bitmap height < screen height, the gradient seamlessly continues the
-  image's color — no white/dark band visible.
+  Bitmap이 어떤 단말 폭보다 커서 가운데가 그대로 노출되고,
+  외곽 영역은 동일한 검정으로 이어져 경계선 없이 풀스크린으로 보인다.
 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android" android:opacity="opaque">
     <item android:gravity="fill">
         <shape android:shape="rectangle">
-            <gradient
-                android:type="linear"
-                android:angle="270"
-                android:startColor="#AC90FF"
-                android:endColor="#7F55F5" />
+            <solid android:color="#000000" />
         </shape>
     </item>
     <item android:gravity="fill">
