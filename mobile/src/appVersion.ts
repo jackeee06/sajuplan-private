@@ -17,8 +17,8 @@ import { API_URL } from './config';
 
 // 빌드 시점 버전. android/app/build.gradle versionName / ios Info.plist CFBundleShortVersionString 과 일치시킨다.
 export const APP_VERSION = Platform.select({
-  ios: '1.1',
-  android: '1.1.4',
+  ios: '1.1.5',
+  android: '1.1.5',
   default: '0.0.0',
 });
 
