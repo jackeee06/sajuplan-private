@@ -30,6 +30,10 @@ type Messaging = {
   onMessage: (cb: (msg: RemoteMessage) => void) => () => void;
   subscribeToTopic: (topic: string) => Promise<void>;
   unsubscribeFromTopic: (topic: string) => Promise<void>;
+  // 백그라운드에서 알림을 탭해 앱이 포그라운드로 올라올 때.
+  onNotificationOpenedApp?: (cb: (msg: RemoteMessage) => void) => () => void;
+  // 앱이 완전히 종료된 상태에서 알림 탭으로 콜드스타트될 때 (1회).
+  getInitialNotification?: () => Promise<RemoteMessage | null>;
 };
 
 function loadMessaging(): Messaging | null {
@@ -86,6 +90,10 @@ export async function initFcm(): Promise<string | null> {
     return null;
   }
   if (!token) return null;
+
+  // chl_all 은 "앱을 설치한 모든 사용자" 채널 — 로그인 무관, 부팅 시 항상 구독.
+  // (fcm.md 8.2 / 8.4 표준). 로그인/로그아웃 흐름은 chl_2 · chl_5 만 토글한다.
+  messaging.subscribeToTopic('chl_all').catch(() => {});
 
   // 서버에 토큰 등록 (비로그인 상태로 시작, 로그인 후 자동 매핑됨).
   registerTokenOnServer(token).catch(() => {});
@@ -167,4 +175,71 @@ export function onForegroundMessage(
     });
     cb({title: n.title, body: n.body, data: msg?.data});
   });
+}
+
+/**
+ * 푸시 data 페이로드에서 딥링크(이동 경로)를 추출.
+ * 서버가 보내는 키가 환경마다 달라서 우선순위대로 훑는다. event_url 이 1순위.
+ * 값은 절대 URL(https://…) 또는 경로(/event/123)/상대경로 모두 허용 — 실제
+ * WebView 이동은 호출부(App.tsx)에서 webUrl 기준으로 해석한다.
+ */
+export function extractDeepLink(
+  data?: Record<string, string> | null,
+): string | null {
+  if (!data) return null;
+  const keys = [
+    'event_url',
+    'url',
+    'link',
+    'target_url',
+    'move_url',
+    'landing_url',
+    'path',
+    'deeplink',
+  ];
+  for (const k of keys) {
+    const v = data[k];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+/**
+ * 알림 탭으로 앱이 열릴 때의 딥링크를 받는다. 두 경우를 모두 커버:
+ *  - 백그라운드 → 알림 탭 (onNotificationOpenedApp)
+ *  - 종료 상태 → 알림 탭 콜드스타트 (getInitialNotification, 부팅 시 1회)
+ * data 에서 event_url 등 이동 경로가 있으면 url 로 콜백. unsubscribe 반환.
+ */
+export function onNotificationOpen(cb: (url: string) => void): () => void {
+  const messaging = loadMessaging();
+  if (!messaging) return () => {};
+
+  // 콜드스타트: 종료 상태에서 알림 탭으로 실행된 케이스.
+  if (typeof messaging.getInitialNotification === 'function') {
+    messaging
+      .getInitialNotification()
+      .then((msg) => {
+        const url = extractDeepLink(msg?.data);
+        if (url) {
+          // eslint-disable-next-line no-console
+          console.log('[fcm] initial notification deeplink', url);
+          cb(url);
+        }
+      })
+      .catch(() => {});
+  }
+
+  // 백그라운드 → 포그라운드 복귀 케이스.
+  if (typeof messaging.onNotificationOpenedApp === 'function') {
+    return messaging.onNotificationOpenedApp((msg) => {
+      const url = extractDeepLink(msg?.data);
+      if (url) {
+        // eslint-disable-next-line no-console
+        console.log('[fcm] notification opened deeplink', url);
+        cb(url);
+      }
+    });
+  }
+
+  return () => {};
 }

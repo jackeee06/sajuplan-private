@@ -33,16 +33,48 @@ import {
 } from './src/bridge';
 import {pickImage} from './src/useImagePicker';
 import {
+  extractDeepLink,
   fcmGetToken,
   fcmSubscribe,
   fcmUnsubscribe,
   initFcm,
   onForegroundMessage,
+  onNotificationOpen,
 } from './src/fcm';
 import InAppNotification, {type InAppMessage} from './src/InAppNotification';
+import UpdateRequiredModal from './src/UpdateRequiredModal';
+import {APP_VERSION, checkForUpdate, type UpdateInfo} from './src/appVersion';
 
 const INJECTED_BOOTSTRAP = `
 (function () {
+  // 시스템 글자 크기 설정(접근성/디스플레이) 영향 차단 — 디자인된 px 그대로 노출.
+  // iOS WebView 의 자동 텍스트 조정 + Android WebView 의 텍스트 줌 + 사용자 핀치 확대로
+  // 글자만 비례 없이 커지는 현상을 막는다. (Android 는 RN 측 textZoom={100} 과 함께)
+  try {
+    var __fixFont = function () {
+      var d = document.documentElement;
+      if (!d) return;
+      d.style.setProperty('-webkit-text-size-adjust', '100%', 'important');
+      d.style.setProperty('text-size-adjust', '100%', 'important');
+      if (document.body) {
+        document.body.style.setProperty('-webkit-text-size-adjust', '100%', 'important');
+        document.body.style.setProperty('text-size-adjust', '100%', 'important');
+      }
+      var vp = document.querySelector('meta[name="viewport"]');
+      if (!vp) {
+        vp = document.createElement('meta');
+        vp.setAttribute('name', 'viewport');
+        document.head && document.head.appendChild(vp);
+      }
+      vp.setAttribute(
+        'content',
+        'width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover'
+      );
+    };
+    __fixFont();
+    document.addEventListener('DOMContentLoaded', __fixFont);
+  } catch (_) {}
+
   if (window.__sajumoonBridgeReady) { return; }
   window.__sajumoonBridgeReady = true;
   window.__sajumoonBridgeListeners = {};
@@ -184,6 +216,41 @@ export default function App(): React.JSX.Element {
   const [inAppMessage, setInAppMessage] = useState<InAppMessage | null>(null);
   const inAppCounterRef = useRef(0);
 
+  // 강제 업데이트 안내 모달.
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+
+  // 푸시 딥링크 — 첫 로드가 끝나기 전(콜드스타트)에 도착한 URL 은 여기에 담아뒀다가
+  // onLoadEnd 에서 이동시킨다. WebView 가 아직 webUrl 로딩 중이면 location.href 주입이
+  // 첫 로드에 묻혀버리기 때문.
+  const firstLoadDoneRef = useRef(false);
+  const pendingDeepLinkRef = useRef<string | null>(null);
+
+  // 딥링크 경로를 webUrl 기준 절대 URL 로 해석. 절대 URL 은 그대로,
+  // '/path' 또는 'path' 는 webUrl 에 붙인다.
+  const resolveDeepLink = useCallback((raw: string): string | null => {
+    const s = (raw || '').trim();
+    if (!s) return null;
+    if (/^https?:\/\//i.test(s)) return s;
+    const base = APP_CONFIG.webUrl.replace(/\/+$/, '');
+    return s.startsWith('/') ? `${base}${s}` : `${base}/${s}`;
+  }, []);
+
+  // WebView 를 해당 URL 로 이동. 첫 로드 전이면 보류 후 onLoadEnd 에서 처리.
+  const navigateWebView = useCallback(
+    (raw: string) => {
+      const target = resolveDeepLink(raw);
+      if (!target) return;
+      if (!firstLoadDoneRef.current) {
+        pendingDeepLinkRef.current = target;
+        return;
+      }
+      webViewRef.current?.injectJavaScript(
+        `try { location.href = ${JSON.stringify(target)}; } catch (e) {} true;`,
+      );
+    },
+    [resolveDeepLink],
+  );
+
   // 쿠키 영속화 — 앱이 background/inactive 로 전환되거나 종료되기 직전 강제 종료에 대비해
   // CookieManager.flush() 로 메모리상의 sjm_user 쿠키를 디스크로 영속화.
   //  - Android WebView 의 알려진 이슈: 앱 강제 종료 시 메모리 쿠키가 디스크에 저장되지 않아
@@ -205,7 +272,8 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     initFcm().catch(() => {});
 
-    // 포그라운드 푸시 수신 → 인앱 배너로 표시
+    // 포그라운드 푸시 수신 → 인앱 배너로 표시. data 에 event_url 등 이동 경로가
+    // 있으면 함께 담아서 배너 탭 시 WebView 가 그 링크로 이동하게 한다.
     const unsub = onForegroundMessage((n) => {
       if (!n.title && !n.body) return;
       inAppCounterRef.current += 1;
@@ -213,11 +281,28 @@ export default function App(): React.JSX.Element {
         id: inAppCounterRef.current,
         title: n.title,
         body: n.body,
+        url: extractDeepLink(n.data) ?? undefined,
       });
     });
+
+    // 백그라운드/종료 상태에서 알림 탭 → 딥링크가 있으면 WebView 자동 이동.
+    const unsubOpen = onNotificationOpen((url) => {
+      navigateWebView(url);
+    });
+
     return () => {
       try { unsub(); } catch {}
+      try { unsubOpen(); } catch {}
     };
+  }, [navigateWebView]);
+
+  // 부팅 시 서버 최신 버전 조회 후 강제 업데이트 모달 노출 판단.
+  useEffect(() => {
+    checkForUpdate()
+      .then((info) => {
+        if (info?.needsUpdate) setUpdateInfo(info);
+      })
+      .catch(() => {});
   }, []);
 
   // Failsafe: hide the native splash after this long even if onLoadEnd never
@@ -364,7 +449,7 @@ export default function App(): React.JSX.Element {
               const NaverLoginMod = require('@react-native-seoul/naver-login');
               const NaverLogin = NaverLoginMod?.default ?? NaverLoginMod;
               await NaverLogin.initialize?.({
-                appName: '사주문',
+                appName: '사주플랜',
                 consumerKey: 'el3J2RlODMyuPtyBRq0X',
                 consumerSecret: 'DFuP7CgJme',
                 serviceUrlSchemeIOS: 'naverlogin',
@@ -518,6 +603,10 @@ export default function App(): React.JSX.Element {
           originWhitelist={['*']}
           javaScriptEnabled
           domStorageEnabled
+          // 시스템 글자 크기(접근성·디스플레이 글꼴) 영향 차단 — 디자인된 px 그대로 노출.
+          //  - Android: WebView 의 textZoom 을 100 으로 고정 (기본은 OS 설정값 추종)
+          //  - iOS: 위 INJECTED_BOOTSTRAP 의 -webkit-text-size-adjust:100% 로 처리
+          textZoom={100}
           // 쿠키 영속화 — 앱 강제 종료 후에도 sjm_user 쿠키 유지.
           //  - iOS: WebView 와 NSURLSession 간 쿠키 공유 (HTTPCookieStorage)
           //  - Android: api.sajumoon.kr 가 cross-origin(=3rd-party) 이므로 thirdPartyCookies 허용
@@ -538,6 +627,15 @@ export default function App(): React.JSX.Element {
           onMessage={onMessage}
           onLoadEnd={() => {
             setFirstLoadDone(true);
+            firstLoadDoneRef.current = true;
+            // 콜드스타트 시 보류해둔 푸시 딥링크가 있으면 첫 로드 직후 이동.
+            const pending = pendingDeepLinkRef.current;
+            if (pending) {
+              pendingDeepLinkRef.current = null;
+              webViewRef.current?.injectJavaScript(
+                `try { location.href = ${JSON.stringify(pending)}; } catch (e) {} true;`,
+              );
+            }
             // Native splash held by RNBootSplash.init until we call hide().
             // Fade for ~150ms so the WebView's first paint isn't a hard cut.
             BootSplash.hide({fade: true}).catch(() => {});
@@ -619,7 +717,16 @@ export default function App(): React.JSX.Element {
           로 top 패딩 처리. */}
       <InAppNotification
         message={inAppMessage}
+        onPress={() => {
+          if (inAppMessage?.url) navigateWebView(inAppMessage.url);
+        }}
         onDismiss={() => setInAppMessage(null)}
+      />
+      <UpdateRequiredModal
+        visible={!!updateInfo}
+        currentVersion={APP_VERSION}
+        latestVersion={updateInfo?.latestVersion ?? ''}
+        storeUrl={updateInfo?.storeUrl ?? ''}
       />
     </SafeAreaProvider>
   );
