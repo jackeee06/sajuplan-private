@@ -1,4 +1,4 @@
-# 사주문 운영 사고 대응 매뉴얼
+# 사주플랜 운영 사고 대응 매뉴얼
 
 > 작성: 2026-05-17
 > 사용자: 운영자 (사장님 / 위임받은 운영팀)
@@ -69,7 +69,7 @@
 1. 즉시 위협 차단됨 (BadRequestException). 추가 충전 안 됨.
 2. payload IP 확인 (`/api/pg/charge/autopay-push` 의 access log)
    ```bash
-   grep '/api/pg/charge/autopay-push' /data/wwwlogs/api.sajumoon.co.kr_nginx.log | grep -v '211.175.205.88' | tail
+   grep '/api/pg/charge/autopay-push' /data/wwwlogs/api.sajuplan.com_nginx.log | grep -v '211.175.205.88' | tail
    ```
 3. 비-211.175.205.88 IP 면 → 진짜 위조 시도 → 네트워크 보안팀에 IP 차단 요청
 
@@ -82,7 +82,7 @@
 **대응**:
 1. **정상 케이스**: M2NET/AG9 가 IP 변경한 경우. 영업담당 확인 후 추가:
    ```bash
-   # /data/wwwroot/api.sajumoon.co.kr/.env 에
+   # /data/wwwroot/api.sajuplan.com/.env 에
    CALLBACK_ALLOW_IPS=211.175.205.88,새IP1,새IP2
    pm2 reload sajumoon-api
    ```
@@ -103,8 +103,8 @@
 2. 에러 메시지 분석 후 수동 재실행:
    ```bash
    # CRON_TOKEN 확인 후
-   curl -H "X-Cron-Token: $TOKEN" "https://api.sajumoon.co.kr/api/cron/grade/recalculate?month=2026-04"
-   curl -H "X-Cron-Token: $TOKEN" "https://api.sajumoon.co.kr/api/cron/settlement/monthly?month=2026-04"
+   curl -H "X-Cron-Token: $TOKEN" "https://api.sajuplan.com/api/cron/grade/recalculate?month=2026-04"
+   curl -H "X-Cron-Token: $TOKEN" "https://api.sajuplan.com/api/cron/settlement/monthly?month=2026-04"
    ```
 3. 멱등성 보장 — 한 번 더 돌려도 중복 처리 안 됨
 4. 그래도 실패 시 → 개발자 연락 (마이그레이션/스키마 충돌 가능성)
@@ -120,7 +120,7 @@
 2. 의도 안 한 요청이면:
    ```bash
    # CRON_TOKEN 즉시 회전
-   # /data/wwwroot/api.sajumoon.co.kr/.env 에서
+   # /data/wwwroot/api.sajuplan.com/.env 에서
    CRON_TOKEN=새토큰64자
    pm2 reload sajumoon-api
    # crontab 의 토큰도 갱신 필요
@@ -297,5 +297,80 @@ FROM consultation WHERE id = 12345;
 
 ---
 
+## 📅 2026-05-29 추가 사고 카테고리 (운영 시작 직전 안전망)
+
+### #X. 정산 마킹 사고 (settlement_monthly status)
+- **증상**: 사장님 [지급완료] 버튼 눌렀는데 카톡 안 감 / status 변경 안 됨
+- **즉시 확인**:
+  1. 어드민 → 정산이력 → 해당 row 의 상태 컬럼 (calculated/paid/voided)
+  2. 알림톡 누락이면 → DB:
+     ```sql
+     SELECT * FROM alimtalk_log WHERE template_code='settlement_complete' ORDER BY id DESC LIMIT 10;
+     ```
+  3. error_reason 별 대응:
+     - `template_not_found` → BizM 검수 통과 안 됨 (BizM 콘솔 상태 확인)
+     - `bizm_rejected` → BizM 응답 거부 (raw_response 보고 사유)
+     - `phone_invalid` → member.phone 비어있음
+- **무효화 (사고 정정)**: 어드민 [무효화] + 사유 5자+ → status='voided' 박제
+
+### #X. 정산 음수 (carry_over) -100만 초과
+- **증상**: OpsAlert 카톡 "정산 음수 임계값 초과"
+- **즉시 확인**:
+  ```sql
+  SELECT member_id, mb_id, month, price, early_payout_total, prev_carry_over, carry_over_negative
+    FROM settlement_monthly WHERE carry_over_negative > 0 ORDER BY id DESC;
+  ```
+- **대응**: 사장님이 해당 상담사와 직접 협의 (회수 정책)
+
+### #X. 알림톡 누락 발견 (alimtalk_log)
+- **증상**: 회원/상담사가 "카톡 못 받았어요" 문의
+- **확인**:
+  ```sql
+  SELECT id, template_code, phone, success, error_reason, sent_at
+    FROM alimtalk_log WHERE phone='010XXXX0000' ORDER BY sent_at DESC LIMIT 20;
+  ```
+- **error_reason 별 대응**:
+  - `template_not_found` → BizM 콘솔 템플릿 상태 확인
+  - `bizm_rejected` (K104/K108/K119/M107) → BizM 콘솔 수정
+  - `network_error` → 일시 장애. retry
+  - `dev_mode` → BIZM_USER_ID 누락 (.env 확인)
+
+### #X. DB 백업 실패
+- **확인**: `/var/log/sajumoon_db_backup.log` + `/data/backup/db/`
+- **수동 실행**: `/root/sajumoon_db_backup.sh`
+- **복구**:
+  ```bash
+  cd /data/backup/db
+  gunzip -c sajumoon_YYYYMMDD_HHMM.sql.gz | psql $DATABASE_URL
+  ```
+
+### #X. chat_room m2net_failed 누적 (C-17 critical)
+- **확인**:
+  ```sql
+  SELECT id, roomid, settle_status, settle_retry_count, settle_failure_reason, started_at::date
+    FROM chat_room WHERE settle_status='m2net_failed' ORDER BY id DESC LIMIT 20;
+  ```
+- **분석**: 같은 날 다수 → m2net 일시 장애, dropped 마킹 / 다른 날 분산 → retry 로직 점검
+
+### #X. counselor_auto_absent 알림 폭주
+- **증상**: 상담사 "이 알림 너무 자주 와요" 문의
+- **원인**: chat/auto-cancel cron 매분 발화 → 같은 상담사 여러 번
+- **대응**: BizM 본문 조정 또는 코드에 1시간 내 중복 차단 추가
+
+---
+
+## 📅 2026-05-29 추가 인프라
+
+| 항목 | 위치 |
+|---|---|
+| OpsAlert recipients | setting.ops.admin_alert.recipients = `01075740572` |
+| DB 자동 백업 | `/root/sajumoon_db_backup.sh` 매일 03:30 + 7일 보관 |
+| uploads 자동 백업 | `/root/sajumoon_uploads_backup.sh` 매주 일 04:00 + 4주 보관 |
+| alimtalk_log 테이블 | DB `alimtalk_log` 영구 (BizM 발송 흔적 증거) |
+| settlement_monthly status | calculated/paid/voided + paid_at/paid_by_id 마킹 |
+
+---
+
 작성: 2026-05-17 (audit 종료 후 자율 진행)
+2026-05-29 추가: 운영 시작 직전 안전망 (정산 마킹 / carry_over / alimtalk_log / DB 백업 / chat_room / counselor_auto_absent)
 업데이트 권장: 매년 1월 + 새 사고 카테고리 발생 시

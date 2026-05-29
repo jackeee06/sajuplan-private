@@ -6,6 +6,10 @@ import { RetryCronService } from './retry-cron.service';
 import { HealthCheckService } from './health-check.service';
 import { CronTokenGuard } from './cron-token.guard';
 import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
+import { UserConsultService } from '../user/consult/consult.service';
+import { UserChatService } from '../user/chat/chat.service';
+import { M2netPushService } from '../pg-callbacks/m2net-push.service';
+import { DailySummaryService } from './daily-summary.service';
 
 /**
  * 외부 cron 진입점.
@@ -30,7 +34,25 @@ export class CronController {
     private readonly retryCron: RetryCronService,
     private readonly healthCheck: HealthCheckService,
     private readonly opsAlert: OpsAlertService,
+    private readonly consult: UserConsultService,
+    private readonly chat: UserChatService,
+    private readonly m2netPush: M2netPushService,
+    private readonly dailySummary: DailySummaryService,
   ) {}
+
+  // [2026-05-29] 매일 09:00 KST — 어제 활동 요약 사장님 카톡 발송.
+  //   GET /api/cron/daily-summary
+  //   crontab: '0 9 * * * curl -H X-Cron-Token: ...'
+  @Get('daily-summary')
+  async dailySummaryRun() {
+    try {
+      return await this.dailySummary.run();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await this.opsAlert.send('daily-summary cron 실패', msg);
+      throw e;
+    }
+  }
 
   // [Phase G] DB 일관성 health-check — 18개 invariant 자동 점검 + Critical 위반 시 OpsAlert.
   //   GET /api/cron/health-check
@@ -38,6 +60,60 @@ export class CronController {
   @Get('health-check')
   async healthCheckRun() {
     return this.healthCheck.runAll();
+  }
+
+  // [2026-05-23] 상담사 미입장 채팅방 3분 후 자동 취소.
+  //   GET /api/cron/chat/auto-cancel?token=...
+  //   crontab 권장: 매분 — '* * * * * curl ...chat/auto-cancel?token=...'
+  @Get('chat/auto-cancel')
+  async chatAutoCancel() {
+    try {
+      return await this.consult.autoCancelStaleChats();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await this.opsAlert.send(
+        '채팅 자동 취소 cron 실패',
+        msg,
+      );
+      throw e;
+    }
+  }
+
+  // [엄격검증 5차 fix 2026-05-27] 채팅 5분 알림 안전망 cron.
+  //   회원이 ChatRoom 페이지 떠나면 tickRoom 호출 멈춤 → 5분 알림 누락 위험.
+  //   이 cron 이 매분 active chat_room 검사 → 잔여 ≤ 5분 진입 시 알림 발화.
+  //   GET /api/cron/chat/five-min-alert?token=...
+  //   crontab 권장: 매분 — '* * * * * curl ...chat/five-min-alert?token=...'
+  @Get('chat/five-min-alert')
+  async chatFiveMinAlert() {
+    try {
+      return await this.chat.scanFiveMinAlerts();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await this.opsAlert.send(
+        '채팅 5분 알림 cron 실패',
+        msg,
+      );
+      throw e;
+    }
+  }
+
+  // [엄격검증 6차 fix 2026-05-27] 전화 5분 알림 안전망 cron.
+  //   setTimeout 만으론 pm2 reload 시 손실 위험. cron 이 매분 active 통화 검사.
+  //   GET /api/cron/phone/five-min-alert?token=...
+  //   crontab 권장: 매분 — '* * * * * curl ...phone/five-min-alert?token=...'
+  @Get('phone/five-min-alert')
+  async phoneFiveMinAlert() {
+    try {
+      return await this.m2netPush.scanPhoneFiveMinAlerts();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await this.opsAlert.send(
+        '전화 5분 알림 cron 실패',
+        msg,
+      );
+      throw e;
+    }
   }
 
   // 운영자 알림 테스트 — 휴대폰 등록 확인용. CronTokenGuard 보호.
