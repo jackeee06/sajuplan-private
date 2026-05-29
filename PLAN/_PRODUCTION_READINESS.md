@@ -64,6 +64,16 @@
       - MONEY_FLOW.md §7.2 와 100% 일치
 - [x] 일1회 신청 제한 검증 → payout.daily_limit=1 (setting)
 - [x] 가용 금액 70% 제한 검증 → payout.available_rate=0.70 (setting)
+- [ ] 🚨 **정산 "지급완료" 마킹 시스템 부재** (2026-05-29 신규 결함 발견)
+      - settlement_monthly 에 status / paid_at / paid_by_id 컬럼 자체가 없음
+      - 어드민 UI 에도 "지급완료" 버튼 없음
+      - 운영 시작 시 사장님 메모/엑셀로 추적 필요 (임시 대응)
+      - 장기 해결: 마이그레이션 + 어드민 UI 추가 (1세션 작업)
+      - 상세: [MONEY_FLOW.md §15 Q7](../MONEY_FLOW.md)
+- [x] **신규 상담사 최소 활동 기간 룰 없음** (2026-05-29 코드 확인)
+      - settlement-cron 이 가입 직후 상담사도 자동 포함
+      - 룰 도입 필요 시 코드 변경 — 사장님 정책 결정
+      - 상세: [MONEY_FLOW.md §15 Q5](../MONEY_FLOW.md)
 
 ### 4. 상담 흐름 검증
 - [x] 전화 상담 — m2net 통화 → 차감 → 종료 → 정산 (2026-05-29)

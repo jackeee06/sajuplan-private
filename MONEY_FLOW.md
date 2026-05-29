@@ -608,17 +608,24 @@ payout_request.status='paid', paid_at=NOW()
 - **현재**: 다음 달로 무한 이월. 환수 코드 없음
 - **필요한 결정**: 일정 누적액 초과 시 알림? 상담사 자격 정지? 한도?
 
-### Q5. 첫 정산 시점 정책 (신규 상담사)
-- **현재**: 가입 직후라도 매월 1일 cron 에서 자동 포함됨
-- **필요한 확인**: 최소 활동 기간 (예: 가입 30일 이후부터 정산) 같은 룰이 있는지
+### Q5. 첫 정산 시점 정책 (신규 상담사) — ✅ 코드 답 (2026-05-29)
+- **확인 완료**: `settlement-cron.service.ts` L60-67 `WHERE role='counselor' AND left_at IS NULL`
+- **답**: 최소 활동 기간 룰 **없음**. 어제 가입한 상담사도 다음 달 1일 정산 자동 포함
+- 단, 그 달 상담 0건이면 price=0 row 만 settlement_monthly 에 INSERT (지급액 0원)
+- **사장님 정책 결정 사항**: 신규 상담사에게 최소 활동 기간 (예: 30일) 룰 도입할지 여부
 
 ### Q6. 선지급 음수 정산 후 회원 대상 통보
 - **현재**: 시스템은 음수 박제만 함
 - **필요한 결정**: 음수 발생 시 상담사에게 알림 보내는지, 신청 한도 자동 조정하는지
 
-### Q7. 정산 결과 검수 흐름
-- **현재**: 정산 cron 자동 실행 후 status='calculated' 상태
-- **필요한 확인**: 사장님이 수동 검수 후 'paid' 마킹 → 통장 송금 순서인지, 자동 송금 시스템 도입 의향 있는지
+### Q7. 정산 결과 검수 흐름 — 🚨 결함 발견 (2026-05-29)
+- **확인 완료**: `settlement_monthly` 실제 prod schema 에 **status / paid_at / paid_by_id 컬럼 자체가 없음**
+- **결과**: 정산 후 사장님이 통장 송금 → "지급완료" 마킹할 곳이 시스템에 **없음**
+  - `api/src/admin/settlements/` 에 markPaid / status / paid 관련 코드 0건
+  - `web/mng/src/pages/SettlementList.tsx` 에도 status 컬럼 표시 0건
+- **운영 시작 시 임시 대응**: 사장님이 별도 메모/엑셀로 송금 추적 (시스템 외)
+- **장기 해결**: settlement_monthly 마이그레이션 (status / paid_at / paid_by_id / voided_at / void_reason 추가) + 어드민 UI "지급완료" 버튼 추가
+- 선지급(payout_request) 시스템에는 status 가 있고 paid 마킹 작동 — 월별 정산만 누락
 
 ### Q8. 사주플랜페이(BillKey) 자동충전 한도
 - **현재**: m2net 이 자체 판단으로 자동충전 발동 — 임계값/한도 코드에 안 보임
