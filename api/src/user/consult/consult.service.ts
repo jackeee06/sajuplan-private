@@ -464,7 +464,8 @@ export class UserConsultService {
     // (재입장 케이스 — 이미 status='CNCH' 인 방 — 는 그대로 둔다.)
 
     // 채팅방 신규 개설 시 상담사에게 BizM 알림톡 발송 (sample 의 ajax.send_chat 동등).
-    // 템플릿: chat_counseling2  변수: 상담사명 / url
+    // 템플릿: chat_request_to_counselor  변수: 상담사닉네임 / url
+    // (2026-05-23: 옛 chat_counseling2 에서 교체. notifyCounselorChatRequest 참조)
     // 버튼 url 은 채팅방 직접 진입 경로 (chat/{chat_room_id}). 비로그인이면 ChatRoom 컴포넌트가
     // /login?redirect=/chat/{id} 로 자동 라우팅 (가드 처리).
     // 재입장(is_rejoin=true) 케이스는 발송하지 않는다 — 이미 진행 중인 방.

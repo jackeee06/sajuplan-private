@@ -100,6 +100,12 @@
 - [ ] 환불 알림 — 코드 확인 필요
 - [ ] 알림톡 실패 시 SMS 폴백 미적용 인지 ([[project_alimtalk_bizm_only]])
 - [ ] 🟡 alimtalk_log 테이블 신설 (감사 추적 — 분쟁 시 "보냈다" 증거)
+- [x] **알림 매핑 매트릭스 정리** (2026-05-29) → [ALERT_MAPPING.md](../ALERT_MAPPING.md)
+      신규 발견:
+      - 🚨 counselor_auto_absent cron 미구현 (alertCatalog 'active' 거짓 자가보고)
+      - 🚨 settlement_complete 알림 미존재 (rejected 결정 — 사장님 재검토 필요)
+      - 🟡 chat_counseling_v2 / counselor_state_changed_v2 죽은 prod 템플릿 (archive 검토)
+      - 📝 consult.service.ts:467 코멘트 정정 (chat_counseling2 → chat_request_to_counselor)
 
 ### 6. 데이터 정리 (테스트 단계 잔재)
 - [x] 테스트 결제/상담 데이터 정리 또는 격리 (2026-05-29)
