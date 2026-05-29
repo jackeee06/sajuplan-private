@@ -39,14 +39,13 @@
 
 ## 🚨 신규 발견 — 운영 시작 시 누락
 
-### #1. counselor_auto_absent (상담사 자동 부재중 전환)
-- **alertCatalog**: alimtalk='active' (BizM counselor_abse cron) 이라 표시됨
-- **현실**: 코드/cron 매칭 0건 (`absent`, `csrstat`, `ABSE` 모두 grep 0)
-- **영향**: 상담사가 응답 없어도 자동 부재중 전환 안 됨 → 회원이 "상담 가능" 상태 보고 요청했는데 무응답 → 사용자 불만
-- **prod template**: counselor_state_changed_v2 등록만 됨 (호출 코드 없음)
-- **해결**:
-  - cron 신규 추가 (매분 발화) → member.state 검사 → ABSE 전환 + 알림톡 발송
-  - 또는 m2net 쪽 책임으로 명확화 (m2net 이 csrstat=ABSE push 보내는지 확인)
+### #1. counselor_auto_absent (상담사 자동 부재중 전환) — ✅ 해결 (2026-05-29)
+- **사장님 결정 C안**: 회원 알림(chat_auto_cancelled) + 상담사 알림(counselor_auto_absent) 둘 다 필요
+- **2026-05-29 코드 추가**: `consult.service.ts:notifyCounselorAutoAbsent` 신규
+  - `autoCancelStaleChats` 안에서 호출 (회원 알림과 동시)
+  - 템플릿: `counselor_state_changed_v2` (prod 이미 승인됨, 그동안 호출 0건이었음)
+  - 변수: 상담사명
+- **state 자동 전환은 안 함**: m2net csrstat 진실원 충돌 위험. 알림만 발송 → 상담사가 본인 판단 후 수동 전환
 
 ### #2. settlement_complete (월 정산 완료) — ✅ 코드 추가 (2026-05-29)
 - **2026-05-29**: 사장님이 어드민에서 정산 [지급완료] 마킹 시 자동으로 알림톡 발송
@@ -61,9 +60,9 @@
 | prod template_code | 상태 | 원인 |
 |---|---|---|
 | chat_counseling_v2 | 등록 + 승인 | chat_request_to_counselor 로 코드 교체 (2026-05-23). 이 템플릿은 호출 코드 없음 |
-| counselor_state_changed_v2 | 등록 + 승인 | counselor_auto_absent cron 미구현 (#1) → 호출 없음 |
+| ~~counselor_state_changed_v2~~ | ✅ **2026-05-29 부활** | counselor_auto_absent 코드 추가로 호출 시작 (이제 살아있는 템플릿) |
 
-→ **사장님 액션**: BizM 콘솔에서 두 템플릿 archive/삭제 검토. 카카오 검수 자원 낭비 + 관리 부담.
+→ **사장님 액션**: BizM 콘솔에서 chat_counseling_v2 만 archive 검토. counselor_state_changed_v2 는 유지 (이제 활발히 호출됨).
 
 ## ⏸️ 의도적 미발송 (rejected 결정)
 

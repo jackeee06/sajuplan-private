@@ -572,6 +572,15 @@ export class UserConsultService {
             `[autoCancelStaleChats] 회원 알림 실패 chatRoomId=${r.id}: ${e instanceof Error ? e.message : String(e)}`,
           );
         });
+        // 3) [2026-05-29 추가] 상담사에게도 알림톡 — "회원 요청 무응답으로 자동 취소" 인지용.
+        //    템플릿: counselor_state_changed_v2 (BizM 콘솔 이미 승인됨, 그동안 코드 호출 0건)
+        //    사장님 정책 C안 (2026-05-29): chat_auto_cancelled(회원) + counselor_auto_absent(상담사) 둘 다 필요.
+        //    state 자동 전환은 m2net csrstat 충돌 위험으로 안 함 — 알림만.
+        void this.notifyCounselorAutoAbsent(r.counselor_id, r.member_id).catch((e) => {
+          this.logger.warn(
+            `[autoCancelStaleChats] 상담사 알림 실패 chatRoomId=${r.id}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        });
         details.push({ roomId: r.id, memberId: r.member_id, counselorId: r.counselor_id });
         this.logger.log(`[autoCancelStaleChats] 자동 취소 chatRoomId=${r.id} member=${r.member_id} counselor=${r.counselor_id}`);
       } catch (e) {
@@ -654,6 +663,40 @@ export class UserConsultService {
     if (!r.ok) {
       this.logger.warn(
         `[notifyMemberChatAutoCancelled] BizM 발송 실패 memberId=${memberId} reason=${r.reason}`,
+      );
+    }
+  }
+
+  /**
+   * [2026-05-29] 상담사에게 회원 요청 자동 취소 안내 알림톡.
+   * 사장님 정책 C안 — chat_auto_cancelled (회원 알림) + counselor_auto_absent (상담사 알림) 둘 다 필요.
+   *
+   * 템플릿: counselor_state_changed_v2 (BizM 콘솔 이미 승인됨)
+   *   ※ 사주플랜 상담 부재 안내 ※
+   *   #{상담사명}님, 고객 상담 요청 후 전화 연결을 시도했으나 응답이 없어...
+   *
+   * 변수: 상담사명
+   * state 자동 전환은 m2net csrstat 충돌 위험으로 안 함 (알림만 발송).
+   */
+  private async notifyCounselorAutoAbsent(counselorId: number, _memberId: number): Promise<void> {
+    const rows = await this.sql<{ phone: string | null; nickname: string | null; name: string | null }[]>`
+      SELECT phone, nickname, name FROM member WHERE id = ${counselorId} LIMIT 1
+    `;
+    const csr = rows[0];
+    if (!csr?.phone) {
+      this.logger.warn(`[notifyCounselorAutoAbsent] 상담사 phone 없음 counselorId=${counselorId}`);
+      return;
+    }
+    const displayName = (csr.nickname || csr.name || '상담사').trim();
+    const r = await this.sms.sendAlimtalkByCode(
+      'counselor_state_changed_v2',
+      csr.phone,
+      { 상담사명: displayName },
+      '상담 부재 안내',
+    );
+    if (!r.ok) {
+      this.logger.warn(
+        `[notifyCounselorAutoAbsent] BizM 발송 실패 counselorId=${counselorId} reason=${r.reason}`,
       );
     }
   }
