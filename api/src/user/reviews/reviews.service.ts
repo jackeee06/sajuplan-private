@@ -516,6 +516,11 @@ export class UserReviewsService {
       if (c.member_id !== memberId) {
         throw new ForbiddenException('본인의 상담만 후기를 작성할 수 있습니다.');
       }
+      // 진행 중 상담은 후기 작성 불가 — 안전망 (정상 흐름에선 consultation INSERT 가 종료 시점에만 발생)
+      // [엄격검증 fix 2026-05-27] ended_at NULL row 가 직접 INSERT 등으로 생겨도 차단.
+      if (!c.ended_at) {
+        throw new BadRequestException('종료된 상담에만 후기 작성이 가능합니다.');
+      }
       // 5분(300초) 이상 사용 검증 — 상담사 보호 정책 (2026-05-15)
       const sec = Number(c.usetm ?? 0);
       if (sec < 300) {
@@ -603,7 +608,7 @@ export class UserReviewsService {
     }
     const displayName = (c.nickname || c.name || '').trim();
     const r = await this.sms.sendAlimtalkByCode(
-      'review_for_counselor',
+      'review_for_counselor_v2',
       c.phone,
       { 상담사명: displayName, url: `counselor-mypage/reviews/${reviewId}` },
       '새 후기 알림',

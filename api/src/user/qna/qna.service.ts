@@ -722,7 +722,7 @@ export class UserCounselorQnaService {
   /**
    * 문의 등록 알림톡 (BizM qa_ask2) — 상담사 핸드폰 발송.
    *
-   *   ※ 사주문 상담 문의 도착 안내 ※
+   *   ※ 사주플랜 상담 문의 도착 안내 ※
    *   #{상담사명} 선생님, 새로운 상담 문의가 접수...
    *   → 버튼: 문의 내용 확인하기
    *
@@ -757,10 +757,10 @@ export class UserCounselorQnaService {
       const counselorName = r.counselor_nickname || r.counselor_name || '';
       const customerName = r.member_nickname || r.member_name || '';
       const res = await this.sms.sendAlimtalkByCode(
-        'qa_ask2',
+        'qa_ask_v2',
         r.counselor_phone,
         { 상담사명: counselorName, 고객명: customerName },
-        '사주문 상담 문의 도착 안내',
+        '사주플랜 상담 문의 도착 안내',
       );
       if (!res.ok) {
         this.logger.warn(`qa_ask2 거부 counselor=${counselorId} reason=${res.reason} raw=${res.raw ?? ''}`);
@@ -773,7 +773,7 @@ export class UserCounselorQnaService {
   /**
    * 답변 완료 알림톡 (BizM qa_answer2) — 문의 작성한 고객 핸드폰 발송.
    *
-   *   ※ 사주문 문의글 답변 안내 ※
+   *   ※ 사주플랜 문의글 답변 안내 ※
    *   #{고객명}님, #{상담사명} 선생님의 답변이 등록...
    *   → 버튼: 답변 내용 확인 하기
    */
@@ -806,10 +806,10 @@ export class UserCounselorQnaService {
       const customerName = r.member_nickname || r.member_name || '';
       const counselorName = r.counselor_nickname || r.counselor_name || '';
       const res = await this.sms.sendAlimtalkByCode(
-        'qa_answer2',
+        'qa_answer_v2',
         r.member_phone,
         { 고객명: customerName, 상담사명: counselorName },
-        '사주문 문의글 답변 안내',
+        '사주플랜 문의글 답변 안내',
       );
       if (!res.ok) {
         this.logger.warn(`qa_answer2 거부 qna=${qnaId} reason=${res.reason} raw=${res.raw ?? ''}`);

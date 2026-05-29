@@ -136,7 +136,7 @@ export class ChargeService {
         amount: Number(c.amount ?? 0),
         coinAmount: Number(c.coin_amount ?? 0),
       })),
-      // 자동충전 임계값(threshold)은 엠투넷이 관리 — 사주문 DB에 보존하지 않음 (10000P 고정).
+      // 자동충전 임계값(threshold)은 엠투넷이 관리 — 사주플랜 DB에 보존하지 않음 (10000P 고정).
       auto: {
         enabled: activeCard?.auto_enabled ?? false,
         threshold: null as number | null,
@@ -208,7 +208,7 @@ export class ChargeService {
   }
 
   // ============================================================
-  // 사주문페이 즉시 결제 — sample/coin/coin_pay_ok_auto.php 동등
+  // 사주플랜페이 즉시 결제 — sample/coin/coin_pay_ok_auto.php 동등
   // ============================================================
   async autoPayCharge(memberId: number, packageId: number) {
     const member = await this.fetchMember(memberId);
@@ -454,7 +454,7 @@ export class ChargeService {
         throw new BadGatewayException(`엠투넷 자동결제 설정 실패: ${r.error ?? '알 수 없음'}`);
       }
 
-      // 2) 사주문 DB 에도 영속 — 페이지 새로고침 시 토글 상태 복원용
+      // 2) 사주플랜 DB 에도 영속 — 페이지 새로고침 시 토글 상태 복원용
       await this.sql`
         UPDATE payment_method
            SET amount = ${payAmount}, coin_amount = ${pkg.totalPoint},
@@ -473,7 +473,7 @@ export class ChargeService {
         throw new BadGatewayException(`엠투넷 자동결제 해제 실패: ${r.error ?? '알 수 없음'}`);
       }
 
-      // 2) 사주문 DB 도 OFF
+      // 2) 사주플랜 DB 도 OFF
       await this.sql`
         UPDATE payment_method
            SET auto_enabled = FALSE
@@ -766,7 +766,7 @@ export class ChargeService {
         const accountInfo = `${banknm} ${vrno}`.trim();
         void this.sms
           .sendAlimtalkByCode(
-            'order_bankinfo2',
+            'order_bankinfo_v2',
             row.mb_hp,
             {
               이름: row.mb_name ?? '',
@@ -774,7 +774,7 @@ export class ChargeService {
               입금액: amount.toLocaleString(),
               입금계좌: accountInfo,
             },
-            '사주문 입금계좌 안내',
+            '사주플랜 입금계좌 안내',
           )
           .then((r) => {
             if (!r.ok) this.logger.warn(`입금계좌 안내 알림톡 거부 reason=${r.reason} raw=${r.raw ?? ''}`);
@@ -825,6 +825,10 @@ export class ChargeService {
           UPDATE payment SET m2net_status = '코인충전성공', updated_at = now()
            WHERE id = ${row.id}
         `;
+        // [2026-05-23] PG-m2net 직통 이중 적립 자동 정정 (백그라운드, 2초 지연).
+        if (row.member_id) {
+          void this.correctM2netDoubleFill(row.member_id, row.mb_1, row.id);
+        }
       } else {
         await this.sql`
           UPDATE payment SET
@@ -878,9 +882,10 @@ export class ChargeService {
     const membid = String(payload.membid ?? '').trim();
     if (!membid) throw new BadRequestException('membid 누락');
 
-    // member 조회 — m2net membid는 신규 schema에서 csrid 컬럼에 저장됨 (auth.service.ts:499)
+    // member 조회 — 2026-05-22 ID 단일화 후 m2net 회원 ID 는 m2net_membid 컬럼에 저장됨.
+    // csrid 는 상담사 m2net ID 전용으로 분리됨.
     const memberRows = await this.sql<{ id: number; mb_id: string | null; mb_hp: string | null; mb_name: string | null }[]>`
-      SELECT id, mb_id, phone AS mb_hp, name AS mb_name FROM member WHERE csrid = ${membid} LIMIT 1
+      SELECT id, mb_id, phone AS mb_hp, name AS mb_name FROM member WHERE m2net_membid = ${membid} LIMIT 1
     `;
     if (memberRows.length === 0) throw new NotFoundException('회원 없음');
     const member = memberRows[0];
@@ -1113,6 +1118,14 @@ export class ChargeService {
           UPDATE payment SET m2net_status = '코인충전성공', updated_at = now()
            WHERE id = ${result.pmt.id}
         `;
+        // [2026-05-23] PG-m2net 직통 이중 적립 자동 정정 (백그라운드, 2초 지연).
+        if (result.pmt.member_id) {
+          void this.correctM2netDoubleFill(
+            result.pmt.member_id,
+            result.pmt.mb_1,
+            result.pmt.id,
+          );
+        }
       } else {
         await this.sql`
           UPDATE payment SET
@@ -1130,6 +1143,62 @@ export class ChargeService {
     }
 
     // 카드/간편결제 완료 알림톡은 발송하지 않음 — 운영 정책상 가상계좌 발급(order_bankinfo2) 외 알림톡 미발송.
+  }
+
+  /**
+   * [2026-05-23] PG-m2net 직통 이중 적립 자동 정정.
+   *
+   * 사고 시나리오 (2026-05-23 검증으로 발견):
+   *   - AG9(PG) 가 결제 완료 시 m2net 에 +coin 직통 fill (사주플랜 미경유)
+   *   - 사주플랜도 addMemberCoin(+coin) 호출
+   *   → 같은 결제가 m2net 측에 2배 누적됨 (예: 30,000원 결제 시 m2net = 60,000)
+   *
+   * 정정 방법:
+   *   결제 완료 후 2초 지연(직통 fill 완료 대기) → 사주플랜 잔액으로 m2net amt overwrite.
+   *   updateMember(amt) 는 매뉴얼 §3.4 의 절대값 셋팅 (overwrite). 동작 검증됨.
+   *
+   * 비동기 백그라운드 호출 — 응답 지연 방지. 실패 시 syncM2netBalanceForMember 가
+   * 다음 로그인 시 다시 정정 시도하므로 결제 자체는 영향 없음.
+   */
+  private async correctM2netDoubleFill(
+    memberId: number,
+    m2netMembid: string,
+    paymentId: number,
+  ): Promise<void> {
+    try {
+      // AG9 직통 fill 이 사주플랜 콜백보다 늦게 일어나는 케이스 대비 2초 지연.
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const ptRows = await this.sql<{
+        free_balance: number;
+        paid_balance: number;
+      }[]>`
+        SELECT free_balance, paid_balance FROM point WHERE member_id = ${memberId} LIMIT 1
+      `;
+      if (ptRows.length === 0) return;
+      const sajumoonAmt =
+        Number(ptRows[0].free_balance) + Number(ptRows[0].paid_balance);
+      const r = await this.m2net.updateMember(m2netMembid, { amt: sajumoonAmt });
+      if (r.ok) {
+        this.logger.log(
+          `[postPaymentSync] member=${memberId} m2net=${m2netMembid} payment=${paymentId} amt=${sajumoonAmt} → overwrite OK`,
+        );
+      } else {
+        this.logger.warn(
+          `[postPaymentSync] overwrite 실패 member=${memberId} payment=${paymentId}: ${r.error}`,
+        );
+        void this.opsAlert.send(
+          'M2NET 잔액 정정 실패(post-payment sync)',
+          `payment.id=${paymentId} member=${memberId} m2net_membid=${m2netMembid}\n` +
+          `사주플랜 잔액=${sajumoonAmt} 로 m2net overwrite 시도했으나 실패.\n` +
+          `m2net error: ${r.error ?? 'unknown'}\n` +
+          `→ 사용자 재로그인 시 syncM2netBalanceForMember 가 다시 정정. 모니터링 필요.`,
+        );
+      }
+    } catch (e) {
+      this.logger.warn(
+        `[postPaymentSync] 예외 member=${memberId} payment=${paymentId}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   /**
@@ -1206,26 +1275,23 @@ export class ChargeService {
   }
 
   private async fetchMember(memberId: number) {
-    // 신규 schema 매핑 (마이그레이션 0008로 sample/g5_member에서 rename됨):
-    //   mb_1   → csrid  (일반회원도 m2net 등록 후 받은 membid를 csrid에 저장 — auth.service.ts:499)
-    //   mb_name → name
-    //   mb_hp   → phone
-    //   mb_email → email
+    // 2026-05-22 ID 단일화: 회원의 m2net membid 는 m2net_membid 컬럼.
+    // csrid 는 상담사 m2net ID 전용으로 분리됨. 회원 결제에선 m2net_membid 사용.
     const rows = await this.sql<
-      { id: number; mb_id: string | null; csrid: string | null; name: string | null; phone: string | null; email: string | null }[]
+      { id: number; mb_id: string | null; m2net_membid: string | null; name: string | null; phone: string | null; email: string | null }[]
     >`
-      SELECT id, mb_id, csrid, name, phone, email
+      SELECT id, mb_id, m2net_membid, name, phone, email
         FROM member WHERE id = ${memberId} LIMIT 1
     `;
     if (rows.length === 0) throw new NotFoundException('회원 정보를 찾을 수 없습니다.');
     const m = rows[0];
-    if (!m.csrid) {
+    if (!m.m2net_membid) {
       throw new BadRequestException('엠투넷 회원 ID가 없습니다. 관리자에게 문의해주세요.');
     }
     return {
       id: m.id,
       mb_id: m.mb_id ?? '',
-      mb_1: m.csrid,        // m2net membid (호출용 인터페이스는 mb_1 명칭 유지)
+      mb_1: m.m2net_membid, // m2net membid (호출용 인터페이스는 mb_1 명칭 유지)
       name: m.name ?? '',
       telno: (m.phone ?? '').replace(/-/g, ''),
       email: m.email ?? '',
@@ -1257,7 +1323,7 @@ export class ChargeService {
        WHERE member_id = ${memberId} AND is_active = TRUE LIMIT 1
     `;
     if (rows.length === 0) {
-      throw new BadRequestException('등록된 사주문페이 카드가 없습니다.');
+      throw new BadRequestException('등록된 사주플랜페이 카드가 없습니다.');
     }
     return rows[0];
   }

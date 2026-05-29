@@ -272,16 +272,17 @@ export class CouponZonesService {
       }
       try {
         const r = await this.sms.sendAlimtalkByCode(
-          'coupon_req2',
+          'coupon_req_v2',
           m.phone,
           {
             쿠폰명: zone.subject,
             쿠폰번호: zone.cp_id,
             유효기간: validity,
-            // BizM 콘솔 등록 버튼 URL = https://sajumoon.co.kr/#{url} → 마이페이지 쿠폰함으로 이동
+            // BizM 콘솔 등록 버튼 URL = https://sajuplan.com/#{url} → 마이페이지 쿠폰함으로 이동
+            //   ※ prefix 는 BizM(카카오 비즈톡) 콘솔의 템플릿 등록값 — 코드가 아니라 콘솔에서 변경
             url: 'mypage/coupons',
           },
-          '사주문 쿠폰 발급',
+          '사주플랜 쿠폰 발급',
         );
         if (r.ok) {
           this.logger.log(`[coupon_req2 ok] member_id=${m.member_id} phone=${m.phone}`);
