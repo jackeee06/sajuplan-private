@@ -162,7 +162,10 @@ export class SmsService {
     smsTitle?: string,
   ): Promise<{ ok: boolean; reason?: string; raw?: string }> {
     const phone = this.normalize(rawPhone);
-    if (!phone) return { ok: false, reason: 'phone_invalid' };
+    if (!phone) {
+      void this.logToAlimtalkLog(templateCode, rawPhone, vars, false, null, null, 'phone_invalid', null);
+      return { ok: false, reason: 'phone_invalid' };
+    }
 
     const rows = await this.sql<{
       template_code: string;
@@ -178,6 +181,7 @@ export class SmsService {
     const tpl = rows[0];
     if (!tpl) {
       this.logger.error(`알림톡 템플릿 미등록: template_code=${templateCode}`);
+      void this.logToAlimtalkLog(templateCode, phone, vars, false, null, null, 'template_not_found', null);
       return { ok: false, reason: 'template_not_found' };
     }
 
@@ -198,6 +202,7 @@ export class SmsService {
       this.logger.log(
         `[ALIMTALK DEV] tpl=${templateCode} phone=${phone} msg=${msg.slice(0, 100)}...`,
       );
+      void this.logToAlimtalkLog(templateCode, phone, vars, true, null, null, 'dev_mode', null);
       return { ok: true, reason: 'dev_mode' };
     }
 
@@ -217,7 +222,7 @@ export class SmsService {
       payload.smsKind = 'L';
       payload.msgSms = msg;
       payload.smsSender = this.aligoSender;
-      payload.smsLmsTit = smsTitle || '사주문 알림';
+      payload.smsLmsTit = smsTitle || '사주플랜 알림';
     }
     // 버튼 — BizM v2 표준: button1 = { name, type, url_mobile, url_pc }
     if (btnName && btnUrl) {
@@ -241,22 +246,56 @@ export class SmsService {
         parsed = JSON.parse(text);
       } catch {
         this.logger.error(`bizm 응답 파싱 실패 tpl=${templateCode}: ${text.slice(0, 400)}`);
+        void this.logToAlimtalkLog(templateCode, phone, vars, false, null, null, 'parse_error', text.slice(0, 400));
         return { ok: false, reason: 'parse_error', raw: text.slice(0, 400) };
       }
       const first = Array.isArray(parsed) ? parsed[0] : parsed;
+      const respCode = String(first?.code ?? '').slice(0, 20) || null;
+      const respMsg = String(first?.message ?? '').slice(0, 200) || null;
       const ok = String(first?.code) === 'success' || String(first?.message) === 'K000';
       if (!ok) {
         this.logger.error(
           `bizm 거부 tpl=${templateCode} phone=${phone} body=${text.slice(0, 400)}`,
         );
+        void this.logToAlimtalkLog(templateCode, phone, vars, false, respCode, respMsg, 'bizm_rejected', text.slice(0, 400));
         return { ok: false, reason: 'bizm_rejected', raw: text.slice(0, 400) };
       }
       this.logger.log(`[BIZM ok] tpl=${templateCode} phone=${phone}`);
+      void this.logToAlimtalkLog(templateCode, phone, vars, true, respCode, respMsg, null, text.slice(0, 400));
       return { ok: true, raw: text.slice(0, 400) };
     } catch (e) {
       const reason = e instanceof Error ? e.message : String(e);
       this.logger.error(`bizm 발송 예외 tpl=${templateCode}: ${reason}`);
+      void this.logToAlimtalkLog(templateCode, phone, vars, false, null, null, 'network_error', reason.slice(0, 400));
       return { ok: false, reason: 'network_error', raw: reason };
+    }
+  }
+
+  /**
+   * alimtalk_log INSERT — BizM 발송 흔적 영구 기록.
+   * 운영 시작 전 안전망 (2026-05-29). 분쟁/감사 시 "보냈다" 증거.
+   * INSERT 실패해도 본 작업 안 막음 (try/catch 흡수).
+   */
+  private async logToAlimtalkLog(
+    templateCode: string,
+    phone: string,
+    vars: Record<string, string | number>,
+    success: boolean,
+    responseCode: string | null,
+    responseMessage: string | null,
+    errorReason: string | null,
+    rawResponse: string | null,
+  ): Promise<void> {
+    try {
+      await this.sql`
+        INSERT INTO alimtalk_log
+          (template_code, phone, vars, success, response_code, response_message, error_reason, raw_response)
+        VALUES
+          (${templateCode}, ${phone}, ${JSON.stringify(vars)}::jsonb, ${success},
+           ${responseCode}, ${responseMessage}, ${errorReason}, ${rawResponse})
+      `;
+    } catch (e) {
+      this.logger.warn(`[alimtalk_log INSERT 실패] ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -311,7 +350,7 @@ export class SmsService {
         smsKind: 'L',
         msgSms: msg,
         smsSender: this.aligoSender || phn,
-        smsLmsTit: '사주문 비밀번호 찾기',
+        smsLmsTit: '사주플랜 비밀번호 찾기',
       },
     ];
     try {
@@ -381,7 +420,7 @@ export class SmsService {
         smsKind: 'L',
         msgSms: msg,
         smsSender: this.aligoSender || phn,
-        smsLmsTit: '사주문 인증번호',
+        smsLmsTit: '사주플랜 인증번호',
       },
     ];
     this.logger.log(
@@ -459,7 +498,7 @@ export class SmsService {
       sender: this.aligoSender.replace(/[^0-9]/g, ''),
       receiver: normalized,
       msg: body,
-      title: '[사주문 운영]',
+      title: '[사주플랜 운영]',
       msg_type: 'LMS',
       testmode_yn: 'N',
     });
@@ -492,7 +531,7 @@ export class SmsService {
       key: this.aligoKey,
       sender: this.aligoSender.replace(/[^0-9]/g, ''),
       receiver: phone,
-      msg: `[사주문] 인증번호 [${code}] 를 입력해주세요.`,
+      msg: `[사주플랜] 인증번호 [${code}] 를 입력해주세요.`,
       msg_type: 'SMS',
       testmode_yn: 'N',
     });
