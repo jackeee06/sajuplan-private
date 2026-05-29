@@ -1,5 +1,5 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { AdminAuthGuard } from '../auth/admin-auth.guard';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import { AdminAuthGuard, type AuthedRequest } from '../auth/admin-auth.guard';
 import { SettlementsService } from './settlements.service';
 import type { SettlementFilter, SettlementSfl } from './settlements.service';
 
@@ -22,5 +22,21 @@ export class SettlementsController {
       limit: q.limit ? Number(q.limit) : undefined,
     };
     return this.settlementsService.findAll(filter);
+  }
+
+  /** 정산 지급완료 마킹 — 사장님 통장 송금 후. */
+  @Patch(':id/mark-paid')
+  markPaid(@Param('id', ParseIntPipe) id: number, @Req() req: AuthedRequest) {
+    return this.settlementsService.markPaid(id, req.admin.sub);
+  }
+
+  /** 정산 무효화 — 사고 정정. 사유 필수 (5자 이상). */
+  @Patch(':id/mark-voided')
+  markVoided(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { reason?: string },
+    @Req() req: AuthedRequest,
+  ) {
+    return this.settlementsService.markVoided(id, req.admin.sub, body.reason ?? '');
   }
 }

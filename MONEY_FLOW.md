@@ -624,14 +624,15 @@ payout_request.status='paid', paid_at=NOW()
 - **상담사 인지 경로**: 어드민 페이지 본인 정산 내역 직접 확인 (사장님이 보여줘야 함)
 - **사장님 정책 결정 사항**: 음수 발생 시 자동 알림톡 추가 + 신청 한도 자동 조정 룰
 
-### Q7. 정산 결과 검수 흐름 — 🚨 결함 발견 (2026-05-29)
-- **확인 완료**: `settlement_monthly` 실제 prod schema 에 **status / paid_at / paid_by_id 컬럼 자체가 없음**
-- **결과**: 정산 후 사장님이 통장 송금 → "지급완료" 마킹할 곳이 시스템에 **없음**
-  - `api/src/admin/settlements/` 에 markPaid / status / paid 관련 코드 0건
-  - `web/mng/src/pages/SettlementList.tsx` 에도 status 컬럼 표시 0건
-- **운영 시작 시 임시 대응**: 사장님이 별도 메모/엑셀로 송금 추적 (시스템 외)
-- **장기 해결**: settlement_monthly 마이그레이션 (status / paid_at / paid_by_id / voided_at / void_reason 추가) + 어드민 UI "지급완료" 버튼 추가
-- 선지급(payout_request) 시스템에는 status 가 있고 paid 마킹 작동 — 월별 정산만 누락
+### Q7. 정산 결과 검수 흐름 — ✅ Phase 1 완료 / Phase 2 진행 중 (2026-05-29)
+- **Phase 1 완료 (2026-05-29)**:
+  - 마이그레이션 적용 — `settlement_monthly` 에 status / paid_at / paid_by_id / voided_at / voided_by_id / void_reason 컬럼 추가
+  - API 추가 — `PATCH /api/admin/settlements/:id/mark-paid` + `PATCH .../mark-voided` (5자 사유 필수)
+  - status check constraint: 'calculated' (자동 계산만) / 'paid' (사장님 송금 완료) / 'voided' (사고 정정)
+  - paid → 단방향 (voided 후 paid 불가)
+- **Phase 2 진행 중**: 어드민 UI (`SettlementList.tsx`) 에 status 컬럼 + "지급완료"/"무효화" 액션 버튼 + 모달
+- **사장님 운영 흐름**: 매월 1일 정산 cron → 어드민 정산이력 페이지 → 통장 송금 → "지급완료" 버튼 클릭 → status='paid' + paid_at + paid_by_id 박제
+- 선지급(payout_request) 시스템과 동일 패턴으로 통일
 
 ### Q8. 사주플랜페이(BillKey) 자동충전 한도
 - **현재**: m2net 이 자체 판단으로 자동충전 발동 — 임계값/한도 코드에 안 보임

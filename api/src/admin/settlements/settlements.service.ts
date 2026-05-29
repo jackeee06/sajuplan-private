@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
 
 /**
@@ -48,6 +48,12 @@ export interface SettlementRow {
   price: number;
   wr_datetime: string | null;
   created_at: string;
+  status: 'calculated' | 'paid' | 'voided';
+  paid_at: string | null;
+  paid_by_id: number | null;
+  voided_at: string | null;
+  voided_by_id: number | null;
+  void_reason: string | null;
 }
 
 export type SettlementSfl = 'mb_id' | 'kind';
@@ -104,6 +110,8 @@ export class SettlementsService {
         s.price_free, s.price_paid, s.price_other, s.price_tot,
         s.vat_amount, s.withholding_tax, s.reply_fee, s.price,
         s.wr_datetime, s.created_at,
+        s.status, s.paid_at, s.paid_by_id,
+        s.voided_at, s.voided_by_id, s.void_reason,
         m.mb_id, m.name AS member_name, m.nickname AS member_nickname,
         m.free_royalty_pct, m.paid_royalty_pct
       FROM settlement_monthly s
@@ -151,5 +159,58 @@ export class SettlementsService {
         total_reply_fee: Number(sumRows[0].total_reply_fee),
       },
     };
+  }
+
+  /**
+   * 정산 row 를 "지급완료" 로 마킹 — 사장님이 통장 송금 후 호출.
+   * 2026-05-29 신설. status 'calculated' → 'paid' 단방향.
+   * voided 상태는 마킹 불가 (사고 정정 후 새 row 필요).
+   */
+  async markPaid(id: number, adminId: number) {
+    const rows = await this.sql<{ status: string }[]>`
+      SELECT status FROM settlement_monthly WHERE id = ${id} LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('정산 row 가 없습니다.');
+    if (rows[0].status === 'paid') {
+      throw new BadRequestException('이미 지급완료 상태입니다.');
+    }
+    if (rows[0].status === 'voided') {
+      throw new BadRequestException('무효화된 정산은 지급완료로 변경할 수 없습니다.');
+    }
+    await this.sql`
+      UPDATE settlement_monthly
+         SET status = 'paid',
+             paid_at = NOW(),
+             paid_by_id = ${adminId}
+       WHERE id = ${id}
+    `;
+    return { ok: true, id, status: 'paid' };
+  }
+
+  /**
+   * 정산 row 를 무효화 — 사고/오정산 정정용. 사유 필수.
+   * status 'calculated' 또는 'paid' → 'voided'. 한 번 voided 되면 되돌릴 수 없음.
+   */
+  async markVoided(id: number, adminId: number, reason: string) {
+    const trimmedReason = (reason ?? '').trim();
+    if (trimmedReason.length < 5) {
+      throw new BadRequestException('무효화 사유는 5자 이상 작성해야 합니다.');
+    }
+    const rows = await this.sql<{ status: string }[]>`
+      SELECT status FROM settlement_monthly WHERE id = ${id} LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('정산 row 가 없습니다.');
+    if (rows[0].status === 'voided') {
+      throw new BadRequestException('이미 무효화 상태입니다.');
+    }
+    await this.sql`
+      UPDATE settlement_monthly
+         SET status = 'voided',
+             voided_at = NOW(),
+             voided_by_id = ${adminId},
+             void_reason = ${trimmedReason}
+       WHERE id = ${id}
+    `;
+    return { ok: true, id, status: 'voided' };
   }
 }
