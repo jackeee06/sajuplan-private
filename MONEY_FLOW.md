@@ -881,6 +881,7 @@ payout_request.status='paid', paid_at=NOW()
 - OpsAlert 테스트 → 사장님 카톡 도착 ✅
 - alimtalk_log 테스트 → row INSERT 확인 ✅
 - 결제/상담/환불 흐름 누락 0건
+- settlement_complete 엄격 검증 (코드+SQL 11항목 PASS) — 멱등성/voided 잠금/변수 매핑/멤버 조인 모두 OK. 실 발송 검증은 BizM 검수 통과 후 6/1 첫 정산에서 자연 검증
 
 ### 2026-05-29 이전 작업 (요약)
 - 2026-05-23: PG-m2net 이중 적립 안전망 (`correctM2netDoubleFill`)
