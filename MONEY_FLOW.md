@@ -604,9 +604,13 @@ payout_request.status='paid', paid_at=NOW()
 - 선지급 정책 — payout.service.ts 상수
 - **필요한 결정**: 전부 setting 테이블로 모을지, 현재 분산 유지할지 (코드 안정성 vs 운영 유연성 trade-off)
 
-### Q4. 정산 음수 (carry_over_negative) 무한 누적 시 처리
-- **현재**: 다음 달로 무한 이월. 환수 코드 없음
-- **필요한 결정**: 일정 누적액 초과 시 알림? 상담사 자격 정지? 한도?
+### Q4. 정산 음수 (carry_over_negative) 무한 누적 시 처리 — ✅ 코드 답 (2026-05-29)
+- **확인 완료**: `settlement-cron.service.ts` L254-286
+  - 음수 발생 시 `finalPayoutAmount = 0` cap + `carry_over_negative` 에 박제
+  - 다음 달 자동 차감 (prev_carry_over 로 읽음)
+  - 회사 임시 메움 정책 (사장님 명시: 회수 X)
+- **코드에 없음**: 한도 / 자동 알림 / 자격 정지 룰
+- **사장님 정책 결정 사항**: 일정 누적액 초과 시 (예: -100만원) 자동 알림 또는 자격 정지 룰 도입할지
 
 ### Q5. 첫 정산 시점 정책 (신규 상담사) — ✅ 코드 답 (2026-05-29)
 - **확인 완료**: `settlement-cron.service.ts` L60-67 `WHERE role='counselor' AND left_at IS NULL`
@@ -614,9 +618,11 @@ payout_request.status='paid', paid_at=NOW()
 - 단, 그 달 상담 0건이면 price=0 row 만 settlement_monthly 에 INSERT (지급액 0원)
 - **사장님 정책 결정 사항**: 신규 상담사에게 최소 활동 기간 (예: 30일) 룰 도입할지 여부
 
-### Q6. 선지급 음수 정산 후 회원 대상 통보
-- **현재**: 시스템은 음수 박제만 함
-- **필요한 결정**: 음수 발생 시 상담사에게 알림 보내는지, 신청 한도 자동 조정하는지
+### Q6. 선지급 음수 정산 후 상담사 통보 — ✅ 코드 답 (2026-05-29)
+- **확인 완료**: settlement-cron 코드에 `notifyCounselor` / 알림톡 호출 0건
+- **현재 동작**: 음수 carry_over_negative 박제만. 상담사에게 알림 X.
+- **상담사 인지 경로**: 어드민 페이지 본인 정산 내역 직접 확인 (사장님이 보여줘야 함)
+- **사장님 정책 결정 사항**: 음수 발생 시 자동 알림톡 추가 + 신청 한도 자동 조정 룰
 
 ### Q7. 정산 결과 검수 흐름 — 🚨 결함 발견 (2026-05-29)
 - **확인 완료**: `settlement_monthly` 실제 prod schema 에 **status / paid_at / paid_by_id 컬럼 자체가 없음**
