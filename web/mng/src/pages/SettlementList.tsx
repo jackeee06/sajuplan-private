@@ -46,6 +46,12 @@ interface Item {
   price: number
   wr_datetime: string | null
   created_at: string
+  status: 'calculated' | 'paid' | 'voided'
+  paid_at: string | null
+  paid_by_id: number | null
+  voided_at: string | null
+  voided_by_id: number | null
+  void_reason: string | null
 }
 
 interface Resp {
@@ -113,6 +119,44 @@ export default function SettlementList() {
   const onReset = () => {
     setPending({ sfl: 'mb_id', stx: '', fr_date: '', to_date: '' })
     setFilter({ sfl: 'mb_id', stx: '', fr_date: '', to_date: '', page: 1 })
+  }
+
+  const refresh = () => setFilter((f) => ({ ...f }))
+
+  const onMarkPaid = async (item: Item) => {
+    const ok = window.confirm(
+      `[${item.mb_id} / ${item.month}] 정산 ${item.price.toLocaleString()}원\n\n` +
+      '통장 송금을 완료하셨나요? 지급완료로 마킹합니다.',
+    )
+    if (!ok) return
+    try {
+      await api(`/admin/settlements/${item.id}/mark-paid`, { method: 'PATCH' })
+      refresh()
+    } catch (e) {
+      alert(`지급완료 마킹 실패: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
+  const onMarkVoided = async (item: Item) => {
+    const reason = window.prompt(
+      `[${item.mb_id} / ${item.month}] 정산 ${item.price.toLocaleString()}원 무효화\n\n` +
+      '무효화 사유를 입력하세요 (5자 이상, 한 번 무효화 후 되돌릴 수 없음):',
+    )
+    if (reason === null) return
+    if (reason.trim().length < 5) {
+      alert('무효화 사유는 5자 이상 입력해야 합니다.')
+      return
+    }
+    try {
+      await api(`/admin/settlements/${item.id}/mark-voided`, {
+        method: 'PATCH',
+        body: JSON.stringify({ reason: reason.trim() }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+      refresh()
+    } catch (e) {
+      alert(`무효화 실패: ${e instanceof Error ? e.message : String(e)}`)
+    }
   }
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
@@ -220,12 +264,14 @@ export default function SettlementList() {
           <Th align="right">원천세공제</Th>
           <Th align="right">회선비</Th>
           <Th align="right">총정산금액</Th>
+          <Th align="center">상태</Th>
+          <Th align="center">액션</Th>
         </THead>
         <TBody>
           {loading && !data ? (
-            <EmptyRow colSpan={14} loading />
+            <EmptyRow colSpan={16} loading />
           ) : !data || data.items.length === 0 ? (
-            <EmptyRow colSpan={14} />
+            <EmptyRow colSpan={16} />
           ) : (
             data.items.map((s) => (
               <Tr key={s.id}>
@@ -264,6 +310,39 @@ export default function SettlementList() {
                 <Td align="right" className="font-bold text-brand-700 dark:text-brand-300 tabular-nums">
                   {s.price.toLocaleString()}
                 </Td>
+                <Td align="center">
+                  <StatusChip status={s.status} title={
+                    s.status === 'paid' && s.paid_at ? `지급일: ${s.paid_at.slice(0,10)}` :
+                    s.status === 'voided' && s.void_reason ? `사유: ${s.void_reason}` :
+                    undefined
+                  } />
+                </Td>
+                <Td align="center">
+                  {s.status === 'calculated' && (
+                    <div className="inline-flex gap-1">
+                      <button
+                        onClick={() => onMarkPaid(s)}
+                        className="px-2 py-1 text-[11px] rounded bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                        title="통장 송금 완료 마킹"
+                      >지급완료</button>
+                      <button
+                        onClick={() => onMarkVoided(s)}
+                        className="px-2 py-1 text-[11px] rounded border border-rose-300 text-rose-600 hover:bg-rose-50 font-medium"
+                        title="사고/오정산 정정"
+                      >무효화</button>
+                    </div>
+                  )}
+                  {s.status === 'paid' && (
+                    <button
+                      onClick={() => onMarkVoided(s)}
+                      className="px-2 py-1 text-[11px] rounded border border-rose-300 text-rose-600 hover:bg-rose-50 font-medium"
+                      title="지급 후 사고 발견 시 무효화"
+                    >무효화</button>
+                  )}
+                  {s.status === 'voided' && (
+                    <span className="text-[11px] text-gray-400">잠금</span>
+                  )}
+                </Td>
               </Tr>
             ))
           )}
@@ -281,6 +360,21 @@ export default function SettlementList() {
         />
       )}
     </div>
+  )
+}
+
+function StatusChip({ status, title }: { status: 'calculated' | 'paid' | 'voided'; title?: string }) {
+  const map = {
+    calculated: { label: '계산됨', cls: 'bg-gray-100 text-gray-600 border-gray-300' },
+    paid:       { label: '지급완료', cls: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
+    voided:     { label: '무효', cls: 'bg-rose-50 text-rose-600 border-rose-300' },
+  } as const
+  const m = map[status]
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${m.cls}`}
+    >{m.label}</span>
   )
 }
 
