@@ -1,5 +1,6 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
+import { SmsService } from '../../user/sms/sms.service';
 
 /**
  * sample/adm/settlement_list.php (메뉴 350450 "정산이력") 정확 매핑.
@@ -69,7 +70,12 @@ export interface SettlementFilter {
 
 @Injectable()
 export class SettlementsService {
-  constructor(@Inject(SQL) private readonly sql: Sql) {}
+  private readonly logger = new Logger(SettlementsService.name);
+
+  constructor(
+    @Inject(SQL) private readonly sql: Sql,
+    private readonly sms: SmsService,
+  ) {}
 
   async findAll(filter: SettlementFilter) {
     const page = Math.max(1, Math.trunc(filter.page ?? 1));
@@ -184,7 +190,48 @@ export class SettlementsService {
              paid_by_id = ${adminId}
        WHERE id = ${id}
     `;
+    // 상담사에게 정산완료 알림톡 (실패해도 본 작업 안 막음 — void)
+    void this.notifySettlementComplete(id).catch((e) => {
+      this.logger.warn(`[notifySettlementComplete] id=${id}: ${e instanceof Error ? e.message : String(e)}`);
+    });
     return { ok: true, id, status: 'paid' };
+  }
+
+  /**
+   * 정산완료 알림톡 발송 — 상담사에게 본인 정산 결과 통보.
+   * BizM 템플릿: settlement_complete (사장님 신규 등록 필요, 카카오 검수 1~3일)
+   * 변수: 상담사명 / 정산월 / 실지급액
+   *
+   * 템플릿 미등록 상태에서도 호출 → sms.service 가 template_not_found 로 reject + alimtalk_log 기록.
+   * 사장님이 BizM 등록 + 검수 통과 후 자동 작동.
+   */
+  private async notifySettlementComplete(id: number): Promise<void> {
+    const rows = await this.sql<{
+      mb_id: string | null;
+      month: string;
+      price: number;
+      phone: string | null;
+      nickname: string | null;
+      name: string | null;
+    }[]>`
+      SELECT s.mb_id, s.month, s.price, m.phone, m.nickname, m.name
+        FROM settlement_monthly s
+        LEFT JOIN member m ON m.id = s.member_id
+       WHERE s.id = ${id}
+       LIMIT 1
+    `;
+    const r = rows[0];
+    if (!r?.phone) {
+      this.logger.warn(`[notifySettlementComplete] phone 없음 id=${id} mb_id=${r?.mb_id}`);
+      return;
+    }
+    const displayName = (r.nickname || r.name || '상담사').trim();
+    await this.sms.sendAlimtalkByCode(
+      'settlement_complete',
+      r.phone,
+      { 상담사명: displayName, 정산월: r.month, 실지급액: r.price.toLocaleString() },
+      '정산 완료 안내',
+    );
   }
 
   /**

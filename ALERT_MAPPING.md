@@ -48,11 +48,13 @@
   - cron 신규 추가 (매분 발화) → member.state 검사 → ABSE 전환 + 알림톡 발송
   - 또는 m2net 쪽 책임으로 명확화 (m2net 이 csrstat=ABSE push 보내는지 확인)
 
-### #2. settlement_complete (월 정산 완료)
-- **alertCatalog**: alimtalk='none' (rejected) — 결정 완료 상태
-- **현실**: 매월 1일 정산 후 상담사에게 "정산 완료 / 송금 예정일" 알림 없음
-- **영향**: 상담사가 본인 정산 결과를 어드민 어드민 페이지 로그인해서 확인해야 함 → 만족도 ↓
-- **해결**: 사장님 정책 결정 (알림톡 추가 or 그대로)
+### #2. settlement_complete (월 정산 완료) — ✅ 코드 추가 (2026-05-29)
+- **2026-05-29**: 사장님이 어드민에서 정산 [지급완료] 마킹 시 자동으로 알림톡 발송
+  - 코드: `settlements.service.ts` `notifySettlementComplete(id)` → `markPaid` 직후 void 호출
+  - template_code: `settlement_complete` (BizM 신규 등록 필요)
+  - 변수: 상담사명 / 정산월 / 실지급액
+- **사장님 BizM 액션 필요**: 콘솔에서 `settlement_complete` 템플릿 신규 등록 + 검수 신청 → 1~3일 검수 통과 후 자동 작동
+- 등록 전엔 sms.service 가 `template_not_found` 로 reject + alimtalk_log 에 기록 (정상)
 
 ## 🟡 죽은 prod 템플릿 (검수 통과 자원 낭비)
 
