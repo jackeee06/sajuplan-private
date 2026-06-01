@@ -1,6 +1,9 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { M2netService } from '../../shared/m2net/m2net.service';
+import { SmsService } from '../sms/sms.service';
+import { PushService } from '../../shared/push/push.service';
 
 export interface PublicCounselor {
   id: number;
@@ -33,6 +36,8 @@ export interface PublicCounselor {
   category: '사주' | '타로' | '신점' | '기타';
   /** 요청자가 이 상담사를 단골 등록했는지 (비로그인이면 false) */
   is_liked: boolean;
+  /** 24시간 내 "상담요청하기" 신청 여부 (2026-05-22) — 부재 상담사 카드 버튼 분기에 사용. */
+  is_requested: boolean;
   /** 신규 상담사 — 가입 후 90일 이내 (2026-05-15 신설). 카드 NEW 뱃지 노출용. */
   is_new: boolean;
   /**
@@ -117,7 +122,134 @@ export class UserCounselorsService {
   constructor(
     @Inject(SQL) private readonly sql: Sql,
     private readonly m2net: M2netService,
+    private readonly sms: SmsService,
+    private readonly push: PushService,
+    private readonly config: ConfigService,
   ) {}
+
+  /**
+   * 회원이 부재중 상담사에게 "지금 접속해주세요" 호출 알림 발송 (2026-05-22).
+   *
+   * 흐름:
+   *   1) 본인 본인 차단
+   *   2) 24시간 내 같은 (member, counselor) 중복 신청 차단
+   *   3) DB INSERT (counselor_request_alert)
+   *   4) BizM 알림톡 발송 시도 (템플릿 코드: BIZM_TPL_COUNSELOR_REQUEST 또는 'counselor_request_v1')
+   *   5) FCM 푸시 발송 시도 (member_push_token 의 active token)
+   *   6) DB UPDATE (notified_at, notify_method)
+   *
+   * 알림톡이 BizM 콘솔에 등록 + 카카오 승인되어야 발송됨. 미승인 상태에서는 K104 반환 → silent fail.
+   * 푸시는 FCM 인프라가 있고 토큰이 등록된 회원에게만 도달.
+   */
+  async requestConsult(params: {
+    requesterId: number;
+    counselorId: number;
+  }): Promise<{ ok: true; already?: boolean; notified: { alimtalk: boolean; push: boolean } }> {
+    if (params.requesterId === params.counselorId) {
+      throw new BadRequestException('본인에게 상담을 요청할 수 없습니다.');
+    }
+
+    // 상담사 정보 조회 + 검증
+    const counselorRows = await this.sql<{
+      id: number; role: string; nickname: string; name: string; phone: string | null; left_at: Date | null;
+    }[]>`
+      SELECT id, role, nickname, name, phone, left_at
+        FROM member WHERE id = ${params.counselorId} LIMIT 1
+    `;
+    const counselor = counselorRows[0];
+    if (!counselor || counselor.role !== 'counselor' || counselor.left_at) {
+      throw new NotFoundException('상담사를 찾을 수 없습니다.');
+    }
+
+    // 24시간 내 중복 신청 차단
+    const recent = await this.sql<{ id: number }[]>`
+      SELECT id FROM counselor_request_alert
+       WHERE member_id = ${params.requesterId}
+         AND counselor_id = ${params.counselorId}
+         AND requested_at > now() - interval '24 hours'
+       LIMIT 1
+    `;
+    if (recent.length > 0) {
+      return { ok: true, already: true, notified: { alimtalk: false, push: false } };
+    }
+
+    // 요청자 닉네임 조회 (알림 내용용)
+    const requesterRows = await this.sql<{ nickname: string | null; name: string | null }[]>`
+      SELECT nickname, name FROM member WHERE id = ${params.requesterId} LIMIT 1
+    `;
+    const requesterNick =
+      (requesterRows[0]?.nickname || requesterRows[0]?.name || '회원').trim();
+
+    // DB INSERT
+    const inserted = await this.sql<{ id: number }[]>`
+      INSERT INTO counselor_request_alert (counselor_id, member_id, requested_at)
+      VALUES (${params.counselorId}, ${params.requesterId}, now())
+      RETURNING id
+    `;
+    const rowId = inserted[0].id;
+
+    // 알림 발송 — 알림톡 + 푸시 모두 시도. 둘 다 실패해도 DB row 는 유지 (이력).
+    const counselorDisplayName = (counselor.nickname || counselor.name || '').trim();
+    let alimtalkOk = false;
+    let pushOk = false;
+    let lastError = '';
+
+    if (counselor.phone) {
+      const tplCode = this.config.get<string>('BIZM_TPL_COUNSELOR_REQUEST') ?? 'counselor_request_v1';
+      try {
+        const r = await this.sms.sendAlimtalkByCode(
+          tplCode,
+          counselor.phone,
+          { member_nickname: requesterNick, url: 'mypage' },
+          `[사주플랜] ${requesterNick} 님이 상담을 요청했습니다.`,
+        );
+        alimtalkOk = !!r.ok;
+        if (!r.ok) lastError = `alimtalk: ${r.reason ?? 'unknown'}`;
+      } catch (e) {
+        lastError = `alimtalk: ${e instanceof Error ? e.message : String(e)}`;
+        this.logger.warn(`[requestConsult] 알림톡 실패 counselorId=${params.counselorId}: ${lastError}`);
+      }
+    }
+
+    try {
+      const tokenRows = await this.sql<{ token: string }[]>`
+        SELECT token FROM member_push_token
+         WHERE member_id = ${params.counselorId} AND is_active = true
+      `;
+      const tokens = tokenRows.map((t) => t.token).filter(Boolean);
+      if (tokens.length > 0) {
+        const r = await this.push.sendToTokens(tokens, {
+          title: '상담 요청이 도착했습니다',
+          body: `${requesterNick} 님이 상담을 요청했습니다. 지금 접속해주세요.`,
+          data: { type: 'counselor_request', counselor_id: String(params.counselorId), link: '/mypage' },
+        });
+        pushOk = r.success > 0;
+        if (!pushOk && r.error) lastError = `${lastError} | push: ${r.error}`.trim();
+      }
+    } catch (e) {
+      this.logger.warn(`[requestConsult] FCM 실패 counselorId=${params.counselorId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    // DB 업데이트 — 알림 발송 결과 기록
+    const method =
+      alimtalkOk && pushOk ? 'alimtalk+push'
+      : alimtalkOk ? 'alimtalk'
+      : pushOk ? 'push'
+      : 'failed';
+    await this.sql`
+      UPDATE counselor_request_alert
+         SET notified_at = now(),
+             notify_method = ${method},
+             notify_error = ${lastError || null}
+       WHERE id = ${rowId}
+    `;
+
+    this.logger.log(
+      `[requestConsult] member=${params.requesterId}(${requesterNick}) → counselor=${params.counselorId}(${counselorDisplayName}) alimtalk=${alimtalkOk} push=${pushOk}`,
+    );
+
+    return { ok: true, notified: { alimtalk: alimtalkOk, push: pushOk } };
+  }
 
   /**
    * 상담사 본인의 상담 가능 토글 — use_phone / use_chat / available 변경.
@@ -324,8 +456,12 @@ export class UserCounselorsService {
     //   "최근 5분 내 상담 시작한 상담중(CONN/CNCH)" 만 최상단(0).
     //   "활동 보여주기" 마케팅 효과 (이렇게 많이 상담중! 인기 앱이군!).
     //   그 외 전부 동등(1) → updated_at(최근접속) 순으로 자연스럽게 섞임.
+    // 2026-05-22: 부재(ABSE/RESV) 도 리스트에 노출하되 정렬은 가장 뒤로.
+    //   회원 입장에서 "지금 가능한 상담사" 가 위에, 부재 상담사는 아래.
+    //   부재 카드에는 "상담요청하기" 버튼이 노출되어 회원이 호출 알림을 보낼 수 있다.
     const statePriority = this.sql`(CASE
       WHEN m.state IN ('CONN','CNCH') AND m.updated_at >= now() - interval '5 minutes' THEN 0
+      WHEN m.state IN ('ABSE','RESV') THEN 2
       ELSE 1
     END)`;
 
@@ -352,42 +488,41 @@ export class UserCounselorsService {
     const tabWhere = (() => {
       switch (tab) {
         case 'popular':
-          // 활성 상태(ABSE 제외) + 채널 1개 이상 ON.
-          // sample 은 is_rising 필수였지만 현재 마킹 1명뿐이라 사실상 빈 탭이 됨.
-          // → 정렬에서 is_rising 가장 위로 끌어올리고, 나머지는 후기/단골 많은 순.
-          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH') AND (m.use_phone = true OR m.use_chat = true)`;
+          // 부재(ABSE/RESV) 도 노출 — 회원이 "상담요청하기" 로 호출 가능 (2026-05-22).
+          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH','ABSE','RESV') AND (m.use_phone = true OR m.use_chat = true)`;
         case 'chat':
-          // 채팅 가능/채팅 상담중 만 노출 — 전화 통화중(CONN) 은 채팅 즉시 응대 불가라 제외.
-          // sample 은 CONN 도 포함시키지만 카드 채팅 버튼이 오프라인으로 노출되어
-          // "채팅 안 되는데 왜 노출?" 문제 발생. 신규 정책: 버튼이 활성/상담중 인 케이스만.
-          return this.sql`AND m.use_chat = true AND m.state IN ('IDLE','RDCH','RDVC','CNCH')`;
+          // 채팅 가능 + 부재 모두 노출. 부재는 회원이 호출 알림 보낼 수 있게.
+          return this.sql`AND m.use_chat = true AND m.state IN ('IDLE','RDCH','RDVC','CNCH','ABSE','RESV')`;
         case 'new':
-          // 신규상담사 — 가입 후 90일 이내 (2026-05-15). 활성/대기/통화중 모두 노출 (RESV 만 제외).
-          // 채널 ON 여부 무관 (가입 직후 채널 미설정 상태도 카드에 노출되어야 함).
-          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH','ABSE') AND m.created_at >= now() - interval '90 days'`;
+          // 신규상담사 — 가입 후 90일 이내. ABSE/RESV 도 포함.
+          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH','ABSE','RESV') AND m.created_at >= now() - interval '90 days'`;
         default: // all
-          // sample line 151: state IN active AND NOT (use_phone='N' AND use_chat='N')
-          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH') AND (m.use_phone = true OR m.use_chat = true)`;
+          // 2026-05-22 부재 노출 정책 — ABSE/RESV 포함. 부재는 statePriority 로 정렬에서 뒤로 빠짐.
+          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH','ABSE','RESV') AND (m.use_phone = true OR m.use_chat = true)`;
       }
     })();
 
-    // 카테고리 필터 — specialty / hashtag1 / hashtag2 중 하나에 카테고리 키워드 포함
+    // 카테고리 필터 — [2026-06-02 fix] member.counselor_category 가 진실원.
+    //   어드민에서 [타로/신점/사주/심리] 칩으로 정확히 분류한 결과 (member.counselor_category 컬럼).
+    //   기존 specialty/hashtag ILIKE 매칭은 사장님 입력 미스로 누락 다수 발생 (월아신녀 신점 케이스).
+    //   진실원: counselor_category 정확 매칭. fallback: 옛 데이터 호환 (counselor_category NULL).
     const cat = (params.category ?? '').trim();
     const categoryWhere =
       cat && cat !== '전체'
         ? this.sql`AND (
-            COALESCE(pc.specialty, '') ILIKE ${'%' + cat + '%'}
-            OR COALESCE(pc.hashtag1, '') ILIKE ${'%' + cat + '%'}
-            OR COALESCE(pc.hashtag2, '') ILIKE ${'%' + cat + '%'}
+            m.counselor_category = ${cat}
+            OR (m.counselor_category IS NULL AND (
+              COALESCE(pc.specialty, '') ILIKE ${'%' + cat + '%'}
+              OR COALESCE(pc.hashtag1, '') ILIKE ${'%' + cat + '%'}
+              OR COALESCE(pc.hashtag2, '') ILIKE ${'%' + cat + '%'}
+            ))
           )`
         : this.sql``;
 
-    // 본인이 상담사로 로그인한 경우 자기 자신은 리스트에서 제외.
-    // (비로그인/회원 로그인은 그대로 전체 노출)
-    const selfExclude =
-      params.requesterId != null
-        ? this.sql`AND m.id <> ${params.requesterId}`
-        : this.sql``;
+    // 2026-05-22 정책 변경: 본인 카드도 리스트에 노출.
+    //   상담사가 본인 카드가 다른 회원에게 어떻게 보이는지 확인할 수 있어야 한다는 운영 요청.
+    //   "본인이 본인에게 상담 요청" 사고는 consult.service.ts:67/196 의 안전망이 차단함.
+    const selfExclude = this.sql``;
 
     // [이벤트 상담사] 활성 기간 (event_starts_at <= now < event_ends_at) 인 상담사만 노출
     const eventWhere = params.eventOnly
@@ -457,6 +592,7 @@ export class UserCounselorsService {
     // 로그인 회원의 단골 등록 ID 셋 — is_liked 계산용.
     // postgres.js 가 BIGINT 를 string 으로 줄 수 있어 비교는 항상 Number 로 정규화.
     let likedIds = new Set<number>();
+    let requestedIds = new Set<number>();
     if (params.requesterId != null && rows.length > 0) {
       const ids = rows.map((r) => Number(r.id));
       const likedRows = await this.sql<{ counselor_id: number | string }[]>`
@@ -465,6 +601,15 @@ export class UserCounselorsService {
            AND counselor_id = ANY(${ids}::bigint[])
       `;
       likedIds = new Set(likedRows.map((r) => Number(r.counselor_id)));
+
+      // 2026-05-22: 24시간 내 "상담요청하기" 신청 여부 — 검색 결과 카드의 버튼 UI 분기.
+      const reqRows = await this.sql<{ counselor_id: number | string }[]>`
+        SELECT counselor_id FROM counselor_request_alert
+         WHERE member_id = ${params.requesterId}
+           AND counselor_id = ANY(${ids}::bigint[])
+           AND requested_at > now() - interval '24 hours'
+      `;
+      requestedIds = new Set(reqRows.map((r) => Number(r.counselor_id)));
     }
 
     return rows.map((r) => ({
@@ -493,6 +638,7 @@ export class UserCounselorsService {
       profile_image_webp: r.profile_stored_name_webp ? `/uploads/member/${r.profile_stored_name_webp}` : null,
       category: this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
       is_liked: likedIds.has(Number(r.id)),
+      is_requested: requestedIds.has(Number(r.id)),
       is_new: !!r.is_new,
       rating_avg: Number(r.rating_avg ?? 0),
     }));
@@ -709,11 +855,8 @@ export class UserCounselorsService {
     const tagWithHash = term.startsWith('#') ? term : `#${term}`;
     const tagNoHash = term.replace(/^#/, '');
 
-    // 본인이 상담사로 로그인한 경우 자기 자신은 검색 결과에서 제외.
-    const selfExclude =
-      params.requesterId != null
-        ? this.sql`AND m.id <> ${params.requesterId}`
-        : this.sql``;
+    // 2026-05-22 정책 변경: 본인 카드도 검색 결과에 노출. (위 list 와 동일 사유)
+    const selfExclude = this.sql``;
 
     type Row = {
       id: number;
@@ -793,6 +936,7 @@ export class UserCounselorsService {
     `;
 
     let likedIds = new Set<number>();
+    let requestedIds = new Set<number>();
     if (params.requesterId != null && rows.length > 0) {
       const ids = rows.map((r) => Number(r.id));
       const likedRows = await this.sql<{ counselor_id: number | string }[]>`
@@ -801,6 +945,14 @@ export class UserCounselorsService {
            AND counselor_id = ANY(${ids}::bigint[])
       `;
       likedIds = new Set(likedRows.map((r) => Number(r.counselor_id)));
+
+      const reqRows = await this.sql<{ counselor_id: number | string }[]>`
+        SELECT counselor_id FROM counselor_request_alert
+         WHERE member_id = ${params.requesterId}
+           AND counselor_id = ANY(${ids}::bigint[])
+           AND requested_at > now() - interval '24 hours'
+      `;
+      requestedIds = new Set(reqRows.map((r) => Number(r.counselor_id)));
     }
 
     return rows.map((r) => ({
@@ -832,6 +984,7 @@ export class UserCounselorsService {
         : null,
       category: this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
       is_liked: likedIds.has(Number(r.id)),
+      is_requested: requestedIds.has(Number(r.id)),
       rating_avg: Number(r.rating_avg ?? 0),
       is_new: !!r.is_new,
     }));
@@ -939,9 +1092,73 @@ export class UserCounselorsService {
       profile_image_webp: r.profile_stored_name_webp ? `/uploads/member/${r.profile_stored_name_webp}` : null,
       category: this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
       is_liked: true,
+      is_requested: false,
       rating_avg: Number(r.rating_avg ?? 0),
       is_new: !!r.is_new,
     }));
+  }
+
+  /**
+   * 단골 상담사 중 "접속중" (state != 'ABSE') 인 사람만 경량 조회.
+   * 홈 진입 시 인앱 배너용 — 단골이 지금 상담 가능한지 안내.
+   *
+   *  - 비로그인은 호출되지 않음 (UserAuthGuard 부착).
+   *  - 단골 등록 0건이면 빈 배열 + totalFavorites=0 → 프론트에서 "단골 등록 유도" 배너.
+   *  - 단골은 있는데 접속중 0명이면 빈 배열 + totalFavorites>0 → 배너 미노출.
+   *  - 접속중 단골 있으면 최대 5명 + totalFavorites → "단골 N명 접속중" 배너.
+   */
+  async listFavoritesOnline(memberId: number): Promise<{
+    online: Array<{
+      id: number;
+      name: string;
+      nickname: string;
+      code: string | null;
+      profile_image: string | null;
+    }>;
+    totalFavorites: number;
+  }> {
+    // 총 단골 수 (단골 등록 유도 분기용)
+    const totalRow = await this.sql<{ count: string }[]>`
+      SELECT COUNT(*)::text AS count
+        FROM member_favorite_counselor
+       WHERE member_id = ${memberId}
+    `;
+    const totalFavorites = Number(totalRow[0]?.count ?? '0');
+    if (totalFavorites === 0) {
+      return { online: [], totalFavorites: 0 };
+    }
+
+    type Row = {
+      id: number;
+      name: string;
+      nickname: string;
+      dtmfno: string | null;
+      profile_stored_name: string | null;
+    };
+    const rows = await this.sql<Row[]>`
+      SELECT m.id, m.name, m.nickname, m.dtmfno,
+             (SELECT mf.stored_name FROM member_file mf
+               WHERE mf.member_id = m.id AND mf.kind = 'profile'
+               ORDER BY mf.id DESC LIMIT 1) AS profile_stored_name
+        FROM member_favorite_counselor mfc
+        INNER JOIN member m ON m.id = mfc.counselor_id
+       WHERE mfc.member_id = ${memberId}
+         AND m.role = 'counselor'
+         AND m.left_at IS NULL
+         AND (m.state IS NULL OR m.state <> 'ABSE')
+       ORDER BY mfc.created_at DESC
+       LIMIT 5
+    `;
+    return {
+      online: rows.map((r) => ({
+        id: Number(r.id),
+        name: r.name,
+        nickname: r.nickname,
+        code: r.dtmfno,
+        profile_image: r.profile_stored_name ? `/uploads/member/${r.profile_stored_name}` : null,
+      })),
+      totalFavorites,
+    };
   }
 
   /** 상담사 단건 — 상세 페이지용. NotFoundException 시 404. */
