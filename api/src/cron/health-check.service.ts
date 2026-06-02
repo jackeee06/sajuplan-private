@@ -37,89 +37,123 @@ export class HealthCheckService {
     const checks: Array<{ id: string; name: string; severity: 'critical' | 'warning' | 'info'; violations: number; detail?: string }> = [];
 
     // C-1 음수 포인트 잔액 (소비포인트 free/paid + 수익포인트 earning 모두 검증)
-    const c1 = await this.sql<{ cnt: string }[]>`
-      SELECT COUNT(*)::text AS cnt
-        FROM point
-       WHERE free_balance < 0 OR paid_balance < 0 OR earning_balance < 0
+    const c1 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG(m.mb_id || '(무료' || p.free_balance || '/유료' || p.paid_balance || '/수익' || p.earning_balance || ')', ', ' ORDER BY p.member_id LIMIT 3) AS sample
+        FROM point p JOIN member m ON m.id = p.member_id
+       WHERE p.free_balance < 0 OR p.paid_balance < 0 OR p.earning_balance < 0
     `;
-    checks.push({ id: 'C-1', name: '음수 포인트 잔액', severity: 'critical', violations: Number(c1[0].cnt) });
+    checks.push({ id: 'C-1', name: '음수 포인트 잔액', severity: 'critical', violations: Number(c1[0].cnt), detail: c1[0].sample ?? undefined });
 
     // C-2 member.point 음수
-    const c2 = await this.sql<{ cnt: string }[]>`
-      SELECT COUNT(*)::text AS cnt FROM member WHERE point < 0
+    const c2 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG(mb_id || '(' || point || '코인)', ', ' ORDER BY id LIMIT 3) AS sample
+        FROM member WHERE point < 0
     `;
-    checks.push({ id: 'C-2', name: 'member.point 음수', severity: 'critical', violations: Number(c2[0].cnt) });
+    checks.push({ id: 'C-2', name: 'member.point 음수', severity: 'critical', violations: Number(c2[0].cnt), detail: c2[0].sample ?? undefined });
 
     // C-3 consultation amt 정합성
-    const c3 = await this.sql<{ cnt: string }[]>`
-      SELECT COUNT(*)::text AS cnt
-        FROM consultation
-       WHERE amt > 0 AND (amt_free + amt_pro) != amt
-         AND reason IN ('DISCONNECT','END_CHAT','END_CHAT_LOCAL')
+    const c3 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG(
+               '상담' || c.id::text
+               || '(' || TO_CHAR(c.created_at AT TIME ZONE 'Asia/Seoul', 'MM/DD HH24:MI') || ', '
+               || COALESCE(cs.nickname, cs.name, '?') || '상담사, '
+               || c.amt || '코인 청구·차감분배0)',
+               ' | ' ORDER BY c.id LIMIT 5
+             ) AS sample
+        FROM consultation c
+        LEFT JOIN member cs ON cs.id = c.counselor_id
+       WHERE c.amt > 0 AND (c.amt_free + c.amt_pro) != c.amt
+         AND c.reason IN ('DISCONNECT','END_CHAT','END_CHAT_LOCAL')
     `;
-    checks.push({ id: 'C-3', name: 'consultation amt 불일치', severity: 'critical', violations: Number(c3[0].cnt) });
+    checks.push({ id: 'C-3', name: '상담료 코인 분배 기록 오류', severity: 'critical', violations: Number(c3[0].cnt), detail: c3[0].sample ?? undefined });
 
     // C-4 과다 환불
-    const c4 = await this.sql<{ cnt: string }[]>`
-      SELECT COUNT(*)::text AS cnt FROM consultation WHERE refunded_amount > amt
+    const c4 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG(
+               '상담' || id::text || '(청구' || amt || '·환불' || refunded_amount || '코인)',
+               ', ' ORDER BY id LIMIT 3
+             ) AS sample
+        FROM consultation WHERE refunded_amount > amt
     `;
-    checks.push({ id: 'C-4', name: '환불금액 > 결제금액', severity: 'critical', violations: Number(c4[0].cnt) });
+    checks.push({ id: 'C-4', name: '환불액이 상담료 초과', severity: 'critical', violations: Number(c4[0].cnt), detail: c4[0].sample ?? undefined });
 
     // C-5 refund_request 합 > amt
-    const c5 = await this.sql<{ cnt: string }[]>`
+    const c5 = await this.sql<{ cnt: string; sample: string | null }[]>`
       WITH rr_sum AS (
         SELECT consultation_id, SUM(amount)::int AS total
           FROM refund_request WHERE status='approved' GROUP BY consultation_id
       )
-      SELECT COUNT(*)::text AS cnt
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG(
+               '상담' || c.id::text || '(상담료' || c.amt || '·환불합계' || r.total || '코인)',
+               ', ' ORDER BY c.id LIMIT 3
+             ) AS sample
         FROM consultation c JOIN rr_sum r ON r.consultation_id = c.id
        WHERE r.total > c.amt
     `;
-    checks.push({ id: 'C-5', name: 'refund 합 > 결제금액', severity: 'critical', violations: Number(c5[0].cnt) });
+    checks.push({ id: 'C-5', name: '환불 합계가 상담료 초과', severity: 'critical', violations: Number(c5[0].cnt), detail: c5[0].sample ?? undefined });
 
     // C-6 refund 분배 불일치
-    const c6 = await this.sql<{ cnt: string }[]>`
-      SELECT COUNT(*)::text AS cnt FROM refund_request WHERE (amount_free + amount_pro) != amount
+    const c6 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG('환불' || id::text || '(총' || amount || '·무료' || amount_free || '·유료' || amount_pro || ')', ', ' ORDER BY id LIMIT 3) AS sample
+        FROM refund_request WHERE (amount_free + amount_pro) != amount
     `;
-    checks.push({ id: 'C-6', name: 'refund free/pro 합 불일치', severity: 'warning', violations: Number(c6[0].cnt) });
+    checks.push({ id: 'C-6', name: '환불 무료/유료 분배 불일치', severity: 'warning', violations: Number(c6[0].cnt), detail: c6[0].sample ?? undefined });
 
     // C-7 orphan refund
-    const c7 = await this.sql<{ cnt: string }[]>`
-      SELECT COUNT(*)::text AS cnt
+    const c7 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG('환불' || r.id::text, ', ' ORDER BY r.id LIMIT 3) AS sample
         FROM refund_request r LEFT JOIN consultation c ON c.id = r.consultation_id
        WHERE c.id IS NULL
     `;
-    checks.push({ id: 'C-7', name: 'orphan refund_request', severity: 'warning', violations: Number(c7[0].cnt) });
+    checks.push({ id: 'C-7', name: '삭제된 상담의 환불 기록', severity: 'warning', violations: Number(c7[0].cnt), detail: c7[0].sample ?? undefined });
 
     // C-8 member.point drift
-    const c8 = await this.sql<{ cnt: string }[]>`
-      SELECT COUNT(*)::text AS cnt
+    const c8 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG(
+               m.mb_id || '(스냅샷' || m.point || '·실잔액' || (p.free_balance + p.paid_balance) || '·차이' || (m.point - p.free_balance - p.paid_balance) || '코인)',
+               ', ' ORDER BY m.id LIMIT 3
+             ) AS sample
         FROM member m JOIN point p ON p.member_id = m.id
        WHERE m.point != (p.free_balance + p.paid_balance)
     `;
-    checks.push({ id: 'C-8', name: 'member.point drift', severity: 'warning', violations: Number(c8[0].cnt) });
+    checks.push({ id: 'C-8', name: '잔액 스냅샷 오차(경미)', severity: 'warning', violations: Number(c8[0].cnt), detail: c8[0].sample ?? undefined });
 
     // C-9 settlement 중복
-    const c9 = await this.sql<{ cnt: string }[]>`
-      SELECT COUNT(*)::text AS cnt FROM (
-        SELECT member_id, month FROM settlement_monthly
-         WHERE member_id IS NOT NULL
-         GROUP BY member_id, month HAVING COUNT(*) > 1
-      ) t
+    const c9 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG(m.mb_id || '(' || s.month || ')', ', ' ORDER BY s.member_id LIMIT 3) AS sample
+        FROM (
+          SELECT member_id, month FROM settlement_monthly
+           WHERE member_id IS NOT NULL
+           GROUP BY member_id, month HAVING COUNT(*) > 1
+        ) s JOIN member m ON m.id = s.member_id
     `;
-    checks.push({ id: 'C-9', name: 'settlement 중복', severity: 'critical', violations: Number(c9[0].cnt) });
+    checks.push({ id: 'C-9', name: '정산 중복 생성', severity: 'critical', violations: Number(c9[0].cnt), detail: c9[0].sample ?? undefined });
 
     // C-10 비현실적 usetm
-    const c10 = await this.sql<{ cnt: string }[]>`
-      SELECT COUNT(*)::text AS cnt FROM consultation WHERE usetm < 0 OR usetm > 86400
+    const c10 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG('상담' || id::text || '(' || usetm || '초)', ', ' ORDER BY id LIMIT 3) AS sample
+        FROM consultation WHERE usetm < 0 OR usetm > 86400
     `;
-    checks.push({ id: 'C-10', name: 'usetm 비현실적', severity: 'warning', violations: Number(c10[0].cnt) });
+    checks.push({ id: 'C-10', name: '비현실적 상담시간', severity: 'warning', violations: Number(c10[0].cnt), detail: c10[0].sample ?? undefined });
 
     // C-11 settlement_monthly 음수 정산액 (환불 많아 음수 가능, 알림용)
-    const c11 = await this.sql<{ cnt: string }[]>`
-      SELECT COUNT(*)::text AS cnt FROM settlement_monthly WHERE price < 0
+    const c11 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG(m.mb_id || '(' || s.month || ', ' || s.price || '원)', ', ' ORDER BY s.member_id LIMIT 3) AS sample
+        FROM settlement_monthly s JOIN member m ON m.id = s.member_id
+       WHERE s.price < 0
     `;
-    checks.push({ id: 'C-11', name: 'settlement 음수 정산액', severity: 'warning', violations: Number(c11[0].cnt) });
+    checks.push({ id: 'C-11', name: '음수 정산액(환불 과다)', severity: 'warning', violations: Number(c11[0].cnt), detail: c11[0].sample ?? undefined });
 
     // C-12 등급 임계값 역전
     const c12 = await this.sql<{ p1: number | null; p2: number | null; p3: number | null; p4: number | null; p5: number | null }[]>`
