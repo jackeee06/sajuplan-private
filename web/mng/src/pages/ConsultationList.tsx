@@ -63,6 +63,11 @@ interface Consultation {
   counselor_unit_cost: number | null
   unit_cost_snapshot?: number | null
   grade_at_session?: string | null
+  counselor_grade?: string | null
+  counselor_revenue_rate?: number | null
+  counselor_earning?: number
+  m2net_deduction?: number
+  sajuplan_revenue?: number
 }
 
 interface Resp {
@@ -295,6 +300,10 @@ export default function ConsultationList() {
           <Th align="right">진행시간</Th>
           <Th align="center">유·무료</Th>
           <Th align="right">사용포인트</Th>
+          <Th align="center">상담사%</Th>
+          <Th align="right">m2net차감</Th>
+          <Th align="right">상담사수익금</Th>
+          <Th align="right">영업이익(≈23%)</Th>
           <Th align="center">채팅내역</Th>
         </THead>
         <TBody>
@@ -398,6 +407,27 @@ function ConsultationRow({ c, onOpen }: { c: Consultation; onOpen: () => void })
         className={`tabular-nums font-medium ${isRefunded ? 'text-rose-600' : 'text-gray-900 dark:text-gray-100'}`}
       >
         {pointCell}
+      </Td>
+      {/* 수익 분해 — 상담사% / m2net차감 / 상담사수익금 / 사주플랜매출 */}
+      <Td align="center" className="text-xs text-gray-500 tabular-nums">
+        {c.counselor_revenue_rate != null
+          ? `${Math.round(c.counselor_revenue_rate * 100)}%`
+          : <span className="text-gray-300">-</span>}
+      </Td>
+      <Td align="right" className="tabular-nums text-orange-500 font-medium text-xs">
+        {c.m2net_deduction != null && c.amt > 0
+          ? c.m2net_deduction.toLocaleString()
+          : <span className="text-gray-300">-</span>}
+      </Td>
+      <Td align="right" className="tabular-nums text-indigo-600 font-medium text-xs">
+        {c.counselor_earning != null && c.amt > 0
+          ? c.counselor_earning.toLocaleString()
+          : <span className="text-gray-300">-</span>}
+      </Td>
+      <Td align="right" className="tabular-nums text-emerald-700 font-medium text-xs">
+        {c.sajuplan_revenue != null && c.amt > 0
+          ? c.sajuplan_revenue.toLocaleString()
+          : <span className="text-gray-300">-</span>}
       </Td>
       <Td align="center">
         {isChat && c.roomid ? (

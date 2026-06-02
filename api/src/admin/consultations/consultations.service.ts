@@ -89,6 +89,12 @@ export interface ConsultationRow {
   refunded_amount?: number;
   refund_status?: string | null;
   counselor_unit_cost: number | null; // mb_4
+  // 수익 분해 (2026-06-02)
+  counselor_grade?: string | null;
+  counselor_revenue_rate?: number | null;
+  counselor_earning?: number;
+  m2net_deduction?: number;      // amt × (통신사% + 통신료%) — m2net 변동비
+  sajuplan_revenue?: number;     // amt - m2net_deduction - counselor_earning
 }
 
 export type View = 'all' | 'call' | 'chat';
@@ -185,6 +191,15 @@ export class ConsultationsService {
     const limit = Math.min(200, Math.max(1, Math.trunc(filter.limit ?? 20)));
     const offset = (page - 1) * limit;
 
+    // m2net 변동비 요율 — profit_simulator_config 에서 읽음 (없으면 기본값 10%+5%=15%)
+    const simRows = await this.sql<{ data: { m2net?: { telecom_rate?: number; phone_call_rate?: number } } }[]>`
+      SELECT data FROM profit_simulator_config ORDER BY updated_at DESC LIMIT 1
+    `;
+    const simCfg = simRows[0]?.data?.m2net ?? {};
+    const telecomRate = (simCfg.telecom_rate ?? 10) / 100;
+    const phoneRate   = (simCfg.phone_call_rate ?? 5)  / 100;
+    const m2netRate   = telecomRate + phoneRate; // 0.15 (기본)
+
     const whereClause = this.buildWhere(filter, true);
 
     const items = await this.sql<ConsultationRow[]>`
@@ -199,7 +214,14 @@ export class ConsultationsService {
         c.mb_id AS counselor_mb_id, c.name AS counselor_name,
         c.nickname AS counselor_nickname,
         c.counselor_category AS counselor_category,
-        c.call_070_unit_cost AS counselor_unit_cost
+        c.call_070_unit_cost AS counselor_unit_cost,
+        c.grade AS counselor_grade,
+        -- 등급별 수익률 (setting 테이블 subquery — 행 수 적어 성능 무관)
+        (SELECT NULLIF(s.value,'')::numeric
+           FROM setting s
+          WHERE s.namespace='grade' AND s.key = 'revenue_rate.' || COALESCE(c.grade,'')
+          LIMIT 1
+        ) AS counselor_revenue_rate
       FROM consultation cs
       LEFT JOIN member m ON m.id = cs.member_id
       LEFT JOIN member c ON c.id = cs.counselor_id
@@ -207,6 +229,23 @@ export class ConsultationsService {
       ORDER BY cs.created_at DESC, cs.id DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
+
+    // 수익 분해 파생 컬럼 계산
+    // 영업이익: 23% 일괄 적용 (관리자 레퍼런스용 근사치 — 고정비 포함 추정)
+    const SAJUPLAN_OPERATING_RATE = 0.23;
+    const enriched = items.map((row) => {
+      const rate = row.counselor_revenue_rate != null ? Number(row.counselor_revenue_rate) : null;
+      const m2netDeduction = row.amt > 0 ? Math.floor(row.amt * m2netRate) : 0;
+      const earning = rate != null && row.amt > 0 ? Math.floor(row.amt * rate) : null;
+      const sajuplanRev = row.amt > 0 ? Math.floor(row.amt * SAJUPLAN_OPERATING_RATE) : undefined;
+      return {
+        ...row,
+        counselor_revenue_rate: rate,
+        counselor_earning: earning ?? undefined,
+        m2net_deduction: row.amt > 0 ? m2netDeduction : undefined,
+        sajuplan_revenue: sajuplanRev,
+      };
+    });
 
     const totalRows = await this.sql<{ cnt: string }[]>`
       SELECT count(*)::text AS cnt
@@ -244,7 +283,7 @@ export class ConsultationsService {
     `;
 
     return {
-      items,
+      items: enriched,
       total: Number(totalRows[0].cnt),
       page,
       limit,
