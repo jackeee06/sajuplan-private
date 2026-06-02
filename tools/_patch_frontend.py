@@ -33,12 +33,12 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 TARGETS_USER = [
-    ("test", "172.235.211.75", "/data/wwwroot/sajumoon.kr"),
+    # test 서버 폐기 (2026-05-29) — prod 단일 배포
     ("prod", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr"),
 ]
 
 TARGETS_MNG = [
-    ("test", "172.235.211.75", "/data/wwwroot/sajumoon.kr/mng"),
+    # test 서버 폐기 (2026-05-29) — prod 단일 배포
     ("prod", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr/mng"),
 ]
 
