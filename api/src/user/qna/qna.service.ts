@@ -707,6 +707,19 @@ export class UserCounselorQnaService {
       throw new ForbiddenException('본인 페이지에는 문의할 수 없습니다.');
     }
 
+    // 하루 5개 제한 — 같은 상담사에게 고객당 1일 최대 5개
+    const todayCount = await this.sql<{ count: string }[]>`
+      SELECT COUNT(*)::text AS count
+        FROM counselor_qna
+       WHERE member_id = ${params.memberId}
+         AND counselor_id = ${params.counselorId}
+         AND created_at >= CURRENT_DATE::timestamptz
+         AND created_at <  (CURRENT_DATE + 1)::timestamptz
+    `;
+    if (Number(todayCount[0]?.count ?? 0) >= 5) {
+      throw new BadRequestException('같은 상담사에게 하루 최대 5개까지 문의할 수 있습니다.');
+    }
+
     const rows = await this.sql<{ id: number }[]>`
       INSERT INTO counselor_qna (counselor_id, member_id, title, content, is_secret)
       VALUES (${params.counselorId}, ${params.memberId}, ${params.title}, ${params.content}, ${params.isSecret})
@@ -717,6 +730,60 @@ export class UserCounselorQnaService {
     void this.notifyQaAsk(params.counselorId, params.memberId);
 
     return { id: rows[0].id };
+  }
+
+  /** 문의 수정 — 본인 소유 + 답변 없을 때만. 제목·내용만 수정 가능. */
+  async updateQna(params: {
+    memberId: number;
+    qnaId: number;
+    title: string;
+    content: string;
+  }): Promise<{ id: number }> {
+    const title = params.title.trim();
+    const content = params.content.trim();
+    if (!title) throw new BadRequestException('제목을 입력해주세요.');
+    if (!content) throw new BadRequestException('문의 내용을 입력해주세요.');
+    if (title.length > 255) throw new BadRequestException('제목이 너무 깁니다. (최대 255자)');
+
+    const rows = await this.sql<{ id: number; member_id: number | null }[]>`
+      SELECT q.id, q.member_id
+        FROM counselor_qna q
+       WHERE q.id = ${params.qnaId}
+       LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
+    if (rows[0].member_id !== params.memberId) throw new ForbiddenException('본인이 작성한 문의만 수정할 수 있습니다.');
+
+    const reply = await this.sql<{ id: number }[]>`
+      SELECT id FROM counselor_qna_reply WHERE qna_id = ${params.qnaId} LIMIT 1
+    `;
+    if (reply.length > 0) throw new ForbiddenException('답변이 달린 문의는 수정할 수 없습니다.');
+
+    await this.sql`
+      UPDATE counselor_qna SET title = ${title}, content = ${content}
+       WHERE id = ${params.qnaId}
+    `;
+    return { id: params.qnaId };
+  }
+
+  /** 문의 삭제 — 본인 소유 + 답변 없을 때만. */
+  async deleteQna(params: {
+    memberId: number;
+    qnaId: number;
+  }): Promise<{ ok: true }> {
+    const rows = await this.sql<{ id: number; member_id: number | null }[]>`
+      SELECT id, member_id FROM counselor_qna WHERE id = ${params.qnaId} LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
+    if (rows[0].member_id !== params.memberId) throw new ForbiddenException('본인이 작성한 문의만 삭제할 수 있습니다.');
+
+    const reply = await this.sql<{ id: number }[]>`
+      SELECT id FROM counselor_qna_reply WHERE qna_id = ${params.qnaId} LIMIT 1
+    `;
+    if (reply.length > 0) throw new ForbiddenException('답변이 달린 문의는 삭제할 수 없습니다.');
+
+    await this.sql`DELETE FROM counselor_qna WHERE id = ${params.qnaId}`;
+    return { ok: true };
   }
 
   /**

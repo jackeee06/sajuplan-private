@@ -155,18 +155,19 @@ export class UserReviewsController {
 
   /**
    * PATCH /api/user/reviews/:id — 본인 후기 수정.
-   * ⚠️ 2026-05-15 운영 정책으로 **수정 기능 비활성화** (403 반환).
-   *     이유: 후기는 한 번 작성 후 변경 불가 (악의적 변조·삭제·재작성 반복 방지).
-   *           수정이 필요하면 기존 후기를 삭제(DELETE)하고 다시 작성하도록 안내.
-   *     service.updateMine 함수 자체는 어드민/복귀 시나리오 대비로 코드 유지.
+   * 작성 후 5분 이내 + 상담사 답변 없을 때만 허용. 제목·내용만 수정 가능.
    */
   @Patch(':id')
   @UseGuards(UserAuthGuard)
   async update(
-    @Req() _req: UserAuthedRequest,
-    @Param('id', ParseIntPipe) _id: number,
+    @Req() req: UserAuthedRequest,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { title?: string; content?: string },
   ) {
-    throw new ForbiddenException('후기는 수정할 수 없습니다. 변경이 필요하면 삭제 후 다시 작성해 주세요.');
+    return this.svc.updateMine(id, req.user.sub, {
+      title: body.title,
+      content: body.content,
+    });
   }
 
   /** DELETE /api/user/reviews/:id — 본인 후기 물리 삭제 (hard delete) */

@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   Req,
@@ -75,5 +77,29 @@ export class UserCounselorQnaController {
       content,
       isSecret: !!body.is_secret,
     });
+  }
+
+  @Patch(':qnaId')
+  @UseGuards(UserAuthGuard)
+  async update(
+    @Param('qnaId', ParseIntPipe) qnaId: number,
+    @Req() req: UserAuthedRequest,
+    @Body() body: { title?: string; content?: string },
+  ) {
+    return this.svc.updateQna({
+      memberId: req.user.sub,
+      qnaId,
+      title: (body.title ?? '').trim(),
+      content: (body.content ?? '').trim(),
+    });
+  }
+
+  @Delete(':qnaId')
+  @UseGuards(UserAuthGuard)
+  async remove(
+    @Param('qnaId', ParseIntPipe) qnaId: number,
+    @Req() req: UserAuthedRequest,
+  ) {
+    return this.svc.deleteQna({ memberId: req.user.sub, qnaId });
   }
 }

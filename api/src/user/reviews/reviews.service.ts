@@ -386,49 +386,42 @@ export class UserReviewsService {
     };
   }
 
-  /** 본인 후기 수정 — 제목/본문/비밀글/별점/사진. 본인이 아니면 403. */
+  /** 본인 후기 수정 — 제목·내용만. 작성 후 5분 이내 + 상담사 답변 없을 때만. */
   async updateMine(
     id: number,
     memberId: number,
     input: {
       title?: string;
       content?: string;
-      is_secret?: boolean;
-      rating?: number;
-      photo_url?: string | null;
-      photo_url_webp?: string | null;
     },
   ): Promise<MyReviewItem> {
-    const owner = await this.sql<{ member_id: number | null; extras: Record<string, unknown> | null }[]>`
-      SELECT member_id, extras FROM post_review WHERE id = ${id} LIMIT 1
+    const owner = await this.sql<{ member_id: number | null; extras: Record<string, unknown> | null; created_at: Date }[]>`
+      SELECT member_id, extras, created_at FROM post_review WHERE id = ${id} LIMIT 1
     `;
     if (owner.length === 0) throw new NotFoundException('후기를 찾을 수 없습니다.');
     if (owner[0].member_id !== memberId) throw new ForbiddenException('본인이 작성한 후기만 수정할 수 있습니다.');
+
+    // 5분(300초) 이내만 수정 가능
+    const created = owner[0].created_at instanceof Date ? owner[0].created_at : new Date(owner[0].created_at as unknown as string);
+    const secsSince = (Date.now() - created.getTime()) / 1000;
+    if (secsSince > 300) throw new ForbiddenException('후기 작성 후 5분이 지나면 수정할 수 없습니다.');
+
+    // 상담사 답변이 달리면 수정 불가
+    const reply = await this.sql<{ id: number }[]>`
+      SELECT id FROM post_review_reply WHERE review_id = ${id} LIMIT 1
+    `;
+    if (reply.length > 0) throw new ForbiddenException('상담사가 답변한 후기는 수정할 수 없습니다.');
 
     const title = input.title?.trim();
     if (title !== undefined && title.length === 0) {
       throw new BadRequestException('제목을 입력해주세요.');
     }
 
-    const extras = (owner[0].extras ?? {}) as Record<string, unknown>;
-    if (input.photo_url !== undefined) {
-      if (input.photo_url) extras.photo_url = input.photo_url;
-      else {
-        delete extras.photo_url;
-        delete extras.photo_url_webp;
-      }
-    }
-    if (input.photo_url_webp !== undefined) {
-      if (input.photo_url_webp) extras.photo_url_webp = input.photo_url_webp;
-      else delete extras.photo_url_webp;
-    }
-
-    // 동적 SET — 전달된 필드만 갱신
-    const updates: Record<string, unknown> = { extras };
+    // 제목·내용만 수정 가능 (비밀글·별점·사진은 변경 불가)
+    const updates: Record<string, unknown> = {};
     if (title !== undefined) updates.title = title;
     if (input.content !== undefined) updates.content = input.content;
-    if (input.is_secret !== undefined) updates.is_secret = input.is_secret;
-    if (input.rating !== undefined) updates.rating = input.rating;
+    if (Object.keys(updates).length === 0) throw new BadRequestException('수정할 내용이 없습니다.');
 
     await this.sql`
       UPDATE post_review SET ${this.sql(updates)}, updated_at = now()
@@ -525,6 +518,13 @@ export class UserReviewsService {
       const sec = Number(c.usetm ?? 0);
       if (sec < 300) {
         throw new BadRequestException('5분 이상 상담을 진행한 경우에만 후기 작성이 가능합니다.');
+      }
+
+      // 상담 종료 후 7일 이내만 작성 가능
+      const endedAt = c.ended_at instanceof Date ? c.ended_at : new Date(c.ended_at as unknown as string);
+      const daysSinceEnd = (Date.now() - endedAt.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceEnd > 7) {
+        throw new BadRequestException('상담 종료 후 7일 이내에만 후기를 작성할 수 있습니다.');
       }
       if (c.counselor_id) {
         // consultation 의 counselor_id 가 있으면 항상 그 값을 사용 (입력 불일치 무시).
@@ -695,16 +695,26 @@ export class UserReviewsService {
     });
   }
 
-  /** 본인 후기 물리 삭제 (hard delete). 본인이 아니면 403. */
+  /** 본인 후기 삭제 — 작성 후 5분 이내 + 상담사 답변 없을 때만. */
   async deleteMine(id: number, memberId: number): Promise<void> {
-    const r = await this.sql`
-      DELETE FROM post_review WHERE id = ${id} AND member_id = ${memberId}
+    const rows = await this.sql<{ member_id: number | null; created_at: Date }[]>`
+      SELECT member_id, created_at FROM post_review WHERE id = ${id} LIMIT 1
     `;
-    if (r.count === 0) {
-      const exists = await this.sql<{ id: number }[]>`SELECT id FROM post_review WHERE id = ${id} LIMIT 1`;
-      if (exists.length === 0) throw new NotFoundException('후기를 찾을 수 없습니다.');
-      throw new ForbiddenException('본인이 작성한 후기만 삭제할 수 있습니다.');
-    }
+    if (rows.length === 0) throw new NotFoundException('후기를 찾을 수 없습니다.');
+    if (rows[0].member_id !== memberId) throw new ForbiddenException('본인이 작성한 후기만 삭제할 수 있습니다.');
+
+    // 5분(300초) 이내만 삭제 가능
+    const created = rows[0].created_at instanceof Date ? rows[0].created_at : new Date(rows[0].created_at as unknown as string);
+    const secsSince = (Date.now() - created.getTime()) / 1000;
+    if (secsSince > 300) throw new ForbiddenException('후기 작성 후 5분이 지나면 삭제할 수 없습니다.');
+
+    // 상담사 답변이 달리면 삭제 불가
+    const reply = await this.sql<{ id: number }[]>`
+      SELECT id FROM post_review_reply WHERE review_id = ${id} LIMIT 1
+    `;
+    if (reply.length > 0) throw new ForbiddenException('상담사가 답변한 후기는 삭제할 수 없습니다.');
+
+    await this.sql`DELETE FROM post_review WHERE id = ${id}`;
   }
 
   /**
