@@ -2,6 +2,16 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ExecutionContext, Injectable } from '@nestjs/common';
+
+@Injectable()
+class AppThrottlerGuard extends ThrottlerGuard {
+  protected async shouldSkip(ctx: ExecutionContext): Promise<boolean> {
+    const req = ctx.switchToHttp().getRequest<{ url?: string }>();
+    if (req.url?.startsWith('/admin/')) return true;
+    return super.shouldSkip(ctx);
+  }
+}
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AdminModule } from './admin/admin.module';
@@ -37,7 +47,7 @@ import { CronModule } from './cron/cron.module';
   controllers: [AppController],
   providers: [
     AppService,
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: AppThrottlerGuard },
   ],
 })
 export class AppModule {}
