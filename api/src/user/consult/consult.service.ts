@@ -1042,7 +1042,7 @@ export class UserConsultService {
     `;
     const c = rows[0];
     if (!c) return { consultation: null, memo: null };
-    if (c.counselor_id !== params.counselorId) {
+    if (Number(c.counselor_id) !== params.counselorId) {
       // 본인 상담이 아니면 403 대신 null 반환 (정보 노출 방지)
       return { consultation: null, memo: null };
     }
@@ -1080,7 +1080,7 @@ export class UserConsultService {
     if (!check[0]) {
       throw new BadRequestException('상담 정보가 없습니다.');
     }
-    if (check[0].counselor_id !== params.counselorId) {
+    if (Number(check[0].counselor_id) !== params.counselorId) {
       throw new BadRequestException('본인 상담만 메모를 작성할 수 있습니다.');
     }
     const cat = params.category ? params.category.slice(0, 50) : null;

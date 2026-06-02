@@ -78,7 +78,7 @@ export class UserCounselorApplyService {
     const total = rows.length > 0 ? Number(rows[0].total) : 0;
 
     const items = rows.map((r) => {
-      const isMine = memberId != null && r.member_id === memberId;
+      const isMine = memberId != null && Number(r.member_id) === memberId;
       const isNotice = r.category === 'notice';
       // 일반 글은 비공개 처리 — 단, 본인 글이면 보임. 공지는 항상 공개.
       const lock = !isNotice && r.is_secret && !isMine;
@@ -374,7 +374,7 @@ export class UserCounselorApplyService {
     `;
     const r = rows[0];
     if (!r) throw new NotFoundException('해당 글을 찾을 수 없습니다.');
-    if (r.member_id !== memberId) {
+    if (Number(r.member_id) !== memberId) {
       throw new ForbiddenException('본인 신청글만 취소할 수 있습니다.');
     }
     if (r.status !== 'pending') {
