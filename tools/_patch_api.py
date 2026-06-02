@@ -98,6 +98,8 @@ FILES = [
     ("api/src/user/qna/qna.controller.ts", "src/user/qna/qna.controller.ts"),
     ("api/src/user/reviews/reviews.service.ts", "src/user/reviews/reviews.service.ts"),
     ("api/src/user/reviews/reviews.controller.ts", "src/user/reviews/reviews.controller.ts"),
+    # 2026-06-02: 상담 내역 수익 분해 컬럼 (상담사%/m2net차감/수익금/영업이익23%) + Number() 변환
+    ("api/src/admin/consultations/consultations.service.ts", "src/admin/consultations/consultations.service.ts"),
     # 2026-06-02: BigInt 비교 전체 Number() 처리 (postgres.js v3 bigint→BigInt 타입 이슈)
     ("api/src/user/counselor-reviews/counselor-reviews.service.ts", "src/user/counselor-reviews/counselor-reviews.service.ts"),
     ("api/src/user/chat/chat.service.ts", "src/user/chat/chat.service.ts"),

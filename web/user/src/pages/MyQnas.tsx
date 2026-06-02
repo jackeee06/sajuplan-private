@@ -155,76 +155,63 @@ export default function MyQnas() {
         ) : (
           items.map((q) => (
             <article key={q.id} className="py-4 border-b border-[#F3F4F6] relative">
-              <div className="flex items-center gap-2">
-                <span className="text-[16px] font-bold text-[#030712]">{q.counselor_name}</span>
-                {q.counselor_code && (
-                  <span className="text-[15px] font-medium text-[#ec4899]">{q.counselor_code}</span>
-                )}
-                {/* ⋮ 메뉴 — 답변 전에만 수정·삭제 가능 */}
-                {!q.has_reply && (
-                  <div className="ml-auto relative">
-                    <button
-                      type="button"
-                      aria-label="더보기"
-                      className="w-7 h-7 flex items-center justify-center text-[#9CA3AF]"
-                      onClick={() => setOpenMenuId((v) => (v === q.id ? null : q.id))}
-                    >
-                      ⋮
-                    </button>
-                    {openMenuId === q.id && (
-                      <div
-                        role="menu"
-                        className="absolute top-full right-0 mt-1 z-30 min-w-[100px] bg-white rounded-[10px] border border-[#E5E7EB] shadow-[0_8px_20px_rgba(16,24,40,0.10)] py-1"
+              {/* 상단: 상담사명 + 날짜 + 메뉴 */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[15px] font-semibold text-[#030712]">{q.counselor_name}</span>
+                  {q.is_secret && (
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 shrink-0" fill="none" aria-hidden>
+                      <rect x="5" y="11" width="14" height="9" rx="2" stroke="#9CA3AF" strokeWidth="1.6" />
+                      <path d="M8 11V8a4 4 0 018 0v3" stroke="#9CA3AF" strokeWidth="1.6" strokeLinecap="round" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-[12px] text-[#99A1AF]">{formatDate(q.created_at)}</span>
+                  {!q.has_reply && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        aria-label="더보기"
+                        className="w-6 h-6 flex items-center justify-center text-[#9CA3AF]"
+                        onClick={() => setOpenMenuId((v) => (v === q.id ? null : q.id))}
                       >
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => openEdit(q)}
-                          className="w-full px-4 py-2 text-left text-[14px] text-[#030712] hover:bg-[#F9FAFB]"
+                        ⋮
+                      </button>
+                      {openMenuId === q.id && (
+                        <div
+                          role="menu"
+                          className="absolute top-full right-0 mt-1 z-30 min-w-[100px] bg-white rounded-[10px] border border-[#E5E7EB] shadow-[0_8px_20px_rgba(16,24,40,0.10)] py-1"
                         >
-                          수정
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          onClick={() => { setOpenMenuId(null); setDeleteTarget(q) }}
-                          className="w-full px-4 py-2 text-left text-[14px] text-[#FB2C36] hover:bg-[#FEEBEE]"
-                        >
-                          삭제
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                          <button type="button" role="menuitem" onClick={() => openEdit(q)}
+                            className="w-full px-4 py-2 text-left text-[14px] text-[#030712] hover:bg-[#F9FAFB]">수정</button>
+                          <button type="button" role="menuitem" onClick={() => { setOpenMenuId(null); setDeleteTarget(q) }}
+                            className="w-full px-4 py-2 text-left text-[14px] text-[#FB2C36] hover:bg-[#FEEBEE]">삭제</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="mt-2 flex items-center gap-2">
-                <span
-                  className={
-                    q.status === '답변완료'
-                      ? 'h-[24px] px-2 inline-flex items-center rounded text-[12px] font-medium bg-[#fdf2f8] text-[#ec4899]'
-                      : 'h-[24px] px-2 inline-flex items-center rounded text-[12px] font-medium bg-[#F3F4F6] text-[#6A7282]'
-                  }
-                >
-                  {q.status}
-                </span>
-                {q.is_secret && (
-                  <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0" fill="none" aria-hidden>
-                    <rect x="5" y="11" width="14" height="9" rx="2" stroke="#030712" strokeWidth="1.6" />
-                    <path d="M8 11V8a4 4 0 018 0v3" stroke="#030712" strokeWidth="1.6" strokeLinecap="round" />
-                  </svg>
-                )}
-                <span className="text-[15px] font-semibold text-[#030712] truncate">{q.title}</span>
-              </div>
-
-              {q.content && (
-                <p className="mt-1 text-[14px] text-[#6A7282] line-clamp-2 whitespace-pre-line">
-                  {q.content}
-                </p>
-              )}
-              <p className="mt-2 text-[12px] text-[#99A1AF]">
-                {q.reviewer_name} · {formatDate(q.created_at)}
+              {/* 내용 */}
+              <p className="mt-1.5 text-[14px] text-[#6A7282] line-clamp-2 whitespace-pre-line">
+                {q.content}
               </p>
+
+              {/* 답변완료 박스 */}
+              {q.has_reply && (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/counselors/${q.counselor_id}/qna/${q.id}`)}
+                  className="mt-2 w-full text-left bg-[#fdf2f8] rounded-[8px] px-3 py-2.5"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[12px] font-semibold text-[#ec4899]">{q.counselor_name}</span>
+                  </div>
+                  <p className="text-[13px] text-[#6A7282]">답변이 달렸습니다. 탭하여 확인하세요.</p>
+                </button>
+              )}
             </article>
           ))
         )}
@@ -251,7 +238,7 @@ export default function MyQnas() {
             <div className="mb-3">
               <label className="block text-[13px] font-medium text-[#4A5565] mb-1">제목</label>
               <input
-                className="input-field w-full"
+                className="w-full px-3 py-2.5 text-[15px] text-[#030712] border border-[#D1D5DB] rounded-[10px] bg-[#F9FAFB] focus:outline-none focus:border-[#9b7af7] focus:bg-white"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
                 maxLength={255}
@@ -260,7 +247,7 @@ export default function MyQnas() {
             <div className="mb-4">
               <label className="block text-[13px] font-medium text-[#4A5565] mb-1">내용</label>
               <textarea
-                className="textarea-field w-full min-h-[120px]"
+                className="w-full px-3 py-2.5 text-[15px] text-[#030712] border border-[#D1D5DB] rounded-[10px] bg-[#F9FAFB] focus:outline-none focus:border-[#9b7af7] focus:bg-white min-h-[120px] resize-none"
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
               />

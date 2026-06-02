@@ -39,7 +39,12 @@ export class HealthCheckService {
     // C-1 음수 포인트 잔액 (소비포인트 free/paid + 수익포인트 earning 모두 검증)
     const c1 = await this.sql<{ cnt: string; sample: string | null }[]>`
       SELECT COUNT(*)::text AS cnt,
-             STRING_AGG(m.mb_id || '(무료' || p.free_balance || '/유료' || p.paid_balance || '/수익' || p.earning_balance || ')', ', ' ORDER BY p.member_id LIMIT 3) AS sample
+             (SELECT STRING_AGG(sub.s, ', ')
+                FROM (SELECT m2.mb_id || '(무료' || p2.free_balance || '/유료' || p2.paid_balance || '/수익' || p2.earning_balance || ')' AS s
+                        FROM point p2 JOIN member m2 ON m2.id = p2.member_id
+                       WHERE p2.free_balance < 0 OR p2.paid_balance < 0 OR p2.earning_balance < 0
+                       ORDER BY p2.member_id LIMIT 3) sub
+             ) AS sample
         FROM point p JOIN member m ON m.id = p.member_id
        WHERE p.free_balance < 0 OR p.paid_balance < 0 OR p.earning_balance < 0
     `;
@@ -48,7 +53,9 @@ export class HealthCheckService {
     // C-2 member.point 음수
     const c2 = await this.sql<{ cnt: string; sample: string | null }[]>`
       SELECT COUNT(*)::text AS cnt,
-             STRING_AGG(mb_id || '(' || point || '코인)', ', ' ORDER BY id LIMIT 3) AS sample
+             (SELECT STRING_AGG(sub.s, ', ')
+                FROM (SELECT mb_id || '(' || point || '코인)' AS s FROM member WHERE point < 0 ORDER BY id LIMIT 3) sub
+             ) AS sample
         FROM member WHERE point < 0
     `;
     checks.push({ id: 'C-2', name: 'member.point 음수', severity: 'critical', violations: Number(c2[0].cnt), detail: c2[0].sample ?? undefined });
@@ -56,12 +63,18 @@ export class HealthCheckService {
     // C-3 consultation amt 정합성
     const c3 = await this.sql<{ cnt: string; sample: string | null }[]>`
       SELECT COUNT(*)::text AS cnt,
-             STRING_AGG(
-               '상담' || c.id::text
-               || '(' || TO_CHAR(c.created_at AT TIME ZONE 'Asia/Seoul', 'MM/DD HH24:MI') || ', '
-               || COALESCE(cs.nickname, cs.name, '?') || '상담사, '
-               || c.amt || '코인 청구·차감분배0)',
-               ' | ' ORDER BY c.id LIMIT 5
+             (SELECT STRING_AGG(sub.s, ' | ')
+                FROM (
+                  SELECT '상담' || c2.id::text
+                    || '(' || TO_CHAR(c2.created_at AT TIME ZONE 'Asia/Seoul', 'MM/DD HH24:MI') || ', '
+                    || COALESCE(cs2.nickname, cs2.name, '?') || '상담사, '
+                    || c2.amt || '코인 청구·차감분배0)' AS s
+                    FROM consultation c2
+                    LEFT JOIN member cs2 ON cs2.id = c2.counselor_id
+                   WHERE c2.amt > 0 AND (c2.amt_free + c2.amt_pro) != c2.amt
+                     AND c2.reason IN ('DISCONNECT','END_CHAT','END_CHAT_LOCAL')
+                   ORDER BY c2.id LIMIT 5
+                ) sub
              ) AS sample
         FROM consultation c
         LEFT JOIN member cs ON cs.id = c.counselor_id
@@ -73,9 +86,9 @@ export class HealthCheckService {
     // C-4 과다 환불
     const c4 = await this.sql<{ cnt: string; sample: string | null }[]>`
       SELECT COUNT(*)::text AS cnt,
-             STRING_AGG(
-               '상담' || id::text || '(청구' || amt || '·환불' || refunded_amount || '코인)',
-               ', ' ORDER BY id LIMIT 3
+             (SELECT STRING_AGG(sub.s, ', ')
+                FROM (SELECT '상담' || id::text || '(청구' || amt || '·환불' || refunded_amount || '코인)' AS s
+                        FROM consultation WHERE refunded_amount > amt ORDER BY id LIMIT 3) sub
              ) AS sample
         FROM consultation WHERE refunded_amount > amt
     `;
@@ -88,9 +101,10 @@ export class HealthCheckService {
           FROM refund_request WHERE status='approved' GROUP BY consultation_id
       )
       SELECT COUNT(*)::text AS cnt,
-             STRING_AGG(
-               '상담' || c.id::text || '(상담료' || c.amt || '·환불합계' || r.total || '코인)',
-               ', ' ORDER BY c.id LIMIT 3
+             (SELECT STRING_AGG(sub.s, ', ')
+                FROM (SELECT '상담' || c2.id::text || '(상담료' || c2.amt || '·환불합계' || r2.total || '코인)' AS s
+                        FROM consultation c2 JOIN rr_sum r2 ON r2.consultation_id = c2.id
+                       WHERE r2.total > c2.amt ORDER BY c2.id LIMIT 3) sub
              ) AS sample
         FROM consultation c JOIN rr_sum r ON r.consultation_id = c.id
        WHERE r.total > c.amt
@@ -100,7 +114,10 @@ export class HealthCheckService {
     // C-6 refund 분배 불일치
     const c6 = await this.sql<{ cnt: string; sample: string | null }[]>`
       SELECT COUNT(*)::text AS cnt,
-             STRING_AGG('환불' || id::text || '(총' || amount || '·무료' || amount_free || '·유료' || amount_pro || ')', ', ' ORDER BY id LIMIT 3) AS sample
+             (SELECT STRING_AGG(sub.s, ', ')
+                FROM (SELECT '환불' || id::text || '(총' || amount || '·무료' || amount_free || '·유료' || amount_pro || ')' AS s
+                        FROM refund_request WHERE (amount_free + amount_pro) != amount ORDER BY id LIMIT 3) sub
+             ) AS sample
         FROM refund_request WHERE (amount_free + amount_pro) != amount
     `;
     checks.push({ id: 'C-6', name: '환불 무료/유료 분배 불일치', severity: 'warning', violations: Number(c6[0].cnt), detail: c6[0].sample ?? undefined });
@@ -108,7 +125,11 @@ export class HealthCheckService {
     // C-7 orphan refund
     const c7 = await this.sql<{ cnt: string; sample: string | null }[]>`
       SELECT COUNT(*)::text AS cnt,
-             STRING_AGG('환불' || r.id::text, ', ' ORDER BY r.id LIMIT 3) AS sample
+             (SELECT STRING_AGG(sub.s, ', ')
+                FROM (SELECT '환불' || r2.id::text AS s
+                        FROM refund_request r2 LEFT JOIN consultation c2 ON c2.id = r2.consultation_id
+                       WHERE c2.id IS NULL ORDER BY r2.id LIMIT 3) sub
+             ) AS sample
         FROM refund_request r LEFT JOIN consultation c ON c.id = r.consultation_id
        WHERE c.id IS NULL
     `;
@@ -117,9 +138,11 @@ export class HealthCheckService {
     // C-8 member.point drift
     const c8 = await this.sql<{ cnt: string; sample: string | null }[]>`
       SELECT COUNT(*)::text AS cnt,
-             STRING_AGG(
-               m.mb_id || '(스냅샷' || m.point || '·실잔액' || (p.free_balance + p.paid_balance) || '·차이' || (m.point - p.free_balance - p.paid_balance) || '코인)',
-               ', ' ORDER BY m.id LIMIT 3
+             (SELECT STRING_AGG(sub.s, ', ')
+                FROM (SELECT m2.mb_id || '(스냅샷' || m2.point || '·실잔액' || (p2.free_balance + p2.paid_balance) || '·차이' || (m2.point - p2.free_balance - p2.paid_balance) || '코인)' AS s
+                        FROM member m2 JOIN point p2 ON p2.member_id = m2.id
+                       WHERE m2.point != (p2.free_balance + p2.paid_balance)
+                       ORDER BY m2.id LIMIT 3) sub
              ) AS sample
         FROM member m JOIN point p ON p.member_id = m.id
        WHERE m.point != (p.free_balance + p.paid_balance)
@@ -129,7 +152,14 @@ export class HealthCheckService {
     // C-9 settlement 중복
     const c9 = await this.sql<{ cnt: string; sample: string | null }[]>`
       SELECT COUNT(*)::text AS cnt,
-             STRING_AGG(m.mb_id || '(' || s.month || ')', ', ' ORDER BY s.member_id LIMIT 3) AS sample
+             (SELECT STRING_AGG(sub.s, ', ')
+                FROM (SELECT m2.mb_id || '(' || s2.month || ')' AS s
+                        FROM (SELECT member_id, month FROM settlement_monthly
+                               WHERE member_id IS NOT NULL
+                               GROUP BY member_id, month HAVING COUNT(*) > 1) s2
+                        JOIN member m2 ON m2.id = s2.member_id
+                       ORDER BY s2.member_id LIMIT 3) sub
+             ) AS sample
         FROM (
           SELECT member_id, month FROM settlement_monthly
            WHERE member_id IS NOT NULL
@@ -141,7 +171,10 @@ export class HealthCheckService {
     // C-10 비현실적 usetm
     const c10 = await this.sql<{ cnt: string; sample: string | null }[]>`
       SELECT COUNT(*)::text AS cnt,
-             STRING_AGG('상담' || id::text || '(' || usetm || '초)', ', ' ORDER BY id LIMIT 3) AS sample
+             (SELECT STRING_AGG(sub.s, ', ')
+                FROM (SELECT '상담' || id::text || '(' || usetm || '초)' AS s
+                        FROM consultation WHERE usetm < 0 OR usetm > 86400 ORDER BY id LIMIT 3) sub
+             ) AS sample
         FROM consultation WHERE usetm < 0 OR usetm > 86400
     `;
     checks.push({ id: 'C-10', name: '비현실적 상담시간', severity: 'warning', violations: Number(c10[0].cnt), detail: c10[0].sample ?? undefined });
@@ -149,7 +182,11 @@ export class HealthCheckService {
     // C-11 settlement_monthly 음수 정산액 (환불 많아 음수 가능, 알림용)
     const c11 = await this.sql<{ cnt: string; sample: string | null }[]>`
       SELECT COUNT(*)::text AS cnt,
-             STRING_AGG(m.mb_id || '(' || s.month || ', ' || s.price || '원)', ', ' ORDER BY s.member_id LIMIT 3) AS sample
+             (SELECT STRING_AGG(sub.s, ', ')
+                FROM (SELECT m2.mb_id || '(' || s2.month || ', ' || s2.price || '원)' AS s
+                        FROM settlement_monthly s2 JOIN member m2 ON m2.id = s2.member_id
+                       WHERE s2.price < 0 ORDER BY s2.member_id LIMIT 3) sub
+             ) AS sample
         FROM settlement_monthly s JOIN member m ON m.id = s.member_id
        WHERE s.price < 0
     `;

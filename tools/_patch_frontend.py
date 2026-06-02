@@ -34,7 +34,9 @@ import paramiko
 
 TARGETS_USER = [
     # test 서버 폐기 (2026-05-29) — prod 단일 배포
-    ("prod", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr"),
+    # sajumoon.co.kr 과 sajuplan.com 은 별도 폴더 — 둘 다 배포 필수 (2026-06-03)
+    ("prod-sajumoon", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr"),
+    ("prod-sajuplan", "104.64.128.103", "/data/wwwroot/sajuplan.com"),
 ]
 
 TARGETS_MNG = [
@@ -106,10 +108,14 @@ def main() -> int:
         print("SSHPASS 필요", file=sys.stderr)
         return 1
     root = Path(__file__).resolve().parent.parent
-    dist = root / "web" / kind / "dist"
+    # dist2 우선 (Windows EBUSY 우회용 대체 빌드 경로), 없으면 dist 사용
+    dist = root / "web" / kind / "dist2"
     if not dist.is_dir():
-        print(f"dist/ 없음: {dist}. 먼저 'npm run build'.", file=sys.stderr)
+        dist = root / "web" / kind / "dist"
+    if not dist.is_dir():
+        print(f"dist/ 또는 dist2/ 없음. 먼저 'npm run build'.", file=sys.stderr)
         return 1
+    print(f"배포 폴더: {dist.name}")
     tar_bytes = make_tar(dist)
     print(f"tar.gz 생성: {len(tar_bytes):,} bytes")
     targets = TARGETS_USER if kind == "user" else TARGETS_MNG

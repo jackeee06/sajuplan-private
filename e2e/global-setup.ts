@@ -112,11 +112,34 @@ async function globalSetup(_config: FullConfig) {
       await memberCtx.close()
     }
   } else {
-    // prod 에선 e2e_dual / e2e_member 계정 없으므로 빈 storage
-    for (const f of ['user_dual_storage.json', 'user_member_storage.json']) {
+    // prod — e2e 계정 prod DB에 생성됨 (2026-06-03). API 로그인으로 세션 저장.
+    const apiBase = 'https://api.sajuplan.com'
+    for (const [file, mbId] of [
+      ['user_member_storage.json', 'e2e_member'],
+      ['user_dual_storage.json', 'e2e_dual'],
+    ] as [string, string][]) {
       const ctx = await browser.newContext()
-      await ctx.storageState({ path: f })
-      await ctx.close()
+      const pg = await ctx.newPage()
+      try {
+        await pg.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 30_000 })
+        const r = await pg.evaluate(async ([base, id]) => {
+          const res = await fetch(`${base}/api/user/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mb_id: id, password: 'e2e_test_2026' }),
+            credentials: 'include',
+          })
+          return { ok: res.ok, status: res.status }
+        }, [apiBase, mbId])
+        console.log(`[e2e global-setup] prod ${mbId} 로그인:`, JSON.stringify(r))
+        await ctx.storageState({ path: file })
+      } catch (e) {
+        console.warn(`[e2e global-setup] prod ${mbId} 실패:`, (e as Error).message.slice(0, 80))
+        await ctx.storageState({ path: file })
+      } finally {
+        await pg.close()
+        await ctx.close()
+      }
     }
   }
 
