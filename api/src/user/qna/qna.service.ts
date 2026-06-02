@@ -826,7 +826,7 @@ export class UserCounselorQnaService {
       const res = await this.sms.sendAlimtalkByCode(
         'qa_ask_v2',
         r.counselor_phone,
-        { 상담사명: counselorName, 고객명: customerName },
+        { 상담사명: counselorName, 고객명: customerName, url: '/counselor/mypage/customer-qnas' },
         '사주플랜 상담 문의 도착 안내',
       );
       if (!res.ok) {
