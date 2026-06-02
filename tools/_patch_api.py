@@ -98,6 +98,8 @@ FILES = [
     ("api/src/user/qna/qna.controller.ts", "src/user/qna/qna.controller.ts"),
     ("api/src/user/reviews/reviews.service.ts", "src/user/reviews/reviews.service.ts"),
     ("api/src/user/reviews/reviews.controller.ts", "src/user/reviews/reviews.controller.ts"),
+    # 2026-06-02: BigInt 비교 전체 Number() 처리 (postgres.js v3 bigint→BigInt 타입 이슈)
+    ("api/src/user/counselor-reviews/counselor-reviews.service.ts", "src/user/counselor-reviews/counselor-reviews.service.ts"),
     # 2026-05-28: 상담사 수익금 페이지 강한 분리 — 회원 적립/차감 row 제외, 상담 적립만
     ("api/src/user/settlements/settlements.service.ts", "src/user/settlements/settlements.service.ts"),
     # 이전 audit 변경분 ↓
