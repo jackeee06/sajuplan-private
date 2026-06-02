@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+﻿import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus'
 import BottomNav from '../components/BottomNav'
 import CounselorCard from '../components/CounselorCard'
+import CounselorIncomingBanner from '../components/CounselorIncomingBanner'
+import FavoriteCounselorBanner from '../components/FavoriteCounselorBanner'
+import MaintenanceBanner from '../components/MaintenanceBanner'
 import ReviewCardMain from '../components/ReviewCardMain'
 import UploadedImage from '../components/UploadedImage'
 import { FILE_BASE } from '../lib/runtime-env'
@@ -38,7 +41,7 @@ const CHIPS: ChipTab[] = ['전체', '사주', '타로', '신점']
  * 구조:
  *  - 헤더 (로고 + 검색/알림)
  *  - 배너 (오늘의 운세, 1/10 페이지네이션)
- *  - 통계 카드 2개 (최근 상담 건수 / 현재 접속중인 상담사)
+ *  - 통계 카드 2개 (최근상담 / 접속중상담사)
  *  - 큰 탭 (전체/인기/채팅/후기)
  *  - 칩 탭 (전체/사주/타로/신점)
  *  - 상담사 카드 리스트
@@ -47,23 +50,59 @@ const CHIPS: ChipTab[] = ['전체', '사주', '타로', '신점']
  */
 export default function Home() {
   const { isLoggedIn, member } = useAuth()
+  const location = useLocation()
+  // 회원가입/소셜가입 직후 메인으로 진입 시 1회성 환영 토스트.
+  // Signup.tsx 가 navigate('/', { state: { signupToast: '...' } }) 로 전달.
+  const [welcomeToast, setWelcomeToast] = useState<string | null>(null)
+  useEffect(() => {
+    const msg = (location.state as { signupToast?: string } | null)?.signupToast
+    if (msg) {
+      setWelcomeToast(msg)
+      // history.state 정리 — 새로고침 시 토스트 재출현 방지
+      window.history.replaceState({}, '')
+      const t = setTimeout(() => setWelcomeToast(null), 2200)
+      return () => clearTimeout(t)
+    }
+  }, [location.state])
   const [tab, setTab] = useState<MainTab>('all')
   const [chip, setChip] = useState<ChipTab>('전체')
   const [counselors, setCounselors] = useState<PublicCounselor[]>([])
   const [reviews, setReviews] = useState<PublicRecentReview[]>([])
   const [loading, setLoading] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
+  // 2026-05-22: "상담사 더보기" 누르면 별도 페이지 이동 X, 같은 자리에 +N명 추가.
+  //   백엔드에서 한 번에 limit=50 받아두고 클라이언트에서 visibleCount 만큼 표시.
+  //   탭/칩 바뀌면 다시 INITIAL_VISIBLE 로 리셋.
+  const [visibleCount, setVisibleCount] = useState(13)
   // 메인 통계 — 어드민 dashboard 와 같은 데이터 소스 (consultation, member)
   const [stats, setStats] = useState<{ recent: number; online: number }>({
     recent: 0,
     online: 0,
   })
+  // 어드민 public settings — Footer + FloatingButtons 가 공유한다.
+  // 2026-05-29: 두 컴포넌트가 각자 settingsApi.public() 호출하던 패턴 → Home 1회 호출 후 props 전달.
+  //  ThrottlerException 사고 줄이기 (페이지당 호출 5→4).
+  const [globalSettings, setGlobalSettings] = useState<PublicSettings | null>(null)
+  useEffect(() => {
+    let alive = true
+    settingsApi.public().then(
+      (r) => {
+        if (alive) setGlobalSettings(r)
+      },
+      () => {
+        if (alive) setGlobalSettings({})
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [])
   // 홈탭 재클릭/포커스 복귀 시 fetch useEffect 들을 재실행하기 위한 카운터.
   // useRefreshOnFocus 가 호출되면 +1 → stats/list/banner 등 모든 fetch 가 갱신됨.
   const [refreshKey, setRefreshKey] = useState(0)
   useRefreshOnFocus(() => setRefreshKey((k) => k + 1))
 
-  // 메인페이지 진입 시(앱 켤 때마다) 사주문 → m2net 잔액 동기화.
+  // 메인페이지 진입 시(앱 켤 때마다) 사주플랜 → m2net 잔액 동기화.
   // 일반 회원만 대상. 백엔드가 role 검증해서 상담사면 ok=false 로 무시.
   useEffect(() => {
     if (!isLoggedIn || member?.role !== 'user') return
@@ -116,11 +155,12 @@ export default function Home() {
         })
     } else {
       counselorsApi
-        .list({ tab, category, limit: 13 })
+        .list({ tab, category, limit: 300 })
         .then((r) => {
           if (alive) {
             setCounselors(r.items)
             setReviews([])
+            setVisibleCount(13)
           }
         })
         .catch((e) => {
@@ -137,10 +177,18 @@ export default function Home() {
 
   return (
     <div className="mobile-frame flex flex-col pb-[100px]">
+      {welcomeToast && (
+        <div className="fixed top-[68px] left-1/2 -translate-x-1/2 z-50 max-w-[400px] w-[calc(100%-32px)] mx-auto pointer-events-none">
+          <div className="mx-auto inline-block bg-[#1E2939] text-white text-[14px] leading-[140%] px-4 py-2.5 rounded-[10px] shadow-[0_4px_12px_rgba(0,0,0,0.18)]">
+            {welcomeToast}
+          </div>
+        </div>
+      )}
       {/* 헤더 — Figma 1:460 (390×60, padding 0 16, blur 7px) */}
       <header className="h-[60px] px-4 flex items-center justify-between sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
-        <Link to="/" aria-label="사주문 홈" className="flex items-center">
-          <img src="/img/logo_b.svg" alt="사주문" className="h-9 w-auto" />
+        <Link to="/" aria-label="사주플랜 홈" className="flex items-center">
+          {/* 헤더 로고는 첫 화면 LCP 후보 — fetchpriority high 로 우선 다운로드. */}
+          <img src="/img/logo_b.svg?v=v2" alt="사주플랜" className="h-11 w-auto" fetchPriority="high" decoding="async" />
         </Link>
         {/* 검색/알림 — 컨테이너 40×40 + 아이콘 28px, gap 12px */}
         <div className="flex items-center gap-3">
@@ -153,6 +201,16 @@ export default function Home() {
         </div>
       </header>
 
+      {/* 점검 안내 배너 — 어드민 설정 ON 시 모든 사용자에게 노출 (단골 배너보다 위, 긴급도 우선) */}
+      <MaintenanceBanner />
+
+      {/* [2026-05-30] 상담사 incoming 채팅 요청 배너 — 상담사 모드 + N>0 시 노출.
+          _PREPAID_CHAT_POLICY.md §15 */}
+      <CounselorIncomingBanner />
+
+      {/* 단골 상담사 인앱 배너 — 접속중 단골 안내 또는 단골 등록 유도 */}
+      <FavoriteCounselorBanner />
+
       <main className="flex-1">
         {/* 배너 — Figma 1:1270 (358×260, radius 24, IMAGE) — 슬라이드 캐러셀 */}
         <section className="px-4 pt-2">
@@ -164,13 +222,13 @@ export default function Home() {
           <div className="grid grid-cols-2 gap-3">
             <StatCard
               icon="/img/main_icon01.svg"
-              label="최근 상담 건수"
+              label="최근상담"
               value={stats.recent.toLocaleString()}
               suffix="건"
             />
             <StatCard
               icon="/img/main_icon02.svg"
-              label="현재 접속중인 상담사"
+              label="접속중상담사"
               value={stats.online.toLocaleString()}
               suffix="명"
             />
@@ -216,7 +274,7 @@ export default function Home() {
           )}
           {!loading && !listError && tab !== 'review' && (
             counselors.length > 0 ? (
-              counselors.map((c) => (
+              counselors.slice(0, visibleCount).map((c) => (
                 <CounselorCard key={c.id} counselor={mapPublicCounselorToCard(c)} />
               ))
             ) : (
@@ -227,27 +285,46 @@ export default function Home() {
           )}
         </section>
 
-        {/* 더보기 — 탭별 이동 (후기는 /reviews, 그 외는 /counselors) */}
-        {!loading && (
+        {/* 더보기 — 2026-05-22 누적 패턴.
+            - 후기 탭: /reviews 페이지로 (그대로)
+            - 상담사 탭: 인-페이지 누적 +13명. 끝까지 가면 /counselors (필터 옵션) 안내. */}
+        {!loading && tab === 'review' && (
           <div className="flex justify-center pt-2 pb-4">
             <Link
-              to={tab === 'review' ? '/reviews' : '/counselors'}
+              to="/reviews"
               className="inline-flex items-center gap-1 h-10 px-5 rounded-full border border-[#E5E7EB] bg-white text-[14px] text-[#364153] font-medium"
             >
-              {tab === 'review' ? '후기 더보기' : '상담사 더보기'}
+              후기 더보기
               <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 fill-[#364153]">
                 <path d="M5.7 3.3a1 1 0 0 0 0 1.4L9 8l-3.3 3.3a1 1 0 0 0 1.4 1.4l4-4a1 1 0 0 0 0-1.4l-4-4a1 1 0 0 0-1.4 0z" />
               </svg>
             </Link>
           </div>
         )}
+        {/* 상담사 탭 더보기 — 누적 +N명. 모두 노출되면 안내 박스 사라지고 푸터로 자연스럽게 이어진다.
+            이전엔 "전체 상담사 리스트 (분야·이벤트 필터)" 안내가 있었으나 사용자가 위 필터를 이미 사용한 시점에
+            중복 느낌이라 제거(2026-05-29). 이벤트/세분 분야 탐색은 별도 진입점(검색/상단 필터)으로 유도. */}
+        {!loading && !listError && tab !== 'review' && counselors.length > 0 && visibleCount < counselors.length && (
+          <div className="px-4 pt-3 pb-4">
+            <button
+              type="button"
+              onClick={() => setVisibleCount(counselors.length)}
+              className="w-full h-14 rounded-2xl border border-[#f472b6] bg-white text-[16px] text-[#ec4899] font-semibold flex items-center justify-center gap-2 hover:bg-[#fdf2f8] transition shadow-[0_2px_8px_rgba(244,114,182,0.12)]"
+            >
+              <span>더보기</span>
+              <svg viewBox="0 0 24 24" className="w-6 h-6 stroke-[#ec4899] fill-none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+          </div>
+        )}
 
         {/* 푸터 — Figma 118:7126 (사업자 정보=열림) */}
-        <Footer />
+        <Footer initialSettings={globalSettings} />
       </main>
 
       {/* Floating 버튼 (84:6769): 위로가기 + 카카오 채팅 */}
-      <FloatingButtons />
+      <FloatingButtons initialSettings={globalSettings} />
 
       <BottomNav />
     </div>
@@ -274,7 +351,7 @@ function resolveEventImg(u: string | null): string | null {
   return u
 }
 
-function EventCounselorSlide({ c, onClick }: { c: PublicEventCounselor; onClick: () => void }) {
+function EventCounselorSlide({ c, onClick, priority }: { c: PublicEventCounselor; onClick: () => void; priority?: boolean }) {
   const img = resolveEventImg(c.hero_image ?? c.profile_image)
   const imgWebp = resolveEventImg(c.hero_image_webp ?? c.profile_image_webp)
   const headline = c.wide_headline?.trim() || c.nickname
@@ -293,7 +370,8 @@ function EventCounselorSlide({ c, onClick }: { c: PublicEventCounselor; onClick:
       {img ? (
         <picture className="absolute inset-0">
           {imgWebp && <source srcSet={imgWebp} type="image/webp" />}
-          <img src={img} alt="" className="w-full h-full object-cover object-center" draggable={false} />
+          {/* 첫 슬라이드만 fetchpriority high — LCP 후보. 나머지 슬라이드는 동시에 다운로드되지만 일반 우선순위. */}
+          <img src={img} alt="" className="w-full h-full object-cover object-center" draggable={false} fetchPriority={priority ? 'high' : 'auto'} decoding="async" />
         </picture>
       ) : (
         <div className="absolute inset-0 bg-[#3D2078]" />
@@ -303,7 +381,7 @@ function EventCounselorSlide({ c, onClick }: { c: PublicEventCounselor; onClick:
       {/* 하단 텍스트 가독성 그라데이션 */}
       <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent to-black/70" />
       {/* 이벤트 뱃지 */}
-      <div className="absolute top-4 left-4 px-2 py-1 rounded-full bg-[#9B7AF7] text-white text-[11px] font-semibold leading-none">
+      <div className="absolute top-4 left-4 px-2 py-1 rounded-full bg-[#f472b6] text-white text-[11px] font-semibold leading-none">
         이벤트 상담사
       </div>
       {/* 헤드라인 — 세로 중앙·가로 좌측, 글자 2배(40px) */}
@@ -415,17 +493,20 @@ function BannerSlider() {
         style={{ transform: `translateX(-${idx * 100}%)` }}
       >
         {slides.map((slide, i) => {
+          // 첫 슬라이드만 LCP 후보 — fetchpriority high. 나머지는 동시에 다운로드되지만 일반 우선순위.
+          // (사용자 우려: 스크롤 부드러움 유지 → lazy 안 함, 우선순위만 차별)
+          const isFirst = i === 0
           if (slide.kind === 'event') {
             const c = slide.data
             // 커스텀 배너 이미지가 있으면 일반 배너처럼 이미지 렌더, 없으면 자동 카드
             if (c.event_banner_image_url) {
               return (
                 <Link key={`ev-${c.id}`} to={`/counselors/${c.id}`} className="w-full h-full shrink-0 block" draggable={false}>
-                  <UploadedImage src={c.event_banner_image_url} srcWebp={null} alt={c.nickname} className="w-full h-full object-cover pointer-events-none" draggable={false} />
+                  <UploadedImage src={c.event_banner_image_url} srcWebp={null} alt={c.nickname} className="w-full h-full object-cover pointer-events-none" draggable={false} fetchPriority={isFirst ? 'high' : 'auto'} decoding="async" />
                 </Link>
               )
             }
-            return <EventCounselorSlide key={`ev-${c.id}`} c={c} onClick={() => navigate(`/counselors/${c.id}`)} />
+            return <EventCounselorSlide key={`ev-${c.id}`} c={c} onClick={() => navigate(`/counselors/${c.id}`)} priority={isFirst} />
           }
 
           const b = slide.data
@@ -436,6 +517,8 @@ function BannerSlider() {
               alt={b.title ?? ''}
               className="w-full h-full object-cover pointer-events-none"
               draggable={false}
+              fetchPriority={isFirst ? 'high' : 'auto'}
+              decoding="async"
             />
           )
           if (!b.link_url) {
@@ -473,8 +556,8 @@ function BannerSlider() {
 
 /**
  * 통계 카드 — 한 줄 압축형: 아이콘+라벨(좌) / 값(우) 한 줄 배치
- *  border #8259F5 1px, radius 16, padding 12
- *  icon 20×20 + label 13/400 #1E2939, value 18/700 #8259F5
+ *  border #ec4899 1px, radius 16, padding 12
+ *  icon 20×20 + label 13/400 #1E2939, value 18/700 #ec4899
  */
 function StatCard({
   icon,
@@ -488,12 +571,12 @@ function StatCard({
   suffix?: string
 }) {
   return (
-    <div className="rounded-2xl border border-[#8259F5] px-3 py-3 flex items-center justify-between gap-2">
+    <div className="rounded-2xl border border-[#ec4899] px-3 py-3 flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
         <img src={icon} alt="" className="w-5 h-5 shrink-0" />
         <p className="text-[13px] leading-[130%] text-[#1E2939] truncate">{label}</p>
       </div>
-      <p className="text-[18px] leading-[120%] font-bold text-[#8259F5] shrink-0">
+      <p className="text-[18px] leading-[120%] font-bold text-[#ec4899] shrink-0">
         {value}
         {suffix && <span className="text-[12px] font-semibold ml-0.5">{suffix}</span>}
       </p>
@@ -501,7 +584,7 @@ function StatCard({
   )
 }
 
-/** 큰 탭 — Figma main_tab01 (20/600/120% Inter, 활성 #8259F5 + 밑줄, 비활성 #6A7282) */
+/** 큰 탭 — Figma main_tab01 (20/600/120% Inter, 활성 #ec4899 + 밑줄, 비활성 #6A7282) */
 function TabBtn({
   active,
   onClick,
@@ -516,11 +599,11 @@ function TabBtn({
       type="button"
       onClick={onClick}
       className={`relative pb-3 text-[20px] leading-[120%] font-semibold transition ${
-        active ? 'text-[#8259F5]' : 'text-[#6A7282]'
+        active ? 'text-[#ec4899]' : 'text-[#6A7282]'
       }`}
     >
       {children}
-      {active && <span className="absolute left-0 right-0 -bottom-[1px] h-[2px] bg-[#8259F5] rounded-full" />}
+      {active && <span className="absolute left-0 right-0 -bottom-[1px] h-[2px] bg-[#ec4899] rounded-full" />}
     </button>
   )
 }
@@ -528,14 +611,20 @@ function TabBtn({
 /**
  * 푸터 — Figma 118:7126 (사업자 정보=열림)
  *  padding 28 16 56, gap 20 column, top border 1px #F3F4F6
- *  - 헤더: "사주문 사업자 정보" 15/600 #364153 + 화살표 ▲
+ *  - 헤더: "사주플랜 사업자 정보" 15/600 #364153 + 화살표 ▲
  *  - 항목: row gap 16 (라벨 14/500 #6A7282, 값 14/400 #6A7282)
  *  - 하단: 이용약관·개인정보취급방침(14/500 #364153) + Copyright(14/400 #6A7282)
  */
-function Footer() {
-  const [s, setS] = useState<PublicSettings>({})
+function Footer({ initialSettings }: { initialSettings: PublicSettings | null }) {
+  const [s, setS] = useState<PublicSettings>(initialSettings ?? {})
 
+  // 부모(Home)가 settings 를 fetch 해서 props 로 내려주는 게 표준 경로 (2026-05-29).
+  // 부모 fetch 가 실패해서 null 인 채 마운트되는 경우만 자체 fetch (안전망).
   useEffect(() => {
+    if (initialSettings !== null) {
+      setS(initialSettings)
+      return
+    }
     let alive = true
     settingsApi.public().then(
       (r) => {
@@ -548,7 +637,7 @@ function Footer() {
     return () => {
       alive = false
     }
-  }, [])
+  }, [initialSettings])
 
   // [라벨, 값] — 값이 빈 문자열이면 행 생략
   const items: [string, string][] = (
@@ -566,7 +655,7 @@ function Footer() {
     ] as [string, string][]
   ).filter(([, v]) => v.trim() !== '')
 
-  const companyName = s['footer.company_name'] || '사주문'
+  const companyName = s['footer.company_name'] || '사주플랜'
   const copyright =
     s['footer.copyright'] || `Copyrightⓒ ${companyName}. All Rights Reserved.`
   const kakaoUrl = s['site.kakao_channel_url'] || ''
@@ -634,15 +723,22 @@ function Footer() {
 /**
  * Floating 버튼 — Figma 84:6769 (Frame 1410129514, w 50, gap 8)
  *  - go_top_btn: 50×50, bg rgba(243,244,246,0.8), border #F9FAFB, blur 6, ↑(검정)
- *  - kakao_btn: 50×50, bg #8259F5, 보라 그림자, 카카오 아이콘(흰)
+ *  - kakao_btn: 50×50, bg #ec4899, 보라 그림자, 카카오 아이콘(흰)
  *  화면 우측 하단(BottomNav 위)에 floating
  */
-function FloatingButtons() {
-  const [kakaoUrl, setKakaoUrl] = useState<string>('')
+function FloatingButtons({ initialSettings }: { initialSettings: PublicSettings | null }) {
+  const [kakaoUrl, setKakaoUrl] = useState<string>(
+    initialSettings?.['site.kakao_channel_url'] || '',
+  )
   const onGoTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 
-  // 어드민 site.kakao_channel_url 동적 로드 (운영팀이 어드민에서 변경 가능)
+  // 부모(Home)가 settings 를 내려주는 게 표준 경로 (2026-05-29).
+  // 부모 fetch 가 실패해서 null 인 채 마운트되는 경우만 자체 fetch (안전망).
   useEffect(() => {
+    if (initialSettings !== null) {
+      setKakaoUrl(initialSettings['site.kakao_channel_url'] || '')
+      return
+    }
     let alive = true
     settingsApi.public().then(
       (r) => {
@@ -656,7 +752,7 @@ function FloatingButtons() {
     return () => {
       alive = false
     }
-  }, [])
+  }, [initialSettings])
 
   return (
     <div className="fixed right-4 bottom-[100px] flex flex-col gap-2 z-40">
@@ -682,7 +778,7 @@ function FloatingButtons() {
             e.preventDefault()
             openExternalUrl(kakaoUrl)
           }}
-          className="w-[50px] h-[50px] rounded-full bg-[#8259F5] flex items-center justify-center cursor-pointer"
+          className="w-[50px] h-[50px] rounded-full bg-[#ec4899] flex items-center justify-center cursor-pointer"
           style={{ boxShadow: '0 4px 6px -2px rgba(130,89,245,0.1), 0 10px 15px -3px rgba(130,89,245,0.15)' }}
         >
           <svg viewBox="0 0 20 20" className="w-5 h-5 fill-white">
@@ -694,8 +790,9 @@ function FloatingButtons() {
   )
 }
 
-/** 칩 탭 — Figma main_tab02 (padding 10 16, radius 9999, 14/500/lh20 Inter)
- *  활성: bg #F3EEFE / text #8259F5  ·  비활성: bg 투명 / text #99A1AF */
+/** 칩 탭 — 2026-05-22 강조 패턴.
+ *  활성: bg #ec4899 (진한 핑크 fill) + 흰 글자 + font-semibold → 단번에 선택 인지
+ *  비활성: 흰 배경 + 회색 보더 + 회색 글자 → 선택 가능 영역임을 명확히 표시 */
 function ChipBtn({
   active,
   onClick,
@@ -709,10 +806,10 @@ function ChipBtn({
     <button
       type="button"
       onClick={onClick}
-      className={`px-4 py-[10px] rounded-full text-[14px] leading-5 font-medium transition ${
+      className={`px-5 py-[10px] rounded-full text-[15px] leading-5 transition ${
         active
-          ? 'bg-[#F3EEFE] text-[#8259F5]'
-          : 'bg-transparent text-[#99A1AF] hover:bg-white/60'
+          ? 'bg-[#ec4899] text-white font-semibold shadow-[0_2px_6px_rgba(236,72,153,0.25)]'
+          : 'bg-white border border-[#E5E7EB] text-[#6A7282] font-medium hover:bg-[#F9FAFB]'
       }`}
     >
       {children}

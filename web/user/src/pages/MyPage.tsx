@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom'
+﻿import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 
@@ -6,7 +6,7 @@ import FloatingActions from '../components/FloatingActions'
  * 마이페이지 (비회원) — Figma 06마이페이지(비회원)
  *
  * 비회원 상태:
- *  - 환영 영역: "사주문에 오신걸 환영합니다 :)" + 로그인 버튼
+ *  - 환영 영역: "사주플랜에 오신걸 환영합니다 :)" + 로그인 버튼
  *  - 추가메뉴: 이벤트 / 이용안내 / 공지사항 / 신규상담사 / 상담사 신청
  */
 
@@ -54,14 +54,14 @@ export default function MyPage() {
       <main className="flex-1 px-4">
         <section className="pt-2 pb-6">
           <h2 className="text-[20px] leading-[140%] font-bold text-[#030712]">
-            사주문에 오신 걸 환영합니다.
+            사주플랜에 오신 걸 환영합니다.
           </h2>
           <p className="mt-2 text-[14px] leading-[150%] text-[#99A1AF] break-keep">
             로그인하시면 상담, 후기, 단골 등 다양한 서비스를 이용하실 수 있습니다.
           </p>
           <Link
             to="/login"
-            className="mt-4 w-full h-[52px] rounded-full border border-[#9B7AF7] flex items-center justify-center text-[15px] font-medium text-[#8259F5]"
+            className="mt-4 w-full h-[52px] rounded-full border border-[#f472b6] flex items-center justify-center text-[15px] font-medium text-[#ec4899]"
           >
             로그인
           </Link>

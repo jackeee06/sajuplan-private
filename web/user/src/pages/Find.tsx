@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useState } from 'react'
+﻿import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MobileHeader from '../components/MobileHeader'
 import InputField from '../components/InputField'
 import PrimaryButton, { OutlineButton } from '../components/PrimaryButton'
+import EmailDomainChips from '../components/EmailDomainChips'
 import AlertModal from '../components/AlertModal'
 import { ApiError, smsApi, authApi } from '../lib/api'
 
@@ -92,7 +93,7 @@ export default function Find() {
       await smsApi.send(phone)
       setPhoneSent(true)
       setTimer(180)
-      showAlert('인증번호가 발송되었습니다.\n알림톡(또는 SMS)을 확인해주세요.')
+      showAlert('인증번호가 발송되었습니다.\n카카오톡을 확인해주세요.')
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : '인증번호 발송에 실패했습니다.'
       setPhoneError(msg)
@@ -213,6 +214,11 @@ export default function Find() {
                 </OutlineButton>
               </div>
               {phoneError && <p className="text-[13px] text-[#FF6467] mt-1.5 ml-2">{phoneError}</p>}
+              {!phoneSent && !phoneError && (
+                <p className="mt-1.5 ml-1 text-[12px] text-[#6A7282]">
+                  💬 인증번호는 <span className="font-semibold text-[#1E2939]">카카오톡</span>으로 발송됩니다. 카카오톡 알림이 안 오면 잠시 후 다시 시도해 주세요.
+                </p>
+              )}
 
               {phoneSent && (
                 <>
@@ -264,6 +270,7 @@ export default function Find() {
                 onClear={() => setEmail('')}
                 autoComplete="email"
               />
+              <EmailDomainChips value={email} onChange={setEmail} />
               {emailError && <p className="text-[13px] text-[#FF6467] mt-1.5 ml-2">{emailError}</p>}
             </>
           )}
@@ -302,11 +309,11 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={`flex-1 h-12 text-[15px] transition relative ${
-        selected ? 'text-[#8259F5] font-semibold' : 'text-[#99A1AF] font-medium'
+        selected ? 'text-[#ec4899] font-semibold' : 'text-[#99A1AF] font-medium'
       }`}
     >
       {children}
-      {selected && <span className="absolute left-0 right-0 bottom-[-1px] h-0.5 bg-[#8259F5]" />}
+      {selected && <span className="absolute left-0 right-0 bottom-[-1px] h-0.5 bg-[#ec4899]" />}
     </button>
   )
 }

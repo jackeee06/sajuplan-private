@@ -65,7 +65,7 @@ body { background-color:#f5f5f5;}
         </li>
         
         <a href="<?php echo G5_URL; ?>/my/../my/grade.php">
-        <li class="levle_banner">사주문 등급보기</li>
+        <li class="levle_banner">사주플랜 등급보기</li>
         </a>
     </ul>
     
@@ -104,7 +104,7 @@ body { background-color:#f5f5f5;}
         </li>
         
         <a href="<?php echo G5_URL; ?>/my/../my/grade.php">
-        <li class="levle_banner">사주문 등급보기</li>
+        <li class="levle_banner">사주플랜 등급보기</li>
         </a>
     </ul>
     
@@ -161,7 +161,7 @@ body { background-color:#f5f5f5;}
         <li class="my_menu_item">
         	<a href="<?php echo G5_URL; ?>/my/charm.php">
    	    	<p class="my_menu_icon"><img src="../img/my/my_menu_07.png"/></p>
-            <p class="my_menu_text">사주문 부적</p>
+            <p class="my_menu_text">사주플랜 부적</p>
             </a>
         </li>
         

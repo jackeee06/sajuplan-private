@@ -138,7 +138,7 @@ export default function ReferralList() {
   }
 
   return (
-    <div className="space-y-4 text-sm max-w-[1400px]">
+    <div className="space-y-4 text-sm max-w-[1100px]">
       {/* 타이틀 + 등록 */}
       <div className="flex items-center justify-between">
         <div>
@@ -177,25 +177,25 @@ export default function ReferralList() {
         </div>
       </div>
 
-      {/* 요약 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="px-3 py-2.5 rounded-lg bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-700">
+      {/* 요약 카드 — 콘텐츠 기반 폭으로 좌측 응집 */}
+      <div className="flex flex-wrap gap-2">
+        <div className="px-3 py-2 rounded-lg bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-700 min-w-[140px]">
           <div className="text-[11px] text-gray-500">활성 관계</div>
           <div className="text-lg font-semibold tabular-nums text-gray-900 dark:text-gray-100">{summary.active}</div>
         </div>
-        <div className="px-3 py-2.5 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
+        <div className="px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 min-w-[140px]">
           <div className="text-[11px] text-blue-700 dark:text-blue-300">이번 달 지급대상</div>
           <div className="text-lg font-semibold tabular-nums text-blue-700 dark:text-blue-300">{summary.eligible}</div>
         </div>
-        <div className="px-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800">
+        <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 min-w-[140px]">
           <div className="text-[11px] text-emerald-700 dark:text-emerald-300">지급 완료</div>
           <div className="text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{summary.paid}</div>
         </div>
-        <div className="px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
+        <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 min-w-[140px]">
           <div className="text-[11px] text-amber-700 dark:text-amber-300">미지급</div>
           <div className="text-lg font-semibold tabular-nums text-amber-700 dark:text-amber-300">{summary.pending}</div>
         </div>
-        <div className="px-3 py-2.5 rounded-lg bg-brand-50 border border-brand-200 dark:bg-brand-900/20 dark:border-brand-800">
+        <div className="px-3 py-2 rounded-lg bg-brand-50 border border-brand-200 dark:bg-brand-900/20 dark:border-brand-800 min-w-[160px]">
           <div className="text-[11px] text-brand-700 dark:text-brand-300">미지급 합계</div>
           <div className="text-lg font-semibold tabular-nums text-brand-700 dark:text-brand-300">{fmt(summary.totalExpected)}원</div>
         </div>

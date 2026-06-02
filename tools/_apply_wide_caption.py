@@ -24,7 +24,7 @@ except ImportError:
 SSH_HOST = "104.64.128.103"
 SSH_USER = "root"
 SSH_PORT = 22
-ENV_FILE = "/data/wwwroot/api.sajumoon.co.kr/.env"
+ENV_FILE = "/data/wwwroot/api.sajuplan.com/.env"
 
 SQL = (
     "UPDATE post_counselor "

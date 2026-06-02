@@ -96,7 +96,7 @@
                     class="modal_close"><i class="xi-close-thin"></i></span></h3>
         <div class="modal-con"><p class="point" style=" font-size:16px; margin:10px 0 0px; font-weight:600;"> 솔직한 후기는
                 양질의 상담에 큰 도움이 됩니다</p>
-            <div style=" font-size:14px; line-height:1.6; margin:10px 0 10px;"> 사주문는 비판적 후기도 절대로 삭제하지 않습니다. <br/> 겸허히
+            <div style=" font-size:14px; line-height:1.6; margin:10px 0 10px;"> 사주플랜는 비판적 후기도 절대로 삭제하지 않습니다. <br/> 겸허히
                 수용하며, 발전의 계기로 삼습니다.
             </div>            <!--20250715 eun 타 상담사 2명 추천 작업 마감-->
             <div class="recommend-slide">

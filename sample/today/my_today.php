@@ -10,7 +10,7 @@ include_once("./_common.php"); // 메뉴별 공통파일
 	<a href="index.php"><ul>소원성취 홈</ul></a>
 	<a href="my_today.php"><ul class="on">오늘의운세</ul></a>
 	<a href="wish.php"><ul>소원다락방</ul></a>
-	<a href="column_list.php"><ul>사주문칼럼</ul></a>
+	<a href="column_list.php"><ul>사주플랜칼럼</ul></a>
 	<a href="store.php"><ul>스토어</ul></a>
 </div>
 -->

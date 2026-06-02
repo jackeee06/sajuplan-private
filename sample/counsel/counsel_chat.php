@@ -221,7 +221,7 @@ include_once(G5_THEME_MOBILE_PATH.'/head_chat.php'); //헤드 채팅용
         <?php } ?>
 
         <div class="recommend-slide">
-            <p style="margin-bottom: 2.5px; text-align: center"><strong >다음번엔 사주문 추천 상담사와 상담 어떠신가요?</strong></p>
+            <p style="margin-bottom: 2.5px; text-align: center"><strong >다음번엔 사주플랜 추천 상담사와 상담 어떠신가요?</strong></p>
             <ul>
                 <?php
                 // 상담한 상담사 ID 목록을 반환하는 함수
@@ -250,7 +250,7 @@ include_once(G5_THEME_MOBILE_PATH.'/head_chat.php'); //헤드 채팅용
                 $consulted_mb_ids = get_consulted_counselors($user_mb_id);
                 // ────────────────────────────────────────────────────────────
                 // 3. 추천 상담사 쿼리
-                //    • mb_sort 1~20위      (사주문 추천 순위)
+                //    • mb_sort 1~20위      (사주플랜 추천 순위)
                 //    • state = 'IDLE'      (상담 가능)
                 //    • 상담한 사람 제외
                 //    • 랜덤 2명 추출

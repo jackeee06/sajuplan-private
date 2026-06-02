@@ -61,6 +61,7 @@ export interface CounselorMenuItem {
 
 export const COUNSELOR_MAIN_MENU: CounselorMenuItem[] = [
   { key: 'consult-stats', label: '상담 통계',      icon: '/img/ic_my_history.svg', to: '/counselor/mypage/consult-stats' },
+  { key: 'bank',          label: '내 계좌 정보',   icon: '/img/ic_my_card.svg',    to: '/counselor/mypage/bank' },
   { key: 'customer-qnas', label: '고객 문의 관리', icon: '/img/ic_my_inquiry.svg', to: '/counselor/mypage/customer-qnas' },
   { key: 'calls',         label: '전화상담내역',   icon: '/img/ic_my_phone.svg',   to: '/counselor/mypage/calls' },
   { key: 'chats',         label: '채팅상담내역',   icon: '/img/ic_my_chat.svg',    to: '/counselor/mypage/chats' },
@@ -82,7 +83,7 @@ export interface CounselorTip {
   imgUrl: string
   /** 노출 일자 */
   date: string
-  /** 작성 출처 — 항상 "사주문" */
+  /** 작성 출처 — 항상 "사주플랜" */
   source: string
   /** 상세에만 — 노출 기간 (예: "2025.07.01 ~ 2025.07.10") */
   period?: string
@@ -94,7 +95,7 @@ export const MOCK_COUNSELOR_TIPS: CounselorTip[] = [
     title: '장기상담 꿀팁 대방출',
     imgUrl: '/img/tip_banner_honey.png',
     date: '2026.04.23',
-    source: '사주문',
+    source: '사주플랜',
     period: '2025.07.01 ~ 2025.07.10',
   },
   {
@@ -102,7 +103,7 @@ export const MOCK_COUNSELOR_TIPS: CounselorTip[] = [
     title: '장기상담 꿀팁 대방출',
     imgUrl: '/img/tip_banner_mentoring.png',
     date: '2026.04.23',
-    source: '사주문',
+    source: '사주플랜',
     period: '2025.07.01 ~ 2025.07.10',
   },
 ]
@@ -116,7 +117,7 @@ export interface CounselorNotice {
   isPinned: boolean
   /** "New" 빨간 칩 */
   isNew: boolean
-  /** 출처 (항상 "사주문") */
+  /** 출처 (항상 "사주플랜") */
   source: string
   date: string
   /** 상세에만 — 정확한 작성 시각 */
@@ -129,23 +130,23 @@ export interface CounselorNotice {
 
 export const MOCK_COUNSELOR_NOTICES: CounselorNotice[] = [
   {
-    id: 1, title: '사주문 공지사항입니다.', isPinned: true, isNew: true,
-    source: '사주문', date: '2026.04.23', postedAt: '2026.04.23 15:00',
-    description: '사주문에서 작성한 공지사항의 내용이 이곳에 들어갑니다.',
+    id: 1, title: '사주플랜 공지사항입니다.', isPinned: true, isNew: true,
+    source: '사주플랜', date: '2026.04.23', postedAt: '2026.04.23 15:00',
+    description: '사주플랜에서 작성한 공지사항의 내용이 이곳에 들어갑니다.',
     imgUrl: '/img/counselor_notice_thumb.png',
   },
-  { id: 2, title: '사주문 공지사항입니다.', isPinned: true, isNew: false, source: '사주문', date: '2026.04.23' },
-  { id: 3, title: '사주문 공지사항입니다.', isPinned: true, isNew: false, source: '사주문', date: '2026.04.23' },
-  { id: 4, title: '사주문 공지사항입니다.', isPinned: false, isNew: false, source: '사주문', date: '2026.04.23' },
-  { id: 5, title: '사주문 공지사항입니다.', isPinned: false, isNew: false, source: '사주문', date: '2026.04.23' },
-  { id: 6, title: '사주문 공지사항입니다.', isPinned: false, isNew: false, source: '사주문', date: '2026.04.23' },
-  { id: 7, title: '사주문 공지사항입니다.', isPinned: false, isNew: false, source: '사주문', date: '2026.04.23' },
-  { id: 8, title: '사주문 공지사항입니다.', isPinned: false, isNew: false, source: '사주문', date: '2026.04.23' },
-  { id: 9, title: '사주문 공지사항입니다.', isPinned: false, isNew: false, source: '사주문', date: '2026.04.23' },
-  { id: 10, title: '사주문 공지사항입니다.', isPinned: false, isNew: false, source: '사주문', date: '2026.04.23' },
+  { id: 2, title: '사주플랜 공지사항입니다.', isPinned: true, isNew: false, source: '사주플랜', date: '2026.04.23' },
+  { id: 3, title: '사주플랜 공지사항입니다.', isPinned: true, isNew: false, source: '사주플랜', date: '2026.04.23' },
+  { id: 4, title: '사주플랜 공지사항입니다.', isPinned: false, isNew: false, source: '사주플랜', date: '2026.04.23' },
+  { id: 5, title: '사주플랜 공지사항입니다.', isPinned: false, isNew: false, source: '사주플랜', date: '2026.04.23' },
+  { id: 6, title: '사주플랜 공지사항입니다.', isPinned: false, isNew: false, source: '사주플랜', date: '2026.04.23' },
+  { id: 7, title: '사주플랜 공지사항입니다.', isPinned: false, isNew: false, source: '사주플랜', date: '2026.04.23' },
+  { id: 8, title: '사주플랜 공지사항입니다.', isPinned: false, isNew: false, source: '사주플랜', date: '2026.04.23' },
+  { id: 9, title: '사주플랜 공지사항입니다.', isPinned: false, isNew: false, source: '사주플랜', date: '2026.04.23' },
+  { id: 10, title: '사주플랜 공지사항입니다.', isPinned: false, isNew: false, source: '사주플랜', date: '2026.04.23' },
 ]
 
-/* ─────────── 문의하기 (상담사 → 사주문) ─────────── */
+/* ─────────── 문의하기 (상담사 → 사주플랜) ─────────── */
 
 export type CounselorMyQnaCategory = '이용안내' | '상담' | '정산' | '서비스상품'
 export const COUNSELOR_MY_QNA_CATEGORIES: CounselorMyQnaCategory[] = [
@@ -155,7 +156,7 @@ export const COUNSELOR_MY_QNA_CATEGORIES: CounselorMyQnaCategory[] = [
 export type CounselorMyQnaStatus = '답변완료' | '답변대기'
 
 export interface CounselorMyQnaReply {
-  /** 답변자 — 상담사 본인 또는 사주문 운영팀 */
+  /** 답변자 — 상담사 본인 또는 사주플랜 운영팀 */
   author: string
   text: string
   postedAt: string
@@ -197,13 +198,13 @@ export const MOCK_COUNSELOR_MY_QNAS: CounselorMyQna[] = [
     authorName: '콩나물', date: '2026.04.23', postedAt: '2026.04.23 15:00',
     replies: [
       {
-        author: '사주문',
+        author: '사주플랜',
         text:
           '안녕하세요.\n안타깝게도 상담 예약은 불가능한 점 양해부탁드립니다.\n상담을 원하시는 일시에 직접 상담 신청 부탁드립니다.\n감사합니다. :)',
         postedAt: '2026.04.23 20:10',
       },
       {
-        author: '사주문',
+        author: '사주플랜',
         text: '상담을 원하시는 일시를 다시 문의 남겨주시면 해당 시간에 상담 가능하도록 열어두겠습니다. :)',
         postedAt: '2026.04.23 20:10',
       },
@@ -440,7 +441,7 @@ export const MOCK_SERVICE_PRODUCTS: ServiceProduct[] = [
     id: 1,
     bannerImg: '/img/product_banner_lucky.png',
     tagline: '내 인생이 어떻게 될지 궁금하다면?',
-    title: '사주문 - 대운풀이/ 패키지',
+    title: '사주플랜 - 대운풀이/ 패키지',
     counselorName: '사주선녀',
     price: 1200,
     reviewCount: 237,

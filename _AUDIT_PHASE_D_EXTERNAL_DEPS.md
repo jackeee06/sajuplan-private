@@ -54,7 +54,7 @@
 
 ### 4) M2NET addMemberCoin 실패 (잔액 동기화)
 
-**상황**: 사주문 DB 차감 후 m2net 측 잔액 fill 실패.
+**상황**: 사주플랜 DB 차감 후 m2net 측 잔액 fill 실패.
 
 **현재 처리**:
 - 채팅: m2net 이 자체 차감 → fill 호출 안 함 (이중 차감 방지)
@@ -67,8 +67,8 @@
 **상황**: 회원가입 시 `m2net.registerMember` / `registerCounselor` 실패.
 
 **현재 처리**:
-- 회원가입: m2net 등록 실패 시 사주문 가입도 롤백 (회원 row 삭제) → 사용자에게 명확한 에러
-- 상담사 등록: m2net.error 반환 후 사주문 row 는 유지, csrid=NULL. 운영자가 수동 재시도 또는 `linkCounselorToM2net` 호출.
+- 회원가입: m2net 등록 실패 시 사주플랜 가입도 롤백 (회원 row 삭제) → 사용자에게 명확한 에러
+- 상담사 등록: m2net.error 반환 후 사주플랜 row 는 유지, csrid=NULL. 운영자가 수동 재시도 또는 `linkCounselorToM2net` 호출.
 
 ✅ 회원은 안전, 상담사는 운영자 수동 처리 가능.
 
@@ -209,7 +209,7 @@
 
 ### 주간 점검
 
-- M2NET 잔액 ↔ 사주문 DB drift (member별 sample) — `reconcileMemberBalanceFromM2net` 활용
+- M2NET 잔액 ↔ 사주플랜 DB drift (member별 sample) — `reconcileMemberBalanceFromM2net` 활용
 - PG payment.status='pending' 24h+ 누적 row 청소
 
 ---

@@ -5,7 +5,7 @@
 | 환경 | DEPLOY_TARGET | 사용자 도메인 | API 도메인 |
 |---|---|---|---|
 | 개발 (현재) | `dev` (기본) | `sajumoon.kr` | `api.sajumoon.kr` |
-| 실서버 (향후) | `prod` | `sajumoon.co.kr` | `api.sajumoon.co.kr` |
+| 실서버 (향후) | `prod` | `sajuplan.com` | `api.sajuplan.com` |
 
 ## 단일 진실 원천
 
@@ -64,11 +64,11 @@ PG_AUTOPAY_PUSH_URL=https://api.sajumoon.kr/api/pg/charge/autopay-push
 
 1. **PG (AG9/KSP) 가맹점 등록정보 변경 신청** — `PG_RETURN_URL` / `PG_FORMURL` / `PG_VBANK_CALLBACK_URL` 새 도메인으로 PG 측 등록값 교체 (PG 사 통해서만 가능)
 
-2. **DNS / nginx vhost 세팅** — 새 도메인 (sajumoon.co.kr / api.sajumoon.co.kr) DNS A 레코드 + nginx conf 추가
+2. **DNS / nginx vhost 세팅** — 새 도메인 (sajuplan.com / api.sajuplan.com) DNS A 레코드 + nginx conf 추가
 
 3. **deploy.config.sh 의 prod 섹션의 `SSH_HOST` 채우기** — 실서버 IP 결정되면 [deploy.config.sh](./deploy.config.sh) `prod` 블록 수정
 
-4. **새 서버에 .env 세팅** — `/data/wwwroot/api.sajumoon.co.kr/.env` 작성 (위 키들 새 도메인 값으로)
+4. **새 서버에 .env 세팅** — `/data/wwwroot/api.sajuplan.com/.env` 작성 (위 키들 새 도메인 값으로)
 
 5. **DB 세팅** — 새 DB 생성 후 마이그레이션 실행:
    ```bash
@@ -90,7 +90,7 @@ PG_AUTOPAY_PUSH_URL=https://api.sajumoon.kr/api/pg/charge/autopay-push
 
 8. **(기존 회원 데이터 마이그레이션이 필요한 경우만)** — 자동결제 push URL 일괄 갱신:
    ```bash
-   curl -X POST https://api.sajumoon.co.kr/api/admin/payments/sync-autopay-urls \
+   curl -X POST https://api.sajuplan.com/api/admin/payments/sync-autopay-urls \
      -b "admin_cookie=..."
    ```
    (회원 데이터 새로 시작이면 불필요)
@@ -107,4 +107,4 @@ PG_AUTOPAY_PUSH_URL=https://api.sajumoon.kr/api/pg/charge/autopay-push
 
 남은 것:
 - 📝 `*.md` 문서 — 가독성 위해 도메인 명시. 도메인 변경 시 별도 일괄 치환 필요 (코드 동작엔 영향 X)
-- 📝 `api/ecosystem.config.js` — `cwd: '/data/wwwroot/api.sajumoon.kr'` 하드코딩. 실서버는 `api.sajumoon.co.kr` 경로로 별도 ecosystem 또는 deploy 시 sed 치환 필요
+- 📝 `api/ecosystem.config.js` — `cwd: '/data/wwwroot/api.sajumoon.kr'` 하드코딩. 실서버는 `api.sajuplan.com` 경로로 별도 ecosystem 또는 deploy 시 sed 치환 필요

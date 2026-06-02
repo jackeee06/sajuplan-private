@@ -47,10 +47,15 @@ export class SignupDto {
   })
   mb_id?: string;
 
-  // sample 정책: 3~20자
+  // [2026-05-25 정책 강화] 8~20자 + 영문/숫자 혼합 필수
+  //   기존 sample 정책(3~20자) 은 보안 부적합. NIST/OWASP 가이드 준수.
+  //   기존 회원 비번 영향 0 (가입/변경 시점만 검증).
   @IsOptional()
   @IsString()
-  @Length(3, 20)
+  @Length(8, 20, { message: '비밀번호는 8~20자여야 합니다.' })
+  @Matches(/(?=.*[A-Za-z])(?=.*\d)/, {
+    message: '비밀번호는 영문과 숫자를 각각 1개 이상 포함해야 합니다.',
+  })
   password?: string;
 
   // ── 선택 ──

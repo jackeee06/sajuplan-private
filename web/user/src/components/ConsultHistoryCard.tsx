@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom'
+﻿import { Link } from 'react-router-dom'
 import { BADGE_BG } from '../data/counselorDetails'
 import type { ConsultHistoryItem, ConsultType } from '../data/myActivities'
 
@@ -67,7 +67,7 @@ export default function ConsultHistoryCard({ item, type, onDelete }: Props) {
           {counselor.badge}
         </span>
         <span className="text-[15px] font-bold text-[#030712]">{counselor.name}</span>
-        <span className="text-[14px] font-medium text-[#8259F5]">{counselor.code}</span>
+        <span className="text-[14px] font-medium text-[#ec4899]">{counselor.code}</span>
         <button
           type="button"
           onClick={() => onDelete?.(item.id)}
@@ -94,8 +94,8 @@ export default function ConsultHistoryCard({ item, type, onDelete }: Props) {
         <dt className="text-[#6A7282]">완료시간</dt>
         <dd className="text-right text-[#030712]">{endedAt}</dd>
 
-        <dt className="text-[#6A7282]">사용 포인트</dt>
-        <dd className="text-right text-[#8259F5] font-bold">{point.toLocaleString()}P</dd>
+        <dt className="text-[#6A7282]">사용 코인</dt>
+        <dd className="text-right text-[#ec4899] font-bold">{point.toLocaleString()} 코인</dd>
       </dl>
 
       {renderActions()}
@@ -109,7 +109,7 @@ export default function ConsultHistoryCard({ item, type, onDelete }: Props) {
         return (
           <Link
             to={reviewHref}
-            className="mt-3 h-11 rounded-full border border-[#9B7AF7] bg-[#F3EEFE] flex items-center justify-center gap-1 text-[14px] font-medium text-[#8259F5]"
+            className="mt-3 h-11 rounded-full border border-[#f472b6] bg-[#fdf2f8] flex items-center justify-center gap-1 text-[14px] font-medium text-[#ec4899]"
           >
             <PencilIcon />
             작성한 후기 보기
@@ -119,7 +119,7 @@ export default function ConsultHistoryCard({ item, type, onDelete }: Props) {
       return (
         <Link
           to={writeHref}
-          className="mt-3 h-11 rounded-full bg-[#9B7AF7] flex items-center justify-center gap-1 text-[14px] font-medium text-white"
+          className="mt-3 h-11 rounded-full bg-[#f472b6] flex items-center justify-center gap-1 text-[14px] font-medium text-white"
         >
           <PencilIcon stroke="#fff" />
           후기 작성하기
@@ -135,7 +135,7 @@ export default function ConsultHistoryCard({ item, type, onDelete }: Props) {
         <div className="mt-3 flex">
           <Link
             to={`/chat/${item.id}`}
-            className="flex-1 h-11 rounded-full bg-[#9B7AF7] flex items-center justify-center text-[14px] font-medium text-white"
+            className="flex-1 h-11 rounded-full bg-[#f472b6] flex items-center justify-center text-[14px] font-medium text-white"
           >
             채팅방 입장하기
           </Link>
@@ -163,7 +163,7 @@ export default function ConsultHistoryCard({ item, type, onDelete }: Props) {
           {chatBtn}
           <Link
             to={reviewHref}
-            className="flex-1 h-11 rounded-full border border-[#9B7AF7] bg-[#F3EEFE] flex items-center justify-center gap-1 text-[14px] font-medium text-[#8259F5]"
+            className="flex-1 h-11 rounded-full border border-[#f472b6] bg-[#fdf2f8] flex items-center justify-center gap-1 text-[14px] font-medium text-[#ec4899]"
           >
             <PencilIcon />
             작성한 후기 보기
@@ -176,7 +176,7 @@ export default function ConsultHistoryCard({ item, type, onDelete }: Props) {
         {chatBtn}
         <Link
           to={writeHref}
-          className="flex-1 h-11 rounded-full bg-[#9B7AF7] flex items-center justify-center gap-1 text-[14px] font-medium text-white"
+          className="flex-1 h-11 rounded-full bg-[#f472b6] flex items-center justify-center gap-1 text-[14px] font-medium text-white"
         >
           <PencilIcon stroke="#fff" />
           후기 작성하기
@@ -186,7 +186,7 @@ export default function ConsultHistoryCard({ item, type, onDelete }: Props) {
   }
 }
 
-function PencilIcon({ stroke = '#8259F5' }: { stroke?: string }) {
+function PencilIcon({ stroke = '#ec4899' }: { stroke?: string }) {
   return (
     <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" aria-hidden>
       <path d="M3 21l3.5-1L18 8.5 15.5 6 4 17.5 3 21z" stroke={stroke} strokeWidth="1.6" strokeLinejoin="round" />

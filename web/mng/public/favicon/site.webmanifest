@@ -1,6 +1,6 @@
 {
-  "name": "사주문 Admin",
-  "short_name": "사주문",
+  "name": "사주플랜 Admin",
+  "short_name": "사주플랜",
   "icons": [
     {
       "src": "/mng/favicon/android-chrome-192x192.png",

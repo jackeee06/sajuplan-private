@@ -102,12 +102,12 @@ include_once('./_common.php')
 | ~~300830~~ | ~~포인트관리~~ | point_list.php | 주석 | menu350으로 이동 |
 | 300900 | 투표관리 | poll_list.php | ✓ | **컷** (사용 안 함 결정) |
 
-### menu350 (사주문 관리 — **메인 메뉴**) — admin.menu350.php
+### menu350 (사주플랜 관리 — **메인 메뉴**) — admin.menu350.php
 라이브에서 실질적으로 모든 비즈니스가 모인 메뉴. 47줄로 가장 길다.
 
 | 코드 | 항목명 | 링크 | 신규 mng |
 |---|---|---|---|
-| 350000 | 사주문 관리 (그룹 헤더) | counselor_list.php | 그룹 헤더 |
+| 350000 | 사주플랜 관리 (그룹 헤더) | counselor_list.php | 그룹 헤더 |
 | **회원현황** | | | |
 | 350100 | 회원현황 (서브그룹) | member_list_customer.php | 회원현황 그룹 |
 | 350110 | 고객 리스트 | member_list_customer.php | `/members/customers` (구현됨) |
@@ -314,7 +314,7 @@ admin.js (line 84) get_ajax_token()
 → 폐기. React `useState` + 일반 fetch.
 
 #### sample/adm/index.php (대시보드 — 첫 120줄만 확인, 전체 84KB)
-- `$sub_menu = '350000'`로 menu350의 사주문 관리 그룹 활성화
+- `$sub_menu = '350000'`로 menu350의 사주플랜 관리 그룹 활성화
 - `safe_check.php` include + `social_log_file_delete(86400)` 호출 (24시간 전 소셜 로그 삭제)
 - `admin.head_index.php` include (대시보드 전용 헤더)
 - DEBUG 헬퍼: `$IS_DEBUG = $_SERVER['REMOTE_ADDR'] === '115.93.39.5'` (★IP 기반 디버그 모드)

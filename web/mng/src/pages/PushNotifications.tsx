@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Search, Send, Bell, Trash2 } from 'lucide-react'
+import { Search, Send, Bell, Trash2, X, CheckCircle, AlertCircle } from 'lucide-react'
 import { api } from '../lib/api'
+import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Chip } from '../components/table'
 
 interface HistoryRow {
   id: number
@@ -37,13 +38,18 @@ export default function PushNotifications() {
   }, [filter, reload])
 
   return (
-    <div className="space-y-3 max-w-[1100px]">
+    <div className="space-y-3 max-w-[1500px]">
       <div className="flex items-center gap-2">
         <Bell className="w-5 h-5 text-brand-600" />
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">푸시 알림</h1>
+        <span className="text-xs text-gray-500">— 발송 (좌측) + 내역 (우측)</span>
       </div>
 
-      {/* ─── 발송 이력 ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+      {/* ─── 좌: 발송 폼 ─── */}
+      <Compose onSent={() => setReload((r) => r + 1)} />
+
+      {/* ─── 우: 발송 이력 ─── */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">푸시알림 내역</h2>
@@ -79,17 +85,12 @@ export default function PushNotifications() {
             { v: '일반회원', label: '일반회원' },
             { v: '상담사', label: '상담사' },
           ] as const).map((c) => (
-            <button
+            <Chip
               key={c.v}
+              label={c.label}
+              active={filter.category === c.v}
               onClick={() => setFilter((f) => ({ ...f, category: c.v as CategoryFilter, page: 1 }))}
-              className={`px-3 py-1 text-xs rounded-full border transition ${
-                filter.category === c.v
-                  ? 'bg-brand-600 text-white border-brand-600'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
-              }`}
-            >
-              {c.label}
-            </button>
+            />
           ))}
         </div>
 
@@ -119,66 +120,137 @@ export default function PushNotifications() {
         </div>
 
         {/* 표 */}
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
-          <div className="overflow-x-auto">
-            <table className="text-sm w-auto">
-              <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
-                <tr>
-                  <th className="px-3 py-1.5 text-left font-medium">일시</th>
-                  <th className="px-3 py-1.5 text-left font-medium">분류</th>
-                  <th className="px-3 py-1.5 text-left font-medium">제목</th>
-                  <th className="px-3 py-1.5 text-left font-medium">아이디</th>
-                  <th className="px-3 py-1.5 text-left font-medium">URL</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {loading && !data ? (
-                  <tr><td colSpan={5} className="px-3 py-3 text-xs text-gray-400">로딩…</td></tr>
-                ) : !data || data.items.length === 0 ? (
-                  <tr><td colSpan={5} className="px-3 py-3 text-xs text-gray-400">발송 내역이 없습니다.</td></tr>
-                ) : data.items.map((h) => (
-                  <tr key={h.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
-                    <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap tabular-nums">{formatDT(h.created_at)}</td>
-                    <td className="px-3 py-1.5 text-xs text-gray-600 whitespace-nowrap">{h.category ?? <span className="text-gray-300">—</span>}</td>
-                    <td className="px-3 py-1.5 text-xs font-medium text-gray-800 dark:text-gray-100">{h.title}</td>
-                    <td className="px-3 py-1.5 text-xs text-gray-500">{h.mb_id ?? <span className="text-gray-300">—</span>}</td>
-                    <td className="px-3 py-1.5 text-xs text-brand-600 max-w-[280px] truncate">
-                      {h.link_url ? <a href={h.link_url} target="_blank" rel="noreferrer" className="hover:underline">{h.link_url}</a> : <span className="text-gray-300">—</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <TableShell>
+          <THead>
+            <Th align="left">일시</Th>
+            <Th align="left">분류</Th>
+            <Th align="left">제목</Th>
+            <Th align="left">아이디</Th>
+            <Th align="left">URL</Th>
+          </THead>
+          <TBody>
+            {loading && !data ? (
+              <EmptyRow colSpan={5} loading />
+            ) : !data || data.items.length === 0 ? (
+              <EmptyRow colSpan={5} />
+            ) : data.items.map((h) => (
+              <Tr key={h.id}>
+                <Td align="left" className="text-xs text-gray-500 tabular-nums">{formatDT(h.created_at)}</Td>
+                <Td align="left" className="text-xs text-gray-600">{h.category ?? <span className="text-gray-300">—</span>}</Td>
+                <Td align="left" className="text-xs font-medium">{h.title}</Td>
+                <Td align="left" className="text-xs text-gray-500">{h.mb_id ?? <span className="text-gray-300">—</span>}</Td>
+                <Td align="left" className="text-xs text-brand-600 max-w-[280px] truncate">
+                  {h.link_url ? <a href={h.link_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="hover:underline">{h.link_url}</a> : <span className="text-gray-300">—</span>}
+                </Td>
+              </Tr>
+            ))}
+          </TBody>
+        </TableShell>
       </section>
-
-      {/* ─── 푸시 알림 입력 ─── */}
-      <Compose onSent={() => setReload((r) => r + 1)} />
+      </div>
     </div>
   )
 }
 
 // ─── 발송 폼 ────────────────────────────────────
+type TargetKind = 'all' | 'user' | 'counselor' | 'member'
+
+interface MemberMini {
+  id: number
+  mb_id: string
+  name: string
+  nickname: string | null
+  role: string
+}
+
+const TARGET_GUIDE: Record<TargetKind, { icon: string; label: string; desc: string }> = {
+  all:       { icon: '👥', label: '전체공지', desc: '앱을 설치한 모든 사용자에게 발송' },
+  user:      { icon: '🧑', label: '일반회원', desc: '회원가입한 일반 사용자에게 발송' },
+  counselor: { icon: '👨‍🏫', label: '상담사',   desc: '등록된 모든 상담사에게 발송' },
+  member:    { icon: '👤', label: '개별회원', desc: '특정 회원 1명에게만 발송 (이름/닉네임/mb_id 로 검색)' },
+}
+
 function Compose({ onSent }: { onSent: () => void }) {
-  const [target, setTarget] = useState<'all' | 'user' | 'counselor'>('all')
+  const [target, setTarget] = useState<TargetKind>('all')
+  const [memberId, setMemberId] = useState('')
+  const [memberLabel, setMemberLabel] = useState('')
+  const [searchQ, setSearchQ] = useState('')
+  const [searchResults, setSearchResults] = useState<MemberMini[]>([])
+  const [searching, setSearching] = useState(false)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
   const [sending, setSending] = useState(false)
-  const [result, setResult] = useState<{ ok: boolean; recipients?: number; pushed?: { success: number; failure: number; error?: string }; error?: string } | null>(null)
+  const [result, setResult] = useState<{ ok: boolean; recipients?: number; pushed?: { success: number; failure: number; error?: string }; error?: string; at?: Date } | null>(null)
+
+  // 회원 검색 (debounce 400ms)
+  useEffect(() => {
+    if (target !== 'member' || memberId) {
+      setSearchResults([])
+      return
+    }
+    const q = searchQ.trim()
+    if (q.length < 2) {
+      setSearchResults([])
+      return
+    }
+    const t = setTimeout(async () => {
+      setSearching(true)
+      try {
+        // /admin/members?q= 사용 — role 무관 전체 회원 (상담사 포함) 검색.
+        //   "상담사도 회원이다" 본질 반영 — 사장님 (상담사) 본인도 검색 결과에 나옴.
+        const qs = new URLSearchParams({ q, limit: '10' })
+        const r = await api<{ items?: MemberMini[] }>(`/admin/members?${qs}`)
+        setSearchResults((r.items ?? []) as MemberMini[])
+      } catch {
+        setSearchResults([])
+      } finally {
+        setSearching(false)
+      }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [searchQ, target, memberId])
+
+  const onSelectMember = (m: MemberMini) => {
+    setMemberId(String(m.id))
+    setMemberLabel(`${m.nickname || m.name} (${m.mb_id}, #${m.id}, ${m.role === 'counselor' ? '상담사' : '회원'})`)
+    setSearchQ('')
+    setSearchResults([])
+  }
 
   const onSend = async () => {
     setResult(null)
-    if (!title.trim()) return setResult({ ok: false, error: '알림 내용을 입력하세요.' })
-    if (!window.confirm(`${labelFor(target)} 대상으로 발송하시겠습니까?`)) return
+    if (!title.trim()) return setResult({ ok: false, error: '알림내용을 입력하세요.' })
+
+    let effectiveTarget = target as string
+    let confirmLabel: string = TARGET_GUIDE[target].label
+    if (target === 'member') {
+      if (!/^\d+$/.test(memberId)) return setResult({ ok: false, error: '회원을 검색하여 선택하세요.' })
+      effectiveTarget = memberId
+      confirmLabel = memberLabel || `개별회원 (ID=${memberId})`
+    }
+
+    // 확인 다이얼로그 강화 — 미리보기 + 대상명 + 경고
+    const lines = [
+      `📨 푸시 알림 발송 확인`,
+      ``,
+      `대상: ${confirmLabel}`,
+      `제목: ${title}`,
+    ]
+    if (content) lines.push(`본문: ${content.slice(0, 80)}${content.length > 80 ? '...' : ''}`)
+    if (linkUrl) lines.push(`링크: ${linkUrl}`)
+    lines.push('', '⚠️ 발송 후 취소 불가능합니다.', '정말 발송하시겠습니까?')
+    if (!window.confirm(lines.join('\n'))) return
+
     setSending(true)
     try {
+      // url 자동 정규화 — 사용자가 'www.example.com' 같이 스킴 없이 입력해도 'https://' 자동 prepend
+      const normalizedLink = normalizeLinkUrl(linkUrl)
       const res = await api<{ ok: boolean; recipients: number; pushed: { success: number; failure: number; error?: string } }>(
         '/admin/notifications/push-send',
-        { method: 'POST', body: JSON.stringify({ target, title, content, link_url: linkUrl }) },
+        { method: 'POST', body: JSON.stringify({ target: effectiveTarget, title, content, link_url: normalizedLink }) },
       )
-      setResult({ ok: true, recipients: res.recipients, pushed: res.pushed })
+      setResult({ ok: true, recipients: res.recipients, pushed: res.pushed, at: new Date() })
       setTitle(''); setContent(''); setLinkUrl('')
       onSent()
     } catch (e) {
@@ -188,17 +260,21 @@ function Compose({ onSent }: { onSent: () => void }) {
     }
   }
 
+  const guide = TARGET_GUIDE[target]
+
   return (
-    <section className="space-y-2 pt-3 border-t border-gray-200 dark:border-gray-700">
+    <section className="space-y-2">
       <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">푸시 알림 입력</h2>
 
-      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 rounded-xl p-3 text-xs w-fit max-w-full">
+      {/* 가이드 박스 */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 rounded-xl p-3 text-xs">
         <div className="flex items-start justify-between gap-3">
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 flex-1 min-w-0">
             <div className="font-semibold flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> 푸시알림 전송방법</div>
-            <div><b>Step 1. 알림내용</b> : 고객에게 전달할 뉴스 또는 이벤트 내용을 입력합니다.</div>
-            <div><b>Step 2. 주소</b> : 공지사항에 전달하실 내용의 글을 쓰고 해당 게시물의 URL을 "주소" 항목에 붙여넣기 하시면 됩니다.</div>
-            <div><b>Step 3. 전송</b> : 알림내용과 주소항목을 입력한 후 하단 [푸시알림 보내기] 클릭하시면 선택한 대상에게 전송됩니다.</div>
+            <div><b>1.</b> 발송 대상 (구분) 을 선택합니다.</div>
+            <div><b>2.</b> 알림내용 (제목) 과 본문을 입력합니다.</div>
+            <div><b>3.</b> 주소: 공지사항 URL 또는 외부 사이트 URL (선택)</div>
+            <div><b>4.</b> [푸시알림 보내기] 클릭 → 확인 → 발송</div>
           </div>
           <a
             href="/mng/notices/new"
@@ -211,83 +287,211 @@ function Compose({ onSent }: { onSent: () => void }) {
         </div>
       </div>
 
-      {/* 입력 폼 — 좌측 라벨 + 좁은 input 폭 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-2 max-w-[800px]">
-        <div className="flex items-center gap-3">
-          <label className="text-[11px] font-medium text-gray-500 w-20">구분 <span className="text-rose-500">*</span></label>
-          <select value={target} onChange={(e) => setTarget(e.target.value as 'all' | 'user' | 'counselor')} className={`${cls} w-40`}>
-            <option value="all">전체공지</option>
-            <option value="user">일반회원</option>
-            <option value="counselor">상담사</option>
-          </select>
+      {/* 입력 폼 */}
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-3">
+        {/* 구분 — 토글 칩 4개 */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-medium text-gray-500">발송 대상 (구분) <span className="text-rose-500">*</span></label>
+          <div className="flex flex-wrap gap-1.5">
+            {(Object.keys(TARGET_GUIDE) as TargetKind[]).map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  setTarget(t)
+                  if (t !== 'member') {
+                    setMemberId(''); setMemberLabel(''); setSearchQ(''); setSearchResults([])
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${
+                  target === t
+                    ? 'bg-brand-50 dark:bg-brand-900/30 border-brand-400 dark:border-brand-600 text-brand-700 dark:text-brand-300'
+                    : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                {TARGET_GUIDE[t].icon} {TARGET_GUIDE[t].label}
+              </button>
+            ))}
+          </div>
+          <div className="text-[11.5px] text-gray-600 dark:text-gray-400 flex items-center gap-1 pt-0.5">
+            <span className="text-base leading-none">{guide.icon}</span>
+            <span>{guide.desc}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="text-[11px] font-medium text-gray-500 w-20">알림내용 <span className="text-rose-500">*</span></label>
+
+        {/* 개별회원 — 검색 박스 */}
+        {target === 'member' && (
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-gray-500">회원 검색 <span className="text-rose-500">*</span></label>
+            {memberId ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-md">
+                <span className="text-sm font-medium text-brand-700 dark:text-brand-300 flex-1 min-w-0 truncate">✓ {memberLabel}</span>
+                <button
+                  type="button"
+                  onClick={() => { setMemberId(''); setMemberLabel(''); setSearchQ('') }}
+                  className="text-xs text-rose-600 hover:underline shrink-0"
+                >
+                  변경
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQ}
+                  onChange={(e) => setSearchQ(e.target.value)}
+                  placeholder="이름, 닉네임, 아이디로 검색 (2자 이상)"
+                  className={`${cls} w-full`}
+                />
+                {searching && <div className="text-[10.5px] text-gray-400 mt-1">검색 중…</div>}
+                {!searching && searchQ.trim().length >= 2 && searchResults.length === 0 && (
+                  <div className="text-[10.5px] text-gray-400 mt-1">일치하는 회원 없음</div>
+                )}
+                {searchResults.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full max-h-60 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg">
+                    {searchResults.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => onSelectMember(m)}
+                        className="w-full text-left px-3 py-2 hover:bg-brand-50 dark:hover:bg-brand-900/30 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                      >
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {m.nickname || m.name}
+                          <span className="ml-1.5 text-[10px] font-normal text-gray-400">
+                            {m.role === 'counselor' ? '상담사' : '회원'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-gray-500">{m.mb_id} · #{m.id}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 알림내용 */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-medium text-gray-500">
+            알림내용 (제목) <span className="text-rose-500">*</span>
+            <span className="ml-2 text-gray-400">{title.length}/60</span>
+          </label>
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             maxLength={60}
-            placeholder="푸시알림 제목"
-            className={`${cls} flex-1 max-w-md`}
+            placeholder="예: 사주플랜 신규 이벤트 안내"
+            className={`${cls} w-full`}
           />
         </div>
-        <div className="flex items-start gap-3">
-          <label className="text-[11px] font-medium text-gray-500 w-20 pt-2">본문</label>
+
+        {/* 본문 */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-medium text-gray-500">
+            본문 (선택)
+            <span className="ml-2 text-gray-400">{content.length}/200</span>
+          </label>
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             rows={2}
             maxLength={200}
-            placeholder="알림 본문 (선택)"
-            className={`${cls} flex-1 max-w-md`}
+            placeholder="알림 미리보기에 표시될 짧은 본문"
+            className={`${cls} w-full`}
           />
         </div>
-        <div className="flex items-center gap-3">
-          <label className="text-[11px] font-medium text-gray-500 w-20">주소</label>
+
+        {/* 주소 */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-medium text-gray-500">
+            주소 (선택) — 클릭 시 이동할 페이지
+          </label>
           <input
-            type="url"
+            type="text"
             value={linkUrl}
             onChange={(e) => setLinkUrl(e.target.value)}
-            placeholder="전송할 게시물 URL"
-            className={`${cls} flex-1 max-w-md font-mono text-xs`}
+            placeholder="예: /notices/123 (앱 내) 또는 https://example.com 또는 www.example.com (외부)"
+            className={`${cls} w-full font-mono text-xs`}
           />
+          {linkUrl && (
+            <div className="text-[10.5px] text-gray-500">
+              실제 발송 URL: <code className="text-blue-700 dark:text-blue-300">{normalizeLinkUrl(linkUrl)}</code>
+            </div>
+          )}
+        </div>
+
+        {/* 발송 버튼 */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={onSend}
+            disabled={sending || !title.trim() || (target === 'member' && !memberId)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Send className="w-4 h-4" />
+            {sending ? '발송 중…' : '푸시알림 보내기'}
+          </button>
         </div>
       </div>
 
+      {/* 결과 카드 */}
       {result && (
-        <div className={`p-3 rounded-lg text-sm w-fit max-w-full ${
-          result.ok ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                    : 'bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
-        }`}>
-          {result.ok ? (
-            <>
-              발송 완료 — 대상 {result.recipients}명에 큐 등록 / FCM 발송 성공 {result.pushed?.success ?? 0}건, 실패 {result.pushed?.failure ?? 0}건
-              {result.pushed?.error && <span className="block text-xs text-amber-700 mt-1">⚠ {result.pushed.error}</span>}
-            </>
-          ) : `발송 실패: ${result.error}`}
-        </div>
+        result.ok ? (
+          <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-semibold text-sm">
+              <CheckCircle className="w-4 h-4" /> 발송 완료
+            </div>
+            <div className="text-[13px] text-gray-700 dark:text-gray-200 flex flex-wrap gap-x-3 gap-y-0.5">
+              <span>대상 <span className="font-semibold tabular-nums">{result.recipients ?? 0}</span>명</span>
+              <span className="text-emerald-700 dark:text-emerald-300">
+                성공 <span className="font-semibold tabular-nums">{result.pushed?.success ?? 0}</span>건
+              </span>
+              {(result.pushed?.failure ?? 0) > 0 && (
+                <span className="text-rose-600 dark:text-rose-400">
+                  실패 <span className="font-semibold tabular-nums">{result.pushed?.failure}</span>건
+                </span>
+              )}
+              {result.at && <span className="text-gray-400 text-xs">{result.at.toLocaleTimeString()}</span>}
+            </div>
+            {result.pushed?.error && (
+              <div className="text-[11.5px] text-amber-700 dark:text-amber-300">⚠ {result.pushed.error}</div>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-900/20 p-3 flex items-start gap-1.5">
+            <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
+            <div className="text-sm text-rose-700 dark:text-rose-300">
+              <div className="font-semibold">발송 실패</div>
+              <div className="text-[12.5px]">{result.error}</div>
+            </div>
+          </div>
+        )
       )}
-
-      <div>
-        <button
-          onClick={onSend}
-          disabled={sending || !title.trim()}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50"
-        >
-          <Send className="w-4 h-4" />
-          {sending ? '발송 중…' : '푸시알림 보내기'}
-        </button>
-      </div>
     </section>
   )
 }
 
-function labelFor(t: 'all' | 'user' | 'counselor'): string {
-  return t === 'all' ? '전체공지' : t === 'user' ? '일반회원' : '상담사'
-}
-
 const cls = 'px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
+
+/**
+ * 푸시 link_url 정규화 — 사용자 친화 자동 처리.
+ *   - 빈 값 → 빈 문자열
+ *   - http(s):// 이미 있음 → 그대로
+ *   - '/' 로 시작 → 내부 path (그대로, 앱이 webUrl 기준으로 처리)
+ *   - 도메인 패턴 (점 포함, 'www.foo.com' 또는 'foo.com') → 'https://' prepend → 외부 URL
+ *   - 그 외 → 그대로 (백엔드/앱 측에서 추가 처리)
+ */
+function normalizeLinkUrl(raw: string): string {
+  const s = (raw || '').trim()
+  if (!s) return ''
+  if (/^https?:\/\//i.test(s)) return s
+  if (s.startsWith('/')) return s
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)+(\/|$)/i.test(s)) return `https://${s}`
+  return s
+}
 
 function formatDT(s: string): string {
   if (!s) return '-'

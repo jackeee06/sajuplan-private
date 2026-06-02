@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -104,7 +104,7 @@ export default function CounselorMyCustomerQnas() {
           <p className="pt-24 text-center text-[14px] text-[#E84263]">{error}</p>
         ) : items.length === 0 ? (
           <div className="pt-24 flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-[#F3EEFE] flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-[#f3f0ff] flex items-center justify-center">
               <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" aria-hidden>
                 <path
                   d="M21 11.5C21 16.7467 16.9706 21 12 21C10.4 21 8.9 20.55 7.6 19.85L3 21L4.18 16.5C3.42 15.05 3 13.32 3 11.5C3 6.25 7.03 2 12 2C16.97 2 21 6.25 21 11.5Z"
@@ -126,7 +126,7 @@ export default function CounselorMyCustomerQnas() {
                     <span
                       className={`inline-flex items-center h-[22px] px-2 rounded-full text-[12px] leading-none font-medium ${
                         q.status === '답변완료'
-                          ? 'bg-[#F3EEFE] text-[#8259F5]'
+                          ? 'bg-[#f3f0ff] text-[#8259F5]'
                           : 'bg-[#F3F4F6] text-[#6A7282]'
                       }`}
                     >

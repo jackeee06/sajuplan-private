@@ -3,7 +3,7 @@
  * .env 에 도메인을 직접 적지 않는다. localhost 는 어디서도 fallback 으로 쓰지 않는다.
  *
  *   SAJUMOON_ENV=test → sajumoon.kr        (테스트 서버, 현재 동작 환경)
- *   SAJUMOON_ENV=prod → sajumoon.co.kr     (운영 서버)
+ *   SAJUMOON_ENV=prod → sajuplan.com       (운영 서버, 신규 브랜드 도메인)
  *
  * 코드에서 도메인이 필요한 모든 지점은 runtimeEnv() 의 결과를 쓴다.
  */
@@ -11,8 +11,8 @@ export type SajumoonEnv = 'test' | 'prod';
 
 export interface RuntimeEnv {
   env: SajumoonEnv;
-  userDomain: string;        // sajumoon.kr        | sajumoon.co.kr
-  apiDomain: string;         // api.sajumoon.kr    | api.sajumoon.co.kr
+  userDomain: string;        // sajumoon.kr        | sajuplan.com
+  apiDomain: string;         // api.sajumoon.kr    | api.sajuplan.com
   userSiteUrl: string;       // https://{userDomain}
   apiPublicUrl: string;      // https://{apiDomain}
   corsOrigins: string[];     // [userSiteUrl]
@@ -24,9 +24,10 @@ export interface RuntimeEnv {
   pgAutopayPushUrl: string;  // https://{apiDomain}/api/pg/charge/autopay-push
 }
 
-const MAP: Record<SajumoonEnv, { userDomain: string; apiDomain: string }> = {
-  test: { userDomain: 'sajumoon.kr',    apiDomain: 'api.sajumoon.kr' },
-  prod: { userDomain: 'sajumoon.co.kr', apiDomain: 'api.sajumoon.co.kr' },
+const MAP: Record<SajumoonEnv, { userDomain: string; apiDomain: string; legacyUserDomains?: string[] }> = {
+  test: { userDomain: 'sajumoon.kr',  apiDomain: 'api.sajumoon.kr' },
+  prod: { userDomain: 'sajuplan.com', apiDomain: 'api.sajuplan.com',
+          legacyUserDomains: ['sajumoon.co.kr'] },
 };
 
 let cached: RuntimeEnv | null = null;
@@ -42,9 +43,10 @@ export function runtimeEnv(): RuntimeEnv {
     );
   }
   const env = raw as SajumoonEnv;
-  const { userDomain, apiDomain } = MAP[env];
+  const { userDomain, apiDomain, legacyUserDomains = [] } = MAP[env];
   const userSiteUrl = `https://${userDomain}`;
   const apiPublicUrl = `https://${apiDomain}`;
+  const legacyOrigins = legacyUserDomains.map(d => `https://${d}`);
 
   cached = {
     env,
@@ -52,7 +54,7 @@ export function runtimeEnv(): RuntimeEnv {
     apiDomain,
     userSiteUrl,
     apiPublicUrl,
-    corsOrigins: [userSiteUrl],
+    corsOrigins: [userSiteUrl, ...legacyOrigins],
     cookieSecure: true,
     pgReturnUrl: `${apiPublicUrl}/api/pg/charge/callback`,
     // PG formurl 은 백엔드로 받아야 한다 (nginx 정적 SPA 에 POST 가면 405 Not Allowed).

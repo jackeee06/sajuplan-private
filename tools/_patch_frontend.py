@@ -6,7 +6,7 @@
 
 원격 경로:
   user: /data/wwwroot/sajumoon.kr (test) / /data/wwwroot/sajumoon.co.kr (prod)
-  mng:  /data/wwwroot/mng.sajumoon.kr / /data/wwwroot/mng.sajumoon.co.kr
+  mng:  /data/wwwroot/mng.sajumoon.kr / /data/wwwroot/mng.sajuplan.com
 
 전략:
   1. 로컬 dist/ 를 tar.gz 으로 묶기

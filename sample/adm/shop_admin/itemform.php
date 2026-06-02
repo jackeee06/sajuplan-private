@@ -229,9 +229,9 @@ if(!sql_query(" select it_skin from {$g5['g5_shop_item_table']} limit 1", false)
             
             <span style=" display:block; margin-top:5px;">
             예시)
-            2차분류: 기도 / 3차분류: 기도>사주문 => O<br />
+            2차분류: 기도 / 3차분류: 기도>사주플랜 => O<br />
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            2차분류: 기도 / 3차분류: 부적>사주문 => X<br />
+            2차분류: 기도 / 3차분류: 부적>사주플랜 => X<br />
             </span>
             
         </p>

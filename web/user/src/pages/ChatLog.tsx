@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, chatApi, type ChatMessage, type ChatRoomDetail } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
@@ -115,7 +115,7 @@ export default function ChatLog() {
     : room?.counselor_nickname ?? room?.counselor_name ?? '상담사'
 
   return (
-    <div className="mobile-frame flex flex-col h-screen bg-[#F3EEFE]">
+    <div className="mobile-frame flex flex-col h-screen bg-[#fdf2f8]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-white">
         <button
           type="button"
@@ -127,7 +127,7 @@ export default function ChatLog() {
         </button>
         <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712] flex items-center gap-1.5">
           <span>{headerName}</span>
-          <span className="text-[14px] font-medium text-[#8259F5]">채팅 내역</span>
+          <span className="text-[14px] font-medium text-[#ec4899]">채팅 내역</span>
         </h1>
       </header>
 
@@ -211,7 +211,7 @@ function MessageItem({ message: m }: { message: DisplayMessage & { sender?: { na
       {m.time && (
         <span className="text-[14px] leading-[110%] text-[#99A1AF] mb-1">{m.time}</span>
       )}
-      <div className="bg-[#9B7AF7] rounded-[16px] px-4 py-3 max-w-[70%]">
+      <div className="bg-[#f472b6] rounded-[16px] px-4 py-3 max-w-[70%]">
         <MessageBody m={m} mine={true} />
       </div>
     </div>

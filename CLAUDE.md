@@ -1,6 +1,64 @@
-# 사주문(SAJUMOON) — Claude 작업 지침
+# 사주플랜(SAJUMOON) — Claude 작업 지침
 
 퍼블리싱 작업 전 `publishing_guide.md`를 반드시 읽는다. 상세 규칙은 해당 파일 기준.
+
+## 💰 돈 관련 용어 사전 (사용자 화면 통일 정책 — 2026-05-25)
+
+사주플랜은 **두 가지 단어만** 사용. 다른 표현은 헷갈림.
+
+### 사용자(소비자) 영역 — "코인" 으로 통일
+- ✓ 코인 / 보유 코인 / 충전 코인 / 사용 코인 / 코인 내역 / 코인 충전
+- ✗ "포인트", "P" 단위, "소비포인트", "충전 포인트" — **사용 금지**
+- 단위 표기: `30,000 코인` (예: "+30,000 코인", "10,000 코인 사용")
+
+### 상담사 영역 — "수익금" 으로 통일 (단일 단어)
+- ✓ **수익금** / 수익금 내역 / 누적 수익금 / 수익금 정산
+- ✗ "수익 포인트", "earning point", **"수익 내역"(애매)**, "수익" 단독 — **사용 금지**
+- 메뉴/탭 라벨도 무조건 `수익금` 으로 시작 (`수익금 내역`, `수익금 정산`)
+- 단위 표기: `1,000,000원` (정산은 통장 입금이므로 원 단위)
+
+### 관리자/시뮬레이터 — 회계 표준 유지
+- 매출 / 영업이익 / 영업이익률 / 상담마진 / 회사몫
+- 일반 사용자엔 안 보이는 별도 영역
+
+### DB / 코드 (변경 X)
+- `member.point`, `point.free_balance`, `point.paid_balance`, `point.earning_balance` 등 컬럼명은 **그대로 유지**
+- API 응답 필드명도 그대로 (코드 호환 + 외부 시스템)
+- UI 라벨에서만 새 용어 매핑
+
+### 단계별 마이그레이션 상태
+- ✓ Phase 1: 사용자 화면 UI 라벨 변경 (2026-05-25)
+- ⏳ Phase 2: 알림톡 BizM 템플릿 + 영수증 PG 협의 (예정)
+- ⏳ Phase 3: 추천인 보상 정책 재검토 (선택)
+
+## ⚠️ 도메인 매핑 (중요 — 끊지 말 것)
+
+사주플랜은 **2개 환경** 으로 운영. 각각 별도 서버 + 별도 도메인:
+
+| 환경 | 사용자 도메인 | API 도메인 | 서버 | 용도 |
+|---|---|---|---|---|
+| **PROD** | `sajuplan.com` | `api.sajuplan.com` | 104.64.128.103 | **실제 사용자 운영** |
+| **PROD (legacy)** | `sajumoon.co.kr` | `api.sajumoon.co.kr` | 104.64.128.103 (동일 서버) | 옛 브랜드 도메인 — prod 와 같은 wwwroot 서빙 |
+| **TEST** | `sajumoon.kr` | `api.sajumoon.kr` | 172.235.211.75 | **개발/QA/배포 검증** |
+
+### sajumoon.kr 가 살아있어야 하는 이유 (끊으면 안 되는 이유)
+
+- **TEST 환경 자체** — 모든 신규 기능은 sajumoon.kr 에서 먼저 검증 후 prod 배포
+- 코드에 환경 분기 (`api/src/shared/env/runtime-env.ts` 의 MAP) 가 sajumoon.kr 를 TEST 매핑으로 사용
+- `deploy.config.sh` 의 test 분기가 sajumoon.kr 도메인 사용
+- 외부 서비스 등록(m2net push URL 등) 이 sajumoon.kr 를 TEST 환경으로 가리키고 있을 가능성 → 끊으면 결제·정산 push 실패 위험
+
+### 미래 정리 계획 (현재는 보류)
+
+장기적으로 TEST 환경을 `test.sajuplan.com` 같은 sajuplan 하위 도메인으로 마이그레이션 검토 가능. 단, 다음이 모두 갱신 필요:
+- DNS A 레코드 + SSL 인증서 (Let's Encrypt 등)
+- m2net 가맹점 등록 URL
+- 카카오/네이버 OAuth redirect URI 화이트리스트
+- 알리고/BizM (SMS·알림톡) 발신자 도메인 인증
+- `runtime-env.ts` MAP 수정 + 재빌드/재배포
+- 운영 스크립트 (`tools/_*.py`) 다수의 도메인 참조
+
+**현재 단계**: 코드 구조는 깔끔하니 도메인 정리는 정식 운영 + m2net 협의 완료 후 검토.
 
 ## 디자인 충실도 (최우선 규칙)
 
@@ -12,7 +70,7 @@
 
 ## 프로젝트 정보
 
-- Figma: https://www.figma.com/design/v9JT0ZgilboPxdXAnpH4sS/사주문_디자인
+- Figma: https://www.figma.com/design/v9JT0ZgilboPxdXAnpH4sS/사주플랜_디자인
 - 컬러 정의: `node-id=91-6911`
 - 컴포넌트: 버튼 `node-id=6-2225` / 인풋 `node-id=12-1983` / 탭 `node-id=79-4139`
 - 작업 폴더: `design/`
@@ -84,16 +142,16 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 
 | 컴포넌트 | 비활성 (off) | 활성 (on / selected / checked) |
 |---|---|---|
-| `filter_select` 칩 (분야/스타일/성별) | bg `#F9FAFB` · border `#F3F4F6` · text `#6A7282` | bg `#F3EEFE` · border `#9B7AF7` · text `#8259F5` |
-| `filter_chip` (#연애/#재물 등) | bg `transparent` · text `#99A1AF` | bg `#F3EEFE` · text `#8259F5` |
-| `main_tab01` (전체/사주/타로/신점) | text `#6A7282` | text `#8259F5` (밑줄 옵션) |
-| `pill_tab` / `toggle_tab` | bg `#F9FAFB` · text `#6A7282` | bg `#8259F5` · text white |
-| `like_btn_icon` (단골 하트) | `like_btn_icon_off.svg` | `like_btn_icon_on.svg` (보라 fill) |
-| 페이지네이션 숫자 | radius 6 · text `#252B36` | radius 50 · bg `#9B7AF7` · text white |
-| 체크박스 (`input[type=checkbox]`) | bg `#F9FAFB` · border `#F3F4F6` · radius 6 | bg `#9B7AF7` · 흰색 체크 (글로벌 css에 정의됨) |
-| 셀렉트 화살표 | stroke `#6A7282` | stroke `#8259F5` (선택값 있을 때) |
+| `filter_select` 칩 (분야/스타일/성별) | bg `#F9FAFB` · border `#F3F4F6` · text `#6A7282` | bg `#fdf2f8` · border `#f472b6` · text `#ec4899` |
+| `filter_chip` (#연애/#재물 등) | bg `transparent` · text `#99A1AF` | bg `#fdf2f8` · text `#ec4899` |
+| `main_tab01` (전체/사주/타로/신점) | text `#6A7282` | text `#ec4899` (밑줄 옵션) |
+| `pill_tab` / `toggle_tab` | bg `#F9FAFB` · text `#6A7282` | bg `#ec4899` · text white |
+| `like_btn_icon` (단골 하트) | `like_btn_icon_off.svg` | `like_btn_icon_on.svg` (핑크 fill) |
+| 페이지네이션 숫자 | radius 6 · text `#252B36` | radius 50 · bg `#f472b6` · text white |
+| 체크박스 (`input[type=checkbox]`) | bg `#F9FAFB` · border `#F3F4F6` · radius 6 | bg `#f472b6` · 흰색 체크 (글로벌 css에 정의됨) |
+| 셀렉트 화살표 | stroke `#6A7282` | stroke `#ec4899` (선택값 있을 때) |
 
-> **연보라 강조색 `#F3EEFE`** 는 모든 활성 칩/리스트 옵션 hover/선택의 표준 톤이다. 새 인터랙션 추가 시 이 색을 재사용한다.
+> **연핑크 강조색 `#fdf2f8`** 는 모든 활성 칩/리스트 옵션 hover/선택의 표준 톤이다. 새 인터랙션 추가 시 이 색을 재사용한다.
 
 ### `FilterDropdown` (분야·스타일·성별 칩)
 
@@ -105,7 +163,7 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 2. **외부 클릭 / Esc** — 패널이 닫힌다.
 3. **옵션 선택** — `value`가 세팅되며 패널 자동 닫힘. 칩이 활성 스타일로 전환된다.
 4. **"전체" 옵션** — 첫 항목으로 노출되며 클릭 시 `value=null` (해제 → 비활성).
-5. **선택된 옵션 시각화** — 패널 내 해당 옵션 row에 `bg #F3EEFE` + `text #8259F5` + `font-medium` 적용.
+5. **선택된 옵션 시각화** — 패널 내 해당 옵션 row에 `bg #fdf2f8` + `text #ec4899` + `font-medium` 적용.
 6. **드롭다운 펼침 시 화살표 회전** — `rotate-180` 트랜지션.
 7. **상태가 바뀌면 페이지네이션을 1페이지로 리셋** (호출처에서 `resetPage()`).
 
@@ -121,14 +179,14 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 
 위치: [`web/user/src/components/Pagination.tsx`](web/user/src/components/Pagination.tsx)
 - 1~5 숫자 노출이 기본. `totalPages=1`이면 활성 1만, prev/next는 disabled (opacity 0.4).
-- 활성 숫자는 32×32 원형 (`radius:50`) `#9B7AF7` bg + 흰색 텍스트.
+- 활성 숫자는 32×32 원형 (`radius:50`) `#f472b6` bg + 흰색 텍스트.
 - 비활성 숫자는 32×32 정사각형 (`radius:6`) text `#252B36`.
 - 폰트: 15px/150% Pretendard, `font-variant-numeric: lining-nums tabular-nums`.
 
 ### CounselorCard 뱃지 컬러
 
 위치: [`web/user/src/components/CounselorCard.tsx`](web/user/src/components/CounselorCard.tsx)
-- `타로` → `#8259F5` (보라)
+- `타로` → `#ec4899` (핑크)
 - `신점` → `#00BBA7` (청록)
 - `사주` → `#FF6467` (빨강)
 
@@ -150,7 +208,7 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 
 ### 새 인터랙션 추가 시 체크리스트
 
-- [ ] 디자인 토큰 (`#F3EEFE` 활성, `#8259F5` 텍스트, `#9B7AF7` 보더) 재사용했는가?
+- [ ] 디자인 토큰 (`#fdf2f8` 활성, `#ec4899` 텍스트, `#f472b6` 보더) 재사용했는가?
 - [ ] 외부 클릭 / Esc / 페이지 변경 시 닫힘 처리했는가?
 - [ ] 활성 상태에서 chevron/아이콘 색도 같이 바뀌는가?
 - [ ] 필터 변경 시 페이지네이션을 1로 리셋하는가?
@@ -159,3 +217,27 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 ## Git 푸시 규칙
 
 커밋·푸시 전 **README.md**(페이지 목록·상태)와 **CLAUDE.md**(변수·컴포넌트·규칙) 확인 및 업데이트.
+
+## 배포 규칙
+
+- 모든 작업은 배포까지 한 세트로 진행. 배포 없이 완료 보고 금지.
+- 기본: `both` (PROD `sajuplan.com` + TEST `sajumoon.kr` 동시 배포).
+- 외과 배포 우선 조건: md 파일 변경 / API rsync hang / 소수 파일 변경 → 빌드 스킵 + SFTP only.
+- API rsync 60초+ hang 시 즉시 외과 패치로 전환 (묻지 않고).
+- 배포 도구: `tools/_patch_api.py` (API 외과), `tools/deploy_sync.py` (프론트 SFTP).
+- 결과 확인 URL은 항상 prod(`sajuplan.com`)로 안내.
+
+## 완료 보고 형식
+
+작업 완료 시 반드시 아래 형식으로 보고:
+
+```
+요청하신 작업: (사용자 요청 한 줄)
+수행한 작업: (수행 내역 불릿)
+문제 원인: (버그/이슈 수정 시 필수 — 왜 그랬는지 쉬운 말로)
+확인 URL: https://sajuplan.com/...
+```
+
+- 작업 시간이 길면 사용자가 처음 요청을 잊으므로 "요청/수행" 생략 금지
+- 버그·장애 수정이면 "문제 원인" 필수. 단순 기능 추가면 생략 가능
+- 기술 용어 사용 시 괄호로 쉬운 설명 병기

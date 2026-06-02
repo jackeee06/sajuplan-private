@@ -496,7 +496,7 @@ $qstr = "$qstr&amp;sort1=$sort1&amp;sort2=$sort2&amp;page=$page&fr_date=".$fr_da
                         <th scope="col" id="mb_list_chk" class="" >누적<span style="display:inline-block;">후기</span></th>
 
                         <!--20250710 eun 상담사 추천 순서 시작-->
-                        <th scope="col" class="" ><?php echo subject_sort_link('mb_sort', '', 'desc') ?>사주문<br/>추천<span style="display:inline-block;">순서</span></th>
+                        <th scope="col" class="" ><?php echo subject_sort_link('mb_sort', '', 'desc') ?>사주플랜<br/>추천<span style="display:inline-block;">순서</span></th>
                         <!--20250710 eun 상담사 추천 순서 마감-->
 
                         <th scope="col" id="mb_list_grp">누적<span style="display:inline-block;">상담수</span></th>

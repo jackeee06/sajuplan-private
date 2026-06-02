@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Shield, X } from 'lucide-react'
 import { api } from '../lib/api'
+import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Badge } from '../components/table'
+import { useAuth } from '../lib/auth'
+import { SuperOnlySection } from '../components/SuperOnlySection'
 
 interface Admin {
   id: number
@@ -38,6 +41,8 @@ const emptyForm = (): CreateForm => ({
 })
 
 export default function AdminUsers() {
+  const { admin } = useAuth()
+  const isSuper = !!admin?.is_super
   const [items, setItems] = useState<Admin[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -108,11 +113,16 @@ export default function AdminUsers() {
     } catch (e) { setError(e instanceof Error ? e.message : '실패') }
   }
 
+  const navigate = useNavigate()
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-[1100px]">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">관리자 계정</h1>
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">관리자 계정</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">※ 신규 관리자는 별도 레코드. 기존 회원의 등급(mb_level)·권한은 변경 안 됨.</p>
+        </div>
+        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium">
           <Plus className="w-4 h-4" /> 관리자 추가
         </button>
       </div>
@@ -120,52 +130,69 @@ export default function AdminUsers() {
       {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}
       {success && <div className="p-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm">{success}</div>}
 
-      <div className="text-xs text-gray-500 -mt-2">
-        ※ 신규 관리자 계정은 별도 레코드로 생성됩니다. 기존 회원의 등급(mb_level)·권한은 변경되지 않습니다.
-      </div>
-
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
-            <tr>
-              <th className="px-3 py-2 text-left font-medium">아이디</th>
-              <th className="px-3 py-2 text-left font-medium">이름</th>
-              <th className="px-3 py-2 text-left font-medium">닉네임</th>
-              <th className="px-3 py-2 text-center font-medium">등급</th>
-              <th className="px-3 py-2 text-left font-medium">최근 로그인</th>
-              <th className="px-3 py-2 text-right font-medium">관리</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {loading ? <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-500">로딩...</td></tr>
-              : items.length === 0 ? <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">관리자가 없습니다.</td></tr>
-              : items.map((a) => (
-                <tr key={a.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
-                  <td className="px-3 py-2 font-medium">{a.mb_id}</td>
-                  <td className="px-3 py-2">{a.name}</td>
-                  <td className="px-3 py-2 text-gray-500">{a.nickname}</td>
-                  <td className="px-3 py-2 text-center">
-                    {a.is_super ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700">
-                        <Shield className="w-3 h-3" /> SUPER
-                      </span>
-                    ) : (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">관리자</span>
+      <TableShell>
+        <THead>
+          <Th align="left">아이디</Th>
+          <Th align="left">이름</Th>
+          <Th align="left">닉네임</Th>
+          <Th align="center">등급</Th>
+          <Th align="left">최근 로그인</Th>
+          <Th align="center">관리</Th>
+        </THead>
+        <TBody>
+          {loading ? (
+            <EmptyRow colSpan={6} loading />
+          ) : items.length === 0 ? (
+            <EmptyRow colSpan={6} />
+          ) : (
+            items.map((a) => (
+              <Tr key={a.id} onClick={() => navigate(`/admin-permissions/${a.id}`)}>
+                <Td align="left" className="font-medium font-mono text-gray-900 dark:text-gray-100">{a.mb_id}</Td>
+                <Td align="left">{a.name}</Td>
+                <Td align="left" className="text-gray-500">{a.nickname}</Td>
+                <Td align="center">
+                  {a.is_super ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      <Shield className="w-3 h-3" /> SUPER
+                    </span>
+                  ) : (
+                    <Badge color="blue">관리자</Badge>
+                  )}
+                </Td>
+                <Td align="left" className="text-xs text-gray-500 tabular-nums">
+                  {a.last_login_at ? formatDT(a.last_login_at) : <span className="text-gray-300">-</span>}
+                </Td>
+                <Td align="center">
+                  <div className="inline-flex items-center gap-1">
+                    <Link
+                      to={`/admin-permissions/${a.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[11px] px-2 py-1 rounded-md border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-medium"
+                    >
+                      권한 매트릭스
+                    </Link>
+                    {isSuper && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); void toggleSuper(a) }}
+                        title="🔒 슈퍼관리자만 부여/해제 가능 — 일반관리자에게는 이 버튼이 보이지 않습니다"
+                        className="text-[11px] px-2 py-1 rounded-md border-2 border-rose-300 text-rose-700 hover:bg-rose-50 font-medium"
+                      >
+                        🔒 {a.is_super ? '슈퍼 해제' : '슈퍼 부여'}
+                      </button>
                     )}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-gray-500">{a.last_login_at ? formatDT(a.last_login_at) : '-'}</td>
-                  <td className="px-3 py-2 text-right whitespace-nowrap">
-                    <Link to={`/admin-permissions/${a.id}`} className="text-[11px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200 mr-1">권한 매트릭스</Link>
-                    <button onClick={() => toggleSuper(a)} className="text-[11px] px-2 py-0.5 rounded bg-purple-100 text-purple-700 hover:bg-purple-200 mr-1">
-                      {a.is_super ? '슈퍼 해제' : '슈퍼 부여'}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); void remove(a) }}
+                      className="text-[11px] px-2 py-1 rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 font-medium"
+                    >
+                      비활성화
                     </button>
-                    <button onClick={() => remove(a)} className="text-[11px] px-2 py-0.5 rounded bg-rose-100 text-rose-700 hover:bg-rose-200">비활성화</button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+                  </div>
+                </Td>
+              </Tr>
+            ))
+          )}
+        </TBody>
+      </TableShell>
 
       {open && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
@@ -198,12 +225,17 @@ export default function AdminUsers() {
               <Field label="휴대폰">
                 <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={inputCls} placeholder="01012345678" />
               </Field>
-              <Field label="권한">
-                <label className="inline-flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={form.is_super} onChange={(e) => setForm({ ...form, is_super: e.target.checked })} />
-                  슈퍼 관리자 (모든 권한 매트릭스 무시, 전권 보유)
-                </label>
-              </Field>
+              <SuperOnlySection
+                title="🔒 슈퍼관리자만 부여할 수 있는 권한"
+                subtitle="일반관리자에게는 이 항목 자체가 보이지 않습니다. 슈퍼 권한은 다른 슈퍼만 부여/해제할 수 있습니다."
+              >
+                <Field label="권한">
+                  <label className="inline-flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={form.is_super} onChange={(e) => setForm({ ...form, is_super: e.target.checked })} />
+                    슈퍼 관리자 (모든 권한 매트릭스 무시, 전권 보유)
+                  </label>
+                </Field>
+              </SuperOnlySection>
 
               {error && <div className="p-2 rounded bg-rose-50 text-rose-700 text-xs">{error}</div>}
             </div>

@@ -75,4 +75,16 @@ export class DashboardController {
   qualityKpi() {
     return this.service.qualityKpi();
   }
+
+  /** 단기통화 자동환불 KPI — 이번달/지난달/누적 건수+금액 (m2net 정산 대조용) */
+  @Get('short-call-refund-kpi')
+  shortCallRefundKpi() {
+    return this.service.shortCallRefundKpi();
+  }
+
+  /** 운영 인사이트 — 이번주 vs 지난주 / 채널 비중 / 시간대 / 휴면 / 등급 변동 */
+  @Get('insights')
+  insights() {
+    return this.service.insights();
+  }
 }

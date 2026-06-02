@@ -22,13 +22,13 @@ def main() -> int:
     c.connect("104.64.128.103", 22, "root", pw, allow_agent=False, look_for_keys=False, timeout=20)
 
     _, out, _ = c.exec_command(
-        "grep '^CRON_TOKEN=' /data/wwwroot/api.sajumoon.co.kr/.env | head -1 | cut -d= -f2- | tr -d \"'\\\"\"",
+        "grep '^CRON_TOKEN=' /data/wwwroot/api.sajuplan.com/.env | head -1 | cut -d= -f2- | tr -d \"'\\\"\"",
         timeout=15,
     )
     tok = out.read().decode().strip()
 
     _, out, _ = c.exec_command(
-        "grep '^DATABASE_URL=' /data/wwwroot/api.sajumoon.co.kr/.env | head -1 | cut -d= -f2- | tr -d \"'\\\"\"",
+        "grep '^DATABASE_URL=' /data/wwwroot/api.sajuplan.com/.env | head -1 | cut -d= -f2- | tr -d \"'\\\"\"",
         timeout=15,
     )
     url = out.read().decode().strip()
@@ -42,7 +42,7 @@ def main() -> int:
     # test-alert 호출
     print("\n=== test-alert 호출 ===")
     _, out, _ = c.exec_command(
-        f"curl -s -H 'X-Cron-Token: {tok}' https://api.sajumoon.co.kr/api/cron/test-alert",
+        f"curl -s -H 'X-Cron-Token: {tok}' https://api.sajuplan.com/api/cron/test-alert",
         timeout=60,
     )
     print(out.read().decode())

@@ -35,7 +35,7 @@ def main() -> int:
         return 1
     b64 = base64.b64encode(SQL.encode("utf-8")).decode("ascii")
     inner = (
-        f'export DATABASE_URL=$(grep -E "^DATABASE_URL=" /data/wwwroot/api.sajumoon.co.kr/.env | cut -d= -f2-) && '
+        f'export DATABASE_URL=$(grep -E "^DATABASE_URL=" /data/wwwroot/api.sajuplan.com/.env | cut -d= -f2-) && '
         f'echo {b64} | base64 -d | psql "$DATABASE_URL"'
     )
     c = paramiko.SSHClient()

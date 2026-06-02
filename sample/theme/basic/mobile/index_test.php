@@ -444,7 +444,7 @@ $mcount = $ct;
             <div class="flex align-items-center justify-content-between">
                 <div class="flex align-items-center">
                     <img src="../../../img/main/star_icon.png" style="width:20px; margin-bottom:4px">
-                    <p style="font-size: 16px">사주문 추천</p>
+                    <p style="font-size: 16px">사주플랜 추천</p>
                 </div>
                 <a href="/bbs/recommend_list.php">더보기 <img src="../../../img/main/right_g_ar.svg"></a>
             </div>
@@ -1261,7 +1261,7 @@ $mcount = $ct;
             </div>
         </details>
 
-        <div class="main_footer_copy">Copyrightⓒ 사주문. All Rights Reserved.</div>
+        <div class="main_footer_copy">Copyrightⓒ 사주플랜. All Rights Reserved.</div>
     </div>
 
 

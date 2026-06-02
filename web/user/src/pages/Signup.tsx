@@ -1,13 +1,15 @@
-import { FormEvent, useEffect, useRef, useState } from 'react'
+﻿import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import MobileHeader from '../components/MobileHeader'
 import InputField from '../components/InputField'
 import PrimaryButton, { OutlineButton } from '../components/PrimaryButton'
-import { CalendarIcon, RefreshIcon } from '../components/icons'
+import EmailDomainChips from '../components/EmailDomainChips'
+import AgreeAllSection from '../components/AgreeAllSection'
+import { CalendarIcon } from '../components/icons'
 import TermsModal, { TermsKind } from '../components/TermsModal'
 import AlertModal from '../components/AlertModal'
-import { ApiError, authApi, smsApi, captchaApi } from '../lib/api'
-import { embedDaumPostcode } from '../lib/daum-postcode'
+import { ApiError, authApi, smsApi } from '../lib/api'
+import { useAuth } from '../lib/auth-context'
 
 type Gender = 'M' | 'F' | ''
 type DateMode = 'solar' | 'lunar'
@@ -24,6 +26,7 @@ type SocialProvider = 'kakao' | 'naver' | 'apple'
  */
 export default function Signup() {
   const navigate = useNavigate()
+  const { refresh } = useAuth()
   const [searchParams] = useSearchParams()
   const socialParam = searchParams.get('social')
   const initialSocial: SocialProvider | null =
@@ -47,11 +50,7 @@ export default function Signup() {
     phoneCode: '',
     dateMode: 'solar' as DateMode,
     birth: '',
-    zipcode: '',
-    addr1: '',
-    addr2: '',
     referrer: '',
-    captcha: '',
   })
 
   const update = <K extends keyof typeof form>(key: K, v: (typeof form)[K]) => {
@@ -77,13 +76,6 @@ export default function Signup() {
   const [mbIdChecked, setMbIdChecked] = useState<null | boolean>(null)
   const [checkingId, setCheckingId] = useState(false)
 
-  // 캡차 — 페이지 로드 시 발급, refresh 버튼으로 재발급. svg 는 백엔드 렌더 결과
-  const [captcha, setCaptcha] = useState<{ token: string; svg: string } | null>(null)
-
-  // Daum 우편번호 임베드 — 페이지 안에 펼쳤다 접힘 (모바일 웹뷰 친화)
-  const [postcodeOpen, setPostcodeOpen] = useState(false)
-  const postcodeRef = useRef<HTMLDivElement | null>(null)
-
   const [modal, setModal] = useState<TermsKind | null>(null)
 
   // 알림 모달 — alert() 대체. onConfirm 이 있으면 닫힐 때 추가 동작 실행.
@@ -105,32 +97,6 @@ export default function Signup() {
     const id = setInterval(() => setTimer((t) => t - 1), 1000)
     return () => clearInterval(id)
   }, [phoneSent, phoneVerified, timer])
-
-  // 캡차 — 모든 가입 경로(로컬·소셜)에서 페이지 로드 시 자동 발급 (sample 정책 통일)
-  useEffect(() => {
-    let alive = true
-    captchaApi.issue().then(
-      (r) => {
-        if (alive) setCaptcha(r)
-      },
-      () => {
-        // 발급 실패는 사용자에게 alert 표시하지 않음 (refresh 버튼으로 재시도 가능)
-      },
-    )
-    return () => {
-      alive = false
-    }
-  }, [])
-
-  const refreshCaptcha = async () => {
-    try {
-      const r = await captchaApi.issue()
-      setCaptcha(r)
-      update('captcha', '')
-    } catch {
-      showAlert('자동등록방지 발급에 실패했습니다. 잠시 후 다시 시도해주세요.')
-    }
-  }
 
   // 소셜 모드: 콜백에서 심어둔 pending 프로필 로드 → 폼 prefill.
   // pending 이 비어 있으면 (만료/직접 진입 등) 로그인 페이지로 돌려보냄.
@@ -215,7 +181,7 @@ export default function Signup() {
       await smsApi.send(form.phone)
       setPhoneSent(true)
       setTimer(180)
-      showAlert('인증번호가 발송되었습니다.\n알림톡(또는 SMS)을 확인해주세요.')
+      showAlert('인증번호가 발송되었습니다.\n카카오톡을 확인해주세요.')
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : '인증번호 발송에 실패했습니다.'
       setErrors((p) => ({ ...p, phone: msg }))
@@ -239,37 +205,6 @@ export default function Signup() {
     }
   }
 
-  const onAddressSearch = async () => {
-    // 토글 — 이미 열려 있으면 닫기
-    if (postcodeOpen) {
-      setPostcodeOpen(false)
-      return
-    }
-    setPostcodeOpen(true)
-    // 다음 paint 에 ref 가 마운트된 후 embed
-    setTimeout(async () => {
-      const el = postcodeRef.current
-      if (!el) return
-      try {
-        await embedDaumPostcode(el, (data) => {
-          update('zipcode', data.zonecode)
-          // 도로명 우선, 없으면 지번
-          const base = data.roadAddress || data.address || data.jibunAddress
-          const withBuilding =
-            data.buildingName && data.addressType === 'R'
-              ? `${base} (${data.buildingName})`
-              : base
-          update('addr1', withBuilding)
-          update('addr2', '')
-          setPostcodeOpen(false)
-        })
-      } catch {
-        showAlert('주소 검색을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
-        setPostcodeOpen(false)
-      }
-    }, 0)
-  }
-
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (submitting) return
@@ -286,10 +221,12 @@ export default function Signup() {
       else if (mbIdChecked !== true)
         errs.mbId = '아이디 중복확인을 해주세요.'
 
-      // sample 정책: 3~20자
+      // [2026-05-25] 정책 강화 — 8~20자 + 영문/숫자 혼합 필수
       if (!form.password) errs.password = '비밀번호를 입력해주세요.'
-      else if (form.password.length < 3)
-        errs.password = '비밀번호는 3자 이상이어야 합니다.'
+      else if (form.password.length < 8 || form.password.length > 20)
+        errs.password = '비밀번호는 8~20자여야 합니다.'
+      else if (!/(?=.*[A-Za-z])(?=.*\d)/.test(form.password))
+        errs.password = '영문과 숫자를 각각 1개 이상 포함해주세요.'
 
       if (form.password !== form.passwordConfirm)
         errs.passwordConfirm = '비밀번호가 일치하지 않습니다.'
@@ -300,7 +237,6 @@ export default function Signup() {
     else if (!/^01[0-9]{8,9}$/.test(form.phone))
       errs.phone = '휴대폰번호를 올바르게 입력해 주십시오.'
     else if (!phoneVerified) errs.phone = '휴대폰 인증을 완료해주세요.'
-    if (!form.captcha.trim()) errs.captcha = '자동등록방지를 입력해주세요.'
     if (!form.name.trim()) errs.name = '이름을 입력해주세요.'
     if (!form.gender) errs.gender = '성별을 선택해주세요.'
     if (!form.nickname.trim()) errs.nickname = '닉네임을 입력해주세요.'
@@ -330,8 +266,6 @@ export default function Signup() {
         await authApi.signup({
           social: social ?? undefined,
           phone_code: form.phoneCode,
-          captcha_token: captcha?.token,
-          captcha_input: form.captcha,
           name: form.name.trim(),
           nickname: form.nickname.trim(),
           email: form.email.trim() || undefined,
@@ -339,16 +273,15 @@ export default function Signup() {
           birth_date: parseBirthYmd(form.birth) ?? undefined,
           gender: (form.gender || undefined) as 'M' | 'F' | undefined,
           calendar_type: form.dateMode === 'lunar' ? 'LUNAR' : 'SOLAR',
-          addr1: form.addr1 || undefined,
-          addr2: form.addr2 || undefined,
-          zip: form.zipcode || undefined,
           acquisition_source: form.referrer.trim() || undefined,
           agree_terms: agreeTerms,
           agree_privacy: agreePrivacy,
           agree_email: agreeEmail,
           agree_sms: agreeSms,
         })
-        navigate('/signup/complete', { replace: true })
+        // 백엔드가 가입 응답에 JWT 쿠키를 함께 발급 → 즉시 인증 컨텍스트 갱신 후 메인으로.
+        await refresh()
+        navigate('/', { replace: true, state: { signupToast: '🎉 회원가입이 완료되었습니다. 환영합니다!' } })
         return
       }
       // 로컬 가입 — 백엔드가 sjm_social_pending 쿠키 없음을 감지해 로컬 분기로 처리
@@ -356,8 +289,6 @@ export default function Signup() {
         mb_id: form.mbId.trim(),
         password: form.password,
         phone_code: form.phoneCode,
-        captcha_token: captcha?.token,
-        captcha_input: form.captcha,
         name: form.name.trim(),
         nickname: form.nickname.trim(),
         email: form.email.trim() || undefined,
@@ -365,16 +296,15 @@ export default function Signup() {
         birth_date: parseBirthYmd(form.birth) ?? undefined,
         gender: (form.gender || undefined) as 'M' | 'F' | undefined,
         calendar_type: form.dateMode === 'lunar' ? 'LUNAR' : 'SOLAR',
-        addr1: form.addr1 || undefined,
-        addr2: form.addr2 || undefined,
-        zip: form.zipcode || undefined,
         acquisition_source: form.referrer.trim() || undefined,
         agree_terms: agreeTerms,
         agree_privacy: agreePrivacy,
         agree_email: agreeEmail,
         agree_sms: agreeSms,
       })
-      navigate('/signup/complete', { replace: true })
+      // 백엔드가 가입 응답에 JWT 쿠키를 함께 발급 → 즉시 인증 컨텍스트 갱신 후 메인으로.
+      await refresh()
+      navigate('/', { replace: true, state: { signupToast: '🎉 회원가입이 완료되었습니다. 환영합니다!' } })
     } catch (err) {
       const msg =
         err instanceof ApiError ? err.message : '회원가입 중 오류가 발생했습니다.'
@@ -442,7 +372,7 @@ export default function Signup() {
                   type={showPw ? 'text' : 'password'}
                   value={form.password}
                   onChange={(v) => update('password', v.slice(0, 20))}
-                  placeholder="비밀번호 3~20자"
+                  placeholder="비밀번호 8~20자 (영문+숫자)"
                   autoComplete="new-password"
                   error={!!errors.password}
                   rightSlot={<EyeToggle on={showPw} onClick={() => setShowPw((v) => !v)} />}
@@ -518,6 +448,7 @@ export default function Signup() {
                 onClear={() => update('email', '')}
                 maxLength={100}
               />
+              <EmailDomainChips value={form.email} onChange={(v) => update('email', v.slice(0, 100))} />
             </Field>
           )}
 
@@ -548,6 +479,11 @@ export default function Signup() {
                 {phoneSent ? '재전송' : '인증번호 전송'}
               </OutlineButton>
             </div>
+            {!phoneSent && !phoneVerified && (
+              <p className="mt-1.5 ml-1 text-[12px] text-[#6A7282]">
+                💬 인증번호는 <span className="font-semibold text-[#1E2939]">카카오톡</span>으로 발송됩니다. 카카오톡 알림이 안 오면 잠시 후 다시 시도해 주세요.
+              </p>
+            )}
             {phoneSent && !phoneVerified && (
               <>
                 <div className="flex gap-2 mt-2.5">
@@ -599,55 +535,12 @@ export default function Signup() {
             />
           </Field>
 
-          {/* 주소 — 주소검색으로 자동 채워지지만 사용자 수기 수정도 허용 */}
-          <Field label="주소">
-            <div className="flex gap-2 mb-2.5">
-              <div className="flex-1">
-                <InputField
-                  value={form.zipcode}
-                  onChange={(v) => update('zipcode', v.replace(/[^0-9]/g, '').slice(0, 6))}
-                  placeholder="우편번호"
-                  rightPadding="sm"
-                  maxLength={6}
-                  inputMode="numeric"
-                />
-              </div>
-              <OutlineButton type="button" onClick={onAddressSearch}>
-                {postcodeOpen ? '닫기' : '주소검색'}
-              </OutlineButton>
-            </div>
-            {/* Daum 우편번호 임베드 영역 — 페이지 안에 펼쳐짐 (모바일 웹뷰 친화) */}
-            {postcodeOpen && (
-              <div
-                ref={postcodeRef}
-                className="w-full h-[420px] rounded-2xl border border-[#E5E7EB] overflow-hidden mb-2.5 bg-white"
-                aria-label="주소 검색"
-              />
-            )}
-            <div className="flex flex-col gap-2.5">
-              <InputField
-                value={form.addr1}
-                onChange={(v) => update('addr1', v.slice(0, 255))}
-                placeholder="기본주소"
-                rightPadding="sm"
-                maxLength={255}
-              />
-              <InputField
-                value={form.addr2}
-                onChange={(v) => update('addr2', v.slice(0, 255))}
-                placeholder="상세주소"
-                rightPadding="sm"
-                maxLength={255}
-              />
-            </div>
-          </Field>
-
           {/* 유입경로 — textarea (최대 2000자) */}
           <Field label="유입경로" required error={errors.referrer}>
             <textarea
               value={form.referrer}
               onChange={(e) => update('referrer', e.target.value.slice(0, 2000))}
-              placeholder="어떤 경로로 사주문을 알게 되셨나요? (예 : SNS, 지인 추천, 인터넷 검색 등)"
+              placeholder="어떤 경로로 사주플랜을 알게 되셨나요? (예 : SNS, 지인 추천, 인터넷 검색 등)"
               rows={3}
               maxLength={2000}
               className={`w-full rounded-2xl bg-[#f9fafb] border ${errors.referrer ? 'border-[#f87171]' : 'border-[#f3f4f6]'} focus:border-brand-400 focus:bg-white px-4 py-3 text-[15px] text-[#1e2939] placeholder-[#99a1af] focus:outline-none transition resize-none`}
@@ -656,47 +549,26 @@ export default function Signup() {
 
           <hr className="my-2 border-[#e5e7eb]" />
 
-          {/* 자동등록방지 — sample 정책: 모든 가입 경로(로컬·소셜)에 동일 적용 */}
-          <Field label="자동등록방지" required error={errors.captcha}>
-            <div className="flex gap-2 items-center">
-              <div
-                className="w-[130px] h-11 rounded-md bg-[#f9fafb] border border-[#e5e7eb] overflow-hidden flex items-center justify-center select-none shrink-0"
-                aria-label="자동등록방지 캡차"
-                // 백엔드에서 변형/회전/노이즈 적용된 SVG 를 그대로 렌더 (XSS 위험 없음 — 서버 신뢰)
-                dangerouslySetInnerHTML={{
-                  __html: captcha?.svg ?? '<span style="color:#99a1af;font-size:12px">로딩...</span>',
-                }}
-              />
-              <div className="flex-1">
-                <InputField
-                  value={form.captcha}
-                  onChange={(v) => update('captcha', v.slice(0, 6))}
-                  placeholder=""
-                  rightPadding="sm"
-                  maxLength={6}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={refreshCaptcha}
-                className="w-10 h-10 rounded-full border border-[#e5e7eb] bg-white flex items-center justify-center hover:bg-gray-50 transition"
-                aria-label="캡차 새로고침"
-              >
-                <RefreshIcon className="w-5 h-5" />
-              </button>
-            </div>
-          </Field>
-
-          {/* 약관 동의 */}
-          <div className="flex flex-col gap-3 mt-2">
-            <AgreeRow checked={agreeTerms} onChange={setAgreeTerms} required onMore={() => setModal('terms')}>
-              (필수) 회원가입약관 동의
-            </AgreeRow>
-            <AgreeRow checked={agreePrivacy} onChange={setAgreePrivacy} required onMore={() => setModal('privacy')}>
-              (필수) 개인정보처리방침 동의
-            </AgreeRow>
-            <AgreeRow checked={agreeEmail} onChange={setAgreeEmail}>이메일 수신 동의</AgreeRow>
-            <AgreeRow checked={agreeSms} onChange={setAgreeSms}>문자 수신 동의</AgreeRow>
+          {/* 약관 동의 — 전체 동의 헤더 + 4개 개별 */}
+          <div className="mt-2">
+            <AgreeAllSection
+              allChecked={agreeTerms && agreePrivacy && agreeEmail && agreeSms}
+              onAllToggle={(v) => {
+                setAgreeTerms(v)
+                setAgreePrivacy(v)
+                setAgreeEmail(v)
+                setAgreeSms(v)
+              }}
+            >
+              <AgreeRow checked={agreeTerms} onChange={setAgreeTerms} required onMore={() => setModal('terms')}>
+                (필수) 회원가입약관 동의
+              </AgreeRow>
+              <AgreeRow checked={agreePrivacy} onChange={setAgreePrivacy} required onMore={() => setModal('privacy')}>
+                (필수) 개인정보처리방침 동의
+              </AgreeRow>
+              <AgreeRow checked={agreeEmail} onChange={setAgreeEmail}>이메일 수신 동의</AgreeRow>
+              <AgreeRow checked={agreeSms} onChange={setAgreeSms}>문자 수신 동의</AgreeRow>
+            </AgreeAllSection>
           </div>
 
           {/* 회원가입 버튼 */}
@@ -789,8 +661,8 @@ function ToggleButton({ selected, onClick, children }: ToggleButtonProps) {
       onClick={onClick}
       className={`h-12 rounded-full text-[15px] font-medium transition ${
         selected
-          ? 'bg-[#8259F5] text-white'
-          : 'bg-white border border-[#8259F5] text-[#8259F5] hover:bg-[#f8f5ff]'
+          ? 'bg-[#ec4899] text-white'
+          : 'bg-white border border-[#ec4899] text-[#ec4899] hover:bg-[#f8f5ff]'
       }`}
     >
       {children}

@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import MobileHeader from '../components/MobileHeader'
+import BottomNav from '../components/BottomNav'
 import { ApiError, notificationsApi, type PublicNotificationItem } from '../lib/api'
 import { API_BASE } from '../lib/runtime-env'
 
@@ -98,7 +99,7 @@ export default function Notifications() {
                   type="button"
                   onClick={() => onItemClick(n)}
                   className={`w-full px-4 py-4 text-left transition ${
-                    n.read ? 'bg-white' : 'bg-[#f1ecfe]'
+                    n.read ? 'bg-white' : 'bg-[#fdf2f8]'
                   }`}
                 >
                   <p className={`text-[15px] font-bold ${n.read ? 'text-[#99A1AF]' : 'text-[#1E2939]'}`}>
@@ -118,7 +119,8 @@ export default function Notifications() {
           </ul>
         )}
       </main>
-    </div>
+      <BottomNav />
+      </div>
   )
 }
 

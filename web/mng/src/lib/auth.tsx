@@ -14,6 +14,7 @@ export interface AdminUser {
   mb_id: string
   role: 'admin'
   level: number
+  is_super: boolean
 }
 
 export interface LoginResult {
@@ -64,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         mb_id: result.admin.mb_id,
         role: result.admin.role,
         level: result.admin.level,
+        is_super: !!result.admin.is_super,
       })
       setStatus('authed')
     } catch (e) {

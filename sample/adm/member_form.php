@@ -944,7 +944,7 @@ add_javascript(G5_POSTCODE_JS, 0);    //다음 주소 js
                     <!--20250731 EUN 순위 표시 추가 시작-->
 
                     <tr>
-                        <th>사주문 추천 순서</th>
+                        <th>사주플랜 추천 순서</th>
                         <td>
                             <input type="number" name="mb_sort"  class="frm_input"  value="<?php echo isset($co_row['mb_sort']) ? $co_row['mb_sort'] : ''; ?>" min="1" max="20" style="width:60px;">
                         </td>

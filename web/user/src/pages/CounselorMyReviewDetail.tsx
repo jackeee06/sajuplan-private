@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import {
   counselorMyReviewsApi,
@@ -88,7 +89,7 @@ export default function CounselorMyReviewDetail() {
 
   if (loading) {
     return (
-      <div className="mobile-frame flex flex-col pb-6">
+      <div className="mobile-frame flex flex-col pb-[100px]">
         <Header onBack={() => navigate(-1)} />
         <p className="px-4 py-12 text-center text-[14px] text-[#6A7282]">불러오는 중...</p>
       </div>
@@ -96,7 +97,7 @@ export default function CounselorMyReviewDetail() {
   }
   if (error || !review) {
     return (
-      <div className="mobile-frame flex flex-col pb-6">
+      <div className="mobile-frame flex flex-col pb-[100px]">
         <Header onBack={() => navigate(-1)} />
         <p className="px-4 py-12 text-center text-[14px] text-[#FF6467]">{error ?? '후기를 찾을 수 없습니다.'}</p>
       </div>
@@ -109,7 +110,7 @@ export default function CounselorMyReviewDetail() {
     : ''
 
   return (
-    <div className="mobile-frame flex flex-col pb-6">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <Header onBack={() => navigate(-1)} />
 
       <main className="flex-1 px-4 pt-2">
@@ -128,8 +129,8 @@ export default function CounselorMyReviewDetail() {
 
         <div className="mt-2 flex items-center gap-1.5">
           <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
-            <circle cx="8" cy="8" r="7" stroke="#9B7AF7" strokeWidth="1.4" />
-            <path d="M5 8L7 10L11 6" stroke="#9B7AF7" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="8" cy="8" r="7" stroke="#8259F5" strokeWidth="1.4" />
+            <path d="M5 8L7 10L11 6" stroke="#8259F5" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span className="text-[14px] font-medium text-[#1E2939]">{review.customer_name}</span>
         </div>
@@ -187,7 +188,7 @@ export default function CounselorMyReviewDetail() {
           </div>
         ) : (
           <div className="py-12 flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-[#F3EEFE] flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-[#f3f0ff] flex items-center justify-center">
               <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" aria-hidden>
                 <path
                   d="M21 11.5C21 16.7467 16.9706 21 12 21C10.4 21 8.9 20.55 7.6 19.85L3 21L4.18 16.5C3.42 15.05 3 13.32 3 11.5C3 6.25 7.03 2 12 2C16.97 2 21 6.25 21 11.5Z"
@@ -216,7 +217,7 @@ export default function CounselorMyReviewDetail() {
               }}
               placeholder="답변을 입력해주세요."
               disabled={submitting}
-              className="w-full h-[44px] pl-4 pr-14 rounded-full bg-[#F9FAFB] border border-[#9B7AF7] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none disabled:opacity-60"
+              className="w-full h-[44px] pl-4 pr-14 rounded-full bg-[#F9FAFB] border border-[#8259F5] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none disabled:opacity-60"
             />
             {draft.trim() && (
               <button
@@ -224,7 +225,7 @@ export default function CounselorMyReviewDetail() {
                 onClick={() => void handleSubmit()}
                 disabled={submitting}
                 aria-label="보내기"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#9B7AF7] flex items-center justify-center disabled:opacity-60"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#8259F5] flex items-center justify-center disabled:opacity-60"
               >
                 <img src="/img/ic_send.svg" alt="" className="w-4 h-4" />
               </button>
@@ -236,7 +237,7 @@ export default function CounselorMyReviewDetail() {
           <button
             type="button"
             onClick={() => navigate('/counselor/mypage/reviews')}
-            className="h-10 px-6 rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]"
+            className="h-10 px-6 rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]"
           >
             목록으로
           </button>
@@ -244,7 +245,8 @@ export default function CounselorMyReviewDetail() {
       </main>
 
       <FloatingActions bottomOffset={24} />
-    </div>
+      <BottomNav myHref="/counselor/mypage" />
+      </div>
   )
 }
 

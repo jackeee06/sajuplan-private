@@ -11,67 +11,52 @@ import type { PublicCounselor } from './api'
  */
 
 /**
- * sample/include/counselor_board_state_btn.php 와 1:1 동등 매핑.
+ * 상담사 카드의 전화/채팅 버튼 상태 결정 — state 별로 정확히 분기.
+ *
+ * 2026-05-21 정정: 옛 sample 정책은 "use_phone+use_chat 양쪽 활성 + state≠RDVC = 양쪽 모두 busy"
+ * 였는데, 이 단순 규칙이 사용자에게 잘못된 "상담중" 표시를 야기함 (예: 라온 IDLE 케이스).
+ * → state 별로 채널(전화/채팅)별 정확한 상태를 반환하도록 변경.
  *
  *  활성 state set: { IDLE, RDCH, RDVC, CONN, CNCH }
- *  그 외 (ABSE / RESV / CRDY 등) → 양쪽 모두 'offline' ("부재중").
+ *  그 외 (ABSE/RESV/CRDY 등) → 양쪽 모두 offline.
  *
- *  use_phone × use_chat 매트릭스:
- *    Y,N (전화만):
- *      IDLE → phone:available, chat:offline
- *      CONN → phone:busy,      chat:offline
- *      그 외 → offline
+ *  state 별 의미:
+ *    IDLE  = 전화 대기 (채팅 비활성)
+ *    RDCH  = 채팅 대기 (전화 비활성)
+ *    RDVC  = 양쪽 모두 대기 (Ready Voice+Chat)
+ *    CONN  = 전화 통화 중
+ *    CNCH  = 채팅 중
  *
- *    N,Y (채팅만):
- *      RDCH → chat:available,  phone:offline
- *      CNCH → chat:busy,       phone:offline
- *      그 외 → offline
- *
- *    Y,Y (둘 다):
- *      RDVC → 양쪽 available
- *      그 외 활성 state(CONN/CNCH/IDLE/RDCH) → 양쪽 모두 busy ("상담중" 표시)
- *      활성 set 밖 → 양쪽 offline
+ *  채널별 매핑 (use_phone/use_chat 으로 채널 활성화 1차 필터):
+ *    전화 버튼: use_phone=false → offline / 그 외엔 state 기반
+ *    채팅 버튼: use_chat=false  → offline / 그 외엔 state 기반
  */
 const ACTIVE_STATES = new Set(['IDLE', 'RDCH', 'RDVC', 'CONN', 'CNCH'])
 
 export function derivePhoneState(c: PublicCounselor): Counselor['phoneState'] {
+  if (!c.use_phone) return 'offline'
   if (!ACTIVE_STATES.has(c.state)) return 'offline'
-
-  // use_phone 단독 (Y,N)
-  if (c.use_phone && !c.use_chat) {
-    if (c.state === 'IDLE') return 'available'
-    if (c.state === 'CONN') return 'busy'
-    return 'offline'
+  switch (c.state) {
+    case 'IDLE': return 'available' // 전화 대기 — 사용자가 전화 걸 수 있음
+    case 'RDVC': return 'available' // 양쪽 대기 — 전화도 가능
+    case 'CONN': return 'busy'      // 전화 통화 중 — 다른 사용자가 통화 중
+    case 'RDCH': return 'offline'   // 채팅 대기 모드 — 전화는 못 받음
+    case 'CNCH': return 'offline'   // 채팅 중 — 전화는 못 받음
+    default:     return 'offline'
   }
-  // use_chat 단독 (N,Y) → 전화 비활성
-  if (!c.use_phone && c.use_chat) return 'offline'
-  // 둘 다 (Y,Y)
-  if (c.use_phone && c.use_chat) {
-    if (c.state === 'RDVC') return 'available'
-    return 'busy' // CONN/CNCH/IDLE/RDCH — sample 은 양쪽 모두 "상담중" 표시
-  }
-  // 둘 다 N
-  return 'offline'
 }
 
 export function deriveChatState(c: PublicCounselor): Counselor['chatState'] {
+  if (!c.use_chat) return 'offline'
   if (!ACTIVE_STATES.has(c.state)) return 'offline'
-
-  // use_chat 단독 (N,Y)
-  if (!c.use_phone && c.use_chat) {
-    if (c.state === 'RDCH') return 'available'
-    if (c.state === 'CNCH') return 'busy'
-    return 'offline'
+  switch (c.state) {
+    case 'RDCH': return 'available' // 채팅 대기 — 사용자가 채팅 시작 가능
+    case 'RDVC': return 'available' // 양쪽 대기 — 채팅도 가능
+    case 'CNCH': return 'busy'      // 채팅 중 — 다른 사용자와 채팅 중
+    case 'IDLE': return 'offline'   // 전화 대기 모드 — 채팅은 못 받음
+    case 'CONN': return 'offline'   // 전화 통화 중 — 채팅은 못 받음
+    default:     return 'offline'
   }
-  // use_phone 단독 (Y,N) → 채팅 비활성
-  if (c.use_phone && !c.use_chat) return 'offline'
-  // 둘 다 (Y,Y)
-  if (c.use_phone && c.use_chat) {
-    if (c.state === 'RDVC') return 'available'
-    return 'busy' // sample 은 양쪽 모두 "상담중" 표시
-  }
-  // 둘 다 N
-  return 'offline'
 }
 
 export function mapPublicCounselorToCard(c: PublicCounselor): Counselor {
@@ -92,5 +77,8 @@ export function mapPublicCounselorToCard(c: PublicCounselor): Counselor {
     isNew: c.is_new,
     imgUrl: c.profile_image ?? '/img/sample_img01.jpg',
     imgUrlWebp: c.profile_image_webp,
+    // 2026-05-22: 부재(ABSE/RESV) 카드 식별 + 24h 내 "상담요청하기" 신청 여부
+    isOffline: c.state === 'ABSE' || c.state === 'RESV',
+    isRequested: !!c.is_requested,
   }
 }

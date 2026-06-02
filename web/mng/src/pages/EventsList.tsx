@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Plus, Pencil, Search } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Plus, Search } from 'lucide-react'
 import { api } from '../lib/api'
 import UploadedImage from '../components/UploadedImage'
+import { Th, Td, Tr, IdCell, TableShell, THead, TBody, EmptyRow, Badge, BadgeColor, PaginationBar, inputCls } from '../components/table'
 
 interface EventItem {
   id: number
@@ -17,7 +18,10 @@ interface EventItem {
   updated_at: string
 }
 
+const PAGE_SIZE = 20
+
 export default function EventsList() {
+  const navigate = useNavigate()
   const [filter, setFilter] = useState({ q: '', page: 1 })
   const [pending, setPending] = useState({ q: '' })
   const [data, setData] = useState<{ items: EventItem[]; total: number } | null>(null)
@@ -33,6 +37,8 @@ export default function EventsList() {
       .finally(() => setLoading(false))
   }, [filter])
 
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
+
   return (
     <div className="space-y-3 max-w-[1100px]">
       <div className="flex items-center justify-between">
@@ -42,99 +48,71 @@ export default function EventsList() {
             총 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건
           </p>}
         </div>
-        <Link
-          to="/events/new"
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white"
-        >
+        <Link to="/events/new" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium">
           <Plus className="w-4 h-4" /> 이벤트 추가
         </Link>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 w-fit max-w-full">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <input
-            type="text"
-            value={pending.q}
-            onChange={(e) => setPending({ q: e.target.value })}
-            onKeyDown={(e) => e.key === 'Enter' && setFilter({ q: pending.q, page: 1 })}
-            placeholder="제목/본문 검색"
-            className={`w-72 ${cls}`}
-          />
-          <button
-            onClick={() => setFilter({ q: pending.q, page: 1 })}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white"
-          >
-            <Search className="w-4 h-4" /> 검색
-          </button>
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="w-[260px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
+            <input type="text" value={pending.q} onChange={(e) => setPending({ q: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && setFilter({ q: pending.q, page: 1 })} placeholder="제목/본문 검색" className={inputCls} />
+          </div>
+          <div className="ml-auto">
+            <button onClick={() => setFilter({ q: pending.q, page: 1 })} className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium">
+              <Search className="w-4 h-4" /> 검색
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
-        <div className="overflow-x-auto">
-          <table className="text-sm w-auto">
-            <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
-              <tr>
-                <th className="px-3 py-1.5 text-left font-medium">번호</th>
-                <th className="px-3 py-1.5 text-left font-medium">썸네일</th>
-                <th className="px-3 py-1.5 text-left font-medium">제목</th>
-                <th className="px-3 py-1.5 text-left font-medium">상태</th>
-                <th className="px-3 py-1.5 text-left font-medium">진행 기간</th>
-                <th className="px-3 py-1.5 text-right font-medium">조회수</th>
-                <th className="px-3 py-1.5 text-left font-medium">작성일</th>
-                <th className="px-3 py-1.5 text-left font-medium">관리</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading && !data ? (
-                <tr><td colSpan={8} className="px-3 py-3 text-xs text-gray-400">로딩...</td></tr>
-              ) : !data || data.items.length === 0 ? (
-                <tr><td colSpan={8} className="px-3 py-3 text-xs text-gray-400">이벤트가 없습니다.</td></tr>
-              ) : data.items.map((n) => {
-                const status = computeStatus(n.starts_at, n.ends_at)
-                return (
-                  <tr key={n.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
-                    <td className="px-3 py-1.5 text-xs text-gray-400 tabular-nums">{n.id}</td>
-                    <td className="px-3 py-1.5">
-                      {n.thumbnail_url ? (
-                        <UploadedImage
-                          src={n.thumbnail_url}
-                          srcWebp={n.thumbnail_url_webp}
-                          alt=""
-                          className="w-12 h-12 object-cover rounded border border-gray-200 dark:border-gray-700"
-                        />
-                      ) : (
-                        <span className="text-[10px] text-gray-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-1.5 text-xs font-medium text-gray-800 dark:text-gray-100">{n.title}</td>
-                    <td className="px-3 py-1.5">
-                      <span className={`inline-flex items-center px-2 py-0.5 text-[10px] rounded-full ${status.cls}`}>{status.label}</span>
-                    </td>
-                    <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">
-                      {formatDT(n.starts_at)} ~ {formatDT(n.ends_at)}
-                    </td>
-                    <td className="px-3 py-1.5 text-xs text-gray-500 text-right tabular-nums">{n.view_count.toLocaleString()}</td>
-                    <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{formatDT(n.created_at)}</td>
-                    <td className="px-3 py-1.5 text-xs">
-                      <Link
-                        to={`/events/${n.id}`}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-                      >
-                        <Pencil className="w-3 h-3" /> 수정
-                      </Link>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <TableShell>
+        <THead>
+          <Th align="right">번호</Th>
+          <Th align="left">썸네일</Th>
+          <Th align="left">제목</Th>
+          <Th align="center">상태</Th>
+          <Th align="left">진행 기간</Th>
+          <Th align="right">조회수</Th>
+          <Th align="left">작성일</Th>
+        </THead>
+        <TBody>
+          {loading && !data ? (
+            <EmptyRow colSpan={7} loading />
+          ) : !data || data.items.length === 0 ? (
+            <EmptyRow colSpan={7} />
+          ) : data.items.map((n) => {
+            const status = computeStatus(n.starts_at, n.ends_at)
+            return (
+              <Tr key={n.id} onClick={() => navigate(`/events/${n.id}`)}>
+                <IdCell id={n.id} />
+                <Td align="left">
+                  {n.thumbnail_url ? (
+                    <UploadedImage src={n.thumbnail_url} srcWebp={n.thumbnail_url_webp} alt="" className="w-12 h-12 object-cover rounded border border-gray-200 dark:border-gray-700" />
+                  ) : (
+                    <span className="text-[10px] text-gray-300">—</span>
+                  )}
+                </Td>
+                <Td align="left" className="font-medium text-gray-900 dark:text-gray-100">{n.title}</Td>
+                <Td align="center"><Badge color={status.color}>{status.label}</Badge></Td>
+                <Td align="left" className="text-xs text-gray-500 tabular-nums">{formatDT(n.starts_at)} ~ {formatDT(n.ends_at)}</Td>
+                <Td align="right" className="text-xs text-gray-500 tabular-nums">
+                  {n.view_count === 0 ? <span className="text-gray-300">0</span> : n.view_count.toLocaleString()}
+                </Td>
+                <Td align="left" className="text-xs text-gray-500 tabular-nums">{formatDT(n.created_at)}</Td>
+              </Tr>
+            )
+          })}
+        </TBody>
+      </TableShell>
+
+      {data && (
+        <PaginationBar page={filter.page} totalPages={totalPages} total={data.total} pageSize={PAGE_SIZE} onChange={(p) => setFilter((f) => ({ ...f, page: p }))} unit="건" />
+      )}
     </div>
   )
 }
-
-const cls = 'px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
 
 function formatDT(s: string | null): string {
   if (!s) return '-'
@@ -144,11 +122,11 @@ function formatDT(s: string | null): string {
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`
 }
 
-function computeStatus(starts: string | null, ends: string | null): { label: string; cls: string } {
+function computeStatus(starts: string | null, ends: string | null): { label: string; color: BadgeColor } {
   const now = Date.now()
   const s = starts ? new Date(starts).getTime() : null
   const e = ends ? new Date(ends).getTime() : null
-  if (s && now < s) return { label: '예정', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' }
-  if (e && now > e) return { label: '종료', cls: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400' }
-  return { label: '진행중', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' }
+  if (s && now < s) return { label: '예정', color: 'amber' }
+  if (e && now > e) return { label: '종료', color: 'gray' }
+  return { label: '진행중', color: 'emerald' }
 }

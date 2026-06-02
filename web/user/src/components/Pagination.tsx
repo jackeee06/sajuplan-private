@@ -1,9 +1,9 @@
-/**
+﻿/**
  * 페이지 번호 — Figma 109:9360 (pagination)
  *
  *  layout: row, justify center, gap 12, padding 20px 0
  *  - prev/next: 32×32, radius 50px, opacity 0.4 (disabled)
- *  - 활성 숫자: 32×32 원형, bg #9B7AF7, white 15/400/150% (LNUM/TNUM)
+ *  - 활성 숫자: 32×32 원형, bg #f472b6, white 15/400/150% (LNUM/TNUM)
  *  - 비활성 숫자: 32×32, radius 6px, text #252B36
  */
 interface Props {
@@ -44,7 +44,7 @@ export default function Pagination({ currentPage, totalPages, onPageChange }: Pr
               aria-label={`${p} 페이지`}
               className={
                 active
-                  ? 'w-8 h-8 rounded-[50px] bg-[#9B7AF7] flex items-center justify-center'
+                  ? 'w-8 h-8 rounded-[50px] bg-[#f472b6] flex items-center justify-center'
                   : 'w-8 h-8 rounded-[6px] flex items-center justify-center'
               }
             >

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import { ApiError, consultApi } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 import {
@@ -111,7 +112,7 @@ export default function CounselorMyConsultMemo() {
   }
 
   return (
-    <div className="mobile-frame flex flex-col pb-6">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -155,8 +156,8 @@ export default function CounselorMyConsultMemo() {
                 </li>
                 {isChat && (
                   <li className="flex items-center justify-between">
-                    <span className="text-[#6A7282]">과금 포인트</span>
-                    <span className="text-[#1E2939]">{(consult.amt ?? 0).toLocaleString()}P</span>
+                    <span className="text-[#6A7282]">결제금액</span>
+                    <span className="text-[#1E2939]">{(consult.amt ?? 0).toLocaleString()}원</span>
                   </li>
                 )}
               </ul>
@@ -205,14 +206,15 @@ export default function CounselorMyConsultMemo() {
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="mt-2 w-full h-[52px] rounded-full bg-[#9B7AF7] text-white text-[16px] font-semibold disabled:opacity-60"
+              className="mt-2 w-full h-[52px] rounded-full bg-[#8259F5] text-white text-[16px] font-semibold disabled:opacity-60"
             >
               {saving ? '저장 중...' : '작성완료'}
             </button>
           </>
         )}
       </main>
-    </div>
+      <BottomNav myHref="/counselor/mypage" />
+      </div>
   )
 }
 
@@ -298,7 +300,7 @@ function SimpleSelect({
                     setOpen(false)
                   }}
                   className={`w-full px-4 py-2.5 text-left text-[15px] leading-5 ${
-                    selected ? 'text-[#8259F5] font-medium bg-[#F3EEFE]' : 'text-[#1E2939] hover:bg-[#F9FAFB]'
+                    selected ? 'text-[#8259F5] font-medium bg-[#f3f0ff]' : 'text-[#1E2939] hover:bg-[#F9FAFB]'
                   }`}
                 >
                   {opt}

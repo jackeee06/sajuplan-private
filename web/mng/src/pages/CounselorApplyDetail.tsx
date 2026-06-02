@@ -41,7 +41,7 @@ const STATUS_LABEL: Record<string, string> = {
   accepted: '승인',
   rejected: '반려',
   cancelled: '취소',
-  superseded: '대체됨',
+  superseded: '무효 (재신청됨)',
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -131,6 +131,9 @@ export default function CounselorApplyDetail() {
       setData({ ...data, status: 'accepted' })
       setApproveOpen(false)
     } catch (e) {
+      // 에러 메시지를 페이지 상단에 보여주기 위해 모달은 자동으로 닫음
+      // (모달이 열려있으면 페이지 에러 박스가 가려서 사용자가 같은 버튼을 계속 누르게 됨)
+      setApproveOpen(false)
       setError(e instanceof Error ? e.message : '승인 실패')
     } finally {
       setApproveBusy(false)
@@ -156,6 +159,7 @@ export default function CounselorApplyDetail() {
       setRejectOpen(false)
       setRejectReason('')
     } catch (e) {
+      setRejectOpen(false)
       setError(e instanceof Error ? e.message : '반려 실패')
     } finally {
       setRejectBusy(false)
@@ -184,9 +188,9 @@ export default function CounselorApplyDetail() {
   const hasPasswordHash = Boolean(extras.password_hash)
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 max-w-[1000px]">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/members/counselor-apply')}
             className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500"
@@ -202,7 +206,7 @@ export default function CounselorApplyDetail() {
             </p>
           </div>
           <span
-            className={`ml-3 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
               STATUS_BADGE[data.status] ?? 'bg-gray-100 text-gray-600'
             }`}
           >
@@ -210,24 +214,14 @@ export default function CounselorApplyDetail() {
           </span>
         </div>
 
-        {/* 상태 변경 버튼 — 승인 완료된 신청은 어떤 상태로도 되돌릴 수 없음 (계정·M2NET 부수효과) */}
+        {/* 상태별 액션 버튼 — 상식 프로세스:
+            pending     : 승인/반려/취소처리 (적극 처리)
+            rejected/cancelled : "검토중으로" 복구만 (재검토용)
+            accepted    : 변경 불가 (이미 계정/M2NET 생성됨)
+            superseded  : 변경 불가 (더 최신 신청이 있음) */}
         <div className="flex items-center gap-2">
-          {data.status === 'accepted' ? (
-            <span className="text-[11px] text-gray-500 dark:text-gray-400 italic">
-              승인 완료된 신청은 상태 변경 불가 — 상담사 회원 관리에서 처리
-            </span>
-          ) : (
+          {data.status === 'pending' && (
             <>
-              {data.status !== 'pending' && (
-                <button
-                  type="button"
-                  onClick={() => changeStatus('pending')}
-                  disabled={updatingTo !== null}
-                  className="px-3 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
-                >
-                  {updatingTo === 'pending' ? '변경 중…' : '검토중으로'}
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() => setApproveOpen(true)}
@@ -236,30 +230,68 @@ export default function CounselorApplyDetail() {
               >
                 승인
               </button>
-              {data.status !== 'rejected' && (
-                <button
-                  type="button"
-                  onClick={() => setRejectOpen(true)}
-                  disabled={updatingTo !== null || rejectBusy}
-                  className="px-3 py-1.5 text-xs rounded-md bg-rose-500 hover:bg-rose-600 text-white disabled:opacity-50"
-                >
-                  반려
-                </button>
-              )}
-              {data.status !== 'cancelled' && (
-                <button
-                  type="button"
-                  onClick={() => changeStatus('cancelled')}
-                  disabled={updatingTo !== null}
-                  className="px-3 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
-                >
-                  {updatingTo === 'cancelled' ? '변경 중…' : '취소처리'}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setRejectOpen(true)}
+                disabled={updatingTo !== null || rejectBusy}
+                className="px-3 py-1.5 text-xs rounded-md bg-rose-500 hover:bg-rose-600 text-white disabled:opacity-50"
+              >
+                반려
+              </button>
+              <button
+                type="button"
+                onClick={() => changeStatus('cancelled')}
+                disabled={updatingTo !== null}
+                className="px-3 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+              >
+                {updatingTo === 'cancelled' ? '변경 중…' : '취소처리'}
+              </button>
             </>
+          )}
+          {(data.status === 'rejected' || data.status === 'cancelled') && (
+            <button
+              type="button"
+              onClick={() => changeStatus('pending')}
+              disabled={updatingTo !== null}
+              className="px-3 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+            >
+              {updatingTo === 'pending' ? '변경 중…' : '검토중으로 되돌리기'}
+            </button>
           )}
         </div>
       </div>
+
+      {/* 상태별 상단 안내 박스 — 어떤 상태에서 어떤 행동이 가능한지 한 줄로 */}
+      {data.status === 'pending' && (
+        <div className="px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[12px] text-amber-800 dark:text-amber-300">
+          💡 승인 시 기본 단가 <strong>1,000원</strong>이 자동 설정됩니다.
+          필요 시 승인 후 <strong>회원 상세 페이지</strong>에서 수정할 수 있습니다.
+        </div>
+      )}
+      {data.status === 'superseded' && (
+        <div className="px-3 py-2 rounded-md bg-slate-50 dark:bg-slate-900/40 border border-slate-300 dark:border-slate-700 text-[12px] text-slate-700 dark:text-slate-300">
+          🛈 <strong>이 신청서는 무효입니다.</strong>{' '}
+          신청자가 같은 휴대폰 번호({data.applicant_phone ?? '-'})로 신청서를 한 번 더 냈기 때문에, 이 신청서로는 더 이상 승인·반려를 할 수 없습니다.
+          {' '}처리해야 할 진짜 신청서는 같은 번호로 새로 들어온 신청서입니다 —{' '}
+          <Link to="/members/counselor-apply" className="underline text-slate-900 dark:text-slate-100">신청 목록</Link>에서 같은 휴대폰 번호의 다른 신청서를 찾아 열어주세요.
+        </div>
+      )}
+      {data.status === 'accepted' && (
+        <div className="px-3 py-2 rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-[12px] text-emerald-800 dark:text-emerald-300">
+          ✓ <strong>이미 승인되어 상담사로 등록된 신청서</strong>입니다. 단가나 회원 정보를 고치려면{' '}
+          {data.member_id ? (
+            <Link to={`/members/counselors/${data.member_id}`} className="underline text-emerald-900 dark:text-emerald-100">상담사 회원 관리</Link>
+          ) : (
+            <strong>상담사 회원 관리</strong>
+          )}
+          에서 처리하세요.
+        </div>
+      )}
+      {data.status === 'cancelled' && (
+        <div className="px-3 py-2 rounded-md bg-gray-50 dark:bg-gray-900/40 border border-gray-300 dark:border-gray-700 text-[12px] text-gray-700 dark:text-gray-300">
+          🛈 <strong>취소된 신청서</strong>입니다. 다시 검토하시려면 위쪽 [검토중으로 되돌리기] 버튼을 눌러주세요.
+        </div>
+      )}
 
       {error && (
         <div className="p-3 rounded-lg bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 text-sm">
@@ -610,10 +642,10 @@ function Modal({ children, onClose }: { children: React.ReactNode; onClose: () =
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
-      <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800 text-sm font-semibold text-gray-700 dark:text-gray-200">
+      <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-800 text-sm font-semibold text-gray-700 dark:text-gray-200">
         {title}
       </div>
-      <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">{children}</div>
+      <div className="px-4 grid grid-cols-1 lg:grid-cols-2 gap-x-8">{children}</div>
     </div>
   )
 }
@@ -628,8 +660,12 @@ function Row({
   fullWidth?: boolean
 }) {
   return (
-    <div className={`grid grid-cols-1 md:grid-cols-[160px_1fr] gap-2 md:gap-4 ${fullWidth ? 'lg:col-span-2' : ''}`}>
-      <div className="pt-1">
+    <div
+      className={`grid grid-cols-1 md:grid-cols-[100px_1fr] gap-2 md:gap-4 py-2 border-b border-gray-100 dark:border-gray-800 last:border-b-0 ${
+        fullWidth ? 'lg:col-span-2' : ''
+      }`}
+    >
+      <div>
         <label className="text-sm font-medium text-gray-700 dark:text-gray-200">{label}</label>
       </div>
       <div className="text-sm text-gray-800 dark:text-gray-200">{children}</div>

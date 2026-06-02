@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import CounselorMyProductDetailLayout from '../components/CounselorMyProductDetailLayout'
 import { MOCK_PRODUCT_REVIEWS, MOCK_SERVICE_PRODUCTS } from '../data/counselorMyPage'
@@ -38,7 +38,7 @@ export default function CounselorMyProductReviews() {
 
       <button
         type="button"
-        className="mt-3 w-full h-[44px] rounded-full border border-[#9B7AF7] flex items-center justify-center gap-1 text-[14px] font-medium text-[#8259F5]"
+        className="mt-3 w-full h-[44px] rounded-full border border-[#8259F5] flex items-center justify-center gap-1 text-[14px] font-medium text-[#8259F5]"
       >
         <PencilIcon />
         후기 작성하기
@@ -53,7 +53,7 @@ export default function CounselorMyProductReviews() {
             type="checkbox"
             checked={photoOnly}
             onChange={(e) => setPhotoOnly(e.target.checked)}
-            className="w-4 h-4 accent-[#9B7AF7]"
+            className="w-4 h-4 accent-[#8259F5]"
           />
           <span className="text-[13px] text-[#4A5565]">사진 후기만 보기</span>
         </label>
@@ -134,8 +134,8 @@ function PencilIcon() {
 function CheckCircle() {
   return (
     <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
-      <circle cx="8" cy="8" r="7" stroke="#9B7AF7" strokeWidth="1.4" />
-      <path d="M5 8L7 10L11 6" stroke="#9B7AF7" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="8" cy="8" r="7" stroke="#8259F5" strokeWidth="1.4" />
+      <path d="M5 8L7 10L11 6" stroke="#8259F5" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

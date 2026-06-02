@@ -5,15 +5,12 @@ import MemberMyPage from './MemberMyPage'
 import CounselorMyPage from './CounselorMyPage'
 
 /**
- * /mypage 진입점 — 로그인 여부와 role 에 따라 분기.
+ * /mypage 진입점 (2026-05-22 ID 통합 후) — 항상 회원 마이페이지로.
  *
  *   비로그인         → MyPage (환영 + 로그인 버튼)
- *   role=counselor   → CounselorMyPage (정산/상담 토글/상담사 메뉴)
+ *   role=counselor   → MemberMyPage (상담사도 회원 화면을 기본으로 봄)
+ *                      상담사 마이페이지로 이동은 우상단 [상담사 메뉴] 칩으로
  *   그 외(member 등)→ MemberMyPage (포인트/메뉴)
- *
- * Navigate 가 아닌 컴포넌트 직접 렌더 — URL 은 항상 `/mypage` 로 유지되고
- * 새로고침 / 뒤로가기 시 동일 동작 보장. 또 `/mypage/member` 같은
- * 하위 라우트는 직접 호출 가능 (별도 라우트 정의됨).
  */
 export default function MyPageEntry() {
   const { member, loading } = useAuth()
@@ -38,10 +35,8 @@ export default function MyPageEntry() {
     return <MyPage />
   }
 
-  if (member.role === 'counselor') {
-    return <CounselorMyPage />
-  }
-
+  // 회원/상담사 모두 같은 회원 마이페이지를 본다.
+  // 상담사 자격이 있는 사람은 회원 화면 우상단 [상담사 메뉴 >] 칩으로 전환.
   return <MemberMyPage />
 }
 
@@ -50,9 +45,5 @@ export function _MyPageRedirect() {
   const { member, loading } = useAuth()
   if (loading) return null
   if (!member) return <Navigate to="/login?redirect=/mypage" replace />
-  return member.role === 'counselor' ? (
-    <Navigate to="/counselor/mypage" replace />
-  ) : (
-    <Navigate to="/mypage/member" replace />
-  )
+  return <Navigate to="/mypage/member" replace />
 }

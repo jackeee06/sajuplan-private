@@ -14,6 +14,7 @@ import {
   type OptionalUserRequest,
 } from '../auth/optional-user.guard';
 import { UserNotificationsService } from './notifications.service';
+import { AlertsService } from '../../shared/alerts/alerts.service';
 
 /**
  * 사용자 알림 내역 — /api/user/notifications.
@@ -23,13 +24,30 @@ import { UserNotificationsService } from './notifications.service';
  */
 @Controller('user/notifications')
 export class UserNotificationsController {
-  constructor(private readonly svc: UserNotificationsService) {}
+  constructor(
+    private readonly svc: UserNotificationsService,
+    private readonly alerts: AlertsService,
+  ) {}
 
   @Get()
   @UseGuards(OptionalUserGuard)
   list(@Req() req: OptionalUserRequest) {
     const memberId = req.user?.sub ?? null;
     return this.svc.list(memberId);
+  }
+
+  /**
+   * [2026-05-27] 실시간 알림 polling — 채팅/전화 5분 잔여 등.
+   *  - 클라이언트가 30초 주기로 호출.
+   *  - 큐에서 모든 알림 꺼내고 비움 (한 번만 표시).
+   *  - 백그라운드 도달은 FCM 빌드 후 보완.
+   */
+  @Get('pending')
+  @UseGuards(UserAuthGuard)
+  pending(@Req() req: UserAuthedRequest) {
+    const memberId = req.user?.sub;
+    if (!memberId) throw new UnauthorizedException();
+    return { alerts: this.alerts.dequeueAll(memberId) };
   }
 
   @Post(':id/read')

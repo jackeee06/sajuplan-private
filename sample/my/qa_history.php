@@ -43,7 +43,7 @@ include_once(G5_THEME_MOBILE_PATH.'/head.php');
         <div class="comment_inner">
             <header>
                 <h2>디에프님의 댓글<span class="sound_only">의 댓글</span></h2>
-                <span class="member">사주문상담사</span>                <!--
+                <span class="member">사주플랜상담사</span>                <!--
                                 -->
                 <span class="sound_only">작성일</span>
                 <span class="bo_vc_hdinfo"><time datetime="2024-08-02">24-08-02 23:32</time></span>

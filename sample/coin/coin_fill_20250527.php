@@ -321,7 +321,7 @@ $membnm =  $member["mb_name"];//'회원명(옵션)
                 <li>
                     <div>
                         <input type="radio" id="chk1" name="echk" value="1" style="margin-right: 5px; margin-bottom: 3px;" />
-                        <label for="chk1"><span><img src="../img/common/pay.png" style=" display:inline-block; height: 24px; vertical-align: -5px; margin-right: 6px;" /></span>사주문페이</label>
+                        <label for="chk1"><span><img src="../img/common/pay.png" style=" display:inline-block; height: 24px; vertical-align: -5px; margin-right: 6px;" /></span>사주플랜페이</label>
                     </div>
                     <div class="sear check01" style="display: none;">
                     	<div class="the_pay_wrap">
@@ -331,7 +331,7 @@ $membnm =  $member["mb_name"];//'회원명(옵션)
         	                           <img src="../img/common/pay.png" />
             	                       <i class="xi-plus"></i>
                 	               </span>
-                    	           <span class="the_pay_text">사주문페이를 추가하고 빠르게 결제하세요!</span>
+                    	           <span class="the_pay_text">사주플랜페이를 추가하고 빠르게 결제하세요!</span>
                             	</div>
                             
                         	</button>
@@ -401,7 +401,7 @@ $membnm =  $member["mb_name"];//'회원명(옵션)
 
 <div class="con_section con_section_b_bot page_noti gray_bg" style=" padding-top:20px; padding-bottom: 80px;">
 	<ul class="page_noti_item">
-    충전 불편사항이나 직접 충전 신청은 "어플 내 고객문의게시판" 혹은 카카오톡 플러스친구 "사주문고객센터"로 연락주세요.
+    충전 불편사항이나 직접 충전 신청은 "어플 내 고객문의게시판" 혹은 카카오톡 플러스친구 "사주플랜고객센터"로 연락주세요.
     </ul>
     
     <ul class="page_noti_item">

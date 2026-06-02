@@ -153,73 +153,68 @@ export class AuthService {
   async syncM2netBalanceForMember(
     memberId: number,
   ): Promise<{ ok: boolean; sajumoonPoint: number; m2netMembid: string | null; error?: string }> {
+    // 2026-05-22 ID 단일화: 회원 m2net ID 는 m2net_membid 컬럼 (csrid 는 상담사 전용)
     const rows = await this.sql<{
       id: number;
       role: string;
       point: number;
-      csrid: string | null;
+      m2net_membid: string | null;
       name: string;
       phone: string | null;
     }[]>`
-      SELECT id, role, point, csrid, name, phone FROM member WHERE id = ${memberId} AND left_at IS NULL LIMIT 1
+      SELECT id, role, point, m2net_membid, name, phone FROM member WHERE id = ${memberId} AND left_at IS NULL LIMIT 1
     `;
     const me = rows[0];
     if (!me) return { ok: false, sajumoonPoint: 0, m2netMembid: null, error: '회원 없음' };
-    // 상담사는 본 동기화 대상 아님 — 상담사 잔액은 정산용이라 별도 흐름.
-    if (me.role !== 'user') {
-      return { ok: false, sajumoonPoint: me.point, m2netMembid: me.csrid, error: '회원 대상 아님' };
+    if (me.role !== 'user' && me.role !== 'counselor') {
+      return { ok: false, sajumoonPoint: me.point, m2netMembid: me.m2net_membid, error: '회원 대상 아님' };
     }
-    if (!me.csrid) {
-      return { ok: false, sajumoonPoint: me.point, m2netMembid: null, error: 'm2net 미등록 (csrid 없음)' };
+    if (!me.m2net_membid) {
+      return { ok: false, sajumoonPoint: me.point, m2netMembid: null, error: 'm2net 미등록 (m2net_membid 없음)' };
     }
     if (!this.m2net.isEnabled()) {
-      return { ok: false, sajumoonPoint: me.point, m2netMembid: me.csrid, error: 'M2NET 비활성' };
+      return { ok: false, sajumoonPoint: me.point, m2netMembid: me.m2net_membid, error: 'M2NET 비활성' };
     }
-    // 1) m2net 측 현재 잔액 조회 → 사주문 잔액과 차이만큼 fill 로 보정.
-    //    PUT memb-mgr (overwrite) 방식은 m2net 의 충전·차감 push 와 race 가 날 수 있고
-    //    절대값 set 시 0 클램프 등 사이드이펙트가 있어 매뉴얼 §3.6 delta 방식이 더 안전.
-    const fetched = await this.m2net.getMemberByMembid(me.csrid);
+    const fetched = await this.m2net.getMemberByMembid(me.m2net_membid);
     if (fetched.ok && typeof fetched.amt === 'number') {
       const delta = me.point - fetched.amt;
       if (delta === 0) {
-        return { ok: true, sajumoonPoint: me.point, m2netMembid: me.csrid };
+        return { ok: true, sajumoonPoint: me.point, m2netMembid: me.m2net_membid };
       }
-      const fillRes = await this.m2net.addMemberCoin(me.csrid, delta);
+      const fillRes = await this.m2net.addMemberCoin(me.m2net_membid, delta);
       if (!fillRes.ok) {
         this.logger.warn(
-          `[syncM2netBalance] fill 실패 member=${memberId} csrid=${me.csrid} delta=${delta}: ${fillRes.error}`,
+          `[syncM2netBalance] fill 실패 member=${memberId} m2net_membid=${me.m2net_membid} delta=${delta}: ${fillRes.error}`,
         );
-        // fallback to overwrite — 그래도 안 되면 에러.
-        const r = await this.m2net.updateMember(me.csrid, { amt: me.point });
+        const r = await this.m2net.updateMember(me.m2net_membid, { amt: me.point });
         if (!r.ok) {
           return {
             ok: false,
             sajumoonPoint: me.point,
-            m2netMembid: me.csrid,
+            m2netMembid: me.m2net_membid,
             error: r.error ?? '알 수 없음',
           };
         }
       } else {
         this.logger.log(
-          `[syncM2netBalance] member=${memberId} csrid=${me.csrid} m2net=${fetched.amt} → ${me.point} (delta=${delta})`,
+          `[syncM2netBalance] member=${memberId} m2net_membid=${me.m2net_membid} m2net=${fetched.amt} → ${me.point} (delta=${delta})`,
         );
       }
-      return { ok: true, sajumoonPoint: me.point, m2netMembid: me.csrid };
+      return { ok: true, sajumoonPoint: me.point, m2netMembid: me.m2net_membid };
     }
-    // GET 실패 (m2net 미등록 또는 라우트 차이) → 매뉴얼 §3.4 overwrite 로 폴백.
-    const r = await this.m2net.updateMember(me.csrid, { amt: me.point });
+    const r = await this.m2net.updateMember(me.m2net_membid, { amt: me.point });
     if (!r.ok) {
       this.logger.warn(
-        `[syncM2netBalance] overwrite 폴백 실패 member=${memberId} csrid=${me.csrid} point=${me.point}: ${r.error}`,
+        `[syncM2netBalance] overwrite 폴백 실패 member=${memberId} m2net_membid=${me.m2net_membid} point=${me.point}: ${r.error}`,
       );
       return {
         ok: false,
         sajumoonPoint: me.point,
-        m2netMembid: me.csrid,
+        m2netMembid: me.m2net_membid,
         error: r.error ?? '알 수 없음',
       };
     }
-    return { ok: true, sajumoonPoint: me.point, m2netMembid: me.csrid };
+    return { ok: true, sajumoonPoint: me.point, m2netMembid: me.m2net_membid };
   }
 
   private toLoginResult(mb: MemberRow): UserLoginResult {
@@ -579,8 +574,10 @@ export class AuthService {
       amt: 0,
     });
     if (r.ok && r.membid) {
-      await this.sql`UPDATE member SET csrid = ${r.membid} WHERE id = ${memberId}`;
-      this.logger.log(`[signup] m2net 등록 성공 member_id=${memberId} csrid=${r.membid}`);
+      // 회원 m2net ID 는 m2net_membid 컬럼에 저장 (상담사 csrid 와 분리)
+      // 회원이 추후 상담사로 승격되어도 회원 측 m2net 엔티티는 그대로 유지됨.
+      await this.sql`UPDATE member SET m2net_membid = ${r.membid} WHERE id = ${memberId}`;
+      this.logger.log(`[signup] m2net 등록 성공 member_id=${memberId} m2net_membid=${r.membid}`);
       return;
     }
 
@@ -776,9 +773,9 @@ export class AuthService {
     });
     const sent = await this.mailer.send({
       to: m.email!,
-      subject: '[사주문] 임시비밀번호 안내',
+      subject: '[사주플랜] 임시비밀번호 안내',
       html,
-      text: `안녕하세요. 사주문입니다.\n\n이름: ${m.name}\n회원아이디: ${m.mb_id}\n임시비밀번호: ${tempPw}\n\n임시비밀번호로 로그인하신 후 비밀번호를 변경해 주시기 바랍니다.`,
+      text: `안녕하세요. 사주플랜입니다.\n\n이름: ${m.name}\n회원아이디: ${m.mb_id}\n임시비밀번호: ${tempPw}\n\n임시비밀번호로 로그인하신 후 비밀번호를 변경해 주시기 바랍니다.`,
     });
     if (!sent) {
       this.logger.warn(
@@ -790,7 +787,7 @@ export class AuthService {
     );
   }
 
-  /** 비밀번호 찾기 메일 HTML — 사주문 톤앤매너 (간결) */
+  /** 비밀번호 찾기 메일 HTML — 사주플랜 톤앤매너 (간결) */
   private renderFindPwEmail(p: {
     name: string;
     mbId: string;
@@ -800,7 +797,7 @@ export class AuthService {
 <html>
 <body style="margin:0;padding:0;background:#F9FAFB;font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:#1E2939;">
   <div style="max-width:600px;margin:24px auto;background:#fff;border-radius:16px;padding:32px 28px;">
-    <h1 style="margin:0 0 16px;font-size:20px;color:#8259F5;">사주문 회원정보 찾기 안내</h1>
+    <h1 style="margin:0 0 16px;font-size:20px;color:#8259F5;">사주플랜 회원정보 찾기 안내</h1>
     <p style="font-size:15px;line-height:1.6;margin:0 0 16px;">
       안녕하세요, <strong>${p.name}</strong>님.<br/>
       회원정보 찾기 요청에 따라 아래와 같이 안내드립니다.
@@ -820,7 +817,7 @@ export class AuthService {
     </p>
     <hr style="border:none;border-top:1px solid #F3F4F6;margin:24px 0;"/>
     <p style="font-size:12px;color:#99A1AF;margin:0;">
-      본 메일은 발신 전용입니다. 문의는 사주문 고객센터를 이용해주세요.
+      본 메일은 발신 전용입니다. 문의는 사주플랜 고객센터를 이용해주세요.
     </p>
   </div>
 </body>
@@ -1037,31 +1034,32 @@ export class AuthService {
         preflag: 'P' | 'Y' | null;
         state: string;
       }[]>`
-        SELECT id, name, nickname, role, csrid,
+        SELECT id, name, nickname, role, csrid, m2net_membid,
                dtmfno, telno, counselor_priority,
                call_unit_seconds, call_070_unit_cost,
                chat_unit_seconds, chat_unit_cost,
                preflag, state
           FROM member WHERE id = ${memberId} LIMIT 1
       `;
-      const me = meRows[0];
+      const me = meRows[0] as (typeof meRows[0] & { m2net_membid: string | null }) | undefined;
       const newTelnoDigits = newPhone.replace(/\D/g, '');
       const m2netEnabled = this.m2net.isEnabled();
 
-      if (m2netEnabled && me?.role === 'user' && me?.csrid) {
-        // 일반회원 — PUT memb-mgr 으로 telno 만 갱신 (잔액 amt 보존)
-        const r = await this.m2net.updateMember(me.csrid, { telno: newTelnoDigits });
+      // 회원 m2net 동기화 — role 무관, m2net_membid 가 있으면 회원 엔티티 갱신
+      // (회원이 상담사로 승격된 후에도 회원 엔티티는 그대로 살아있음)
+      if (m2netEnabled && me?.m2net_membid) {
+        const r = await this.m2net.updateMember(me.m2net_membid, { telno: newTelnoDigits });
         if (!r.ok) {
           const msg = this.extractM2netMessage(r.raw, r.error);
           throw new ConflictException(msg);
         }
         this.logger.log(
-          `[updateProfile] m2net memb-mgr PUT 성공 member_id=${memberId} membid=${me.csrid} new_phone=${newPhone}`,
+          `[updateProfile] m2net memb-mgr PUT 성공 member_id=${memberId} membid=${me.m2net_membid} new_phone=${newPhone}`,
         );
-      } else if (m2netEnabled && me?.role === 'user' && !me?.csrid) {
-        // 일반회원 m2net 미등록 — 지연 등록 (POST). 받은 membid 를 csrid 컬럼에 저장.
+      } else if (m2netEnabled && !me?.m2net_membid) {
+        // m2net 미등록 — 지연 등록 (POST). 받은 membid 를 m2net_membid 컬럼에 저장.
         const r = await this.m2net.registerMember({
-          membnm: me.name,
+          membnm: me?.name ?? '',
           telno: newTelnoDigits,
           amt: 0,
         });
@@ -1070,12 +1068,14 @@ export class AuthService {
           throw new ConflictException(msg);
         }
         if (r.membid) {
-          await this.sql`UPDATE member SET csrid = ${r.membid} WHERE id = ${memberId}`;
+          await this.sql`UPDATE member SET m2net_membid = ${r.membid} WHERE id = ${memberId}`;
         }
         this.logger.log(
           `[updateProfile] m2net memb-mgr POST 지연등록 성공 member_id=${memberId} new_membid=${r.membid ?? '(none)'}`,
         );
-      } else if (m2netEnabled && me?.role === 'counselor' && me?.csrid) {
+      }
+      // 상담사 자격이 있으면 csr-mgr 도 같이 동기화 (회원 + 상담사 둘 다 등록된 케이스)
+      if (m2netEnabled && me?.role === 'counselor' && me?.csrid) {
         // 상담사 — csr-mgr 풀 레코드 push (단방향 갱신, m2net 응답은 성공/실패만 봄).
         // member.phone 을 단일 진실(single source of truth)로 두고 csr-mgr 의 telno
         // 까지 같은 값으로 보낸다. 휴대폰 변경 = 콜 라우팅 번호도 새 번호로 갱신.
@@ -1099,14 +1099,14 @@ export class AuthService {
         this.logger.log(
           `[updateProfile] m2net csr-mgr 동기화 성공 member_id=${memberId} csrid=${me.csrid} new_phone=${newPhone}`,
         );
-      } else if (me?.role === 'counselor' && !me?.csrid) {
-        // 상담사가 m2net 미등록 — 어드민에서 상담사 등록을 먼저 해야 하는 비정상 상태.
-        // 본인 휴대폰 변경은 차단하지 않되 운영 알림용 경고 로그.
+      }
+      if (m2netEnabled && me?.role === 'counselor' && !me?.csrid) {
+        // 상담사인데 csr-mgr 등록 안 됨 — 어드민에서 상담사 등록 누락 가능성. 경고만.
         this.logger.warn(
-          `[updateProfile] 상담사가 m2net csrid 없음 (어드민 상담사 등록 누락?) member_id=${memberId}`,
+          `[updateProfile] 상담사인데 m2net csrid 없음 (어드민에서 상담사 m2net 등록 누락?) member_id=${memberId}`,
         );
-      } else if (!m2netEnabled) {
-        // 로컬 개발 등 m2net 비활성 환경 — 동기화 자체를 시도하지 않음.
+      }
+      if (!m2netEnabled) {
         this.logger.log(`[updateProfile] m2net 비활성 — 동기화 skip member_id=${memberId}`);
       }
     }
@@ -1156,8 +1156,14 @@ export class AuthService {
 
   /** 비밀번호 변경 — 현재 비밀번호 검증 후 새 비밀번호로 교체. */
   async changePassword(memberId: number, currentPw: string, newPw: string): Promise<void> {
-    if (!newPw || newPw.length < 6) {
-      throw new BadRequestException('비밀번호는 6자 이상이어야 합니다.');
+    // [2026-05-25 정책 강화] 가입과 통일 — 8~20자 + 영문/숫자 혼합 필수
+    if (!newPw || newPw.length < 8 || newPw.length > 20) {
+      throw new BadRequestException('비밀번호는 8~20자여야 합니다.');
+    }
+    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(newPw)) {
+      throw new BadRequestException(
+        '비밀번호는 영문과 숫자를 각각 1개 이상 포함해야 합니다.',
+      );
     }
     const rows = await this.sql<{ password: string | null }[]>`
       SELECT password FROM member WHERE id = ${memberId} LIMIT 1

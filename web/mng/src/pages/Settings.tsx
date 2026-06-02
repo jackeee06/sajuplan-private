@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Save } from 'lucide-react'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
+import { ReadOnlyForSuper, SuperOnlySection } from '../components/SuperOnlySection'
 
 // ───────────────────────────────────────────────
 // 타입
 // ───────────────────────────────────────────────
 type SettingsByNs = Record<string, Record<string, string>>
 
-// 화면에 노출되는 탭 (4개로 통합 — 2026-05-17)
-type TabKey = 'general' | 'grade' | 'ops' | 'legal'
-// 데이터는 여전히 6개 namespace 로 분리 (DB 호환).
+// 화면에 노출되는 탭 (2026-05-21: payout 추가)
+type TabKey = 'general' | 'grade' | 'payout' | 'ops' | 'legal'
+// 데이터는 namespace 로 분리 (DB 호환).
 // 'general' 탭은 아래 6개 namespace 를 섹션으로 묶어서 한 화면에 그리드로 표시.
-type Namespace = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer' | 'grade' | 'ops'
+type Namespace = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer' | 'grade' | 'ops' | 'payout' | 'maintenance'
 type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'password' | 'select' | 'multiselect'
 interface FieldDef {
   key: string
@@ -184,7 +186,7 @@ const NS_FIELDS: Record<Namespace, { title: string; fields: FieldDef[] }> = {
   footer: {
     title: '푸터(회사정보)',
     fields: [
-      { key: 'company_name', label: '회사명 (상호)', kind: 'text', placeholder: '예: 주식회사 사주문' },
+      { key: 'company_name', label: '회사명 (상호)', kind: 'text', placeholder: '예: 주식회사 사주플랜' },
       { key: 'ceo', label: '대표자', kind: 'text' },
       { key: 'address', label: '주소', kind: 'text', placeholder: '예: 서울특별시 강남구 ...' },
       { key: 'business_no', label: '사업자등록번호', kind: 'text', placeholder: 'XXX-XX-XXXXX' },
@@ -194,7 +196,7 @@ const NS_FIELDS: Record<Namespace, { title: string; fields: FieldDef[] }> = {
       { key: 'fax', label: '팩스번호', kind: 'text' },
       { key: 'email', label: '대표 이메일', kind: 'text' },
       { key: 'business_hours', label: '운영시간 안내', kind: 'text', placeholder: '예: 평일 10:00 ~ 18:00' },
-      { key: 'copyright', label: '저작권 문구', kind: 'text', placeholder: '예: COPYRIGHT © 사주문 ALL RIGHTS RESERVED' },
+      { key: 'copyright', label: '저작권 문구', kind: 'text', placeholder: '예: COPYRIGHT © 사주플랜 ALL RIGHTS RESERVED' },
       { key: 'extra_info', label: '기타 안내 문구', kind: 'textarea', hint: '푸터 하단에 추가 노출되는 내용' },
     ],
   },
@@ -231,6 +233,63 @@ const NS_FIELDS: Record<Namespace, { title: string; fields: FieldDef[] }> = {
       { key: 'demote_step_max',      label: '강등 최대 단계',        kind: 'number', placeholder: '1', hint: '한 번에 강등 가능 단계 수. 1 = 한 단계씩만.' },
     ],
   },
+  payout: {
+    title: '선지급',
+    fields: [
+      {
+        key: 'policy_text',
+        label: '선지급 정책 안내문',
+        kind: 'textarea',
+        hint: '선지급 관리 페이지(상단 "정책 보기" 펼침)에 그대로 노출됩니다. 운영자가 처음 봐도 처리 흐름을 한 번에 이해할 수 있도록 작성하세요. 비워두면 시스템 기본 안내문이 표시됩니다.',
+      },
+      {
+        key: 'fee_rate',
+        label: '수수료율 (%)',
+        kind: 'text',
+        placeholder: '예: 5',
+        hint: '🔒 슈퍼어드민만 변경 가능. 신청금에서 공제되는 서비스 수수료 비율. 5 = 5%. 변경 시 새 신청건부터 적용됩니다 (기존 신청건은 신청 시점 값을 그대로 사용).',
+      },
+      {
+        key: 'withholding_rate',
+        label: '원천세율 (%)',
+        kind: 'text',
+        placeholder: '예: 3.3',
+        hint: '🔒 슈퍼어드민만 변경 가능. 사업소득 원천징수율. 한국 세법 기준 3.3% (소득세 3% + 지방세 0.3%). 세법 개정이 없는 한 유지하세요.',
+      },
+    ],
+  },
+  maintenance: {
+    title: '🔧 점검 안내 배너',
+    fields: [
+      {
+        key: 'banner_active',
+        label: '배너 활성',
+        kind: 'bool',
+        hint: '켜면 모든 사용자(비로그인 포함) 의 홈 상단에 노란 점검 배너가 노출됩니다. 점검 시작 전 켜고, 종료 후 끄세요.',
+      },
+      {
+        key: 'banner_title',
+        label: '제목',
+        kind: 'text',
+        placeholder: '예: 점검 안내',
+        hint: '배너 좌측에 표시. 짧고 명확하게.',
+      },
+      {
+        key: 'banner_body',
+        label: '본문',
+        kind: 'text',
+        placeholder: '예: 5월 30일 새벽 2~4시 서비스 점검이 예정되어 있어요',
+        hint: '배너 본문 한 줄. 점검 시간과 영향을 명확히.',
+      },
+      {
+        key: 'banner_link',
+        label: '클릭 시 이동 URL (선택)',
+        kind: 'text',
+        placeholder: '예: /notices/123 또는 https://example.com',
+        hint: '비우면 배너 클릭 비활성. 내부 페이지는 "/notices/123" 형식, 외부 사이트는 "https://example.com" 형식. (스킴 없이 "www.example.com" 도 자동 처리)',
+      },
+    ],
+  },
   ops: {
     title: '운영알림',
     fields: [
@@ -260,16 +319,29 @@ const NS_FIELDS: Record<Namespace, { title: string; fields: FieldDef[] }> = {
 }
 
 // 'general' 탭에서 한 번에 노출되는 섹션 순서
-const GENERAL_SECTIONS: Namespace[] = ['site', 'member', 'review', 'social', 'security', 'footer']
+const GENERAL_SECTIONS: Namespace[] = ['maintenance', 'site', 'member', 'review', 'social', 'security', 'footer']
 
-const TAB_ORDER: TabKey[] = ['general', 'grade', 'ops', 'legal']
+const TAB_ORDER: TabKey[] = ['general', 'grade', 'payout', 'ops', 'legal']
 
 // ───────────────────────────────────────────────
 // 페이지
 // ───────────────────────────────────────────────
 export default function Settings() {
   const [data, setData] = useState<SettingsByNs | null>(null)
-  const [tab, setTab] = useState<TabKey>('general')
+  // URL ?tab=grade 같은 파라미터로 초기 탭 지정 (다른 페이지에서 딥링크 진입 지원).
+  // 유효 값: general / grade / payout / ops / legal. 그 외엔 'general' fallback.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialTab = (searchParams.get('tab') as TabKey) || 'general'
+  const validTab: TabKey = (['general', 'grade', 'payout', 'ops', 'legal'] as TabKey[]).includes(initialTab) ? initialTab : 'general'
+  const [tab, setTabState] = useState<TabKey>(validTab)
+  const setTab = (next: TabKey) => {
+    setTabState(next)
+    // URL 도 같이 갱신 (사장님이 새로고침해도 같은 탭 유지)
+    const sp = new URLSearchParams(searchParams)
+    if (next === 'general') sp.delete('tab')
+    else sp.set('tab', next)
+    setSearchParams(sp, { replace: true })
+  }
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<Date | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -308,8 +380,18 @@ export default function Settings() {
   const TAB_TITLES: Record<TabKey, string> = useMemo(() => ({
     general: '기본환경',
     grade: '등급/단가',
+    payout: '선지급',
     ops: '운영알림',
     legal: '약관/처리방침',
+  }), [])
+
+  // 헤더에 표시할 페이지 제목/부제 — 탭별 동적
+  const TAB_HEADERS: Record<TabKey, { title: string; subtitle: string }> = useMemo(() => ({
+    general: { title: '기본환경설정', subtitle: '사이트 운영 전반의 기본값을 관리합니다.' },
+    grade:   { title: '등급/단가 설정', subtitle: '상담사 등급별 단가 옵션·정산률·임계값을 관리합니다.' },
+    payout:  { title: '선지급 설정', subtitle: '선지급 정책 안내문과 수수료율·원천세율을 관리합니다.' },
+    ops:     { title: '운영알림 설정', subtitle: '시스템 사고 알림 수신자와 발송 정책을 관리합니다.' },
+    legal:   { title: '약관/처리방침', subtitle: '회원가입약관·개인정보처리방침 본문을 관리합니다.' },
   }), [])
 
   if (!data) {
@@ -322,12 +404,12 @@ export default function Settings() {
 
   return (
     // 정보 밀도 최대화 — 와이드 모니터에서 한 화면에 많이 보이게
-    <div className="space-y-4 max-w-[1600px]">
+    <div className="space-y-4 max-w-[1100px]">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">기본환경설정</h1>
+          <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">{TAB_HEADERS[tab].title}</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            사이트 운영 전반의 기본값을 관리합니다.
+            {TAB_HEADERS[tab].subtitle}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -381,29 +463,22 @@ export default function Settings() {
           onChange={(key, value) => setField('grade', key, value)}
         />
       ) : tab === 'general' ? (
-        // 6개 namespace 를 섹션 카드로 묶어서 한 화면에 노출
-        <div className="space-y-6">
-          {GENERAL_SECTIONS.map((ns) => (
-            <SettingsSection
-              key={ns}
-              title={NS_FIELDS[ns].title}
-              fields={NS_FIELDS[ns].fields}
-              values={data[ns] ?? {}}
-              onChange={(key, value) => setField(ns, key, value)}
-            />
-          ))}
-        </div>
+        // 6개 namespace 를 표준 폼으로 (선지급 탭과 동일 톤)
+        <GeneralSettingsForm
+          data={data}
+          onChange={(ns, key, value) => setField(ns, key, value)}
+        />
       ) : tab === 'ops' ? (
         // 운영알림 — 관리자 이해용 안내 박스 + 설정 그리드
         <div className="space-y-4">
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-5 text-base dark:border-blue-800 dark:bg-blue-950/40">
             <h3 className="text-lg font-bold text-blue-900 dark:text-blue-200 mb-3">📋 운영자 알림이란?</h3>
             <p className="text-blue-800 dark:text-blue-300 mb-4 leading-relaxed">
-              사주문 시스템이 자동으로 도는 5개 작업(<b>크론</b>) 또는 결제·상담 처리 중
+              사주플랜 시스템이 자동으로 도는 5개 작업(<b>크론</b>) 또는 결제·상담 처리 중
               사고가 발생하면 등록된 운영자 휴대폰으로 <b>카카오 알림톡</b>이 즉시 발송됩니다.
             </p>
 
-            <p className="text-base font-bold text-blue-900 dark:text-blue-200 mt-4 mb-2">⏰ 사주문이 자동으로 도는 5가지 작업</p>
+            <p className="text-base font-bold text-blue-900 dark:text-blue-200 mt-4 mb-2">⏰ 사주플랜이 자동으로 도는 5가지 작업</p>
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-blue-200 dark:border-blue-800">
@@ -472,6 +547,11 @@ export default function Settings() {
             hideHeader
           />
         </div>
+      ) : tab === 'payout' ? (
+        <PayoutSettingsForm
+          values={data.payout ?? {}}
+          onChange={(key, value) => setField('payout', key, value)}
+        />
       ) : (
         // 그 외 단일 namespace 탭 — 그리드 레이아웃
         <SettingsSection
@@ -482,6 +562,195 @@ export default function Settings() {
           hideHeader
         />
       )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 선지급 탭 전용 폼 — 표준 폼 레이아웃 (라벨 좌측 + 입력 우측 가로)
+//   - 정책 안내문 = textarea (max-w-[800px], 8행)
+//   - 수수료율 / 원천세율 = 짧은 입력 (max-w-[140px]) + 🔒 부연
+// ─────────────────────────────────────────────────────────────────
+function PayoutSettingsForm({
+  values,
+  onChange,
+}: {
+  values: Record<string, string>
+  onChange: (key: string, value: string) => void
+}) {
+  return (
+    <div className="space-y-5">
+      {/* 정책 안내문 — wide textarea */}
+      <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
+        <div className="flex items-start gap-3">
+          <label className="w-[110px] shrink-0 pt-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+            정책 안내문
+          </label>
+          <div className="flex-1 max-w-[800px]">
+            <textarea
+              rows={10}
+              value={values.policy_text ?? ''}
+              onChange={(e) => onChange('policy_text', e.target.value)}
+              placeholder="예: 선지급은 매일 1회, 1만원 단위로 신청 가능합니다. 수수료 5%·원천세 3.3% 공제 후 영업일 기준 1일 내 지급됩니다…"
+              className="w-full px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400 outline-none transition"
+            />
+            <p className="mt-1.5 text-xs text-gray-500 leading-relaxed">
+              선지급 관리 페이지(상단 "정책 보기" 펼침)에 그대로 노출됩니다. 비워두면 시스템 기본 안내문이 표시됩니다.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* 수수료율 · 원천세율 — 슈퍼 전용 read-only (일반은 disabled, 안내 없음) */}
+      <ReadOnlyForSuper
+        title="👁️ 정책 공개 영역 (일반관리자는 보기만 가능)"
+        subtitle="상담사도 아는 정산 정책입니다. 슈퍼관리자만 수정 가능합니다."
+      >
+        <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
+            <PayoutRateRow
+              label="수수료율 (%)"
+              value={values.fee_rate ?? ''}
+              onChange={(v) => onChange('fee_rate', v)}
+              placeholder="예: 5"
+              hint="신청금에서 공제되는 서비스 수수료. 5 = 5%. 변경은 새 신청건부터 적용 (기존 신청건은 신청 시점 값 유지)."
+            />
+            <PayoutRateRow
+              label="원천세율 (%)"
+              value={values.withholding_rate ?? ''}
+              onChange={(v) => onChange('withholding_rate', v)}
+              placeholder="예: 3.3"
+              hint="한국 세법 기준 사업소득 원천징수율 3.3% (소득세 3% + 지방세 0.3%). 세법 개정 없는 한 유지."
+            />
+          </div>
+        </section>
+      </ReadOnlyForSuper>
+    </div>
+  )
+}
+
+function PayoutRateRow({
+  label, value, onChange, placeholder, hint,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  hint?: string
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <label className="w-[110px] shrink-0 pt-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+        {label}
+      </label>
+      <div className="flex-1">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className="w-full max-w-[140px] h-9 px-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400 outline-none transition tabular-nums"
+        />
+        {hint && (
+          <p className="mt-1.5 text-xs text-gray-500 leading-relaxed max-w-[420px]">{hint}</p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 기본환경 탭 전용 폼 — 6개 namespace 를 표준 폼 톤으로
+//   - 섹션별 카드 (제목 + 부제)
+//   - 라벨 좌측(110px) + 입력 우측
+//   - 짧은 입력(text/number/bool/select)은 2열 그리드, textarea/multiselect 는 풀폭
+// ─────────────────────────────────────────────────────────────────
+
+const GENERAL_SECTION_SUBTITLE: Record<string, string> = {
+  site: '사이트 제목·관리자 메일·메인 카드 노출값 등 사이트 전반 기본값.',
+  member: '회원가입 시 적용되는 기본 등급·필수 입력·적립 포인트 정책.',
+  review: '후기 작성 시 회원에게 지급되는 포인트 정책.',
+  social: '카카오·네이버 소셜로그인 활성/키 관리.',
+  security: '접속 허용/차단 IP, 금지 아이디·이메일 도메인.',
+  footer: '푸터에 노출되는 회사정보(상호·대표·주소·사업자번호 등).',
+}
+
+function GeneralSettingsForm({
+  data,
+  onChange,
+}: {
+  data: SettingsByNs
+  onChange: (ns: Namespace, key: string, value: string) => void
+}) {
+  return (
+    <div className="space-y-5">
+      {GENERAL_SECTIONS.map((ns) => {
+        const section = NS_FIELDS[ns]
+        const values = data[ns] ?? {}
+        return (
+          <section
+            key={ns}
+            className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden"
+          >
+            {/* 섹션 헤더 */}
+            <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-800/40">
+              <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{section.title}</div>
+              {GENERAL_SECTION_SUBTITLE[ns] && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {GENERAL_SECTION_SUBTITLE[ns]}
+                </div>
+              )}
+            </div>
+            {/* 섹션 본문 — 짧은 필드 2열, 긴 필드 풀폭 */}
+            <div className="p-5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
+                {section.fields.map((f) => {
+                  const wide = f.wide ?? (f.kind === 'textarea' || f.kind === 'multiselect')
+                  return (
+                    <div key={f.key} className={wide ? 'lg:col-span-2' : ''}>
+                      <GeneralFieldRow
+                        def={f}
+                        value={values[f.key] ?? ''}
+                        onChange={(v) => onChange(ns, f.key, v)}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </section>
+        )
+      })}
+    </div>
+  )
+}
+
+function GeneralFieldRow({
+  def, value, onChange,
+}: {
+  def: FieldDef
+  value: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <label
+        htmlFor={`field-${def.key}`}
+        className="w-[110px] shrink-0 pt-2 text-sm font-medium text-gray-700 dark:text-gray-200"
+      >
+        {def.label}
+      </label>
+      <div className="flex-1 min-w-0">
+        <FieldInput
+          id={`field-${def.key}`}
+          def={def}
+          value={value}
+          onChange={onChange}
+        />
+        {def.hint && (
+          <p className="mt-1.5 text-xs text-gray-500 leading-relaxed max-w-[520px]">{def.hint}</p>
+        )}
+      </div>
     </div>
   )
 }
@@ -684,10 +953,12 @@ function GradeMatrixEditor({
   values: Record<string, string>
   onChange: (key: string, value: string) => void
 }) {
+  const { admin } = useAuth()
+  const isSuper = !!admin?.is_super
   const inputBase =
     'px-2 py-1.5 border rounded text-sm bg-white dark:bg-gray-700 dark:border-gray-600'
 
-  // 락/재산정 정책 잠금 — 매출 직결 정책 보호 (기본 잠금)
+  // 락/재산정 정책 잠금 — 슈퍼만 사용 (일반은 fieldset disabled 로 자동 비활성)
   const [policyUnlocked, setPolicyUnlocked] = useState(false)
   const togglePolicyLock = () => {
     if (!policyUnlocked) {
@@ -726,71 +997,93 @@ function GradeMatrixEditor({
         </div>
       </details>
 
-      {/* 매트릭스 표 — 등급별 옵션/정산률/임계값 한 화면 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b bg-gray-50 dark:bg-gray-800/60">
-          <div className="text-sm font-medium text-gray-800 dark:text-gray-100">등급별 정책 (6 등급)</div>
-          <div className="text-[11px] text-gray-500 mt-1 leading-relaxed">
-            <b>단가 옵션</b>: 상담사가 마이페이지에서 선택 가능한 30초당 단가 (원). 정책 외 값은 상담사 본인이 선택 불가 — 어드민은 강제 수정 가능.<br />
-            <b>정산률</b>: 상담사 수익 비율. 0.35 = 35% (결제 금액의 35% 가 상담사 몫). 등급 ↑ → 정산률 ↑ 권장.<br />
-            <b>임계값</b>: 직전 1개월 통화 시간이 이 값 이상이면 해당 등급으로 승급. 예) 파트너2 임계값=40 → 40시간 이상 통화 시 파트너2.
+      {/* 매트릭스 표 — 등급별 옵션/정산률/(슈퍼: 임계값) 한 화면 */}
+      <ReadOnlyForSuper>
+        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b bg-gray-50 dark:bg-gray-800/60">
+            <div className="text-sm font-medium text-gray-800 dark:text-gray-100">등급별 정책 (6 등급)</div>
+            <div className="text-[11px] text-gray-500 mt-1 leading-relaxed">
+              <b>단가 옵션</b>: 상담사가 마이페이지에서 선택 가능한 30초당 단가 (원).<br />
+              <b>정산률</b>: 상담사 수익 비율. 0.35 = 35% (결제 금액의 35% 가 상담사 몫). 등급 ↑ → 정산률 ↑ 권장.
+              {isSuper && (
+                <>
+                  <br /><b>임계값</b>: 직전 1개월 통화 시간이 이 값 이상이면 해당 등급으로 승급.
+                </>
+              )}
+            </div>
           </div>
-        </div>
-        <table className="text-sm">
-          <thead className="bg-gray-50/60 dark:bg-gray-800/30 text-xs text-gray-600 dark:text-gray-300">
-            <tr>
-              <th className="px-3 py-2 text-left font-medium w-24">등급</th>
-              <th className="px-3 py-2 text-left font-medium w-[640px]">
-                단가 옵션 <span className="text-gray-400 font-normal">(원 / 30초)</span>
-              </th>
-              <th className="px-3 py-2 text-left font-medium w-32">
-                정산률 <span className="text-gray-400 font-normal">(0~1)</span>
-              </th>
-              <th className="px-3 py-2 text-left font-medium w-32">
-                임계값 <span className="text-gray-400 font-normal">(시간)</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {GRADE_ROWS.map((g) => (
-              <tr key={g.key}>
-                <td className="px-3 py-2 font-medium text-gray-700 dark:text-gray-200">{g.label}</td>
-                <td className="px-3 py-2">
-                  <PriceOptionsEditor
-                    value={values[`options.${g.key}`] ?? ''}
-                    onChange={(v) => onChange(`options.${g.key}`, v)}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <RateInput
-                    value={values[`revenue_rate.${g.key}`] ?? ''}
-                    onChange={(v) => onChange(`revenue_rate.${g.key}`, v)}
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  {g.key === 'preliminary' ? (
-                    <span className="text-xs text-gray-400">— (기본값)</span>
-                  ) : (
-                    <div className="inline-flex items-center gap-1">
-                      <input
-                        type="number"
-                        min="0"
-                        value={values[`thresholds.${g.key}`] ?? ''}
-                        onChange={(e) => onChange(`thresholds.${g.key}`, e.target.value)}
-                        placeholder="20"
-                        className={`${inputBase} tabular-nums w-16`}
-                      />
-                      <span className="text-xs text-gray-400">시간</span>
+          <table className="text-sm">
+            <thead className="bg-gray-50/60 dark:bg-gray-800/30 text-xs text-gray-600 dark:text-gray-300">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium w-24">등급</th>
+                <th className="px-3 py-2 text-left font-medium w-[640px]">
+                  단가 옵션 <span className="text-gray-400 font-normal">(원 / 30초)</span>
+                </th>
+                <th className="px-3 py-2 text-left font-medium w-32">
+                  정산률 <span className="text-gray-400 font-normal">(0~1)</span>
+                </th>
+                {isSuper && (
+                  <th className="px-3 py-2 text-left font-medium w-40 border-t-2 border-l-2 border-r-2 border-rose-400 bg-rose-100/70 dark:bg-rose-900/30 dark:border-rose-700">
+                    <div className="flex items-center gap-1 text-rose-800 dark:text-rose-200">
+                      🔒 임계값 <span className="text-gray-500 font-normal">(시간)</span>
                     </div>
-                  )}
-                </td>
+                    <div className="text-[10px] text-rose-700 dark:text-rose-300 font-normal mt-0.5 leading-tight">
+                      슈퍼 전용 — 일반 안 보임
+                    </div>
+                  </th>
+                )}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {GRADE_ROWS.map((g, idx) => {
+                const isLast = idx === GRADE_ROWS.length - 1
+                return (
+                <tr key={g.key}>
+                  <td className="px-3 py-2 font-medium text-gray-700 dark:text-gray-200">{g.label}</td>
+                  <td className="px-3 py-2">
+                    <PriceOptionsEditor
+                      value={values[`options.${g.key}`] ?? ''}
+                      onChange={(v) => onChange(`options.${g.key}`, v)}
+                    />
+                  </td>
+                  <td className="px-3 py-2">
+                    <RateInput
+                      value={values[`revenue_rate.${g.key}`] ?? ''}
+                      onChange={(v) => onChange(`revenue_rate.${g.key}`, v)}
+                    />
+                  </td>
+                  {isSuper && (
+                    <td className={`px-3 py-2 border-l-2 border-r-2 border-rose-400 bg-rose-100/50 dark:bg-rose-900/20 dark:border-rose-700 ${isLast ? 'border-b-2' : ''}`}>
+                      {g.key === 'preliminary' ? (
+                        <span className="text-xs text-gray-400">— (기본값)</span>
+                      ) : (
+                        <div className="inline-flex items-center gap-1">
+                          <input
+                            type="number"
+                            min="0"
+                            value={values[`thresholds.${g.key}`] ?? ''}
+                            onChange={(e) => onChange(`thresholds.${g.key}`, e.target.value)}
+                            placeholder="20"
+                            className={`${inputBase} tabular-nums w-16`}
+                          />
+                          <span className="text-xs text-gray-400">시간</span>
+                        </div>
+                      )}
+                    </td>
+                  )}
+                </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </ReadOnlyForSuper>
 
-      {/* 기타 정책 4개 — 잠금 보호 + 카드별 친절 설명 */}
+      {/* 락 / 재산정 / 강등 정책 — 슈퍼관리자에게만 노출 */}
+      <SuperOnlySection
+        title="🔒 슈퍼관리자 전용 — 락 / 재산정 / 강등 정책"
+        subtitle="일반관리자에게는 이 영역이 보이지 않습니다. 매출 직결 핵심 정책이라 슈퍼만 접근 가능합니다."
+      >
       <div
         className={`bg-white dark:bg-gray-900 border rounded-xl ${
           policyUnlocked
@@ -898,8 +1191,27 @@ function GradeMatrixEditor({
               <span className="text-xs text-gray-500">단계</span>
             </div>
           </PolicyCell>
+
+          <PolicyCell
+            label="신규 가입 기본 단가"
+            hint="상담사 신청 승인 시 자동으로 박히는 30초당 기본 단가 (원). 사용자 화면에 '0원'으로 노출되는 것을 방지. 상담사는 마이페이지에서 등급별 옵션 중 다른 값으로 변경 가능. 기본값 1,000원 권장 (예비파트너 옵션 800/1000 중 합리적 값)."
+          >
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                max="100000"
+                step="100"
+                value={values['default_new_unit_cost'] ?? ''}
+                onChange={(e) => onChange('default_new_unit_cost', e.target.value)}
+                className={`${inputBase} tabular-nums w-32`}
+              />
+              <span className="text-xs text-gray-500">원 / 30초</span>
+            </div>
+          </PolicyCell>
         </fieldset>
       </div>
+      </SuperOnlySection>
     </div>
   )
 }

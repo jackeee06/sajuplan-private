@@ -133,7 +133,7 @@ export class NotificationsService {
     const payload = {
       title,
       body: input.content,
-      data: input.link_url ? { url: input.link_url } : undefined,
+      data: input.link_url ? { event_url: input.link_url } : undefined,
     };
     if (input.token && input.token.trim()) {
       const r = await this.push.sendToTokens([input.token.trim()], payload);
@@ -183,7 +183,7 @@ export class NotificationsService {
         const r = await this.push.sendToTopic(topic, {
           title,
           body: content,
-          data: linkUrl ? { url: linkUrl } : undefined,
+          data: linkUrl ? { event_url: linkUrl } : undefined,
         });
         pushed = r.ok
           ? { success: 1, failure: 0 }
@@ -217,7 +217,7 @@ export class NotificationsService {
           const sr = await this.push.sendToTokens(tokenList, {
             title,
             body: content,
-            data: linkUrl ? { url: linkUrl } : undefined,
+            data: linkUrl ? { event_url: linkUrl } : undefined,
           });
           pushed = { success: sr.success, failure: sr.failure, error: sr.error };
         }

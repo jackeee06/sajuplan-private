@@ -32,7 +32,7 @@
       echo "푸시 받는 내용:".$row['wr_content']."<br>";
       echo "----------------------------<br>";
 
-      send_noti_topic("chl_birth_".$row['wr_subject'],"[사주문]일일운세",$row['wr_content'],"1","1","",$link,"");
+      send_noti_topic("chl_birth_".$row['wr_subject'],"[사주플랜]일일운세",$row['wr_content'],"1","1","",$link,"");
       // 전송 했다면 꼭 업데이트 처리
       $sql = " 
       update 

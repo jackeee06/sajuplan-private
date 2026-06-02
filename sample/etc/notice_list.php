@@ -13,7 +13,7 @@ include_once("../include/head.php");
     <ul class="list_02_detail">
         <li class="list_02_title_02 list_02_noti">
         	<span class="list_02_cate list_02_cate_type01">공지</span>
-            사주문가 새로워졌어요!
+            사주플랜가 새로워졌어요!
         </li>
         <li class="list_02_date_02">2023. 10. 26</li>
     </ul>
@@ -21,7 +21,7 @@ include_once("../include/head.php");
     
     <a href="../etc/notice_view.php">
     <ul class="list_02_detail">
-        <li class="list_02_title_02">사주문 이용약관이 개정됩니다.</li>
+        <li class="list_02_title_02">사주플랜 이용약관이 개정됩니다.</li>
         <li class="list_02_date_02">2023. 10. 26</li>
     </ul>
     </a>
@@ -42,7 +42,7 @@ include_once("../include/head.php");
     
     <a href="../etc/notice_view.php">
     <ul class="list_02_detail">
-        <li class="list_02_title_02">[OPEN] 사주문 스토어에서 맞춤부적을 주문하세요!</li>
+        <li class="list_02_title_02">[OPEN] 사주플랜 스토어에서 맞춤부적을 주문하세요!</li>
         <li class="list_02_date_02">2023. 10. 26</li>
     </ul>
     </a>

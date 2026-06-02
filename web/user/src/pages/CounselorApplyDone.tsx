@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from 'react-router-dom'
+﻿import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth-context'
 
 /**
@@ -28,10 +28,10 @@ export default function CounselorApplyDone() {
       <main className="flex-1 px-4 pt-6">
         {/* 큰 체크 아이콘 */}
         <div className="flex flex-col items-center mb-6">
-          <div className="w-20 h-20 rounded-full bg-[#F3EEFE] flex items-center justify-center mb-4">
+          <div className="w-20 h-20 rounded-full bg-[#fdf2f8] flex items-center justify-center mb-4">
             <svg viewBox="0 0 48 48" className="w-12 h-12" fill="none" aria-hidden>
-              <circle cx="24" cy="24" r="20" stroke="#8259F5" strokeWidth="2.5" />
-              <path d="M15 24L21.5 30.5L33 18" stroke="#8259F5" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="24" cy="24" r="20" stroke="#ec4899" strokeWidth="2.5" />
+              <path d="M15 24L21.5 30.5L33 18" stroke="#ec4899" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <h2 className="text-[20px] font-semibold leading-[130%] text-[#030712] text-center">
@@ -46,7 +46,7 @@ export default function CounselorApplyDone() {
 
         {/* 다음 단계 안내 */}
         <div className="rounded-[14px] border border-[#E5E7EB] bg-white px-4 py-4">
-          <p className="text-[13px] font-semibold text-[#8259F5] mb-3">
+          <p className="text-[13px] font-semibold text-[#ec4899] mb-3">
             다음 단계
           </p>
           <ol className="space-y-3">
@@ -86,7 +86,7 @@ export default function CounselorApplyDone() {
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="w-full h-[52px] rounded-full text-[16px] font-medium text-white bg-[#9B7AF7]"
+            className="w-full h-[52px] rounded-full text-[16px] font-medium text-white bg-[#f472b6]"
           >
             홈으로
           </button>
@@ -94,7 +94,7 @@ export default function CounselorApplyDone() {
             <button
               type="button"
               onClick={() => navigate('/mypage/counselor-apply')}
-              className="w-full h-[52px] rounded-full text-[16px] font-medium text-[#8259F5] bg-white border border-[#9B7AF7]"
+              className="w-full h-[52px] rounded-full text-[16px] font-medium text-[#ec4899] bg-white border border-[#f472b6]"
             >
               내 신청 내역 보기
             </button>
@@ -108,7 +108,7 @@ export default function CounselorApplyDone() {
 function Step({ n, title, desc }: { n: number; title: string; desc: string }) {
   return (
     <li className="flex gap-3">
-      <span className="shrink-0 w-6 h-6 rounded-full bg-[#F3EEFE] text-[#8259F5] text-[12px] font-semibold flex items-center justify-center">
+      <span className="shrink-0 w-6 h-6 rounded-full bg-[#fdf2f8] text-[#ec4899] text-[12px] font-semibold flex items-center justify-center">
         {n}
       </span>
       <div className="flex-1 min-w-0">

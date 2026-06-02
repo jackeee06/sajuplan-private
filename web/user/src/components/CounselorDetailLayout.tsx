@@ -1,6 +1,7 @@
-import { useState, type ReactNode } from 'react'
+﻿import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import FloatingActions from './FloatingActions'
+import ShareBottomSheet from './ShareBottomSheet'
 import { BADGE_BG, type CounselorDetailData } from '../data/counselorDetails'
 import { useConsultModal } from '../lib/consult-context'
 import { useLikeAction } from '../lib/like-context'
@@ -38,6 +39,11 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
   const [liked, setLiked] = useState(data.liked)
   const [likeCount, setLikeCount] = useState(data.likeCount)
   const [likeBusy, setLikeBusy] = useState(false)
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareUrl, setShareUrl] = useState('')
+  useEffect(() => {
+    if (typeof window !== 'undefined') setShareUrl(window.location.href)
+  }, [])
 
   const triggerConsult = (variant: 'phone' | 'chat') => {
     openConsult(
@@ -79,7 +85,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
           <img
             src={data.heroImg}
             alt=""
-            className="w-full h-[192px] object-cover object-center block"
+            className="w-full aspect-[5/4] object-cover object-top block"
             aria-hidden
           />
         </picture>
@@ -105,20 +111,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
           </Link>
         </header>
 
-        <div className="absolute left-1/2 -translate-x-1/2 top-[178px]">
-          <div
-            className="px-3 py-1 rounded-full backdrop-blur-[7px]"
-            style={{ background: 'rgba(0, 0, 0, 0.5)' }}
-          >
-            <p className="text-[14px] leading-[130%] text-white text-center">
-              현재{' '}
-              <span className="font-semibold" style={{ color: '#AB90F8' }}>
-                {data.liveViewers}
-              </span>
-              명이 같은 페이지를 보고 있습니다.
-            </p>
-          </div>
-        </div>
+        {/* 라이브뷰어 pill — 의사값이라 숨김 (2026-05-27). 진짜 presence 인프라(WebSocket/Redis) 도입 시 복원. 백엔드 live_viewers 필드는 그대로 유지. */}
       </div>
 
       {/* 프로필 카드 */}
@@ -137,7 +130,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
                   <span className="text-[18px] leading-[130%] font-semibold text-[#030712] truncate">
                     {data.name}
                   </span>
-                  <span className="text-[18px] leading-[130%] font-semibold text-[#8259F5]">
+                  <span className="text-[18px] leading-[130%] font-semibold text-[#ec4899]">
                     {data.code}
                   </span>
                 </div>
@@ -145,29 +138,46 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
               <p className="text-[15px] leading-[140%] text-[#6A7282]">{data.tagline}</p>
               <div className="flex items-center gap-2.5 flex-wrap">
                 {data.hashtags.map((tag) => (
-                  <span key={tag} className="text-[14px] leading-[110%] text-[#8259F5]">
+                  <span key={tag} className="text-[14px] leading-[110%] text-[#ec4899]">
                     {tag}
                   </span>
                 ))}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onLikeToggle}
-              disabled={likeBusy}
-              aria-label={liked ? '좋아요 취소' : '좋아요'}
-              className="flex flex-col items-center shrink-0 bg-transparent border-0 outline-none focus:outline-none focus-visible:outline-none disabled:opacity-60"
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              <img
-                src={liked ? '/img/like_btn_icon_on.svg' : '/img/like_btn_icon_off.svg'}
-                alt=""
-                className="w-5 h-5"
-              />
-              <span className="text-[14px] leading-[120%] text-[#6A7282] text-center">
-                {likeCount}
-              </span>
-            </button>
+            <div className="flex items-start gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShareOpen(true)}
+                aria-label="공유하기"
+                className="w-9 h-9 rounded-full border border-[#E5E7EB] flex items-center justify-center bg-white"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="#4A5565" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={onLikeToggle}
+                disabled={likeBusy}
+                aria-label={liked ? '좋아요 취소' : '좋아요'}
+                className="flex flex-col items-center bg-transparent border-0 outline-none focus:outline-none focus-visible:outline-none disabled:opacity-60"
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                <img
+                  src={liked ? '/img/like_btn_icon_on.svg' : '/img/like_btn_icon_off.svg'}
+                  alt=""
+                  className="w-5 h-5"
+                />
+                <span className="text-[14px] leading-[120%] text-[#6A7282] text-center">
+                  {likeCount}
+                </span>
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-1">
@@ -195,7 +205,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
 
         <section className="flex flex-col gap-3 py-6 border-b border-[#F3F4F6]">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-full bg-[#F3EEFE] flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-full bg-[#fdf2f8] flex items-center justify-center shrink-0">
               <img src="/img/counselor_dt_img01.png" alt="" className="w-9 h-9 object-contain" />
             </div>
             <h3 className="text-[16px] leading-[120%] font-semibold text-[#101828]">상담사 약력</h3>
@@ -209,7 +219,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
 
         <section className="flex flex-col gap-3 py-6">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-full bg-[#F3EEFE] flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-full bg-[#fdf2f8] flex items-center justify-center shrink-0">
               <img src="/img/counselor_dt_img02.png" alt="" className="w-9 h-9 object-contain" />
             </div>
             <div className="flex flex-col gap-1">
@@ -242,6 +252,15 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
       />
 
       <FloatingActions bottomOffset={80} showKakao={false} />
+
+      <ShareBottomSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        shareUrl={shareUrl}
+        title={`${data.name} 선생님`}
+        description={`${data.badge} · ${data.code}번 · ${data.pricePerHalfMin.toLocaleString()}원/30초`}
+        imageUrl={data.heroImg}
+      />
     </div>
   )
 }
@@ -270,11 +289,11 @@ function DetailTabs({
             key={t.key}
             to={t.to}
             className={`flex-1 h-[44px] flex items-center justify-center text-[14px] font-medium ${
-              active ? 'text-[#9B7AF7]' : 'text-[#6A7282] border-b border-[#E5E7EB]'
+              active ? 'text-[#f472b6]' : 'text-[#6A7282] border-b border-[#E5E7EB]'
             }`}
             style={
               active
-                ? { boxShadow: 'inset 0 -2px 0 0 #9B7AF7' }
+                ? { boxShadow: 'inset 0 -2px 0 0 #f472b6' }
                 : undefined
             }
           >
@@ -323,7 +342,7 @@ function BottomFixedBar({
       <button
         type="button"
         onClick={onPhoneClick}
-        className="flex-1 h-10 rounded-full bg-[#9B7AF7] flex items-center justify-center gap-1 text-white text-[14px] font-medium"
+        className="flex-1 h-10 rounded-full bg-[#f472b6] flex items-center justify-center gap-1 text-white text-[14px] font-medium"
       >
         <img src="/img/ic_phone_solid_w.svg" alt="" className="w-4 h-4" />
         전화상담
@@ -331,7 +350,7 @@ function BottomFixedBar({
       <button
         type="button"
         onClick={onChatClick}
-        className="flex-1 h-10 rounded-full bg-[#9B7AF7] flex items-center justify-center gap-1 text-white text-[14px] font-medium"
+        className="flex-1 h-10 rounded-full bg-[#f472b6] flex items-center justify-center gap-1 text-white text-[14px] font-medium"
       >
         <img src="/img/ic_message_circle_solid_w.svg" alt="" className="w-4 h-4" />
         채팅상담

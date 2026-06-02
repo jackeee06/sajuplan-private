@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -83,7 +83,7 @@ export default function Help() {
       openExternalUrl(kakaoUrl)
       return
     }
-    // 어드민에 채널 URL 미등록 — 사주문 라이브 채널로 폴백
+    // 어드민에 채널 URL 미등록 — 사주플랜 라이브 채널로 폴백
     openExternalUrl('https://pf.kakao.com/_gLTVX')
   }
 
@@ -108,7 +108,7 @@ export default function Help() {
           <div className="flex items-center gap-3">
             <img src="/img/ic_my_phone.svg" alt="" className="w-10 h-10" />
             <div className="flex flex-col">
-              <span className="text-[18px] leading-[140%] font-bold text-[#8259F5]">
+              <span className="text-[18px] leading-[140%] font-bold text-[#ec4899]">
                 고객센터
               </span>
               <span className="text-[13px] leading-[140%] text-[#4A5565]">
@@ -122,7 +122,7 @@ export default function Help() {
           <button
             type="button"
             onClick={handleInquiry}
-            className="mt-4 w-full h-[44px] rounded-full border border-[#9B7AF7] bg-white flex items-center justify-center gap-1.5 text-[15px] font-medium text-[#8259F5]"
+            className="mt-4 w-full h-[44px] rounded-full border border-[#f472b6] bg-white flex items-center justify-center gap-1.5 text-[15px] font-medium text-[#ec4899]"
           >
             <img src="/img/ic_write_p.svg" alt="" className="w-5 h-5" />
             카카오 1:1 문의
@@ -182,7 +182,7 @@ export default function Help() {
                         }}
                         className={`w-full px-4 py-2.5 text-left text-[15px] leading-5 ${
                           selected
-                            ? 'text-[#8259F5] font-medium bg-[#F3EEFE]'
+                            ? 'text-[#ec4899] font-medium bg-[#fdf2f8]'
                             : 'text-[#1E2939] hover:bg-[#F9FAFB]'
                         }`}
                       >
@@ -206,8 +206,8 @@ export default function Help() {
           </section>
         ) : isEmpty ? (
           <section className="pt-[64px] flex flex-col items-center">
-            <div className="w-[80px] h-[80px] rounded-full bg-[#F3EEFE] flex items-center justify-center">
-              <img src="/img/ic_message_p.svg" alt="" className="w-9 h-9" />
+            <div className="w-[80px] h-[80px] rounded-full bg-[#fdf2f8] flex items-center justify-center">
+              <img src="/img/ic_message_p.svg?v=v2" alt="" className="w-9 h-9" />
             </div>
             <p className="mt-4 text-[18px] leading-[140%] font-bold text-[#030712]">
               등록된 질문이 없습니다.
@@ -228,7 +228,7 @@ export default function Help() {
                     aria-expanded={open}
                     className="w-full py-4 flex items-center gap-3 text-left"
                   >
-                    <span className="w-7 h-7 rounded-full bg-[#9B7AF7] text-white text-[14px] font-bold flex items-center justify-center shrink-0">
+                    <span className="w-7 h-7 rounded-full bg-[#f472b6] text-white text-[14px] font-bold flex items-center justify-center shrink-0">
                       Q
                     </span>
                     <span className="flex-1 text-[15px] leading-[140%] font-semibold text-[#030712]">

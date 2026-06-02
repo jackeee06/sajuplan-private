@@ -118,8 +118,8 @@ export default function OpsKpi() {
         <div className="text-sm text-gray-500">로딩...</div>
       ) : summary ? (
         <>
-          {/* KPI 카드 */}
-          <section className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+          {/* KPI 카드 — 콘텐츠 기반 폭으로 좌측 응집 */}
+          <section className="flex flex-wrap gap-2 [&>div]:min-w-[150px]">
             <KpiCard
               label="총 상담 건수"
               value={summary.total_consultations.toLocaleString()}

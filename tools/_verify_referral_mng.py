@@ -2,9 +2,9 @@
 
 체크:
   1. https://mng.sajumoon.kr/referrals 가 SPA fallback 으로 200 + index.html
-  2. https://mng.sajumoon.co.kr/referrals 동일
+  2. https://mng.sajuplan.com/referrals 동일
   3. https://api.sajumoon.kr/api/admin/referrals 가 nginx 통해 401 응답
-  4. https://api.sajumoon.co.kr/api/admin/referrals 동일
+  4. https://api.sajuplan.com/api/admin/referrals 동일
   5. 정적 자산이 새 ReferralList 모듈 포함 (grep "추천 수당" in JS bundle)
 """
 import os, sys, urllib.request, urllib.error, ssl
@@ -34,7 +34,7 @@ def main() -> int:
 
     targets = [
         ("test", "https://sajumoon.kr/mng/", "https://api.sajumoon.kr"),
-        ("prod", "https://sajumoon.co.kr/mng/", "https://api.sajumoon.co.kr"),
+        ("prod", "https://sajuplan.com/mng/", "https://api.sajuplan.com"),
     ]
     for label, mng_root, api_base in targets:
         print(f"\n========== [{label}] ==========")

@@ -2,16 +2,16 @@
  * 단일 환경 플래그 (test|prod) 한 곳에서만 도메인 결정. 런타임 결정 — /config.js 가
  * React 번들보다 먼저 로드되어 window.__SAJUMOON_CONFIG.env 를 셋팅한다.
  *
- *   test → sajumoon.kr     / api.sajumoon.kr     (테스트)
- *   prod → sajumoon.co.kr  / api.sajumoon.co.kr  (운영)
+ *   test → sajumoon.kr    / api.sajumoon.kr    (테스트)
+ *   prod → sajuplan.com   / api.sajuplan.com   (운영, 신규 브랜드)
  *
  * dist 번들이 환경 독립적이라 한 번 빌드로 test/prod 양쪽 배포 가능.
  */
 type SajumoonEnv = 'test' | 'prod'
 
 const MAP: Record<SajumoonEnv, { userDomain: string; apiDomain: string }> = {
-  test: { userDomain: 'sajumoon.kr', apiDomain: 'api.sajumoon.kr' },
-  prod: { userDomain: 'sajumoon.co.kr', apiDomain: 'api.sajumoon.co.kr' },
+  test: { userDomain: 'sajumoon.kr',  apiDomain: 'api.sajumoon.kr' },
+  prod: { userDomain: 'sajuplan.com', apiDomain: 'api.sajuplan.com' },
 }
 
 declare global {

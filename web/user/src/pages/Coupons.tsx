@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import ConfirmModal from '../components/ConfirmModal'
 import CouponRegisterModal from '../components/CouponRegisterModal'
@@ -65,7 +66,7 @@ export default function Coupons() {
     setBusy(true)
     try {
       const r = await couponsApi.use(useTarget.id)
-      setToast(`${r.point.toLocaleString()}포인트가 적립되었습니다.`)
+      setToast(`${r.point.toLocaleString()} 코인이 적립되었습니다.`)
       setUseTarget(null)
       await refreshAuth()
       // 사용 후 사용내역으로 이동
@@ -100,7 +101,7 @@ export default function Coupons() {
     try {
       const r = await couponsApi.redeem(code)
       setRegisterOpen(false)
-      setToast(`${r.point.toLocaleString()}포인트가 적립되었습니다.`)
+      setToast(`${r.point.toLocaleString()} 코인이 적립되었습니다.`)
       await refreshAuth()
       // 코드 입력은 즉시 사용 처리 → 사용내역으로 이동
       setTab('used')
@@ -112,7 +113,7 @@ export default function Coupons() {
   }
 
   return (
-    <div className="mobile-frame flex flex-col pb-[40px]">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -134,11 +135,11 @@ export default function Coupons() {
               type="button"
               onClick={() => setTab(t)}
               className={`relative h-[44px] flex items-center justify-center text-[15px] ${
-                on ? 'text-[#8259F5] font-bold' : 'text-[#99A1AF] font-medium'
+                on ? 'text-[#ec4899] font-bold' : 'text-[#99A1AF] font-medium'
               }`}
             >
               {t === 'used' ? '사용내역' : '쿠폰함'}
-              {on && <span className="absolute left-0 right-0 -bottom-px h-[2px] bg-[#8259F5]" />}
+              {on && <span className="absolute left-0 right-0 -bottom-px h-[2px] bg-[#ec4899]" />}
             </button>
           )
         })}
@@ -147,7 +148,7 @@ export default function Coupons() {
       {tab === 'available' && (
         <div className="px-4 py-3 flex items-center justify-between">
           <span className="text-[14px] text-[#4A5565]">
-            사용 가능한 쿠폰 <span className="text-[#8259F5] font-bold">{list.length}</span>개
+            사용 가능한 쿠폰 <span className="text-[#ec4899] font-bold">{list.length}</span>개
           </span>
           <button
             type="button"
@@ -197,7 +198,7 @@ export default function Coupons() {
       <ConfirmModal
         open={!!useTarget && !busy}
         message="쿠폰을 사용하시겠습니까?"
-        subMessage="사용하는 즉시 포인트가 충전됩니다."
+        subMessage="사용하는 즉시 코인이 충전됩니다."
         actionLabel="사용"
         onCancel={() => setUseTarget(null)}
         onConfirm={confirmUse}
@@ -205,7 +206,7 @@ export default function Coupons() {
       <ConfirmModal
         open={!!hideTarget && !busy}
         message="사용 내역에서 삭제하시겠습니까?"
-        subMessage="이미 적립된 포인트는 회수되지 않습니다."
+        subMessage="이미 적립된 코인은 회수되지 않습니다."
         actionLabel="삭제"
         tone="danger"
         onCancel={() => setHideTarget(null)}
@@ -221,7 +222,8 @@ export default function Coupons() {
         error={registerError}
         submitting={busy}
       />
-    </div>
+      <BottomNav />
+      </div>
   )
 }
 
@@ -237,7 +239,7 @@ function CouponCard({
   onHide: () => void
 }) {
   const used = tab === 'used'
-  const actionBg = used ? '#D9DCE0' : '#9B7AF7'
+  const actionBg = used ? '#D9DCE0' : '#f472b6'
   const actionColor = used ? '#6A7282' : '#FFFFFF'
   const actionLabel = used ? '사용완료' : '사용하기'
   const dateLabel = used ? `${coupon.used_at} 사용` : `${coupon.expired_at}까지`
@@ -259,8 +261,8 @@ function CouponCard({
       )}
       <div className="flex-1 px-5 py-5">
         <p className="text-[15px] text-[#1E2939]">{coupon.title}</p>
-        <p className="mt-1 text-[20px] font-bold text-[#8259F5]">
-          {coupon.point.toLocaleString()}포인트
+        <p className="mt-1 text-[20px] font-bold text-[#ec4899]">
+          {coupon.point.toLocaleString()} 코인
         </p>
         <p className="mt-2 text-[13px] text-[#99A1AF]">{dateLabel}</p>
       </div>

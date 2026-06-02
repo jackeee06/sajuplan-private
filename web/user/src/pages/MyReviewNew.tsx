@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import { ApiError, reviewsApi } from '../lib/api'
 
 /**
@@ -121,7 +122,7 @@ export default function MyReviewNew() {
   const photoCount = photoPreview ? 1 : 0
 
   return (
-    <div className="mobile-frame flex flex-col pb-10">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -137,10 +138,10 @@ export default function MyReviewNew() {
       </header>
 
       <main className="flex-1 px-4 pt-4 flex flex-col gap-5">
-        <article className="bg-[#F3EEFE] border border-[#E1D2FB] rounded-[12px] px-4 py-3 flex flex-col gap-1.5">
+        <article className="bg-[#fdf2f8] border border-[#E1D2FB] rounded-[12px] px-4 py-3 flex flex-col gap-1.5">
           <div className="flex items-center gap-1.5">
             <img src="/img/ic_reviewer.svg" alt="" className="w-4 h-4 shrink-0" />
-            <p className="text-[15px] leading-[130%] font-semibold text-[#8259F5]">
+            <p className="text-[15px] leading-[130%] font-semibold text-[#ec4899]">
               솔직한 후기를 남겨주세요.
             </p>
           </div>
@@ -157,7 +158,7 @@ export default function MyReviewNew() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="제목을 입력해주세요."
-            className="w-full h-12 px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#9B7AF7]"
+            className="w-full h-12 px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#f472b6]"
           />
         </FormField>
 
@@ -167,7 +168,7 @@ export default function MyReviewNew() {
             onChange={(e) => setContent(e.target.value)}
             placeholder="솔직한 상담 후기를 상담사님과 다른 사람들에게 공유해주세요."
             rows={8}
-            className="w-full px-4 py-3 rounded-[16px] bg-[#F9FAFB] border border-[#F3F4F6] text-[14px] leading-[140%] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#9B7AF7] resize-none"
+            className="w-full px-4 py-3 rounded-[16px] bg-[#F9FAFB] border border-[#F3F4F6] text-[14px] leading-[140%] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#f472b6] resize-none"
           />
         </FormField>
 
@@ -231,13 +232,14 @@ export default function MyReviewNew() {
           onClick={() => void onSubmit()}
           disabled={!canSubmit}
           className={`mt-3 h-12 rounded-full text-white text-[16px] font-medium transition ${
-            canSubmit ? 'bg-[#9B7AF7] hover:bg-[#8259F5]' : 'bg-[#9B7AF7]/60 cursor-not-allowed'
+            canSubmit ? 'bg-[#f472b6] hover:bg-[#ec4899]' : 'bg-[#f472b6]/60 cursor-not-allowed'
           }`}
         >
           {submitting ? '작성 중…' : '작성완료'}
         </button>
       </main>
-    </div>
+      <BottomNav />
+      </div>
   )
 }
 
@@ -254,7 +256,7 @@ function FormField({
     <section className="flex flex-col gap-2">
       <label className="text-[16px] leading-[130%] font-semibold text-[#1E2939]">
         {label}
-        {required && <span className="text-[#8259F5] ml-0.5">*</span>}
+        {required && <span className="text-[#ec4899] ml-0.5">*</span>}
       </label>
       {children}
     </section>

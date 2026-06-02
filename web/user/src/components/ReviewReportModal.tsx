@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { ApiError, reviewsApi } from '../lib/api'
 
 /**
@@ -89,7 +89,7 @@ export default function ReviewReportModal({ reviewId, open, onClose, onSuccess }
               key={c.value}
               className={`flex items-start gap-2 p-3 rounded-[10px] border cursor-pointer ${
                 category === c.value
-                  ? 'border-[#9B7AF7] bg-[#F3EEFE]'
+                  ? 'border-[#f472b6] bg-[#fdf2f8]'
                   : 'border-[#F3F4F6] bg-[#F9FAFB] hover:border-[#E5E7EB]'
               }`}
             >
@@ -99,10 +99,10 @@ export default function ReviewReportModal({ reviewId, open, onClose, onSuccess }
                 value={c.value}
                 checked={category === c.value}
                 onChange={() => setCategory(c.value)}
-                className="mt-0.5 w-4 h-4 accent-[#9B7AF7]"
+                className="mt-0.5 w-4 h-4 accent-[#f472b6]"
               />
               <div className="flex-1 min-w-0">
-                <p className={`text-[14px] font-medium ${category === c.value ? 'text-[#8259F5]' : 'text-[#1E2939]'}`}>
+                <p className={`text-[14px] font-medium ${category === c.value ? 'text-[#ec4899]' : 'text-[#1E2939]'}`}>
                   {c.label}
                 </p>
                 <p className="text-[12px] text-[#6A7282] mt-0.5 leading-snug">{c.help}</p>
@@ -120,7 +120,7 @@ export default function ReviewReportModal({ reviewId, open, onClose, onSuccess }
             placeholder="신고 사유를 더 자세히 설명해 주세요."
             maxLength={500}
             rows={3}
-            className="mt-1 w-full px-3 py-2 rounded-[10px] border border-[#E5E7EB] bg-[#F9FAFB] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#9B7AF7] resize-none"
+            className="mt-1 w-full px-3 py-2 rounded-[10px] border border-[#E5E7EB] bg-[#F9FAFB] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#f472b6] resize-none"
           />
           <p className="text-right text-[11px] text-[#99A1AF] mt-1">{reason.length} / 500</p>
         </div>
@@ -143,7 +143,7 @@ export default function ReviewReportModal({ reviewId, open, onClose, onSuccess }
             type="button"
             onClick={submit}
             disabled={submitting}
-            className="flex-1 h-12 rounded-full bg-[#9B7AF7] text-white text-[14px] font-medium disabled:opacity-50"
+            className="flex-1 h-12 rounded-full bg-[#f472b6] text-white text-[14px] font-medium disabled:opacity-50"
           >
             {submitting ? '신고 중…' : '신고하기'}
           </button>

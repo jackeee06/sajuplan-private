@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -99,7 +99,7 @@ export default function CounselorMyReviews() {
       <main className="flex-1">
         {/* 상단 보라 배너 */}
         <section className="px-4 pt-3">
-          <div className="rounded-[12px] bg-[#F3EEFE] px-4 py-3">
+          <div className="rounded-[12px] bg-[#f3f0ff] px-4 py-3">
             <div className="flex items-center gap-2">
               <svg viewBox="0 0 20 20" className="w-5 h-5 shrink-0" fill="none" aria-hidden>
                 <circle cx="10" cy="10" r="8" stroke="#8259F5" strokeWidth="1.4" />
@@ -115,7 +115,7 @@ export default function CounselorMyReviews() {
                   setUnansweredOnly(e.target.checked)
                   setPage(1)
                 }}
-                className="w-4 h-4 accent-[#9B7AF7]"
+                className="w-4 h-4 accent-[#8259F5]"
               />
               <span className="text-[13px] text-[#4A5565]">답변 없는 후기만 보기</span>
             </label>
@@ -136,7 +136,7 @@ export default function CounselorMyReviews() {
                 setPhotoOnly(e.target.checked)
                 setPage(1)
               }}
-              className="w-4 h-4 accent-[#9B7AF7]"
+              className="w-4 h-4 accent-[#8259F5]"
             />
             <span className="text-[13px] text-[#4A5565]">사진 후기만 보기</span>
           </label>
@@ -155,8 +155,8 @@ export default function CounselorMyReviews() {
                 <div className="px-4 py-3">
                   <div className="flex items-center gap-1.5">
                     <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
-                      <circle cx="8" cy="8" r="7" stroke="#9B7AF7" strokeWidth="1.4" />
-                      <path d="M5 8L7 10L11 6" stroke="#9B7AF7" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                      <circle cx="8" cy="8" r="7" stroke="#8259F5" strokeWidth="1.4" />
+                      <path d="M5 8L7 10L11 6" stroke="#8259F5" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                     <span className="flex-1 text-[14px] font-medium text-[#1E2939]">{r.customer_name}</span>
                     {/* 베스트 토글 (2026-05-15) — 활성 시 노란별, 비활성 시 회색 외곽 */}
@@ -225,7 +225,7 @@ export default function CounselorMyReviews() {
                     <button
                       type="button"
                       onClick={() => navigate(`/counselor/mypage/reviews/${r.id}`)}
-                      className="mt-3 w-full h-[44px] rounded-full bg-[#9B7AF7] text-white text-[14px] font-semibold"
+                      className="mt-3 w-full h-[44px] rounded-full bg-[#8259F5] text-white text-[14px] font-semibold"
                     >
                       답변 작성하기
                     </button>

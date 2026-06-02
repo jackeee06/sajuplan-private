@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import UploadedImage from '../components/UploadedImage'
 import { ApiError, reviewsApi, type MyReviewItem } from '../lib/api'
 
 const BADGE_BG: Record<MyReviewItem['counselor_badge'], string> = {
-  타로: '#8259F5',
+  타로: '#ec4899',
   신점: '#00BBA7',
   사주: '#FF6467',
   기타: '#6A7282',
@@ -57,7 +58,7 @@ export default function MyReviewDetail() {
   }, [reviewId, navigate])
 
   return (
-    <div className="mobile-frame flex flex-col pb-[40px]">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -101,7 +102,7 @@ export default function MyReviewDetail() {
                 {review.counselor_name}
               </span>
               {review.counselor_code && (
-                <span className="text-[14px] font-medium text-[#8259F5] shrink-0">
+                <span className="text-[14px] font-medium text-[#ec4899] shrink-0">
                   {review.counselor_code}
                 </span>
               )}
@@ -109,7 +110,7 @@ export default function MyReviewDetail() {
 
             <div className="mt-3 flex items-center gap-1">
               <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] shrink-0" aria-label="인증">
-                <path d="M12 1.5L14.5 3.7L17.8 3.4L19 6.5L21.8 8.2L21 11.5L21.8 14.8L19 16.5L17.8 19.6L14.5 19.3L12 21.5L9.5 19.3L6.2 19.6L5 16.5L2.2 14.8L3 11.5L2.2 8.2L5 6.5L6.2 3.4L9.5 3.7L12 1.5Z" fill="#9B7AF7" />
+                <path d="M12 1.5L14.5 3.7L17.8 3.4L19 6.5L21.8 8.2L21 11.5L21.8 14.8L19 16.5L17.8 19.6L14.5 19.3L12 21.5L9.5 19.3L6.2 19.6L5 16.5L2.2 14.8L3 11.5L2.2 8.2L5 6.5L6.2 3.4L9.5 3.7L12 1.5Z" fill="#f472b6" />
                 <path d="M8 12L11 15L16 9.5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
               </svg>
               <span className="text-[14px] font-medium text-[#1E2939]">{review.customer_name}</span>
@@ -141,7 +142,7 @@ export default function MyReviewDetail() {
               <button
                 type="button"
                 onClick={() => navigate('/mypage/my-reviews')}
-                className="h-11 px-8 rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]"
+                className="h-11 px-8 rounded-full border border-[#f472b6] text-[14px] font-medium text-[#ec4899]"
               >
                 목록으로
               </button>
@@ -151,6 +152,7 @@ export default function MyReviewDetail() {
       </main>
 
       <FloatingActions bottomOffset={24} />
-    </div>
+      <BottomNav />
+      </div>
   )
 }

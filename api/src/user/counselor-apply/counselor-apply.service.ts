@@ -192,62 +192,82 @@ export class UserCounselorApplyService {
 
     const applyType = params.apply_type ?? 'application';
     const isApplication = applyType === 'application';
-    const phone = (params.applicant_phone ?? '').replace(/[^0-9]/g, '');
+    let phone = (params.applicant_phone ?? '').replace(/[^0-9]/g, '');
 
     let extras: Record<string, unknown> = { ...(params.extras ?? {}) };
 
     if (isApplication) {
-      // ── 상담사 지원서 (풀폼) — 기존 동작 ──
-      if (!phone) throw new BadRequestException('휴대폰 번호를 입력해주세요.');
+      // ── 상담사 지원서 (풀폼) ──
+      // 2026-05-22 ID 단일화: 회원이면 회원 정보(mb_id/password/phone) 자동 사용.
+      // 비회원이면 기존 입력값 검증.
+      let accountMbId: string;
+      let passwordHash: string;
+      let resolvedPhone = phone;
 
-      // 상담사 가입 ID/PW — 필수.
-      const accountMbId = (params.account_mb_id ?? '').trim();
-      const accountPassword = params.account_password ?? '';
-      if (!accountMbId) throw new BadRequestException('아이디를 입력해주세요.');
-      if (!MB_ID_PATTERN.test(accountMbId)) {
-        throw new BadRequestException('아이디는 영문/숫자/언더스코어 4~20자여야 합니다.');
-      }
-      if (!accountPassword || accountPassword.length < 6) {
-        throw new BadRequestException('비밀번호는 6자 이상이어야 합니다.');
+      if (params.memberId && params.mbId) {
+        // 로그인 회원 — 폼에서 받은 mb_id/password 무시, 회원 데이터 그대로 사용 (오타 사고 방지)
+        const m = await this.sql<{ mb_id: string; password: string; phone: string | null }[]>`
+          SELECT mb_id, password, phone FROM member
+           WHERE id = ${params.memberId} AND role = 'user' AND left_at IS NULL LIMIT 1
+        `;
+        if (m.length === 0) {
+          throw new BadRequestException('회원 정보를 찾을 수 없습니다. 다시 로그인해주세요.');
+        }
+        accountMbId = m[0].mb_id;
+        passwordHash = m[0].password;
+        // 회원 phone 을 단일 진실원천으로 사용 — 신청서가 다른 번호 보내도 무시
+        resolvedPhone = (m[0].phone ?? '').replace(/[^0-9]/g, '') || phone;
+        if (!resolvedPhone) {
+          throw new BadRequestException('회원 휴대폰 번호가 등록되지 않았습니다. 마이페이지에서 먼저 등록해주세요.');
+        }
+      } else {
+        // 비회원 — 입력값 검증
+        if (!phone) throw new BadRequestException('휴대폰 번호를 입력해주세요.');
+        accountMbId = (params.account_mb_id ?? '').trim();
+        const accountPassword = params.account_password ?? '';
+        if (!accountMbId) throw new BadRequestException('아이디를 입력해주세요.');
+        if (!MB_ID_PATTERN.test(accountMbId)) {
+          throw new BadRequestException('아이디는 영문/숫자/언더스코어 4~20자여야 합니다.');
+        }
+        if (!accountPassword || accountPassword.length < 6) {
+          throw new BadRequestException('비밀번호는 6자 이상이어야 합니다.');
+        }
+        passwordHash = await bcrypt.hash(accountPassword, 10);
       }
 
-      // ── 휴대폰 중복 정책 (상담사 지원 한정 — 일반 회원과 겹치는 건 OK)
-      //   accepted: 이미 상담사로 가입된 사람 → 차단
-      //   pending : 검토중 신청이 있으면 → 자동으로 'superseded' 처리하고 새 신청 접수
-      //   rejected/cancelled/superseded: 그냥 허용
-      const acceptedExisting = await this.sql<{ id: number }[]>`
-        SELECT id FROM post_apply
-         WHERE applicant_phone = ${phone}
-           AND status = 'accepted'
+      // ── 휴대폰 중복 정책 (2026-05-22 강화 — 한 사람 한 mb_id 정책)
+      const conflict = await this.sql<{ id: number; status: string }[]>`
+        SELECT id, status FROM post_apply
+         WHERE applicant_phone = ${resolvedPhone}
+           AND status IN ('accepted', 'pending')
            AND category = 'application'
          LIMIT 1
       `;
-      if (acceptedExisting.length > 0) {
+      if (conflict.length > 0) {
+        if (conflict[0].status === 'accepted') {
+          throw new ConflictException(
+            '이미 같은 휴대폰으로 상담사 가입이 완료되어 있습니다.',
+          );
+        }
         throw new ConflictException(
-          '이미 같은 휴대폰으로 상담사 가입이 완료되어 있습니다. 로그인 후 이용해주세요.',
+          '이미 접수된 신청서가 검토 중입니다 (#' + conflict[0].id + '). 결과를 기다려주세요.',
         );
       }
-      // 기존 pending 지원만 superseded 처리 — 문의는 별개라 안 건드림.
-      await this.sql`
-        UPDATE post_apply
-           SET status = 'superseded', updated_at = now()
-         WHERE applicant_phone = ${phone}
-           AND status = 'pending'
-           AND category = 'application'
-      `;
 
-      // 아이디 중복 — member 테이블 + 진행중 신청서 양쪽.
-      const avail = await this.checkMbIdAvailable(accountMbId);
-      if (!avail.available) {
-        throw new ConflictException(`아이디 "${accountMbId}" 는 사용할 수 없습니다.`);
+      // 비회원 신청 시점에만 아이디 중복 검사 (회원은 본인 mb_id 그대로 사용)
+      if (!params.memberId) {
+        const avail = await this.checkMbIdAvailable(accountMbId);
+        if (!avail.available) {
+          throw new ConflictException(`아이디 "${accountMbId}" 는 사용할 수 없습니다.`);
+        }
       }
-
-      // 평문 PW 는 절대 저장 안 함 — 여기서 즉시 해시.
-      const passwordHash = await bcrypt.hash(accountPassword, 10);
 
       // extras 에 mb_id / password_hash 를 박아 넣고 저장 — 승인 시 그대로 사용.
       extras.mb_id = accountMbId;
       extras.password_hash = passwordHash;
+
+      // resolvedPhone 을 phone 변수에도 반영 (INSERT 에서 사용)
+      phone = resolvedPhone;
     } else {
       // ── 간단 문의 (inquiry/other) ──
       //   - 본문 필수, 연락처(전화/이메일) 중 하나 이상 필수

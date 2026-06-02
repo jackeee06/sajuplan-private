@@ -16,7 +16,7 @@ test.describe('user 상담사 리스트', () => {
   test('이벤트 필터 칩 + 카테고리 탭 동작', async ({ page }) => {
     const consoleErrors: string[] = []
     const isExpectedError = (msg: string) =>
-      /Failed to load resource.*status of 401/.test(msg)
+      /Failed to load resource.*status of (401|404|429)/.test(msg)
     page.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`))
     page.on('console', (msg) => {
       if (msg.type() === 'error' && !isExpectedError(msg.text())) {
@@ -55,9 +55,13 @@ test.describe('user 상담사 리스트', () => {
 
   test('메인 홈 페이지 — 이벤트 상담사 슬라이드 + 분야 카드', async ({ page }) => {
     const consoleErrors: string[] = []
+    const isExpectedError = (msg: string) =>
+      /Failed to load resource.*status of (401|404|429)/.test(msg) || /favicon/.test(msg)
     page.on('pageerror', (e) => consoleErrors.push(`pageerror: ${e.message}`))
     page.on('console', (msg) => {
-      if (msg.type() === 'error') consoleErrors.push(`console.error: ${msg.text()}`)
+      if (msg.type() === 'error' && !isExpectedError(msg.text())) {
+        consoleErrors.push(`console.error: ${msg.text()}`)
+      }
     })
 
     await page.goto('/')

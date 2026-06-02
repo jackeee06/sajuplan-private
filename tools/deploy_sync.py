@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-사주문 정적 자산(web/user 또는 web/mng) 원격 동기화 — Windows fallback.
+사주플랜 정적 자산(web/user 또는 web/mng) 원격 동기화 — Windows fallback.
 
 deploy.sh 의 rsync 단계를 paramiko SFTP 로 대체. rsync/sshpass 가 없는 환경에서
 사용한다. SSH 비밀번호는 환경변수 SSHPASS 로 전달.

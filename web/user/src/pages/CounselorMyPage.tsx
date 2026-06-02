@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -12,9 +12,13 @@ import { useAuth } from '../lib/auth-context'
 import {
   counselorMypageApi,
   counselorGradeApi,
+  counselorPayoutApi,
+  consultApi,
   settlementApi,
   type SettlementSummary,
   type MyGradeInfo,
+  type MyPayoutInfo,
+  type ConsultMyStats,
 } from '../lib/api'
 import { FILE_BASE } from '../lib/runtime-env'
 import UnitCostChangeModal from '../components/UnitCostChangeModal'
@@ -24,6 +28,57 @@ function resolveImageUrl(u: string | null): string | null {
   if (/^https?:\/\//.test(u)) return u
   if (u.startsWith('/')) return `${FILE_BASE}${u}`
   return u
+}
+
+/** 오늘부터 이번달 말일까지 남은 일수 (정산 D-day용) */
+function daysUntilMonthEnd(): number {
+  const now = new Date()
+  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  return Math.max(0, Math.ceil((last.getTime() - now.getTime()) / 86_400_000))
+}
+
+/** 초 단위를 "Nh Nm" 형태로. 1시간 미만이면 "N분" */
+function formatHoursMinutes(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (h > 0) return `${h}h${m > 0 ? ` ${m}m` : ''}`
+  return `${m}분`
+}
+
+/** 정산 카드 안의 전화/채팅 채널 토글 (작은 사이즈) */
+function ChannelToggle({
+  label, iconSrc, on, disabled, onChange,
+}: {
+  label: string
+  iconSrc: string
+  on: boolean
+  disabled?: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <div className={`flex items-center justify-between p-2.5 rounded-lg bg-[#F9FAFB] ${disabled ? 'opacity-60' : ''}`}>
+      <span className="text-[13px] text-[#364153] inline-flex items-center gap-1.5">
+        <img src={iconSrc} alt="" className="w-4 h-4" />
+        {label}
+      </span>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange(!on)}
+        aria-label={`${label} 토글`}
+        className={`relative w-[44px] h-[26px] rounded-full transition-colors ${
+          disabled ? 'cursor-not-allowed ' : ''
+        }${on ? 'bg-[#8259F5]' : 'bg-[#D1D5DB]'}`}
+      >
+        <span
+          className={`absolute top-[3px] w-5 h-5 rounded-full bg-white shadow transition-all ${
+            on ? 'left-[21px]' : 'left-[3px]'
+          }`}
+        />
+      </button>
+    </div>
+  )
 }
 
 /**
@@ -49,7 +104,10 @@ export default function CounselorMyPage() {
   const [toggleBusy, setToggleBusy] = useState(false)
   const [settlement, setSettlement] = useState<SettlementSummary | null>(null)
   const [grade, setGrade] = useState<MyGradeInfo | null>(null)
+  const [payout, setPayout] = useState<MyPayoutInfo | null>(null)
   const [costModalOpen, setCostModalOpen] = useState(false)
+  const [extraOpen, setExtraOpen] = useState(false)
+  const [monthlyStats, setMonthlyStats] = useState<ConsultMyStats | null>(null)
 
   // 진입 시 실제 토글 값 + 정산 요약을 동시에 로드.
   //  - 토글: member.use_phone/use_chat
@@ -86,6 +144,27 @@ export default function CounselorMyPage() {
         .catch(() => { /* 등급 정보 실패해도 페이지는 동작 */ })
     }
     refreshGrade()
+
+    const refreshPayout = () => {
+      counselorPayoutApi.available()
+        .then((p) => { if (!cancelled) setPayout(p) })
+        .catch(() => { /* 선지급 정보 실패해도 페이지는 동작 */ })
+    }
+    refreshPayout()
+
+    // 이번달 상담 통계 — 1일 ~ 오늘. 0건이어도 표시 (신규 상담사 동기부여)
+    const refreshMonthly = () => {
+      const now = new Date()
+      const yyyy = now.getFullYear()
+      const mm = String(now.getMonth() + 1).padStart(2, '0')
+      const dd = String(now.getDate()).padStart(2, '0')
+      const from = `${yyyy}-${mm}-01`
+      const to = `${yyyy}-${mm}-${dd}`
+      consultApi.myStats({ from, to, type: 'all', limit: 1 })
+        .then((s) => { if (!cancelled) setMonthlyStats(s) })
+        .catch(() => { /* 통계 실패해도 페이지는 동작 — 0건 fallback */ })
+    }
+    refreshMonthly()
     const pollId = window.setInterval(refreshSettlement, 30_000)
     const onVisible = () => {
       if (document.visibilityState === 'visible') refreshSettlement()
@@ -183,185 +262,287 @@ export default function CounselorMyPage() {
         </div>
       </header>
 
-      <main className="flex-1 px-4">
-        {/* 프로필 — 클릭 시 회원 정보 수정 페이지(이미지/닉네임/연락처 등) 진입.
-            상담사도 member 레코드를 공유하므로 같은 페이지를 사용. */}
-        <section className="pt-2 pb-5 flex items-center gap-3">
+      <main className="flex-1 px-4 space-y-3">
+        {/* 헤더 — 프로필 한 줄 압축 (이름·등급칩·정보수정) */}
+        <section className="pt-2 flex items-center gap-3">
           <Link
             to="/mypage/member/edit"
             aria-label="프로필 수정"
-            className="relative w-[60px] h-[60px] shrink-0 rounded-full bg-[#F3F4F6] flex items-center justify-center overflow-hidden"
+            className="relative w-[48px] h-[48px] shrink-0 rounded-full bg-[#F3F4F6] flex items-center justify-center overflow-hidden"
           >
             {profileImage ? (
-              <UploadedImage
-                src={profileImage}
-                srcWebp={profileImageWebp}
-                alt=""
-                className="w-full h-full object-cover"
-              />
+              <UploadedImage src={profileImage} srcWebp={profileImageWebp} alt="" className="w-full h-full object-cover" />
             ) : (
-              <svg viewBox="0 0 24 24" className="w-9 h-9" fill="none" aria-hidden>
+              <svg viewBox="0 0 24 24" className="w-7 h-7" fill="none" aria-hidden>
                 <circle cx="12" cy="9" r="3.5" stroke="#99A1AF" strokeWidth="1.5" />
                 <path d="M5 19.5C5 16.4624 8.13401 14 12 14C15.866 14 19 16.4624 19 19.5" stroke="#99A1AF" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
             )}
-            <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-white border border-[#F3F4F6] flex items-center justify-center">
-              <img src="/img/ic_edit.svg" alt="" className="w-3 h-3" />
-            </span>
           </Link>
           <div className="flex-1 min-w-0">
-            <p className="text-[18px] leading-[140%] font-bold text-[#030712] truncate">
-              {displayName}
-            </p>
-            <p className="mt-0.5 text-[14px] leading-[140%] text-[#99A1AF] truncate">
-              {member.mb_id}
-            </p>
-          </div>
-          <Link
-            to="/mypage/app-settings"
-            className="h-8 px-4 rounded-full border border-[#E5E7EB] flex items-center justify-center text-[13px] font-medium text-[#4A5565]"
-          >
-            앱 설정
-          </Link>
-        </section>
-
-        {/* 상담 금액 — settlementApi.summary() 결과 표시. 로드 전엔 0원으로 표시. */}
-        <section className="rounded-[16px] bg-[#F9FAFB] px-5 pt-5 pb-2">
-          <p className="text-[14px] leading-[140%] text-[#6A7282]">상담 금액</p>
-          <p className="mt-1 text-[26px] leading-[130%] font-bold text-[#9B7AF7]">
-            {(settlement?.balance ?? 0).toLocaleString()}원
-          </p>
-          <ul className="mt-3 flex flex-col gap-1 text-[14px] leading-[140%]">
-            <li className="flex items-center justify-between">
-              <span className="text-[#6A7282]">전월</span>
-              <span className="text-[#1E2939]">
-                {(settlement?.prev_month ?? 0).toLocaleString()}원
-              </span>
-            </li>
-            <li className="flex items-center justify-between">
-              <span className="text-[#6A7282]">당월</span>
-              <span className="text-[#1E2939]">
-                {(settlement?.this_month ?? 0).toLocaleString()}원
-              </span>
-            </li>
-          </ul>
-          {/*
-            하단 액션 영역:
-             - 좌측: "정산 예정 금액" 정보 표시 (운영 정책상 수동 정산하기 버튼은 제거 — 시스템 cron 자동 진행).
-             - 우측: 정산내역 페이지 진입 (코인 수익 + 월별 마감).
-          */}
-          <div className="mt-3 -mx-1 grid grid-cols-2 border-t border-[#E5E7EB]">
-            <div className="h-12 px-3 flex items-center justify-between gap-2 border-r border-[#E5E7EB]">
-              <span className="text-[13px] text-[#6A7282] truncate">정산 예정</span>
-              <span className="text-[14px] font-semibold text-[#8259F5] tabular-nums truncate">
-                {(settlement?.estimated_payout ?? 0).toLocaleString()}원
-              </span>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[16px] font-semibold text-[#030712] truncate">{displayName}</p>
+              {grade && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-[#f3f0ff] text-[#8259F5] font-medium whitespace-nowrap">
+                  {grade.grade_label}
+                </span>
+              )}
             </div>
+            <p className="text-[11px] text-[#99A1AF] mt-0.5 truncate">{member.mb_id}</p>
+          </div>
+          <div className="flex flex-col items-end gap-1">
             <Link
-              to="/mypage/settlement/history"
-              className="h-12 flex items-center justify-center gap-2 text-[14px] font-medium text-[#4A5565]"
+              to="/mypage"
+              className="h-7 px-2.5 rounded-full bg-[#F3F4F6] border border-[#E5E7EB] inline-flex items-center gap-1 text-[11px] font-medium text-[#4A5565]"
             >
-              <img src="/img/ic_my_receipt.svg" alt="" className="w-5 h-5" />
-              정산내역
+              회원 메뉴
+              <svg viewBox="0 0 20 20" className="w-3 h-3" fill="none">
+                <path d="M7.5 5L12.5 10L7.5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+            <Link to="/mypage/member/edit" className="text-[12px] text-[#6A7282] inline-flex items-center gap-0.5">
+              <img src="/img/ic_edit.svg" alt="" className="w-3.5 h-3.5 opacity-60" /> 정보수정
             </Link>
           </div>
         </section>
 
-        {/* 등급 / 단가 (Phase 4) */}
-        {grade && (
-          <section className="mt-3 rounded-[16px] bg-white border border-[#F3F4F6] p-5">
+        {/* ① 🟢 상담 상태 토글 카드 — 최상단 강조 */}
+        <section className="rounded-[16px] border border-[#F3F4F6] bg-white p-4">
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="text-[14px] text-[#6A7282] leading-[140%]">내 등급</span>
-              <span className="px-2.5 py-1 rounded-full bg-[#F3EEFE] text-[13px] font-semibold text-[#8259F5] leading-none">
-                {grade.grade_label}
+              <span className={`w-2.5 h-2.5 rounded-full ${available ? 'bg-emerald-500 animate-pulse' : 'bg-[#9CA3AF]'}`} />
+              <span className={`text-[16px] font-semibold ${available ? 'text-emerald-600' : 'text-[#6A7282]'}`}>
+                {available ? '지금 상담 가능' : '부재중 (자리비움)'}
               </span>
             </div>
-
-            {/* 다음 등급까지 진척바 — partner5 면 만렙 표시 */}
-            <NextGradeProgress
-              grade={grade.grade}
-              seconds={grade.last_month_seconds}
-            />
-
-            <div className="mt-4 pt-4 border-t border-[#F3F4F6]">
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-[14px] text-[#6A7282] leading-[140%]">현재 단가</p>
-                  <p className="mt-0.5 text-[22px] leading-[130%] font-bold text-[#1E2939]">
-                    {grade.current_unit_cost > 0
-                      ? `${grade.current_unit_cost.toLocaleString()}원`
-                      : '미설정'}
-                    <span className="ml-1 text-[13px] font-medium text-[#6A7282]">/ 30초</span>
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  disabled={!grade.can_change_now}
-                  onClick={() => setCostModalOpen(true)}
-                  className="h-9 px-4 rounded-full bg-[#9B7AF7] text-[13px] font-semibold text-white disabled:bg-[#F3F4F6] disabled:text-[#9CA3AF]"
-                >
-                  변경
-                </button>
-              </div>
-              {!grade.can_change_now && grade.next_change_date_kst && (
-                <p className="mt-2 text-[12px] text-[#9CA3AF] leading-[140%]">
-                  다음 변경 가능: {grade.next_change_date_kst}
-                </p>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* 상담 상태 */}
-        <section className="pt-6">
-          <h3 className="text-[14px] leading-[140%] text-[#99A1AF] mb-1">내 상담 상태 설정</h3>
-          <ul className="flex flex-col">
-            <ToggleRow
-              label="상담 가능 여부"
-              on={available}
+            <button
+              type="button"
               disabled={toggleBusy}
-              onChange={(v) => void updateAvailability({ available: v })}
-            />
-            <ToggleRow
-              label="전화 상담"
+              onClick={() => void updateAvailability({ available: !available })}
+              aria-label="상담 가능 여부 토글"
+              className={`relative w-[52px] h-[30px] rounded-full transition-colors ${
+                toggleBusy ? 'opacity-50 ' : ''
+              }${available ? 'bg-emerald-500' : 'bg-[#D1D5DB]'}`}
+            >
+              <span
+                className={`absolute top-[3px] w-6 h-6 rounded-full bg-white shadow transition-all ${
+                  available ? 'left-[25px]' : 'left-[3px]'
+                }`}
+              />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <ChannelToggle
+              label="전화상담"
+              iconSrc="/img/ic_phone_p.svg?v=v2"
               on={callOn}
               disabled={toggleBusy || !available}
               onChange={(v) => void updateAvailability({ use_phone: v })}
             />
-            <ToggleRow
-              label="채팅 상담"
+            <ChannelToggle
+              label="채팅상담"
+              iconSrc="/img/ic_message_p.svg?v=v2"
               on={chatOn}
               disabled={toggleBusy || !available}
               onChange={(v) => void updateAvailability({ use_chat: v })}
             />
-          </ul>
+          </div>
+          <p className="text-[11px] text-[#9CA3AF] mt-2.5 leading-relaxed">
+            잠시 자리 비울 때는 위 큰 토글로 한 번에 꺼주세요.
+          </p>
         </section>
 
-        {/* 상담사 전용 메뉴 */}
-        <section className="pt-6">
-          <h3 className="text-[14px] leading-[140%] text-[#99A1AF] mb-1">상담사 전용</h3>
-          <ul className="flex flex-col">
+        {/* ② 💰 정산금액 카드 — 큰 폰트, 선지급 미니, D-day */}
+        <section className="rounded-[16px] p-4" style={{ background: 'linear-gradient(135deg, #f3f0ff 0%, #fce7f3 100%)', border: '1px solid #fbcfe8' }}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[12px] text-[#be185d] font-medium">💰 이번달 정산금액</span>
+            <span className="text-[11px] text-[#6A7282]">정산까지 <span className="font-semibold text-[#8259F5]">D-{daysUntilMonthEnd()}</span></span>
+          </div>
+          <div className="text-[28px] font-bold text-[#1E2939] tabular-nums leading-tight">
+            {(settlement?.estimated_payout ?? settlement?.this_month ?? 0).toLocaleString()}
+            <span className="text-[15px] font-medium text-[#6A7282] ml-0.5">원</span>
+          </div>
+          <div className="text-[11px] text-[#6A7282] mt-0.5">3.3% 원천세 공제 전 금액</div>
+          <div className="grid grid-cols-3 gap-2 mt-3">
+            <Link to="/mypage/calls" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">통화 내역</Link>
+            <Link to="/mypage/chats" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">채팅 내역</Link>
+            <Link to="/counselor/mypage/settlement/history" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">정산 이력</Link>
+          </div>
+          {/* 선지급 미니 */}
+          {payout && (
+            <Link to="/counselor/mypage/payout" className="mt-3 block p-2.5 rounded-lg bg-white/70 flex items-center justify-between">
+              <div>
+                <div className="text-[11px] text-[#6A7282]">선지급 가능액</div>
+                <div className="text-[15px] font-semibold text-[#1E2939] tabular-nums">
+                  {payout.available_amount.toLocaleString()}원
+                </div>
+              </div>
+              {payout.has_pending_request ? (
+                <span className="text-[11px] px-2.5 h-8 rounded-full bg-[#FEF9C3] text-[#A16207] font-medium inline-flex items-center">처리 대기</span>
+              ) : (
+                <span className="px-3 h-8 rounded-full bg-[#8259F5] text-white text-[12px] font-medium inline-flex items-center">신청</span>
+              )}
+            </Link>
+          )}
+        </section>
+
+        {/* ③ 🔔 처리 필요 알림 — 0건이어도 긍정 메시지로 표시 (동기부여) */}
+        <section className="rounded-[16px] border border-amber-200 bg-amber-50/40 p-4">
+          <div className="flex items-center justify-between">
+            <span className="text-[13px] font-semibold text-amber-900 inline-flex items-center gap-1.5">
+              ✅ 처리할 일 없어요
+            </span>
+            <span className="text-[11px] text-amber-700">새 후기·문의 답변 대기 0건</span>
+          </div>
+        </section>
+
+        {/* ④ 📊 이번달 상담 현황 — 0건이어도 표시 (신규 상담사 동기부여) */}
+        <section className="rounded-[16px] border border-[#F3F4F6] bg-white p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[13px] font-semibold text-[#364153]">
+              📊 {new Date().getFullYear()}년 {new Date().getMonth() + 1}월 상담 현황
+            </span>
+            <Link to="/counselor/mypage/consult-stats" className="text-[11px] text-[#6A7282]">자세히 →</Link>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="text-center p-2.5 bg-[#F9FAFB] rounded-lg">
+              <div className="text-[10px] text-[#6A7282] mb-1">상담</div>
+              <div className="text-[18px] font-bold text-[#1E2939] tabular-nums">
+                {(monthlyStats?.total_count ?? 0).toLocaleString()}
+                <span className="text-[11px] font-medium text-[#6A7282] ml-0.5">건</span>
+              </div>
+            </div>
+            <div className="text-center p-2.5 bg-[#F9FAFB] rounded-lg">
+              <div className="text-[10px] text-[#6A7282] mb-1">부재</div>
+              <div className="text-[18px] font-bold text-rose-500 tabular-nums">
+                {(monthlyStats?.missed_count ?? 0).toLocaleString()}
+                <span className="text-[11px] font-medium text-[#6A7282] ml-0.5">건</span>
+              </div>
+            </div>
+            <div className="text-center p-2.5 bg-[#F9FAFB] rounded-lg">
+              <div className="text-[10px] text-[#6A7282] mb-1">시간</div>
+              <div className="text-[16px] font-bold text-[#1E2939] tabular-nums leading-tight pt-0.5">
+                {formatHoursMinutes(monthlyStats?.total_seconds ?? 0)}
+              </div>
+            </div>
+          </div>
+          {monthlyStats && monthlyStats.total_count === 0 && (
+            <p className="mt-2 text-[11px] text-[#9CA3AF] text-center">
+              이번달 첫 상담을 기다리고 있어요 — 화이팅! ✨
+            </p>
+          )}
+        </section>
+
+        {/* ⑤ 📊 등급/단가 — 등급 단가 + 다음 등급 진척바 */}
+        {grade && (
+          <section className="rounded-[16px] border border-[#F3F4F6] bg-white p-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[13px] font-semibold text-[#364153]">📊 등급 / 단가</span>
+            </div>
+            <NextGradeProgress grade={grade.grade} seconds={grade.last_month_seconds} />
+
+            {/* 신규 가입자 단가 안내 (2026-05-22) — 기본값 1000원일 때 노출.
+                상담사가 본인 단가로 수정하도록 안내. */}
+            {grade.current_unit_cost === 1000 && grade.can_change_now && (
+              <div className="mt-3 px-3 py-2.5 rounded-[10px] bg-[#FEF3C7] border border-[#FBBF24]">
+                <p className="text-[12.5px] leading-[150%] text-[#92400E]">
+                  💡 <strong>가입 시 자동 설정된 기본 단가(1,000원/30초)</strong> 입니다.
+                  본인 단가로 변경하시려면 아래 <strong>변경</strong> 버튼을 눌러주세요.
+                </p>
+              </div>
+            )}
+
+            <div className="mt-3 pt-3 border-t border-[#F3F4F6] flex items-end justify-between">
+              <div>
+                <p className="text-[12px] text-[#6A7282]">현재 단가</p>
+                <p className="mt-0.5 text-[20px] font-bold text-[#1E2939] tabular-nums">
+                  {grade.current_unit_cost > 0 ? `${grade.current_unit_cost.toLocaleString()}원` : '미설정'}
+                  <span className="ml-1 text-[12px] font-medium text-[#6A7282]">/ 30초</span>
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={!grade.can_change_now}
+                onClick={() => setCostModalOpen(true)}
+                className="h-9 px-4 rounded-full bg-[#8259F5] text-[13px] font-semibold text-white disabled:bg-[#F3F4F6] disabled:text-[#9CA3AF]"
+              >
+                변경
+              </button>
+            </div>
+            {!grade.can_change_now && grade.next_change_date_kst && (
+              <p className="mt-2 text-[12px] text-[#9CA3AF]">다음 변경 가능: {grade.next_change_date_kst}</p>
+            )}
+          </section>
+        )}
+
+        {/* ④ 상담사 관리 메뉴 — 그리드 */}
+        <section className="rounded-[16px] border border-[#F3F4F6] bg-white p-3">
+          <div className="text-[12px] text-[#6A7282] px-1 mb-2">상담사 관리</div>
+          <div className="grid grid-cols-4 gap-1">
             {COUNSELOR_MAIN_MENU.map((it) => (
-              <li key={it.key}>
-                <Link to={it.to} className="h-14 flex items-center gap-3">
-                  <img src={it.icon} alt="" className="w-7 h-7" />
-                  <span className="text-[17px] leading-[140%] font-semibold text-[#030712]">
-                    {it.label}
-                  </span>
+              <Link
+                key={it.key}
+                to={it.to}
+                className="flex flex-col items-center gap-1.5 py-3 rounded-xl hover:bg-[#F9FAFB] transition"
+              >
+                <div className="w-11 h-11 rounded-xl bg-[#f3f0ff] flex items-center justify-center">
+                  <img src={it.icon} alt="" className="w-6 h-6" />
+                </div>
+                <span className="text-[11px] text-[#364153] text-center leading-tight">{it.label}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        {/* ⑥ 상담 통계 (기간 검색) — 자세한 기간 검색은 별도 페이지 */}
+        <Link to="/counselor/mypage/consult-stats" className="rounded-[16px] border border-[#F3F4F6] bg-white px-4 py-3.5 flex items-center justify-between">
+          <span className="text-[14px] font-medium text-[#364153] inline-flex items-center gap-2">
+            📈 상담 통계 (기간 검색)
+          </span>
+          <span className="text-[#D1D5DB] text-[16px]">›</span>
+        </Link>
+
+        {/* [2026-05-31] ⑦ 나만의 메모장 — 본인만 보기/쓰기 */}
+        <Link to="/counselor/mypage/memo" className="rounded-[16px] border border-[#F3F4F6] bg-white px-4 py-3.5 flex items-center justify-between">
+          <span className="text-[14px] font-medium text-[#364153] inline-flex items-center gap-2">
+            📝 나만의 메모장
+          </span>
+          <span className="text-[#D1D5DB] text-[16px]">›</span>
+        </Link>
+
+        {/* ⑦ 설정 / 기타 — 접힘 */}
+        <section className="rounded-[16px] border border-[#F3F4F6] bg-white overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setExtraOpen((v) => !v)}
+            className="w-full flex items-center justify-between px-4 py-3.5"
+          >
+            <span className="text-[14px] font-medium text-[#364153] inline-flex items-center gap-2">
+              ⚙️ 설정 및 기타
+            </span>
+            <svg className={`w-4 h-4 text-[#9CA3AF] transition-transform ${extraOpen ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none">
+              <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {extraOpen && (
+            <ul className="border-t border-[#F3F4F6]">
+              <li>
+                <Link to="/mypage/app-settings" className="h-12 px-4 flex items-center justify-between text-[14px] text-[#1E2939]">
+                  앱 알림 설정 <span className="text-[#D1D5DB]">›</span>
                 </Link>
               </li>
-            ))}
-          </ul>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setLogoutOpen(true)}
+                  className="w-full h-12 px-4 flex items-center justify-between text-[14px] text-[#FB2C36] border-t border-[#F3F4F6]"
+                >
+                  로그아웃 <img src="/img/ic_my_logout.svg" alt="" className="w-4 h-4 opacity-60" />
+                </button>
+              </li>
+            </ul>
+          )}
         </section>
-
-        <button
-          type="button"
-          onClick={() => setLogoutOpen(true)}
-          className="mt-2 h-14 flex items-center gap-3 text-[#FB2C36]"
-        >
-          <img src="/img/ic_my_logout.svg" alt="" className="w-7 h-7" />
-          <span className="text-[17px] leading-[140%] font-semibold">로그아웃</span>
-        </button>
       </main>
 
       <FloatingActions bottomOffset={100} />
@@ -447,7 +628,7 @@ function NextGradeProgress({
       </div>
       <div className="mt-1.5 h-1.5 rounded-full bg-[#F3F4F6] overflow-hidden">
         <div
-          className="h-full bg-[#9B7AF7] transition-all"
+          className="h-full bg-[#8259F5] transition-all"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -476,7 +657,7 @@ function ToggleRow({
         aria-label={`${label} 토글`}
         className={`relative w-12 h-7 rounded-full transition-colors ${
           disabled ? 'opacity-50 cursor-not-allowed ' : ''
-        }${on ? 'bg-[#9B7AF7]' : 'bg-[#D1D5DB]'}`}
+        }${on ? 'bg-[#8259F5]' : 'bg-[#D1D5DB]'}`}
       >
         <span
           className={`absolute top-0.5 w-6 h-6 rounded-full bg-white flex items-center justify-center transition-all ${
@@ -487,7 +668,7 @@ function ToggleRow({
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path
                 d="M3 7L6 10L11 4"
-                stroke="#9B7AF7"
+                stroke="#8259F5"
                 strokeWidth="1.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"

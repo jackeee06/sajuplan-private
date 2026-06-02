@@ -695,25 +695,25 @@ SELECT mb_id, COUNT(*) FROM payment WHERE member_id IS NULL AND mb_id IS NOT NUL
 ## 참고 파일 경로 (절대경로)
 
 ### 분석 대상 (read-only)
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/adm/coin_pay_form.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/adm/coin_pay_form_update.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/adm/coin_pay_history.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/adm/coin_pay_history_delete.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/adm/coin_pay_history_excel.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/adm/coin_charge_history.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/adm/coin_cancel.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/adm/order_cancle.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/adm/order_vbank_cancel.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/coin_pay_form.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/coin_pay_form_update.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/coin_pay_history.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/coin_pay_history_delete.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/coin_pay_history_excel.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/coin_charge_history.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/coin_cancel.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/order_cancle.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/order_vbank_cancel.php`
 
 ### 의존성 / PG 라이브러리
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/lib/pay_ag9.php` (`pay_cancel_full`)
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/lib/common.lib.php` (`send_mjson_cancle`, `send_mjson1`, line 4168~)
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/_pay_config.php` (AG9_AUTH_TOKEN placeholder)
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/coin_pay_ok_20280829.php` (PG 콜백 처리, PayMethod 코드 참조용)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/lib/pay_ag9.php` (`pay_cancel_full`)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/lib/common.lib.php` (`send_mjson_cancle`, `send_mjson1`, line 4168~)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/_pay_config.php` (AG9_AUTH_TOKEN placeholder)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/coin_pay_ok_20280829.php` (PG 콜백 처리, PayMethod 코드 참조용)
 
 ### 신규 시스템
-- `/Users/jin-yubi/dwork/AI/사주문1/api/db/migrations/0004_payment.sql`
-- `/Users/jin-yubi/dwork/AI/사주문1/api/db/migrations/0005_cms_system.sql` (account_setting)
-- `/Users/jin-yubi/dwork/AI/사주문1/api/src/admin/members/members.service.ts` (NestJS 패턴 참고)
-- `/Users/jin-yubi/dwork/AI/사주문1/web/mng/src/pages/CustomerList.tsx` (React 패턴 참고)
-- `/Users/jin-yubi/dwork/AI/사주문1/PLAN/phase-a-point-adjustment.md` (PointsService.adjust 의존)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/api/db/migrations/0004_payment.sql`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/api/db/migrations/0005_cms_system.sql` (account_setting)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/api/src/admin/members/members.service.ts` (NestJS 패턴 참고)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/web/mng/src/pages/CustomerList.tsx` (React 패턴 참고)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/PLAN/phase-a-point-adjustment.md` (PointsService.adjust 의존)

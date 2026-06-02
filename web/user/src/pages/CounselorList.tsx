@@ -1,17 +1,28 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import CounselorCard from '../components/CounselorCard'
-import FilterDropdown from '../components/FilterDropdown'
 import FloatingActions from '../components/FloatingActions'
-import Pagination from '../components/Pagination'
-import { ApiError, counselorsApi, type PublicCounselor } from '../lib/api'
+import { ApiError, counselorsApi, statsApi, type PublicCounselor } from '../lib/api'
 import { mapPublicCounselorToCard } from '../lib/counselor-mapper'
 
 type Category = '전체' | '사주' | '타로' | '신점'
 const CATEGORIES: Category[] = ['전체', '사주', '타로', '신점']
 
-const PAGE_SIZE = 10
+// 2026-05-22: 페이지네이션 → 누적 더보기 (한 번에 전체 펼침).
+const INITIAL_VISIBLE = 10
+
+// 분야 칩에서 제외할 hashtag — 상위 카테고리(사주/타로/신점) 와 중복.
+// 데이터(post_counselor.hashtag) 자체에 큰 카테고리가 섞여 들어와 있어서 클라이언트에서 거른다.
+// 운영 안정화 후 Phase C 에서 DB 데이터 정리 예정.
+const EXCLUDED_FIELDS = new Set<string>(['사주', '타로', '신점'])
+
+// 강조 줄(이벤트 칩과 같은 줄)에 항상 노출할 PINNED 분야 칩.
+// emoji 가 ⭐이벤트 와 시각적으로 묶여 위계가 생긴다.
+// (사장님 결정 2026-05-29: 재회 수요 큼 → 진입점 항상 제공)
+type PinnedField = { name: string; emoji: string }
+const PINNED_FIELDS: PinnedField[] = [{ name: '재회', emoji: '💕' }]
+const PINNED_NAMES = new Set(PINNED_FIELDS.map((p) => p.name))
 
 /**
  * 상담사 리스트 — Figma 1:765 (03전체리스트)
@@ -28,20 +39,22 @@ export default function CounselorList() {
   const [field, setField] = useState<string | null>(null)
   const [availableOnly, setAvailableOnly] = useState(false)
   const [eventOnly, setEventOnly] = useState(false)
-  const [page, setPage] = useState(1)
+  // 누적 노출 개수 — 필터 바뀌면 INITIAL_VISIBLE 로 리셋, "더보기" 누르면 한 번에 전체 펼침
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
   const [counselors, setCounselors] = useState<PublicCounselor[]>([])
-  const [fieldOptions, setFieldOptions] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // 메인 화면의 "접속중상담사 N명" 과 동일한 보정값 적용 (어드민 override 포함).
+  // 전체 + 무필터 일 때만 사용 — 필터 적용 시는 실제 필터 결과 수가 정직하다.
+  const [boostedCount, setBoostedCount] = useState<number | null>(null)
 
-  // 분야 옵션은 한 번만 로드
   useEffect(() => {
-    counselorsApi
-      .filterOptions()
-      .then((r) => setFieldOptions(r.fields))
-      .catch(() => {
-        /* 옵션 로드 실패해도 리스트는 동작 */
-      })
+    statsApi.main().then(
+      (r) => setBoostedCount(r.online_counselors),
+      () => {
+        /* 실패 시 실수만 — 사용자 화면엔 영향 X */
+      },
+    )
   }, [])
 
   // 카테고리 변경 시 백엔드 재조회 + 30초 폴링 + 페이지 복귀 시 재조회
@@ -57,7 +70,7 @@ export default function CounselorList() {
         setError(null)
       }
       counselorsApi
-        .list({ tab: 'all', category: cat, limit: 50, event: eventOnly })
+        .list({ tab: 'all', category: cat, limit: 300, event: eventOnly })
         .then((r) => {
           if (alive) setCounselors(r.items)
         })
@@ -74,7 +87,7 @@ export default function CounselorList() {
         })
     }
 
-    setPage(1)
+    setVisibleCount(INITIAL_VISIBLE)
     fetchList(true)
     // 30초마다 백그라운드 갱신 (state 변동 — 상담중/대기 등 — 반영)
     pollTimer = window.setInterval(() => fetchList(false), 30_000)
@@ -94,6 +107,33 @@ export default function CounselorList() {
     }
   }, [category, eventOnly])
 
+  // 일반 분야 칩(2번째 줄~) — 현재 카테고리 안의 상담사들의 실제 hashtag 에서만 추출.
+  // 큰 카테고리(사주/타로/신점) 는 EXCLUDED_FIELDS 로 제외(중복 방지).
+  // PINNED 항목(재회 등)은 강조 줄에서 따로 그리므로 일반 줄에서는 제외.
+  const regularFields = useMemo(() => {
+    const fromCounselors = new Set<string>()
+    counselors.forEach((c) => {
+      if (c.hashtag1) fromCounselors.add(c.hashtag1)
+      if (c.hashtag2) fromCounselors.add(c.hashtag2)
+    })
+    EXCLUDED_FIELDS.forEach((b) => fromCounselors.delete(b))
+    PINNED_NAMES.forEach((b) => fromCounselors.delete(b))
+    return Array.from(fromCounselors).sort((a, b) => a.localeCompare(b, 'ko'))
+  }, [counselors])
+
+  // 현재 카테고리의 전체 칩 라벨(PINNED + regular) — 활성 칩 자동 해제 판정용
+  const allFieldNames = useMemo(
+    () => new Set<string>([...PINNED_FIELDS.map((p) => p.name), ...regularFields]),
+    [regularFields],
+  )
+
+  // 선택된 분야가 현재 카테고리의 칩 목록에 더 이상 없으면 자동 해제 (탭 전환 시 사용자 혼란 방지).
+  useEffect(() => {
+    if (field && !allFieldNames.has(field)) {
+      setField(null)
+    }
+  }, [field, allFieldNames])
+
   // 클라이언트 필터: 분야(hashtag 포함) + 상담가능만
   const filtered = useMemo(
     () =>
@@ -112,10 +152,11 @@ export default function CounselorList() {
     [counselors, field, availableOnly],
   )
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pagedItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const visibleItems = filtered.slice(0, visibleCount)
+  const hasMore = visibleCount < filtered.length
 
-  const resetPage = () => setPage(1)
+  // 필터 변경 시 누적 노출도 처음으로 리셋
+  const resetPage = () => setVisibleCount(INITIAL_VISIBLE)
 
   return (
     <div className="mobile-frame flex flex-col pb-[100px]">
@@ -156,7 +197,7 @@ export default function CounselorList() {
                   resetPage()
                 }}
                 className={`text-[20px] leading-[120%] font-semibold transition ${
-                  active ? 'text-[#8259F5]' : 'text-[#6A7282]'
+                  active ? 'text-[#ec4899]' : 'text-[#6A7282]'
                 }`}
               >
                 {c}
@@ -165,47 +206,87 @@ export default function CounselorList() {
           })}
         </section>
 
-        {/* 이벤트 필터 칩 — 활성 이벤트 상담사만 노출 (최대 3명, 자동 활성/해제) */}
-        <section className="px-4 pb-3">
+        {/* 강조 칩 줄 — 이벤트 상담사 + PINNED 분야(재회).
+            2026-05-29: 칩 사이즈/간격을 조밀화 (h-8, px-2.5, gap-1.5, text-13)
+            — 사장님 피드백 "떠다니는 느낌" 해소. */}
+        <section className="px-4 pt-2 pb-1.5 flex flex-wrap items-center gap-1.5">
           <button
             type="button"
             onClick={() => {
               setEventOnly((v) => !v)
               resetPage()
             }}
-            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[13px] font-medium transition ${
+            className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-full text-[13px] leading-[1.2] font-medium transition ${
               eventOnly
-                ? 'bg-[#F3EEFE] text-[#8259F5] border border-[#9B7AF7]'
-                : 'bg-[#F9FAFB] text-[#6A7282] border border-[#F3F4F6]'
+                ? 'bg-[#fdf2f8] text-[#ec4899] border border-[#f472b6]'
+                : 'bg-[#F9FAFB] text-[#6A7282] border border-[#E5E7EB]'
             }`}
           >
             <span aria-hidden>⭐</span>
             <span>이벤트 상담사</span>
           </button>
+          {PINNED_FIELDS.map((p) => {
+            const active = field === p.name
+            return (
+              <button
+                key={p.name}
+                type="button"
+                onClick={() => {
+                  setField(active ? null : p.name)
+                  resetPage()
+                }}
+                className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-full text-[13px] leading-[1.2] font-medium transition ${
+                  active
+                    ? 'bg-[#fdf2f8] text-[#ec4899] border border-[#f472b6]'
+                    : 'bg-[#F9FAFB] text-[#6A7282] border border-[#E5E7EB]'
+                }`}
+              >
+                <span aria-hidden>{p.emoji}</span>
+                <span>{p.name}</span>
+              </button>
+            )
+          })}
         </section>
 
-        {/* filter_select — 분야만 (스타일/성별은 신 DB 컬럼 미보유라 제외) */}
-        <section className="px-4 pt-1 pb-3 flex gap-1 items-center">
-          <FilterDropdown
-            label="분야"
-            options={fieldOptions}
-            value={field}
-            onChange={(v) => {
-              setField(v)
-              resetPage()
-            }}
-          />
-          <button
-            type="button"
-            aria-label="필터 초기화"
-            onClick={() => {
-              setField(null)
-              resetPage()
-            }}
-            className="w-9 h-9 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] flex items-center justify-center shrink-0"
-          >
-            <img src="/img/ic_reset.svg" alt="" className="w-5 h-5" />
-          </button>
+        {/* 구분선 — 강조 줄과 일반 분야 줄 사이의 위계 표현 */}
+        <div className="mx-4 border-t border-[#F3F4F6]" />
+
+        {/* 일반 분야 칩 — 가나다순. 큰 카테고리(사주/타로/신점)와 PINNED 는 제외. */}
+        <section className="px-4 pt-1.5 pb-2 flex flex-wrap items-center gap-1.5">
+          {regularFields.map((opt) => {
+            const active = field === opt
+            return (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => {
+                  setField(active ? null : opt)
+                  resetPage()
+                }}
+                className={`h-8 px-2.5 rounded-full text-[13px] leading-[1.2] font-medium transition ${
+                  active
+                    ? 'bg-[#fdf2f8] text-[#ec4899] border border-[#f472b6]'
+                    : 'bg-[#F9FAFB] text-[#6A7282] border border-[#E5E7EB]'
+                }`}
+              >
+                {opt}
+              </button>
+            )
+          })}
+          {(field !== null || eventOnly) && (
+            <button
+              type="button"
+              aria-label="필터 초기화"
+              onClick={() => {
+                setField(null)
+                setEventOnly(false)
+                resetPage()
+              }}
+              className="w-8 h-8 rounded-full bg-[#F9FAFB] border border-[#E5E7EB] flex items-center justify-center shrink-0"
+            >
+              <img src="/img/ic_reset.svg" alt="" className="w-4 h-4" />
+            </button>
+          )}
         </section>
 
         <section className="px-4 py-3 flex items-center justify-between border-b border-[#F3F4F6]">
@@ -222,7 +303,17 @@ export default function CounselorList() {
             <span className="text-[15px] leading-[120%] text-[#364153]">상담가능만 보기</span>
           </label>
           <p className="text-[14px] text-[#6A7282]">
-            <span className="font-semibold text-[#8259F5]">{filtered.length}</span>명
+            <span className="font-semibold text-[#ec4899]">
+              {(() => {
+                // 전체 + 분야 무선택 + 이벤트 미사용 + 상담가능만 미사용 = "전체 카운트"
+                // → 메인 화면 "접속중상담사 N명" 과 동일한 boost 값 노출.
+                const isAllUnfiltered =
+                  category === '전체' && !field && !eventOnly && !availableOnly
+                if (isAllUnfiltered && boostedCount != null) return boostedCount
+                return filtered.length
+              })()}
+            </span>
+            명
           </p>
         </section>
 
@@ -236,14 +327,32 @@ export default function CounselorList() {
               해당 조건의 상담사가 없습니다.
             </p>
           ) : (
-            pagedItems.map((c) => (
+            visibleItems.map((c) => (
               <CounselorCard key={c.id} counselor={mapPublicCounselorToCard(c)} />
             ))
           )}
         </section>
 
-        {!loading && !error && filtered.length > PAGE_SIZE && (
-          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+        {/* 더보기 (2026-05-22) — 클릭 시 한 번에 모두 펼침. 풀폭 큰 버튼으로 존재감 강조. */}
+        {!loading && !error && filtered.length > 0 && (
+          <div className="px-4 pt-3 pb-6">
+            {hasMore ? (
+              <button
+                type="button"
+                onClick={() => setVisibleCount(filtered.length)}
+                className="w-full h-14 rounded-2xl border border-[#f472b6] bg-white text-[16px] text-[#ec4899] font-semibold flex items-center justify-center gap-2 hover:bg-[#fdf2f8] transition shadow-[0_2px_8px_rgba(244,114,182,0.12)]"
+              >
+                <span>더보기</span>
+                <svg viewBox="0 0 24 24" className="w-6 h-6 stroke-[#ec4899] fill-none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            ) : (
+              <p className="text-center text-[13px] text-[#99A1AF]">
+                모든 상담사를 확인했어요 ✨
+              </p>
+            )}
+          </div>
         )}
       </main>
 

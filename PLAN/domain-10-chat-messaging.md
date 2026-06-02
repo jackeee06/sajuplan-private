@@ -40,7 +40,7 @@ sample 의 코드는 **참고만** — 비즈니스 규칙(상태 전이·차감
 
 ## 개요 (배경)
 
-사주문의 핵심 매출원은 1:1 상담(채팅·전화)이다. 현재 라이브의 채팅은 **PassCall(엠투넷 / m2net)** 의 외부 SaaS WebSocket 서버를 통해 동작하며, sample/(PHP) 가 그 앞단에서 토큰 발급·메시지 저장·포인트 차감·상담사 상태 동기화·자동 부재중 처리를 수행한다.
+사주플랜의 핵심 매출원은 1:1 상담(채팅·전화)이다. 현재 라이브의 채팅은 **PassCall(엠투넷 / m2net)** 의 외부 SaaS WebSocket 서버를 통해 동작하며, sample/(PHP) 가 그 앞단에서 토큰 발급·메시지 저장·포인트 차감·상담사 상태 동기화·자동 부재중 처리를 수행한다.
 
 라이브 PHP 측의 채팅 코드는 라이브 다른 도메인과 동일하게 부실이 누적되어 있다 — SQL injection 가능 라인, 트랜잭션 누락, 디버그 코드, 백업 파일 다수, mtonet webhook 의 멱등성 처리 부재. 신규 NestJS 로 옮길 때는 이 부실을 한 줄도 재현하지 않는다.
 
@@ -68,7 +68,7 @@ sample 의 코드는 **참고만** — 비즈니스 규칙(상태 전이·차감
    - `conv_msg` (image) — `HtmlFlag:true` + base64 본문
    - `room_out_req` — 종료 요청
    - 매뉴얼 2023.11.15: json 변수명 `cmd → msg` 로 수정 — sample `cn.php` 와 양쪽 다 받도록 클라이언트 호환 코드 필요.
-4. **메시지 저장 (중요 정정)**: **m2net 측이 자체 저장**한다 (매뉴얼 §4.5: "엠투넷 서버 단에서 전부 알아서 처리"). sample 의 `ajax.counsel_chat.php:storeChat` 의 `chat_t` INSERT 는 사주문 자체 백업·통계용일 뿐 필수 아님. **신규에서는 자체 히스토리 보존을 위해 wss 메시지를 React 가 받아 NestJS `POST /messages` 로 백업 INSERT 하는 것을 유지** (관리자 chat-history 화면에서 조회 가능해야 하므로).
+4. **메시지 저장 (중요 정정)**: **m2net 측이 자체 저장**한다 (매뉴얼 §4.5: "엠투넷 서버 단에서 전부 알아서 처리"). sample 의 `ajax.counsel_chat.php:storeChat` 의 `chat_t` INSERT 는 사주플랜 자체 백업·통계용일 뿐 필수 아님. **신규에서는 자체 히스토리 보존을 위해 wss 메시지를 React 가 받아 NestJS `POST /messages` 로 백업 INSERT 하는 것을 유지** (관리자 chat-history 화면에서 조회 가능해야 하므로).
 5. **시간/포인트 차감 (중요 정정)**: **m2net 측이 자동으로 처리**한다 (매뉴얼 §4.5: "기존 AG9 의 전화상담 단가와 차감 결제를 모두 동일하게 사용하며 엠투넷 서버 단에서 전부 알아서 처리"). sample `ajax.counsel_chat.php:updateTime` 의 PHP 측 `use_time +=10` 누적 + 잔여 검증은 **불필요**. NestJS 에 `/tick` 엔드포인트 만들지 않음. 클라이언트의 잔여시간은 m2net 가 보내주는 push 또는 회원 잔액 + 단가로 자체 계산.
 6. **종료/정산 webhook (매뉴얼 §3.5 + 부록 §1 reason 코드 전체)**:
    `POST {등록한 notiurl}` body 핵심: `{ amt, cpid, csrid, dtmfno, end, eventtm, from, membid, reason, start, telno, to, usetm, preflag, pin, callid?, regid?, roomid? }`
@@ -88,7 +88,7 @@ sample 의 코드는 **참고만** — 비즈니스 규칙(상태 전이·차감
    - `CSR_REJECT_RCVSIG` — 상담사 수신거절(통신사 신호)
    - `AUTO_PAY_CARD_IN_CONNECT` / `AUTO_PAY_CARD_NOT_CONNECT` — 자동결제(별도 webhook 흐름)
    - 응답 본문: `{"req_result":"00"}` (필수). 응답 시간: TLS 1.5s + context 1.5s + 대기 2s. **재전송/retry 미지원** — 200 응답 즉시 반환 후 무거운 후처리는 비동기 큐로.
-7. **상담사 상태 매트릭스** (매뉴얼 §3.3 코드 + 사주문 use_phone/use_chat 매핑):
+7. **상담사 상태 매트릭스** (매뉴얼 §3.3 코드 + 사주플랜 use_phone/use_chat 매핑):
    ```
    use_phone=Y, use_chat=Y → RDVC (채팅+전화 가능)
    use_phone=Y, use_chat=N → IDLE (전화상담가능)
@@ -367,7 +367,7 @@ cron `state-cron.service.ts`:
 - **webhook 응답 시간 ≤ 2초**(TLS 1.5s + context 1.5s + 대기 2s) — DB write 1건만 동기, 정산 트랜잭션은 worker 로.
 - **DISCONNECT 멱등성**(매뉴얼 부록 §1) — CallID 동일 reason 1~2회 발생. UNIQUE `(reason, callid)` 필수.
 - **차감 단가는 m2net 측 처리** — NestJS 가 자체 차감 계산하면 m2net 와 이중 차감. webhook amt 만 그대로 반영.
-- **메시지 저장은 m2net 측** — 사주문 `chat_t` 백업 INSERT 는 자체 통계용. m2net 응답이 정답.
+- **메시지 저장은 m2net 측** — 사주플랜 `chat_t` 백업 INSERT 는 자체 통계용. m2net 응답이 정답.
 - 트랜잭션 — 차감/적립/상태변경은 단일 트랜잭션. 음수 잔액 금지.
 - WebSocket 재연결 — 모바일 백그라운드 진입 시 wss 단절. `useChatSocket` 에 재연결 + `messages?since=` 누락 fetch.
 - 디자인 충실도 — `ChatRoom.tsx` 의 픽셀·색·간격 변경 금지. mock 교체로 인해 레이아웃이 바뀌지 않도록 prop/state 만 교체. (CLAUDE.md 디자인 충실도 규칙)

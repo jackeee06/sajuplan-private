@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -7,7 +7,7 @@ import { ApiError, eventsApi, type PublicEventDetail } from '../lib/api'
 /**
  * 이벤트 상세 — Figma 06마이페이지(비회원) > 이벤트 상세 (진행중/종료)
  *
- * 진행중 칩: bg #F3EEFE / text #8259F5
+ * 진행중 칩: bg #fdf2f8 / text #ec4899
  * 종료   칩: bg #F3F4F6 / text #6A7282
  *
  * API: GET /api/user/events/:id — 조회수 +1 후 단건 반환.
@@ -84,7 +84,7 @@ export default function EventDetail() {
             className={
               ended
                 ? 'inline-flex items-center h-[26px] px-2.5 rounded-[6px] text-[13px] leading-none font-medium bg-[#F3F4F6] text-[#6A7282]'
-                : 'inline-flex items-center h-[26px] px-2.5 rounded-[6px] text-[13px] leading-none font-medium bg-[#F3EEFE] text-[#8259F5]'
+                : 'inline-flex items-center h-[26px] px-2.5 rounded-[6px] text-[13px] leading-none font-medium bg-[#fdf2f8] text-[#ec4899]'
             }
           >
             {statusLabel}
@@ -108,7 +108,7 @@ export default function EventDetail() {
           <button
             type="button"
             onClick={() => navigate('/mypage/events')}
-            className="h-[44px] px-7 rounded-full border border-[#9B7AF7] text-[15px] font-medium text-[#8259F5]"
+            className="h-[44px] px-7 rounded-full border border-[#f472b6] text-[15px] font-medium text-[#ec4899]"
           >
             목록으로
           </button>

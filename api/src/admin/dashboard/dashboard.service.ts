@@ -32,12 +32,15 @@ export class DashboardService {
          WHERE role = 'counselor' AND left_at IS NULL
          GROUP BY state
       `,
-      // 충전 잔액 총합 (회사 부채 = 사용자가 충전했지만 안 쓴 포인트)
-      safeOne(() => this.sql<{ free: string; paid: string }[]>`
-        SELECT COALESCE(SUM(free_balance), 0)::text AS free,
-               COALESCE(SUM(paid_balance), 0)::text AS paid
+      // 충전 잔액 총합 (회사 부채):
+      //   소비포인트(free+paid) = 사용자가 충전했지만 안 쓴 코인 (선수금)
+      //   수익포인트(earning)    = 상담사가 적립했지만 미정산 (미지급금)
+      safeOne(() => this.sql<{ free: string; paid: string; earning: string }[]>`
+        SELECT COALESCE(SUM(free_balance), 0)::text    AS free,
+               COALESCE(SUM(paid_balance), 0)::text    AS paid,
+               COALESCE(SUM(earning_balance), 0)::text AS earning
           FROM point
-      `, { free: '0', paid: '0' }),
+      `, { free: '0', paid: '0', earning: '0' }),
       // 오늘 상담 1건 이상 한 상담사 수 (출석 = 활동성 기준)
       safeOne(() => this.sql<{ cnt: string }[]>`
         SELECT COUNT(DISTINCT counselor_id)::text AS cnt
@@ -75,7 +78,13 @@ export class DashboardService {
       balance: {
         free: Number(balance.free),
         paid: Number(balance.paid),
-        total: Number(balance.free) + Number(balance.paid),
+        earning: Number(balance.earning),
+        // 소비포인트 부채 (회원 충전 잔액)
+        consume_total: Number(balance.free) + Number(balance.paid),
+        // 수익포인트 부채 (상담사 미정산 적립금)
+        earning_total: Number(balance.earning),
+        // 전체 부채 합
+        total: Number(balance.free) + Number(balance.paid) + Number(balance.earning),
       },
     };
   }
@@ -375,7 +384,7 @@ export class DashboardService {
 
     const [
       referralCnt, paymentFailedCnt, reportCnt, settleNegCnt, alimtalkFailCnt, refundRecentCnt,
-      counselorApplyCnt, unrepliedReviewCnt, retryFailedCnt,
+      counselorApplyCnt, unrepliedReviewCnt, retryFailedCnt, payoutPendingCnt,
     ] = await Promise.all([
       safeCount(() => this.sql<{ cnt: string }[]>`
         SELECT count(*)::text AS cnt
@@ -428,6 +437,10 @@ export class DashboardService {
           + (SELECT count(*) FROM payment WHERE m2net_retry_count >= 5)
         )::text AS cnt
       `),
+      // 선지급 처리 대기 — 일과 종료 시 일괄 처리할 신청 (2026-05-21 Phase 3)
+      safeCount(() => this.sql<{ cnt: string }[]>`
+        SELECT count(*)::text AS cnt FROM payout_request WHERE status = 'pending'
+      `),
     ]);
 
     return [
@@ -440,6 +453,7 @@ export class DashboardService {
       { key: 'counselor_apply', label: '상담사 신청 대기', count: counselorApplyCnt, to: '/members/counselor-apply', tone: 'amber' },
       { key: 'unreplied_review', label: '미답변 후기(3일+)', count: unrepliedReviewCnt, to: '/posts/review', tone: 'amber' },
       { key: 'retry_failed', label: 'retry 영구실패', count: retryFailedCnt, to: '/settlements', tone: 'rose' },
+      { key: 'payout_pending', label: '선지급 처리 대기', count: payoutPendingCnt, to: '/payouts', tone: 'amber' },
     ];
   }
 
@@ -512,6 +526,149 @@ export class DashboardService {
     }
   }
 
+  /**
+   * 운영 인사이트 종합 — 이번주 vs 지난주 / 채널 비중 / 시간대별 / 휴면 / 등급 변동.
+   * 단일 endpoint 로 5개 데이터 한 번에 (대시보드 fetch 줄임).
+   */
+  async insights(): Promise<{
+    weekCompare: {
+      this_week: { sales: number; consultations: number; new_members: number };
+      last_week: { sales: number; consultations: number; new_members: number };
+      delta_pct: { sales: number | null; consultations: number | null; new_members: number | null };
+    };
+    channelMix: Array<{ name: string; value: number }>;
+    hourlyTraffic: Array<{ hour: number; total: number }>;
+    dormant: { count_30d: number; count_60d: number };
+    gradeChanges: { promote: number; demote: number; total: number };
+  }> {
+    const safe = async <T>(q: () => Promise<T>, fallback: T): Promise<T> => {
+      try { return await q(); } catch { return fallback; }
+    };
+
+    const [weekRows, channelRows, hourlyRows, dormantRow, gradeRow] = await Promise.all([
+      // 이번주 vs 지난주 (월~일, 또는 7일 단위)
+      safe(async () => this.sql<{
+        period: string; sales: string; consultations: string; new_members: string;
+      }[]>`
+        WITH ranges AS (
+          SELECT 'this' AS period, NOW() - INTERVAL '7 days' AS f, NOW() AS t
+          UNION ALL
+          SELECT 'last' AS period, NOW() - INTERVAL '14 days' AS f, NOW() - INTERVAL '7 days' AS t
+        )
+        SELECT r.period,
+               COALESCE((SELECT SUM(amt) FROM consultation
+                          WHERE is_paid = true AND created_at >= r.f AND created_at < r.t), 0)::text AS sales,
+               COALESCE((SELECT COUNT(*) FROM consultation
+                          WHERE is_paid = true AND created_at >= r.f AND created_at < r.t), 0)::text AS consultations,
+               COALESCE((SELECT COUNT(*) FROM member
+                          WHERE created_at >= r.f AND created_at < r.t), 0)::text AS new_members
+          FROM ranges r
+      `, [] as never),
+
+      // 채널별 매출 비중 (최근 14일 — sales-trend 와 동일 기간)
+      // 채널 구분: roomid NULL = 콜, roomid NOT NULL = 채팅. 콜 내에서 callee_phone='5000878'(POSTPAID_TO) = 060, 그 외 = 070.
+      safe(async () => this.sql<{ name: string; value: string }[]>`
+        SELECT 'consult_070' AS name, COALESCE(SUM(amt), 0)::text AS value FROM consultation
+         WHERE is_paid = true AND roomid IS NULL AND COALESCE(callee_phone, '') <> '5000878'
+           AND created_at >= NOW() - INTERVAL '14 days'
+        UNION ALL
+        SELECT 'consult_060', COALESCE(SUM(amt), 0)::text FROM consultation
+         WHERE is_paid = true AND roomid IS NULL AND callee_phone = '5000878'
+           AND created_at >= NOW() - INTERVAL '14 days'
+        UNION ALL
+        SELECT 'chat', COALESCE(SUM(amt), 0)::text FROM consultation
+         WHERE is_paid = true AND roomid IS NOT NULL AND created_at >= NOW() - INTERVAL '14 days'
+        UNION ALL
+        SELECT 'charge', COALESCE(SUM(amount), 0)::text FROM payment
+         WHERE status = 'completed' AND created_at >= NOW() - INTERVAL '14 days'
+      `, [] as never),
+
+      // 시간대별 상담 건수 (최근 30일)
+      safe(async () => this.sql<{ hour: string; total: string }[]>`
+        SELECT EXTRACT(HOUR FROM created_at)::int::text AS hour,
+               COUNT(*)::text AS total
+          FROM consultation
+         WHERE is_paid = true AND created_at >= NOW() - INTERVAL '30 days'
+         GROUP BY EXTRACT(HOUR FROM created_at)
+         ORDER BY hour
+      `, [] as never),
+
+      // 휴면 회원 (30일 / 60일 미접속)
+      safe(async () => this.sql<{ d30: string; d60: string }[]>`
+        SELECT
+          COUNT(*) FILTER (WHERE last_login_at IS NOT NULL AND last_login_at < NOW() - INTERVAL '30 days')::text AS d30,
+          COUNT(*) FILTER (WHERE last_login_at IS NOT NULL AND last_login_at < NOW() - INTERVAL '60 days')::text AS d60
+          FROM member
+         WHERE left_at IS NULL AND role = 'user'
+      `, [] as never),
+
+      // 이번달 등급 변동 (member_grade_history)
+      safe(async () => this.sql<{ change_type: string; cnt: string }[]>`
+        SELECT change_type, COUNT(*)::text AS cnt
+          FROM member_grade_history
+         WHERE created_at >= date_trunc('month', CURRENT_DATE)
+           AND change_type IN ('promote', 'demote')
+         GROUP BY change_type
+      `, [] as never),
+    ]);
+
+    const weekMap = (weekRows as Array<{ period: string; sales: string; consultations: string; new_members: string }>).reduce<Record<string, { sales: number; consultations: number; new_members: number }>>((acc, r) => {
+      acc[r.period] = {
+        sales: Number(r.sales),
+        consultations: Number(r.consultations),
+        new_members: Number(r.new_members),
+      };
+      return acc;
+    }, {});
+    const thisW = weekMap.this ?? { sales: 0, consultations: 0, new_members: 0 };
+    const lastW = weekMap.last ?? { sales: 0, consultations: 0, new_members: 0 };
+    const pctOf = (cur: number, prev: number): number | null => {
+      if (prev <= 0) return cur > 0 ? 100 : null;
+      return Math.round(((cur - prev) / prev) * 100);
+    };
+
+    const channelLabel: Record<string, string> = {
+      consult_070: '070 통화',
+      consult_060: '060 통화',
+      chat: '채팅',
+      charge: '충전',
+    };
+
+    const grades = (gradeRow as Array<{ change_type: string; cnt: string }>).reduce<Record<string, number>>((acc, r) => {
+      acc[r.change_type] = Number(r.cnt);
+      return acc;
+    }, {});
+
+    return {
+      weekCompare: {
+        this_week: thisW,
+        last_week: lastW,
+        delta_pct: {
+          sales: pctOf(thisW.sales, lastW.sales),
+          consultations: pctOf(thisW.consultations, lastW.consultations),
+          new_members: pctOf(thisW.new_members, lastW.new_members),
+        },
+      },
+      channelMix: (channelRows as Array<{ name: string; value: string }>).map((r) => ({
+        name: channelLabel[r.name] ?? r.name,
+        value: Number(r.value),
+      })).filter((r) => r.value > 0),
+      hourlyTraffic: (hourlyRows as Array<{ hour: string; total: string }>).map((r) => ({
+        hour: Number(r.hour),
+        total: Number(r.total),
+      })),
+      dormant: {
+        count_30d: Number((dormantRow as Array<{ d30: string; d60: string }>)[0]?.d30 ?? 0),
+        count_60d: Number((dormantRow as Array<{ d30: string; d60: string }>)[0]?.d60 ?? 0),
+      },
+      gradeChanges: {
+        promote: grades.promote ?? 0,
+        demote: grades.demote ?? 0,
+        total: (grades.promote ?? 0) + (grades.demote ?? 0),
+      },
+    };
+  }
+
   /** 품질 지표 — 평균 별점, 별점 1~2점 후기 카운트 */
   async qualityKpi(): Promise<{ avg_rating: number; low_rating_count: number; total_reviews: number }> {
     try {
@@ -533,6 +690,64 @@ export class DashboardService {
     }
   }
 
+  /**
+   * 단기통화 자동환불 KPI (2026-05-22 추가).
+   *   30초 미만 단기통화로 회원 잔액 차감 skip + m2net 측에 +복구한 건들의 합계.
+   *   사주플랜이 m2net 에 추가 prepaid 한 손실 금액을 월별로 추적.
+   *   매월 m2net 청구서와 대조하는 회계 추적용.
+   */
+  async shortCallRefundKpi(): Promise<{
+    this_month_count: number;
+    this_month_amount: number;
+    prev_month_count: number;
+    prev_month_amount: number;
+    total_count: number;
+    total_amount: number;
+  }> {
+    try {
+      const rows = await this.sql<{
+        this_cnt: string; this_amt: string;
+        prev_cnt: string; prev_amt: string;
+        all_cnt: string; all_amt: string;
+      }[]>`
+        SELECT
+          COUNT(*) FILTER (
+            WHERE created_at >= date_trunc('month', CURRENT_DATE)
+          )::text AS this_cnt,
+          COALESCE(SUM(refunded_amount) FILTER (
+            WHERE created_at >= date_trunc('month', CURRENT_DATE)
+          ), 0)::text AS this_amt,
+          COUNT(*) FILTER (
+            WHERE created_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
+              AND created_at <  date_trunc('month', CURRENT_DATE)
+          )::text AS prev_cnt,
+          COALESCE(SUM(refunded_amount) FILTER (
+            WHERE created_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
+              AND created_at <  date_trunc('month', CURRENT_DATE)
+          ), 0)::text AS prev_amt,
+          COUNT(*)::text AS all_cnt,
+          COALESCE(SUM(refunded_amount), 0)::text AS all_amt
+        FROM consultation
+       WHERE refund_status = 'short_call_refund'
+      `;
+      const r = rows[0];
+      return {
+        this_month_count: Number(r?.this_cnt ?? 0),
+        this_month_amount: Number(r?.this_amt ?? 0),
+        prev_month_count: Number(r?.prev_cnt ?? 0),
+        prev_month_amount: Number(r?.prev_amt ?? 0),
+        total_count: Number(r?.all_cnt ?? 0),
+        total_amount: Number(r?.all_amt ?? 0),
+      };
+    } catch {
+      return {
+        this_month_count: 0, this_month_amount: 0,
+        prev_month_count: 0, prev_month_amount: 0,
+        total_count: 0, total_amount: 0,
+      };
+    }
+  }
+
   /** 최근 N일 상담 건수 추이 — 일별 060/070/채팅 분리 (대시보드 차트용) */
   async consultationTrend(days: number) {
     const rows = await this.sql<{ date: string; call_070: string; call_060: string; chat: string }[]>`
@@ -542,9 +757,9 @@ export class DashboardService {
                                 INTERVAL '1 day')::date AS date
       )
       SELECT d.date::text AS date,
-             COALESCE(SUM(CASE WHEN c.consult_type = '070' THEN 1 ELSE 0 END), 0)::text AS call_070,
-             COALESCE(SUM(CASE WHEN c.consult_type = '060' THEN 1 ELSE 0 END), 0)::text AS call_060,
-             COALESCE(SUM(CASE WHEN c.consult_type = 'chat' THEN 1 ELSE 0 END), 0)::text AS chat
+             COALESCE(SUM(CASE WHEN c.roomid IS NULL AND COALESCE(c.callee_phone, '') <> '5000878' THEN 1 ELSE 0 END), 0)::text AS call_070,
+             COALESCE(SUM(CASE WHEN c.roomid IS NULL AND c.callee_phone = '5000878' THEN 1 ELSE 0 END), 0)::text AS call_060,
+             COALESCE(SUM(CASE WHEN c.roomid IS NOT NULL THEN 1 ELSE 0 END), 0)::text AS chat
         FROM d
         LEFT JOIN consultation c
           ON c.created_at::date = d.date AND c.is_paid = true

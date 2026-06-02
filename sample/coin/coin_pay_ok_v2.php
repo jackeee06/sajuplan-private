@@ -543,7 +543,7 @@
 	
 	}else{ 
 
-		alert("사주문 ".$resultmsg, '/coin/coin_fill.php');
+		alert("사주플랜 ".$resultmsg, '/coin/coin_fill.php');
 		exit;
 	}
 ?>

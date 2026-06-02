@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FilterDropdown from '../components/FilterDropdown'
@@ -65,14 +65,14 @@ export default function CounselorMyQnas() {
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
-              className="h-11 rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]"
+              className="h-11 rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]"
             >
               자주하는 질문
             </button>
             <button
               type="button"
               onClick={() => navigate('/counselor/mypage/qnas/new')}
-              className="h-11 rounded-full bg-[#9B7AF7] text-[14px] font-semibold text-white"
+              className="h-11 rounded-full bg-[#8259F5] text-[14px] font-semibold text-white"
             >
               문의하기
             </button>
@@ -142,7 +142,7 @@ export default function CounselorMyQnas() {
                   <span
                     className={`inline-flex items-center h-[22px] px-2 rounded-full text-[12px] leading-none font-medium ${
                       q.status === '답변완료'
-                        ? 'bg-[#F3EEFE] text-[#8259F5]'
+                        ? 'bg-[#f3f0ff] text-[#8259F5]'
                         : 'bg-[#F3F4F6] text-[#6A7282]'
                     }`}
                   >

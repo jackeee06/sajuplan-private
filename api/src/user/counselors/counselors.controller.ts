@@ -31,7 +31,9 @@ export class UserCounselorsController {
     const items = await this.svc.list({
       tab: parseTab(tab),
       category,
-      limit: limit ? Math.min(50, Math.max(1, Number(limit) || 13)) : 13,
+      // 2026-05-22: 클라이언트가 한 번에 모두 받을 수 있게 한도 50 → 300.
+      //   상담사 규모 100~200명 예상. 사용자 UX 는 "더보기" 클릭 한 번에 모두 펼침.
+      limit: limit ? Math.min(300, Math.max(1, Number(limit) || 13)) : 13,
       requesterId: req.user?.sub,
       eventOnly: event === '1' || event === 'true',
     });
@@ -95,6 +97,28 @@ export class UserCounselorsController {
   }
 
   /**
+   * POST /api/user/counselors/:id/request-consult — 부재중 상담사에게 "지금 접속해주세요" 호출.
+   *
+   *  - 로그인 회원만 가능 (비로그인은 401 → 프론트에서 로그인 페이지로 안내)
+   *  - 24시간 내 같은 (member, counselor) 중복 신청은 토스트 안내용 already=true 응답
+   *  - 알림톡 + FCM 푸시 모두 시도. 둘 다 실패해도 DB row 는 저장됨 (이력).
+   *  - 본인 본인 차단 (BadRequest)
+   *
+   *  ※ 라우트 우선순위 — :id 매칭이라 :id/... 서브패스로 위치.
+   */
+  @Post(':id/request-consult')
+  @UseGuards(UserAuthGuard)
+  async requestConsult(
+    @Req() req: UserAuthedRequest,
+    @Param('id', ParseIntPipe) counselorId: number,
+  ) {
+    return this.svc.requestConsult({
+      requesterId: req.user.sub,
+      counselorId,
+    });
+  }
+
+  /**
    * GET /api/user/counselors/favorites?category=&limit=
    *  - 로그인된 회원의 단골 상담사 목록 (member_favorite_counselor JOIN).
    *  - ※ 라우트 우선순위 — :id 매칭 전에 등록되어야 함.
@@ -112,6 +136,19 @@ export class UserCounselorsController {
       limit: limit ? Math.min(100, Math.max(1, Number(limit) || 50)) : 50,
     });
     return { items };
+  }
+
+  /**
+   * GET /api/user/counselors/favorites/online
+   *  - 단골 등록한 상담사 중 현재 접속중(state != 'ABSE') 인 사람만.
+   *  - 홈 진입 시 인앱 배너용 (푸시 X, 사용자 능동 진입 시 안내).
+   *  - 빈 응답 + totalFavorites=0 → "단골 등록 유도" 배너로 활용.
+   *  - ※ 라우트 우선순위 — :id 매칭 전에 등록되어야 함.
+   */
+  @Get('favorites/online')
+  @UseGuards(UserAuthGuard)
+  async favoritesOnline(@Req() req: UserAuthedRequest) {
+    return this.svc.listFavoritesOnline(req.user.sub);
   }
 
   /**

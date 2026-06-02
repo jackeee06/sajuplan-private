@@ -24,7 +24,7 @@ if (!function_exists('decide_msg_type')) {
 
 // 팀장님 함수 개선본: 비밀값/발신번호는 config에서 define
 if (!function_exists('f_aligo_sms_send')) {
-    function f_aligo_sms_send($receiver, $msg, $subject="사주문] (긴급) 채팅 상담 연결 요청")
+    function f_aligo_sms_send($receiver, $msg, $subject="사주플랜] (긴급) 채팅 상담 연결 요청")
     {
         $sms_url = "https://apis.aligo.in/send/";
         $sms['user_id'] = ALIGO_USER_ID;

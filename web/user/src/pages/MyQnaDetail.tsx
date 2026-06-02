@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import { useAuth } from '../lib/auth-context'
 import { myQnaApi, type MyQnaDetailDto } from '../lib/api'
@@ -59,7 +60,7 @@ export default function MyQnaDetail() {
 
   if (authLoading) {
     return (
-      <div className="mobile-frame flex flex-col pb-6 items-center justify-center min-h-[60vh]">
+      <div className="mobile-frame flex flex-col pb-[100px] items-center justify-center min-h-[60vh]">
         <p className="text-[14px] text-[#6A7282]">불러오는 중...</p>
       </div>
     )
@@ -71,7 +72,7 @@ export default function MyQnaDetail() {
 
   if (loading) {
     return (
-      <div className="mobile-frame flex flex-col pb-6 items-center justify-center min-h-[60vh]">
+      <div className="mobile-frame flex flex-col pb-[100px] items-center justify-center min-h-[60vh]">
         <p className="text-[14px] text-[#6A7282]">불러오는 중...</p>
       </div>
     )
@@ -79,7 +80,7 @@ export default function MyQnaDetail() {
 
   if (error || !qna) {
     return (
-      <div className="mobile-frame flex flex-col pb-6">
+      <div className="mobile-frame flex flex-col pb-[100px]">
         <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
           <button
             type="button"
@@ -104,7 +105,7 @@ export default function MyQnaDetail() {
     '/img/sample_profile.png'
 
   return (
-    <div className="mobile-frame flex flex-col pb-[40px]">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -138,7 +139,7 @@ export default function MyQnaDetail() {
         {qna.reply && (
           <div className="mt-7">
             <p className="text-[14px] font-medium text-[#364153] pb-3 border-b border-[#F3F4F6]">
-              상담사 답변 <span className="text-[#8259F5] font-bold">1</span>건
+              상담사 답변 <span className="text-[#ec4899] font-bold">1</span>건
             </p>
             <div className="py-4 border-b border-[#F3F4F6]">
               <p className="text-[14px] leading-[160%] text-[#4A5565] whitespace-pre-line">
@@ -158,7 +159,7 @@ export default function MyQnaDetail() {
           <button
             type="button"
             onClick={() => navigate('/mypage/my-qnas')}
-            className="h-11 px-8 rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]"
+            className="h-11 px-8 rounded-full border border-[#f472b6] text-[14px] font-medium text-[#ec4899]"
           >
             목록으로
           </button>
@@ -166,6 +167,7 @@ export default function MyQnaDetail() {
       </main>
 
       <FloatingActions bottomOffset={24} />
-    </div>
+      <BottomNav />
+      </div>
   )
 }

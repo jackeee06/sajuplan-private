@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { counselorGradeApi, type MyGradeInfo } from '../lib/api'
 
 /**
@@ -59,7 +59,7 @@ export default function UnitCostChangeModal({
               단가 변경
             </h2>
             <p className="mt-1 text-[13px] text-[#6A7282] leading-[140%]">
-              현재 등급: <span className="font-semibold text-[#8259F5]">{info.grade_label}</span> · 30초당 단가를 선택하세요.
+              현재 등급: <span className="font-semibold text-[#ec4899]">{info.grade_label}</span> · 30초당 단가를 선택하세요.
             </p>
 
             <div className="mt-4 flex flex-col gap-2">
@@ -73,23 +73,23 @@ export default function UnitCostChangeModal({
                     onClick={() => setSelected(cost)}
                     className={`h-14 px-4 rounded-[16px] flex items-center justify-between transition-all ${
                       isSelected
-                        ? 'bg-[#F3EEFE] border-[1.5px] border-[#9B7AF7]'
+                        ? 'bg-[#fdf2f8] border-[1.5px] border-[#f472b6]'
                         : 'bg-[#F9FAFB] border-[1.5px] border-[#F3F4F6]'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <span
                         className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center ${
-                          isSelected ? 'border-[#9B7AF7]' : 'border-[#D1D5DB]'
+                          isSelected ? 'border-[#f472b6]' : 'border-[#D1D5DB]'
                         }`}
                       >
                         {isSelected && (
-                          <span className="w-2.5 h-2.5 rounded-full bg-[#9B7AF7]" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-[#f472b6]" />
                         )}
                       </span>
                       <span
                         className={`text-[16px] font-semibold ${
-                          isSelected ? 'text-[#8259F5]' : 'text-[#1E2939]'
+                          isSelected ? 'text-[#ec4899]' : 'text-[#1E2939]'
                         }`}
                       >
                         {cost.toLocaleString()}원
@@ -120,7 +120,7 @@ export default function UnitCostChangeModal({
                 type="button"
                 disabled={selected == null || selected === info.current_unit_cost}
                 onClick={() => setStep('confirm')}
-                className="flex-1 h-12 rounded-[12px] bg-[#9B7AF7] text-[15px] font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 h-12 rounded-[12px] bg-[#f472b6] text-[15px] font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 다음
               </button>
@@ -131,14 +131,14 @@ export default function UnitCostChangeModal({
             <h2 className="text-[18px] font-bold text-[#030712] leading-[140%]">
               변경 확인
             </h2>
-            <div className="mt-4 p-4 rounded-[12px] bg-[#F3EEFE]">
+            <div className="mt-4 p-4 rounded-[12px] bg-[#fdf2f8]">
               <p className="text-[14px] text-[#1E2939] leading-[160%]">
                 <span className="font-semibold">30초당 {selected?.toLocaleString()}원</span>으로
                 변경됩니다.
               </p>
               <p className="mt-1 text-[13px] text-[#6A7282] leading-[160%]">
                 · 즉시 적용됩니다.<br />
-                · 다음 단가 변경은 <span className="font-semibold text-[#8259F5]">다음 달 1일</span>부터 가능합니다.
+                · 다음 단가 변경은 <span className="font-semibold text-[#ec4899]">다음 달 1일</span>부터 가능합니다.
               </p>
             </div>
 
@@ -161,7 +161,7 @@ export default function UnitCostChangeModal({
                 type="button"
                 disabled={submitting}
                 onClick={() => void handleConfirm()}
-                className="flex-1 h-12 rounded-[12px] bg-[#9B7AF7] text-[15px] font-semibold text-white disabled:opacity-50"
+                className="flex-1 h-12 rounded-[12px] bg-[#f472b6] text-[15px] font-semibold text-white disabled:opacity-50"
               >
                 {submitting ? '처리 중...' : '확정'}
               </button>

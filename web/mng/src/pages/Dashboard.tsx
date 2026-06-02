@@ -33,7 +33,7 @@ import { api } from '../lib/api'
 interface Summary {
   members: { total: number; today: number; this_month: number }
   counselors: { total: number; idle: number; busy: number; absent: number; today_active?: number }
-  balance?: { free: number; paid: number; total: number }
+  balance?: { free: number; paid: number; earning: number; consume_total: number; earning_total: number; total: number }
 }
 interface SalesPoint {
   date: string
@@ -97,6 +97,14 @@ interface QualityKpi {
   low_rating_count: number
   total_reviews: number
 }
+interface ShortCallRefundKpi {
+  this_month_count: number
+  this_month_amount: number
+  prev_month_count: number
+  prev_month_amount: number
+  total_count: number
+  total_amount: number
+}
 interface DashboardData {
   summary: Summary
   sales: SalesPoint[]
@@ -110,12 +118,18 @@ interface DashboardData {
   alerts: AlertItem[]
   counselorPanel: CounselorPanel
   quality: QualityKpi
+  shortCallRefund: ShortCallRefundKpi
 }
 
 async function fetchDashboardData(): Promise<DashboardData> {
   const emptyPanel: CounselorPanel = { today_active: [], inactive_7d: [], unreplied_reviews: [] }
   const emptyQuality: QualityKpi = { avg_rating: 0, low_rating_count: 0, total_reviews: 0 }
-  const [summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts, counselorPanel, quality] =
+  const emptyShortCallRefund: ShortCallRefundKpi = {
+    this_month_count: 0, this_month_amount: 0,
+    prev_month_count: 0, prev_month_amount: 0,
+    total_count: 0, total_amount: 0,
+  }
+  const [summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts, counselorPanel, quality, shortCallRefund] =
     await Promise.all([
       api<Summary>('/admin/dashboard/summary'),
       api<SalesPoint[]>('/admin/dashboard/sales-trend?days=14'),
@@ -129,8 +143,9 @@ async function fetchDashboardData(): Promise<DashboardData> {
       api<AlertItem[]>('/admin/dashboard/alerts').catch(() => [] as AlertItem[]),
       api<CounselorPanel>('/admin/dashboard/counselor-panel').catch(() => emptyPanel),
       api<QualityKpi>('/admin/dashboard/quality-kpi').catch(() => emptyQuality),
+      api<ShortCallRefundKpi>('/admin/dashboard/short-call-refund-kpi').catch(() => emptyShortCallRefund),
     ])
-  return { summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts, counselorPanel, quality }
+  return { summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts, counselorPanel, quality, shortCallRefund }
 }
 
 const won = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 })
@@ -260,6 +275,7 @@ export default function Dashboard() {
     alerts,
     counselorPanel,
     quality,
+    shortCallRefund,
   } = data
 
   const sumDay = (p?: SalesPoint) => (p ? p.call_070 + p.call_060 + p.chat + p.charge : 0)
@@ -316,9 +332,9 @@ export default function Dashboard() {
           to="/members/counselors"
         />
         <Kpi
-          label="충전 잔액 (부채)"
+          label="포인트 부채 합"
           value={won.format(summary.balance?.total ?? 0)}
-          sub={`유료 ${won.format(summary.balance?.paid ?? 0)}`}
+          sub={`소비 ${won.format(summary.balance?.consume_total ?? 0)} · 수익 ${won.format(summary.balance?.earning_total ?? 0)}`}
           tone="rose"
           to="/points/history"
         />
@@ -328,6 +344,13 @@ export default function Dashboard() {
           sub={`낮은 별점 ${quality.low_rating_count}건 / 전체 ${quality.total_reviews}`}
           tone={quality.avg_rating === 0 ? 'default' : quality.avg_rating >= 4.5 ? 'emerald' : quality.avg_rating >= 4 ? 'amber' : 'rose'}
           to="/posts/review"
+        />
+        <Kpi
+          label="고객보호비용(이번달)"
+          value={won.format(shortCallRefund.this_month_amount)}
+          sub={`30초 미만 자동 환원 · ${shortCallRefund.this_month_count}건 · 누적 ${won.format(shortCallRefund.total_amount)} / ${shortCallRefund.total_count}건`}
+          tone={shortCallRefund.this_month_amount === 0 ? 'default' : 'amber'}
+          to="/short-call-refunds"
         />
       </div>
 

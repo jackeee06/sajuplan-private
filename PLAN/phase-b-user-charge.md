@@ -12,13 +12,13 @@
 라이브 결제 흐름 4종:
 
 1. **일반결제 (카드/가상계좌/페이코/카카오/네이버/애플/토스)** — AG9(`passcall.co.kr:32837`)에 form post → returnurl로 결제 결과 push → `coin_pay_ok_v2.php` (카드/간편) 또는 `coin_pay_bank_ok_v2.php` (가상계좌 입금완료)
-2. **사주문페이 등록 (BillKey 발급)** — 카드 정보 AES-128-CBC 암호화 → AG9 PATCH `gnrc_autopay_regist` → BillKey 받음 → DB 저장 + **엠투넷에 PUT memb-mgr으로 `autopaypin/autopayamt/autopaycoinamt/autopaypushurl/autopayflag=Y` 등록**
-3. **사주문페이 즉시 결제 (단발)** — billkey 보유 회원이 결제하기 클릭 → AG9 POST `gnrc_autopay_request` → `req_result==00` 시 즉시 완료
-4. **자동충전 (엠투넷 자율)** — 엠투넷이 상담 중 잔액 < 임계값 감지 시 자율적으로 PG 호출 → 결과를 `autopaypushurl`(=`/mtonet/auto_pay_result.php`)로 push → 사주문 백엔드는 `saju_payment` INSERT + `insert_point` + 카톡 알림. **사주문 측에 잔액 체크 cron 없음**
+2. **사주플랜페이 등록 (BillKey 발급)** — 카드 정보 AES-128-CBC 암호화 → AG9 PATCH `gnrc_autopay_regist` → BillKey 받음 → DB 저장 + **엠투넷에 PUT memb-mgr으로 `autopaypin/autopayamt/autopaycoinamt/autopaypushurl/autopayflag=Y` 등록**
+3. **사주플랜페이 즉시 결제 (단발)** — billkey 보유 회원이 결제하기 클릭 → AG9 POST `gnrc_autopay_request` → `req_result==00` 시 즉시 완료
+4. **자동충전 (엠투넷 자율)** — 엠투넷이 상담 중 잔액 < 임계값 감지 시 자율적으로 PG 호출 → 결과를 `autopaypushurl`(=`/mtonet/auto_pay_result.php`)로 push → 사주플랜 백엔드는 `saju_payment` INSERT + `insert_point` + 카톡 알림. **사주플랜 측에 잔액 체크 cron 없음**
 
 **결제 후 엠투넷 코인 동기화** — 카드/간편결제/가상계좌 모두 `send_mjson1("memb-mgr", {amt}, "PUT", mb_1)` 으로 엠투넷 회원 코인 잔액 동기화 (`coin_pay_ok_v2.php` 라인 137·168·198·227, `coin_pay_bank_ok_v2.php` 라인 110-123). 자동충전(auto_pay_result.php)은 엠투넷이 호출자이므로 추가 동기화 불필요.
 
-**핵심 발견 (사용자가 메시지에서 강조)**: 자동충전 트리거는 사주문 백엔드가 아니라 **엠투넷 자체가 자율적으로 한다**. 사주문이 할 일은 (a) 카드 등록 시 엠투넷에 자동결제 정보 PUT, (b) push 콜백 수신 엔드포인트 노출, (c) 토글 OFF 시 엠투넷에 `autopayflag=N` PUT.
+**핵심 발견 (사용자가 메시지에서 강조)**: 자동충전 트리거는 사주플랜 백엔드가 아니라 **엠투넷 자체가 자율적으로 한다**. 사주플랜이 할 일은 (a) 카드 등록 시 엠투넷에 자동결제 정보 PUT, (b) push 콜백 수신 엔드포인트 노출, (c) 토글 OFF 시 엠투넷에 `autopayflag=N` PUT.
 
 ---
 
@@ -35,7 +35,7 @@
 | `sample/coin/ajax.coin_fill_update.php` (사전 row INSERT) | `POST /api/user/charge/prepare` | payment.status='pending' INSERT |
 | `sample/coin/coin_pay_ok_v2.php` (카드/간편 콜백) | `POST /api/pg/charge/callback` (인증 없음) | payment UPDATE + insert_point + 엠투넷 동기화 |
 | `sample/coin/coin_pay_bank_ok_v2.php` (가상계좌 입금) | `POST /api/pg/charge/vbank-callback` (인증 없음) | 가상계좌 deposit 정보 + 점수 적립 + 엠투넷 동기화 |
-| `sample/coin/coin_pay_ok_auto.php` (사주문페이 즉시) | `POST /api/user/charge/autopay-charge` | AG9 POST gnrc_autopay_request 호출 |
+| `sample/coin/coin_pay_ok_auto.php` (사주플랜페이 즉시) | `POST /api/user/charge/autopay-charge` | AG9 POST gnrc_autopay_request 호출 |
 | `sample/mtonet/auto_pay_result.php` (엠투넷 자율 push 수신) | `POST /api/pg/charge/autopay-push` (인증 없음) | saju_payment INSERT + insert_point + 카톡 알림 |
 | `sample/lib/common.lib.php::send_mjson1` | `M2netService.addMemberCoin()` | 결제 완료 시 엠투넷 코인 동기화 (PUT memb-mgr/{cpid}/{membid}) |
 | `sample/lib/common.lib.php::send_mjson_auto_pay` | `Ag9Service` (autoPayRegister/Request/Delete) | AG9 자동결제 API |
@@ -62,7 +62,7 @@
 
 | 항목 | 결정 |
 |---|---|
-| 자동충전 트리거 주체 | **엠투넷이 자율 호출** (사주문 백엔드는 등록·삭제·push 수신만) |
+| 자동충전 트리거 주체 | **엠투넷이 자율 호출** (사주플랜 백엔드는 등록·삭제·push 수신만) |
 | 결제 마스터 | 기존 `payment` 테이블 (마이그레이션 0004) |
 | BillKey 보존 | `payment_method` (이미 있음). 평문 카드 폐기, billkey만 |
 | 엠투넷 코인 동기화 | `M2netService.addMemberCoin(membid, amt)` 신규. **카드/간편/가상계좌 모두** 동기화 |
@@ -70,7 +70,7 @@
 | PG 클라이언트 | `Ag9Service` 신규 (`api/src/shared/ag9/`) — autoPayRegister/Request/Delete + cancelPay + AES-128-CBC 카드 암호화 + 일반결제 form 파라미터 빌더 |
 | `payment_method`에 추가 컬럼 | `coin_amount INT` (autopaycoinamt) — 자동충전 시 발급 코인 |
 | `account_setting` 추가 컬럼 | `bonus_percent INT`, `total_point INT`, `message VARCHAR` (sample account_config 그대로) |
-| 기준잔액(자동충전 임계값) 저장 위치 | **엠투넷이 관리 — 사주문 DB에 컬럼 추가하지 않음**. UI에서 입력값을 `M2netService.updateAutoPayConfig`로 PUT 할 때 함께 전달 (필드명은 sample 동작 검증 후 확정 — 매뉴얼 미명시 → 운영팀에 확인 필요) |
+| 기준잔액(자동충전 임계값) 저장 위치 | **엠투넷이 관리 — 사주플랜 DB에 컬럼 추가하지 않음**. UI에서 입력값을 `M2netService.updateAutoPayConfig`로 PUT 할 때 함께 전달 (필드명은 sample 동작 검증 후 확정 — 매뉴얼 미명시 → 운영팀에 확인 필요) |
 | 가상계좌 콜백 IP 검증 | passcall.co.kr 도메인 IP 화이트리스트 (`setting` 테이블 관리) |
 | formurl (결제 완료 화면) | `https://sajumoon.kr/charge/complete?oid=...` (frontend가 `/api/user/charge/status/:oid` 폴링) |
 | returnurl (PG → 백엔드) | `https://api.sajumoon.kr/api/pg/charge/callback` |
@@ -526,9 +526,9 @@ export const chargeApi = {
 
 ---
 
-### Step 5 — 자동충전 트리거 (★ 사주문 백엔드는 트리거 코드 없음)
+### Step 5 — 자동충전 트리거 (★ 사주플랜 백엔드는 트리거 코드 없음)
 
-**중요한 정책 정정**: 자동충전 트리거는 **엠투넷이 자율적으로 한다**. 사주문 백엔드는 다음만 한다:
+**중요한 정책 정정**: 자동충전 트리거는 **엠투넷이 자율적으로 한다**. 사주플랜 백엔드는 다음만 한다:
 - 카드 등록 시 엠투넷 PUT memb-mgr으로 `autopayflag=Y` + autopaypin/amt/coinamt/pushurl 등록
 - 토글 OFF 시 `autopayflag=N` PUT
 - 엠투넷이 자동결제 처리 후 push로 호출하는 `/api/pg/charge/autopay-push` 엔드포인트 노출 → `auto_pay_result.php` 동등 처리
@@ -578,50 +578,50 @@ export const chargeApi = {
 ## 참고 파일 (절대경로)
 
 ### 분석 대상 (read-only, sample 정책 출처)
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/coin_fill.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/coin_fill_auto.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/coin_fill_auto_card.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/coin_fill_auto_card_update.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/coin_fill_auto_card_del.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/coin_fill_auto_card_member_update.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/coin_pay_ok_v2.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/coin_pay_bank_ok_v2.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/coin_pay_ok_auto.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/ajax.coin_fill_update.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/coin/coin_pay_result.php`
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/mtonet/auto_pay_result.php` ← 자동충전 push 수신
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/lib/common.lib.php` (send_mjson1 / send_mjson_auto_pay / send_mjson_cancle)
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/lib/pay_ag9.php` (saju_pay_outbox 패턴)
-- `/Users/jin-yubi/dwork/AI/사주문1/sample/config.php` 라인 259-276 ($CPID/$headerKey/$crypt_pass)
-- `/Users/jin-yubi/dwork/AI/사주문1/docs/(주)엠투넷상담서비스-결제(pay)-v1.6메뉴얼(go).pdf` (AG9 매뉴얼)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/coin_fill.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/coin_fill_auto.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/coin_fill_auto_card.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/coin_fill_auto_card_update.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/coin_fill_auto_card_del.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/coin_fill_auto_card_member_update.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/coin_pay_ok_v2.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/coin_pay_bank_ok_v2.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/coin_pay_ok_auto.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/ajax.coin_fill_update.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/coin/coin_pay_result.php`
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/mtonet/auto_pay_result.php` ← 자동충전 push 수신
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/lib/common.lib.php` (send_mjson1 / send_mjson_auto_pay / send_mjson_cancle)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/lib/pay_ag9.php` (saju_pay_outbox 패턴)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/sample/config.php` 라인 259-276 ($CPID/$headerKey/$crypt_pass)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/docs/(주)엠투넷상담서비스-결제(pay)-v1.6메뉴얼(go).pdf` (AG9 매뉴얼)
 
 ### 신규/수정 대상
 
 DB 마이그레이션:
-- `/Users/jin-yubi/dwork/AI/사주문1/api/db/migrations/0047_user_charge_columns.sql` — 신규
+- `/Users/jin-yubi/dwork/AI/사주플랜1/api/db/migrations/0047_user_charge_columns.sql` — 신규
   - `account_setting`에 bonus_percent/total_point/message
   - `payment_method`에 coin_amount
   - `payment`에 m2net_status (saju_payment.mtonet 동등)
 
 API:
-- `/Users/jin-yubi/dwork/AI/사주문1/api/src/shared/ag9/` — 신규 (module/service/types/card-crypto)
-- `/Users/jin-yubi/dwork/AI/사주문1/api/src/shared/m2net/m2net.service.ts` — addMemberCoin + updateAutoPayConfig 추가
-- `/Users/jin-yubi/dwork/AI/사주문1/api/src/user/charge/` — 신규 (charge.module/controller/service + pg-callback.controller + dto)
-- `/Users/jin-yubi/dwork/AI/사주문1/api/src/user/user.module.ts` — ChargeModule import
-- `/Users/jin-yubi/dwork/AI/사주문1/api/.env` — AG9_*, CARD_CRYPT_KEY, PG_* 추가
+- `/Users/jin-yubi/dwork/AI/사주플랜1/api/src/shared/ag9/` — 신규 (module/service/types/card-crypto)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/api/src/shared/m2net/m2net.service.ts` — addMemberCoin + updateAutoPayConfig 추가
+- `/Users/jin-yubi/dwork/AI/사주플랜1/api/src/user/charge/` — 신규 (charge.module/controller/service + pg-callback.controller + dto)
+- `/Users/jin-yubi/dwork/AI/사주플랜1/api/src/user/user.module.ts` — ChargeModule import
+- `/Users/jin-yubi/dwork/AI/사주플랜1/api/.env` — AG9_*, CARD_CRYPT_KEY, PG_* 추가
 
 웹 (user):
-- `/Users/jin-yubi/dwork/AI/사주문1/web/user/src/lib/api.ts` — chargeApi 추가
-- `/Users/jin-yubi/dwork/AI/사주문1/web/user/src/pages/Charge.tsx` — mock 제거 + chargeApi 연동
-- `/Users/jin-yubi/dwork/AI/사주문1/web/user/src/pages/ChargeCardRegister.tsx` — 신규
-- `/Users/jin-yubi/dwork/AI/사주문1/web/user/src/pages/ChargeComplete.tsx` — 신규
-- `/Users/jin-yubi/dwork/AI/사주문1/web/user/src/pages/ChargeVbankInfo.tsx` — 신규
-- `/Users/jin-yubi/dwork/AI/사주문1/web/user/src/App.tsx` — 라우트 추가
+- `/Users/jin-yubi/dwork/AI/사주플랜1/web/user/src/lib/api.ts` — chargeApi 추가
+- `/Users/jin-yubi/dwork/AI/사주플랜1/web/user/src/pages/Charge.tsx` — mock 제거 + chargeApi 연동
+- `/Users/jin-yubi/dwork/AI/사주플랜1/web/user/src/pages/ChargeCardRegister.tsx` — 신규
+- `/Users/jin-yubi/dwork/AI/사주플랜1/web/user/src/pages/ChargeComplete.tsx` — 신규
+- `/Users/jin-yubi/dwork/AI/사주플랜1/web/user/src/pages/ChargeVbankInfo.tsx` — 신규
+- `/Users/jin-yubi/dwork/AI/사주플랜1/web/user/src/App.tsx` — 라우트 추가
 
 문서:
-- `/Users/jin-yubi/dwork/AI/사주문1/PLAN/phase-b-user-charge.md` — 이 plan 이관
-- `/Users/jin-yubi/dwork/AI/사주문1/PLAN/README.md` — Phase B 항목 user-facing 결제 흐름으로 갱신
-- `/Users/jin-yubi/dwork/AI/사주문1/DB_REFACTOR_PROGRESS.md` — 0047 추가, Phase B 진행 상태 기록
+- `/Users/jin-yubi/dwork/AI/사주플랜1/PLAN/phase-b-user-charge.md` — 이 plan 이관
+- `/Users/jin-yubi/dwork/AI/사주플랜1/PLAN/README.md` — Phase B 항목 user-facing 결제 흐름으로 갱신
+- `/Users/jin-yubi/dwork/AI/사주플랜1/DB_REFACTOR_PROGRESS.md` — 0047 추가, Phase B 진행 상태 기록
 
 ---
 

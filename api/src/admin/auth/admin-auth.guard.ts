@@ -13,6 +13,7 @@ export interface AdminJwtPayload {
   mb_id: string;
   role: 'admin';
   level: number;
+  is_super: boolean;
 }
 
 export interface AuthedRequest extends Request {

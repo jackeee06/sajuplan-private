@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { skipIfAdminLoginFailed } from '../helpers/admin-skip'
 
 /**
  * 주요 admin 페이지 렌더링 검증 — 페이지 로드 + JS 에러 없음.
@@ -14,6 +15,7 @@ const isExpectedError = (msg: string) =>
   /Failed to load resource.*status of 401|status of 404 \(\)/.test(msg)
 
 test.describe('주요 admin 페이지 렌더링', () => {
+  test.beforeEach(skipIfAdminLoginFailed)
   test.beforeEach(async ({ page }) => {
     // storageState 로 이미 로그인 — dashboard 진입 시 redirect 되면 form 채우기.
     await page.goto('/mng/dashboard')

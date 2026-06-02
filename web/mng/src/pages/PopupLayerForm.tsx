@@ -177,7 +177,7 @@ export default function PopupLayerForm() {
   if (!data) return <div className="p-6 text-sm text-gray-500">{error ?? '로딩...'}</div>
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-[1100px]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button

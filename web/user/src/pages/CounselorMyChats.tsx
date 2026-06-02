@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -193,8 +193,8 @@ function ChatCard({
           <span className="text-[#4A5565]">{log.endedAt}</span>
         </li>
         <li className="flex items-center justify-between">
-          <span className="font-semibold text-[#1E2939]">과금 포인트</span>
-          <span className="text-[#4A5565]">{(log.pointPaid ?? 0).toLocaleString()}P</span>
+          <span className="font-semibold text-[#1E2939]">결제금액</span>
+          <span className="text-[#4A5565]">{(log.pointPaid ?? 0).toLocaleString()}원</span>
         </li>
         <li className="flex items-center justify-between">
           <span className="font-semibold text-[#1E2939]">후기작성</span>
@@ -208,7 +208,7 @@ function ChatCard({
           <button
             type="button"
             onClick={onOpenChat}
-            className="col-span-2 h-[44px] rounded-full bg-[#9B7AF7] text-[14px] font-semibold text-white"
+            className="col-span-2 h-[44px] rounded-full bg-[#8259F5] text-[14px] font-semibold text-white"
           >
             채팅방 입장하기
           </button>
@@ -219,8 +219,8 @@ function ChatCard({
               onClick={onOpenChat}
               className={
                 reviewDone
-                  ? 'h-[44px] rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]'
-                  : 'col-span-2 h-[44px] rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]'
+                  ? 'h-[44px] rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]'
+                  : 'col-span-2 h-[44px] rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]'
               }
             >
               채팅 내역 보기
@@ -231,8 +231,8 @@ function ChatCard({
                 onClick={onWriteReply}
                 className={
                   log.hasReply
-                    ? 'h-[44px] rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]'
-                    : 'h-[44px] rounded-full bg-[#9B7AF7] text-[14px] font-semibold text-white'
+                    ? 'h-[44px] rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]'
+                    : 'h-[44px] rounded-full bg-[#8259F5] text-[14px] font-semibold text-white'
                 }
               >
                 {log.hasReply ? '작성한 후기 답변 보기' : '후기 답변 작성하기'}

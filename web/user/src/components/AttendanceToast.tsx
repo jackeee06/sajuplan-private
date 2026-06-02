@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 
 /**
@@ -52,11 +52,11 @@ export default function AttendanceToast() {
         <div className="text-[40px] mb-2" aria-hidden>🎉</div>
         <h2 className="text-[18px] font-bold text-[#1E2939]">출석 완료!</h2>
         <p className="mt-1 text-[14px] text-[#6A7282]">
-          연속 <strong className="text-[#8259F5]">{data.consecutive_days}일</strong> 출석 중
+          연속 <strong className="text-[#ec4899]">{data.consecutive_days}일</strong> 출석 중
         </p>
-        <div className="mt-4 p-4 rounded-xl bg-[#F3EEFE]">
+        <div className="mt-4 p-4 rounded-xl bg-[#fdf2f8]">
           <p className="text-[13px] text-[#6A7282]">오늘 적립</p>
-          <p className="text-[24px] font-bold text-[#8259F5] mt-1">
+          <p className="text-[24px] font-bold text-[#ec4899] mt-1">
             {data.total_added.toLocaleString()}원
           </p>
           {data.bonus_coin > 0 && (
@@ -73,7 +73,7 @@ export default function AttendanceToast() {
         <button
           type="button"
           onClick={() => setData(null)}
-          className="mt-5 w-full h-12 rounded-full bg-[#9B7AF7] text-white text-[15px] font-medium"
+          className="mt-5 w-full h-12 rounded-full bg-[#f472b6] text-white text-[15px] font-medium"
         >
           확인
         </button>

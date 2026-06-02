@@ -16,7 +16,7 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 SSH_HOST = "104.64.128.103"
-API_REMOTE = "/data/wwwroot/api.sajumoon.co.kr"
+API_REMOTE = "/data/wwwroot/api.sajuplan.com"
 NEW_PASSWORD = "1234"
 COST = 12  # auth.service.ts 와 동일
 

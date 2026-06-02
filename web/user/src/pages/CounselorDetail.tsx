@@ -12,6 +12,28 @@ function resolveImageUrl(u: string | null): string {
   return u
 }
 
+/**
+ * 상담사 소개 HTML 안전 처리 — Toast UI 에디터 본문을 그대로 렌더하기 전에 위험 태그/속성 제거.
+ *  - <script>, <iframe>, <object>, <embed>, <link>, <style>, <meta>, <base> 태그 통째 제거
+ *  - on* 이벤트 핸들러 속성 제거 (onclick, onerror, onload ...)
+ *  - javascript:/data: URL 스킴 차단 (href, src)
+ * 100% sanitizer 는 아니지만 신청 단계의 운영자 승인 + Toast UI 자체 필터와 결합해 실용적으로 안전.
+ * 비어있으면 빈 문자열 반환 → 호출처에서 빈 안내 분기.
+ */
+function sanitizeIntroHtml(raw: string): string {
+  if (!raw) return ''
+  let html = raw
+  // 위험 태그 통째 제거 (여는 태그~닫는 태그 포함)
+  html = html.replace(/<(script|iframe|object|embed|style)[^>]*>[\s\S]*?<\/\1>/gi, '')
+  // 단독 위험 태그
+  html = html.replace(/<(link|meta|base)\b[^>]*>/gi, '')
+  // on* 이벤트 속성 제거
+  html = html.replace(/\s+on[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+  // javascript:/data: URL 차단 (href/src)
+  html = html.replace(/(href|src)\s*=\s*(["'])\s*(javascript|data|vbscript):[^"']*\2/gi, '$1="#"')
+  return html
+}
+
 /** 백엔드 PublicCounselorDetail → CounselorDetailLayout 이 받는 CounselorDetailData 어댑터 */
 function mapDetail(r: PublicCounselorDetail): CounselorDetailData {
   // category '기타' 면 기본 뱃지 '사주' 로 폴백 (BADGE_BG 의 키 외엔 아직 정의 안 됨)
@@ -36,7 +58,7 @@ function mapDetail(r: PublicCounselorDetail): CounselorDetailData {
     career: r.career.length > 0 ? r.career : ['상담사 약력 준비 중입니다.'],
     noticeDate: formatNoticeDate(r.notice_date),
     noticeContent: r.notice_content ?? '아직 등록된 공지가 없습니다.',
-    introText: r.intro ?? '상담사 소개가 준비 중입니다.',
+    introText: sanitizeIntroHtml(r.intro ?? '') || '상담사 소개가 준비 중입니다.',
     liveViewers: r.live_viewers,
     reviewTotal: r.review_count.toLocaleString(),
     qnaTotal: '0',
@@ -93,10 +115,41 @@ export default function CounselorDetail() {
     }
   }, [id])
 
+  // OG 메타 태그 동적 주입 — 카카오톡/페이스북 등 외부 메신저 카드 미리보기 + 인앱 브라우저 검증용.
+  useEffect(() => {
+    if (typeof document === 'undefined' || !data) return
+    const abs = (u: string) => (/^https?:\/\//.test(u) ? u : `${window.location.origin}${u}`)
+    const tags: Array<[string, string]> = [
+      ['og:type', 'website'],
+      ['og:title', `${data.name} 선생님 | 사주플랜`],
+      ['og:description', `${data.badge} · ${data.code}번 · ${data.pricePerHalfMin.toLocaleString()}원/30초`],
+      ['og:image', abs(data.heroImg)],
+      ['og:url', window.location.href],
+      ['og:site_name', '사주플랜'],
+    ]
+    const created: HTMLMetaElement[] = []
+    for (const [property, content] of tags) {
+      let el = document.head.querySelector<HTMLMetaElement>(`meta[property="${property}"]`)
+      if (!el) {
+        el = document.createElement('meta')
+        el.setAttribute('property', property)
+        document.head.appendChild(el)
+        created.push(el)
+      }
+      el.setAttribute('content', content)
+    }
+    const prevTitle = document.title
+    document.title = `${data.name} 선생님 | 사주플랜`
+    return () => {
+      created.forEach((el) => el.remove())
+      document.title = prevTitle
+    }
+  }, [data])
+
   if (loading) {
     return (
       <div className="mobile-frame flex flex-col">
-        <div className="w-full h-[192px] bg-[#F3F4F6] animate-pulse" />
+        <div className="w-full aspect-[5/4] bg-[#F3F4F6] animate-pulse" />
         <div className="px-4 py-6 flex flex-col gap-4">
           <div className="h-5 w-1/2 bg-[#F3F4F6] animate-pulse rounded" />
           <div className="h-4 w-2/3 bg-[#F3F4F6] animate-pulse rounded" />
@@ -123,9 +176,11 @@ export default function CounselorDetail() {
 
   return (
     <CounselorDetailLayout data={data} activeTab="intro">
-      <p className="text-[14px] leading-[140%] text-[#4A5565] whitespace-pre-line">
-        {data.introText}
-      </p>
+      <div
+        className="counselor-intro text-[14px] leading-[160%] text-[#4A5565]"
+        // 본문은 mapDetail 에서 sanitizeIntroHtml() 통과해 안전화됨.
+        dangerouslySetInnerHTML={{ __html: data.introText }}
+      />
     </CounselorDetailLayout>
   )
 }

@@ -59,14 +59,14 @@ CREATE TABLE g5_auth (
 |---|---|---|---|
 | menu100 | 환경설정 | cf_basic, 팝업레이어 | 100200=관리권한설정(주석처리됨), 100310=팝업레이어 |
 | menu300 | 회원관리 (g5 표준) | mb_list, mb_mail, mb_search | 300100=회원목록, 300200=메일, 300810=접속자검색 |
-| menu350 | **사주문 핵심** | counselor, 매출, 포인트, 정산, 상담후기, 쿠폰, 배너, 사주메인, 소원다락방 | 350100=customer/매니저, 350120=상담사, 350410=상담내역, 350420=결제내역, 350430=포인트, 350450=정산, 350510=쿠폰 |
+| menu350 | **사주플랜 핵심** | counselor, 매출, 포인트, 정산, 상담후기, 쿠폰, 배너, 사주메인, 소원다락방 | 350100=customer/매니저, 350120=상담사, 350410=상담내역, 350420=결제내역, 350430=포인트, 350450=정산, 350510=쿠폰 |
 | menu400/500 | 영카트 쇼핑 | scf_* (대부분 미사용) | - |
 | menu700 | 게시판/그룹 | bbs_* | - |
 | menu900 | 디자인/스킨 | - | - |
 | menu999 | 엑셀/일괄 | board_excel, member_xls | 999000=엑셀업로드, 999200=회원일괄등록 |
 
 **관찰:**
-- menu350이 사주문1 운영에서 가장 활발하게 사용되는 영역. menu400/500/700/900은 대부분 dead code.
+- menu350이 사주플랜1 운영에서 가장 활발하게 사용되는 영역. menu400/500/700/900은 대부분 dead code.
 - `admin.menu350.php`를 보면 **같은 sub_menu 코드 (350599, 350001, 350002)가 여러 번 중복 등록**되어 있음 → 라이브에서 권한 분리가 사실상 의미 없게 망가져 있다.
 - 메뉴 코드 6자리 중 끝 3자리 `000` 은 그룹 헤더(권한 지정 불가), 그 외만 권한 지정 가능 (`auth_list.php:203`).
 
@@ -143,7 +143,7 @@ if (get_session('ss_mb_key') !== $admin_key) {
 
 ### manager_list.php 분석
 
-**`/Users/jin-yubi/dwork/AI/사주문1/sample/adm/manager_list.php`** — 파일명만 "관리자 목록"이지 **실제로는 매니저(test02/03/04 같은 가상 매니저)의 월별 세차 건수 통계** 화면이다(상담사를 매니저로 쓰는 듯). 데이터는 **하드코딩된 더미** (62, 78, 61... 라인 137~166).
+**`/Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/manager_list.php`** — 파일명만 "관리자 목록"이지 **실제로는 매니저(test02/03/04 같은 가상 매니저)의 월별 세차 건수 통계** 화면이다(상담사를 매니저로 쓰는 듯). 데이터는 **하드코딩된 더미** (62, 78, 61... 라인 137~166).
 
 - 라인 2: `$sub_menu = "350300";` (admin.menu350.php에 350300 메뉴 정의 없음 — orphan)
 - 라인 5: `auth_check_menu($auth, $sub_menu, 'r');` — 호출은 함
@@ -308,7 +308,7 @@ goto_url('./auth_list.php?'.qstr)
 
 ### 권장: **하이브리드 — role 3등급 + resource별 r/w/d**
 
-세밀한 메뉴별 r/w/d만 가져가면 사주문1 운영 규모에서 과한 오버헤드(메뉴 추가/변경 때마다 N명에게 grant 필요). super-only만 두면 위임 불가.
+세밀한 메뉴별 r/w/d만 가져가면 사주플랜1 운영 규모에서 과한 오버헤드(메뉴 추가/변경 때마다 N명에게 grant 필요). super-only만 두면 위임 불가.
 
 타협점:
 
@@ -357,7 +357,7 @@ g5의 6자리 숫자를 버리고, 도메인.action 점-표기로:
 
 ### admin_permission 테이블 활용 (이미 정의됨)
 
-`/Users/jin-yubi/dwork/AI/사주문1/api/db/migrations/0005_cms_system.sql:435-446`:
+`/Users/jin-yubi/dwork/AI/사주플랜1/api/db/migrations/0005_cms_system.sql:435-446`:
 
 ```sql
 CREATE TABLE admin_permission (
@@ -538,7 +538,7 @@ UI 측에선:
 |---|---|
 | CSRF | SameSite=Strict 쿠키 + Origin 헤더 검증 미들웨어 (mutation 라우트). 별도 토큰 발행 X |
 | Rate limit | 이미 `@Throttle({ login: { limit: 30, ttl: 60_000 } })` 적용 (auth.controller.ts:29). 추가로 권한 변경/포인트 조정에도 적용 권장 |
-| Helmet | 이미 적용 (project_사주문1_admin_auth memory 참조) |
+| Helmet | 이미 적용 (project_사주플랜1_admin_auth memory 참조) |
 | IP 차단 | DB 설정 테이블 또는 환경변수로. 코드에 박지 않음. 옵션 |
 | Brute-force | 로그인 실패 시 admin_audit_log에 'login.fail' 기록 + 5회 실패 시 계정 일시 잠금 (Phase 별 결정) |
 | 비밀번호 정책 | bcrypt cost=12 이상. 최소 길이/복잡도 검증 (DTO) |

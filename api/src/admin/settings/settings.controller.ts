@@ -34,7 +34,8 @@ export class SettingsController {
     @Body() body: SettingsByNamespace,
     @Req() req: AuthedRequest,
   ): Promise<{ updated: number }> {
-    return this.settings.update(body, req.admin.sub);
+    // 슈퍼어드민 권한 전달 — settings.service 가 SUPER_ONLY 키 변경 시 거부.
+    return this.settings.update(body, req.admin.sub, !!req.admin.is_super);
   }
 
   /**

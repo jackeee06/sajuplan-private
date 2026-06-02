@@ -78,7 +78,7 @@ include_once("./_common.php"); // 메뉴별 공통파일
         
         <li class="c_his_con">
         	<dl>
-        		<dt>고객</dt><dd>사주문(thesaju@naver.com)</dd>
+        		<dt>고객</dt><dd>사주플랜(thesaju@naver.com)</dd>
         	</dl> 
             <dl>
         		<dt>상담일</dt><dd>2022-11-28 12:56</dd>

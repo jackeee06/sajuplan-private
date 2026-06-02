@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useRef, useState } from 'react'
 import { useDismissOnBack } from '../lib/use-dismiss-on-back'
 
 /**
  * filter_select — Figma `84:3897` (active=off) / 활성 시 디자인 시스템 칩 활성 상태
  *
  * 비활성: bg #F9FAFB, border 1px #F3F4F6, text/chevron #6A7282
- * 활성  : bg #F3EEFE, border 1px #9B7AF7, text/chevron #8259F5  (선택값이 라벨 자리에 표시)
+ * 활성  : bg #fdf2f8, border 1px #f472b6, text/chevron #ec4899  (선택값이 라벨 자리에 표시)
  *
  * 동작:
  *  - 클릭 → 칩 바로 아래 드롭다운 패널 토글
@@ -64,7 +64,7 @@ export default function FilterDropdown({
         aria-expanded={open}
         className={
           active
-            ? 'h-9 px-3 rounded-full bg-[#F3EEFE] border border-[#9B7AF7] flex items-center gap-1 text-[14px] leading-5 font-medium text-[#8259F5]'
+            ? 'h-9 px-3 rounded-full bg-[#fdf2f8] border border-[#f472b6] flex items-center gap-1 text-[14px] leading-5 font-medium text-[#ec4899]'
             : 'h-9 px-3 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] flex items-center gap-1 text-[14px] leading-5 font-medium text-[#6A7282]'
         }
       >
@@ -77,7 +77,7 @@ export default function FilterDropdown({
         >
           <path
             d="M4 6L8 10L12 6"
-            stroke={active ? '#8259F5' : '#6A7282'}
+            stroke={active ? '#ec4899' : '#6A7282'}
             strokeWidth="1.4"
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -103,7 +103,7 @@ export default function FilterDropdown({
                 }}
                 className={`w-full px-3 py-2 text-left text-[14px] leading-5 transition-colors ${
                   value === null
-                    ? 'text-[#8259F5] font-medium bg-[#F3EEFE]'
+                    ? 'text-[#ec4899] font-medium bg-[#fdf2f8]'
                     : 'text-[#1E2939] hover:bg-[#F9FAFB]'
                 }`}
               >
@@ -125,7 +125,7 @@ export default function FilterDropdown({
                   }}
                   className={`w-full px-3 py-2 text-left text-[14px] leading-5 transition-colors ${
                     selected
-                      ? 'text-[#8259F5] font-medium bg-[#F3EEFE]'
+                      ? 'text-[#ec4899] font-medium bg-[#fdf2f8]'
                       : 'text-[#1E2939] hover:bg-[#F9FAFB]'
                   }`}
                 >

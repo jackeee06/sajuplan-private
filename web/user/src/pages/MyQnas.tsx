@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import { useAuth } from '../lib/auth-context'
 import { myQnaApi, type MyQnaItem } from '../lib/api'
@@ -54,7 +55,7 @@ export default function MyQnas() {
 
   if (authLoading) {
     return (
-      <div className="mobile-frame flex flex-col pb-6 items-center justify-center min-h-[60vh]">
+      <div className="mobile-frame flex flex-col pb-[100px] items-center justify-center min-h-[60vh]">
         <p className="text-[14px] text-[#6A7282]">불러오는 중...</p>
       </div>
     )
@@ -65,7 +66,7 @@ export default function MyQnas() {
   }
 
   return (
-    <div className="mobile-frame flex flex-col pb-[40px]">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -99,7 +100,7 @@ export default function MyQnas() {
                 <div className="flex items-center gap-2">
                   <span className="text-[16px] font-bold text-[#030712]">{q.counselor_name}</span>
                   {q.counselor_code && (
-                    <span className="text-[15px] font-medium text-[#8259F5]">{q.counselor_code}</span>
+                    <span className="text-[15px] font-medium text-[#ec4899]">{q.counselor_code}</span>
                   )}
                   <button
                     type="button"
@@ -115,7 +116,7 @@ export default function MyQnas() {
                   <span
                     className={
                       q.status === '답변완료'
-                        ? 'h-[24px] px-2 inline-flex items-center rounded text-[12px] font-medium bg-[#F3EEFE] text-[#8259F5]'
+                        ? 'h-[24px] px-2 inline-flex items-center rounded text-[12px] font-medium bg-[#fdf2f8] text-[#ec4899]'
                         : 'h-[24px] px-2 inline-flex items-center rounded text-[12px] font-medium bg-[#F3F4F6] text-[#6A7282]'
                     }
                   >
@@ -145,6 +146,7 @@ export default function MyQnas() {
       </main>
 
       <FloatingActions bottomOffset={24} />
-    </div>
+      <BottomNav />
+      </div>
   )
 }

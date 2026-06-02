@@ -39,6 +39,7 @@ export class AdminAuthController {
       mb_id: admin.mb_id,
       role: admin.role,
       level: admin.level,
+      is_super: admin.is_super,
     });
 
     const cookieName = this.config.get<string>('ADMIN_COOKIE_NAME') ?? 'sjm_admin';
@@ -66,6 +67,7 @@ export class AdminAuthController {
       mb_id: req.admin.mb_id,
       role: req.admin.role,
       level: req.admin.level,
+      is_super: !!req.admin.is_super,
     };
   }
 

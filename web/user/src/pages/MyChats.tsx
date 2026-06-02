@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import ConsultHistoryCard from '../components/ConsultHistoryCard'
 import { ApiError, historyApi, type ConsultHistoryItem as ApiConsultHistoryItem } from '../lib/api'
@@ -52,7 +53,7 @@ export default function MyChats() {
   }
 
   return (
-    <div className="mobile-frame flex flex-col pb-[40px]">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -85,7 +86,8 @@ export default function MyChats() {
       </main>
 
       <FloatingActions bottomOffset={24} />
-    </div>
+      <BottomNav />
+      </div>
   )
 }
 
@@ -99,11 +101,16 @@ export default function MyChats() {
 function mapToHistoryItem(r: ApiConsultHistoryItem): ConsultHistoryItem {
   const startedAt = formatKDateTime(r.started_at)
   const endedAt = formatKDateTime(r.ended_at)
+  // [2026-05-27 후기 5분 정책 fix] 백엔드 가드 (reviews.service.ts:520) 와 동기화.
+  //   5분(300초) 미만 사용 시 후기 작성 불가 → noaction 으로 분기하여 버튼 자체 미노출.
+  //   사용자가 5분 미만 통화 후 "후기 작성하기" 눌러 400 에러 받는 UX 짜증 차단.
   const reviewStatus = r.is_active_chat
     ? 'noaction'
     : r.review_id != null
       ? 'written'
-      : 'unwritten'
+      : (Number(r.usetm_seconds) || 0) < 300
+        ? 'noaction'
+        : 'unwritten'
   return {
     id: r.chat_room_id ?? r.id,
     counselor: {

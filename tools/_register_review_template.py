@@ -6,7 +6,7 @@ for _s in (sys.stdout, sys.stderr):
     except Exception: pass
 
 TEMPLATE_CODE = "review_for_counselor"
-MESSAGE = """[사주문 후기알림]
+MESSAGE = """[사주플랜 후기알림]
 
 #{상담사명}님께 남겨진 새로운 상담 후기가 있습니다.
 
@@ -14,7 +14,7 @@ MESSAGE = """[사주문 후기알림]
 
 ▶ 후기 확인하기 : #{url}"""
 BTN_NAME = "후기 확인하기"
-BTN_URL = "https://sajumoon.co.kr/#{url}"
+BTN_URL = "https://sajuplan.com/#{url}"
 
 
 def main() -> int:
@@ -25,7 +25,7 @@ def main() -> int:
     c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     c.connect("104.64.128.103", 22, "root", pw, allow_agent=False, look_for_keys=False, timeout=20)
     _, out, _ = c.exec_command(
-        "grep '^DATABASE_URL=' /data/wwwroot/api.sajumoon.co.kr/.env | head -1 | cut -d= -f2- | tr -d \"'\\\"\"",
+        "grep '^DATABASE_URL=' /data/wwwroot/api.sajuplan.com/.env | head -1 | cut -d= -f2- | tr -d \"'\\\"\"",
         timeout=15,
     )
     url = out.read().decode().strip()

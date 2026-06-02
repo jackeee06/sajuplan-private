@@ -1,5 +1,6 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import Pagination from '../components/Pagination'
 
 /**
@@ -47,7 +48,7 @@ export interface Review {
 }
 
 const BADGE_BG: Record<Badge, string> = {
-  타로: '#8259F5',
+  타로: '#ec4899',
   신점: '#00BBA7',
   사주: '#FF6467',
 }
@@ -150,7 +151,7 @@ export default function Reviews() {
   const list = photoOnly ? MOCK_REVIEWS.filter((r) => r.imgUrl) : MOCK_REVIEWS
 
   return (
-    <div className="mobile-frame flex flex-col pb-10">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       {/* 헤더 — hd2 + 우측 검색·알림 */}
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
@@ -179,7 +180,7 @@ export default function Reviews() {
         <section className="px-4 flex flex-col gap-3">
           <article className="bg-[#F9FAFB] rounded-[12px] p-4 flex flex-col gap-2">
             <img src="/img/review_visual_img.png" alt="" className="w-[46px] h-auto" />
-            <h2 className="text-[18px] leading-[130%] font-semibold text-[#8259F5]">
+            <h2 className="text-[18px] leading-[130%] font-semibold text-[#ec4899]">
               후기 작성 시 포인트 지급!
             </h2>
             <p className="text-[14px] leading-[130%] text-[#4A5565]">
@@ -198,7 +199,7 @@ export default function Reviews() {
 
           <button
             type="button"
-            className="h-10 rounded-full bg-white border border-[#9B7AF7] text-[#8259F5] text-[14px] font-medium flex items-center justify-center gap-1 transition hover:bg-[#F3EEFE]"
+            className="h-10 rounded-full bg-white border border-[#f472b6] text-[#ec4899] text-[14px] font-medium flex items-center justify-center gap-1 transition hover:bg-[#fdf2f8]"
           >
             <PencilLineIcon />
             후기 작성하기
@@ -208,7 +209,7 @@ export default function Reviews() {
         {/* 정렬 / 카운터 행 — border-b */}
         <section className="px-4 pb-3 flex items-center justify-between border-b border-[#F3F4F6]">
           <p className="text-[15px] leading-[130%] text-[#4A5565]">
-            전체 <span className="font-medium text-[#8259F5]">9,999</span>건
+            전체 <span className="font-medium text-[#ec4899]">9,999</span>건
           </p>
           <label className="flex items-center gap-1 cursor-pointer select-none">
             <input
@@ -238,7 +239,8 @@ export default function Reviews() {
       </main>
 
       <FloatingGoTop />
-    </div>
+      <BottomNav />
+      </div>
   )
 }
 
@@ -272,7 +274,7 @@ function ReviewCard({ review }: { review: Review }) {
                 <span className="text-[16px] leading-[120%] font-semibold text-[#030712] truncate">
                   {counselorName}
                 </span>
-                <span className="text-[16px] leading-[120%] font-semibold text-[#8259F5]">
+                <span className="text-[16px] leading-[120%] font-semibold text-[#ec4899]">
                   {counselorCode}
                 </span>
               </div>
@@ -372,8 +374,8 @@ function LockIcon() {
 function PencilLineIcon() {
   return (
     <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
-      <path d="M11.5 2.5l2 2-7 7H4.5v-2l7-7z" stroke="#8259F5" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M2.5 14h11" stroke="#8259F5" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M11.5 2.5l2 2-7 7H4.5v-2l7-7z" stroke="#ec4899" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M2.5 14h11" stroke="#ec4899" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   )
 }

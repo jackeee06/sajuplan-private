@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+﻿import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError, chatApi, type ChatMessage, type ChatRoomDetail } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
@@ -17,8 +17,8 @@ import { API_BASE } from '../lib/runtime-env'
  *     — 이미 종료된 방 다시보기. 메시지만 조회, wss 미접속.
  *
  * 디자인 충실도: Figma 시안 그대로 유지. mock/하드코딩 부분만 실제 API/WebSocket 으로 교체.
- *  - 헤더: 뒤로가기 + 상대방명 + 타이머(보라 #8259F5) + 상담종료 outline 버튼
- *  - 메시지 영역: bg #F3EEFE, date divider, system pill, mine/other 버블
+ *  - 헤더: 뒤로가기 + 상대방명 + 타이머(보라 #ec4899) + 상담종료 outline 버튼
+ *  - 메시지 영역: bg #fdf2f8, date divider, system pill, mine/other 버블
  *  - 입력창: textarea auto-grow 최대 5줄, 입력 있을 때만 전송 버튼 노출
  *  - 모달: 상담종료 컨펌 / 포인트 부족 알럿
  *
@@ -90,6 +90,8 @@ interface DisplayMessage {
   ts: number
   /** 보낸 사람 member.id — 'other' 메시지 아바타 결정용 */
   senderId?: number | null
+  /** [2026-05-27] 5분 알림 시스템 메시지 표시 — true 면 채팅창에 강조 + 큰 모달 트리거 */
+  isFiveMinAlert?: boolean
 }
 
 /**
@@ -144,6 +146,22 @@ export default function ChatRoom() {
   const [messages, setMessages] = useState<DisplayMessage[]>([])
   const [input, setInput] = useState('')
   const [chatStatus, setChatStatus] = useState<ChatStatus>(initialStatus)
+  // [2026-05-27] 5분 잔여 안내 모달 — 시스템 메시지 [ALERT_5MIN] 감지 시 1회 표시
+  // [엄격검증 3차 fix 2026-05-27 T-3] sessionStorage 기반 seen — 페이지 이동 후 복귀 시 중복 발화 방지
+  const [fiveMinAlertOpen, setFiveMinAlertOpen] = useState(false)
+  const fiveMinSeenKey = `chat5min_seen_${chatRoomId}`
+  const fiveMinAlertSeenRef = useRef<Set<string>>(
+    typeof window === 'undefined'
+      ? new Set()
+      : new Set(
+          (() => {
+            try {
+              const raw = sessionStorage.getItem(fiveMinSeenKey)
+              return raw ? (JSON.parse(raw) as string[]) : []
+            } catch { return [] }
+          })()
+        ),
+  )
   const [endConfirmOpen, setEndConfirmOpen] = useState(initialModal === 'end-confirm')
   const [pointsAlertOpen, setPointsAlertOpen] = useState(initialModal === 'points-alert')
   // 일반 종료 알럿 (포인트 소진 외) — chatStatus='ended' 로 전환되는 순간 자동 표시
@@ -158,9 +176,17 @@ export default function ChatRoom() {
    * 본 화면에선 status 폴링이 'CNCH' 전환을 감지하는 순간 시스템 메시지로 회원에게만 노출.
    */
   const [counselorEntered, setCounselorEntered] = useState(false)
+  // [2026-05-23] 5분 전 경고 — remainingSec 가 300초 이하 도달 시 1회 표시
+  const [fiveMinuteWarning, setFiveMinuteWarning] = useState(false)
+  const fiveMinuteShownRef = useRef(false)
+  // [2026-05-30] 짧은 alloc(1분 등) 대응 — 알림 본문이 "30초" 또는 "5분" 가변.
+  //   백엔드 chat.service 가 alloc<5분 시 "잔여 시간 30초 안내" 로 INSERT.
+  //   메시지 검출 시 본문에서 라벨 추출해 모달/SystemPill/TTS 모두 동적 표시.
+  const [fiveMinAlertLabel, setFiveMinAlertLabel] = useState<'30초' | '5분'>('5분')
   // 백엔드 getRoom 이 발급한 wss 토큰 — navState 가 없을 때(새로고침/다시보기 진입) fallback.
   const [wssFallback, setWssFallback] = useState<{ url: string; token: string; role: 'member' | 'counselor' } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const lastSinceRef = useRef<string | null>(null)
   // 상담사 입장(=chat_room.status='CNCH') 추적. 초기 진입에서 이미 CNCH 면 true 로 시작,
@@ -187,6 +213,26 @@ export default function ChatRoom() {
    * m2net 세션과 어긋난 채 굳는 케이스 방어.
    */
   const lastRejoinAtRef = useRef<string | null>(null)
+
+  // [2026-05-23] 모바일 키보드 올라올 때 fixed 헤더가 화면 위로 밀려 올라가는 안드로이드 웹뷰
+  //   pan 모드 회피 — visualViewport.offsetTop 만큼 헤더 top 을 동적 보정해 항상 viewport
+  //   상단에 붙어있게 강제. (interactive-widget 메타와 이중 안전망)
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    if (!vv) return
+    const update = () => {
+      if (headerRef.current) {
+        headerRef.current.style.top = `${vv.offsetTop}px`
+      }
+    }
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    update()
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
 
   // 1) 방 + 메시지 초기 로드
   useEffect(() => {
@@ -271,6 +317,8 @@ export default function ChatRoom() {
           if (res.items.length === 0) return
           setMessages((cur) => mergeIncoming(cur, res.items))
           lastSinceRef.current = res.items[res.items.length - 1].created_at
+          // [2026-05-23] 본인이 방 화면을 보고 있는 상태 → 상대 메시지 자동 read 마킹
+          chatApi.markRead(chatRoomId).catch(() => { /* swallow */ })
         })
         .catch(() => { /* swallow */ })
     },
@@ -456,6 +504,11 @@ export default function ChatRoom() {
       if (deadlineRef.current && counselorJoinedRef.current) {
         const left = Math.max(0, Math.floor((deadlineRef.current - Date.now()) / 1000))
         setRemainingSec(left)
+        // [2026-05-23] 5분 전(300초) 도달 시 1회 경고 시스템 메시지
+        if (!fiveMinuteShownRef.current && left > 0 && left <= 300) {
+          fiveMinuteShownRef.current = true
+          setFiveMinuteWarning(true)
+        }
         if (left === 0) {
           setChatStatus('ended-points')
           deadlineRef.current = null
@@ -473,6 +526,17 @@ export default function ChatRoom() {
         if (cancelled) return
         await fetchStatus()
         if (cancelled) return
+        // [2026-05-23] 안 읽음 read_at 동기화 — 5초 polling 안에 전체 메시지 재조회.
+        //   since 없이 호출해 옛 본인 메시지의 read_at 도 가져옴 → mergeIncoming 이 "1" 제거.
+        //   counselor 입장 후에만 실행. 운영 규모상 비용 무관.
+        if (counselorJoinedRef.current) {
+          chatApi.listMessagesSince(chatRoomId)
+            .then((res) => {
+              if (cancelled || res.items.length === 0) return
+              setMessages((cur) => mergeIncoming(cur, res.items))
+            })
+            .catch(() => { /* swallow */ })
+        }
         schedulePoll()
       }, delay)
     }
@@ -581,28 +645,72 @@ export default function ChatRoom() {
     let bgTimer: number | null = null
     const BG_GRACE_MS = 5 * 60 * 1000 // 5분
 
-    // 탭/앱 종료 — grace 무시하고 즉시 leave (sendBeacon)
-    const onPageHide = () => { flushPendingLeaveImmediate(); fireEndRef.current(true) }
-    const onBeforeUnload = () => { flushPendingLeaveImmediate(); fireEndRef.current(true) }
+    // 탭/앱 종료 — grace 무시하고 즉시 leave (sendBeacon).
+    // [2026-05-30] STAY 상태(상담사 미입장)에선 즉시 leave 호출 X — autoCancelStaleChats(3분)가 처리.
+    //   refresh / pagehide / beforeunload 가 모두 같은 이벤트로 발화되는데, 사용자가 단순 새로고침한
+    //   경우에도 종료되는 사고가 발생 (사장님 보고 2026-05-30). F 정책(상담사 입장 전 차감 0) 과 일관.
+    const maybeFireEnd = (immediate: boolean) => {
+      if (counselorJoinedRef.current || isMeCounselor) {
+        fireEndRef.current(immediate)
+      }
+      // STAY + 회원 = 종료 호출 안 함. 3분 cron 이 자동 취소.
+    }
+    const onPageHide = () => { flushPendingLeaveImmediate(); maybeFireEnd(true) }
+    const onBeforeUnload = () => { flushPendingLeaveImmediate(); maybeFireEnd(true) }
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') {
-        bgTimer = window.setTimeout(() => fireEndRef.current(false), BG_GRACE_MS)
+        // [2026-05-23] 상담사 미입장(STAY) 상태에서 회원이 다른 화면 이동 시 즉시 soft leave.
+        //   → 백엔드 try_out=TRUE 마킹 → 상담사가 입장해도 use_seconds 누적 차단 →
+        //     회원 모르는 사이 차감되는 사고 차단.
+        //   상담사 입장 후(CNCH)에는 기존 5분 grace 유지 (잠깐 다른 앱 봐도 진행).
+        if (!counselorJoinedRef.current && !isMeCounselor) {
+          const id = chatRoomIdRef.current
+          chatApi.leave(id, 'soft').catch(() => { /* swallow */ })
+        } else {
+          bgTimer = window.setTimeout(() => fireEndRef.current(false), BG_GRACE_MS)
+        }
       } else if (document.visibilityState === 'visible') {
         if (bgTimer) {
           window.clearTimeout(bgTimer)
           bgTimer = null
         }
+        // [2026-05-23] STAY 상태에서 visible 복귀 시 rejoin → try_out=FALSE 복원.
+        if (!counselorJoinedRef.current && !isMeCounselor) {
+          const id = chatRoomIdRef.current
+          chatApi.rejoin(id).catch(() => { /* swallow */ })
+        }
+      }
+    }
+
+    // [2026-05-30] RN WebView 에서 visibilitychange 가 발화 안 되는 케이스 보완 안전망.
+    //   사용자가 다른 앱으로 이탈 시 blur 는 발화 가능성 높음 → soft leave 호출.
+    //   거짓 양성 (키보드 포커스 변경) 위험 있지만 soft leave 는 멱등이고
+    //   focus 복귀 시 rejoin 으로 자동 복원되므로 부작용 미미.
+    const onBlur = () => {
+      if (!counselorJoinedRef.current && !isMeCounselor) {
+        const id = chatRoomIdRef.current
+        chatApi.leave(id, 'soft').catch(() => { /* swallow */ })
+      }
+    }
+    const onFocus = () => {
+      if (!counselorJoinedRef.current && !isMeCounselor) {
+        const id = chatRoomIdRef.current
+        chatApi.rejoin(id).catch(() => { /* swallow */ })
       }
     }
 
     window.addEventListener('pagehide', onPageHide)
     window.addEventListener('beforeunload', onBeforeUnload)
     document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('blur', onBlur)
+    window.addEventListener('focus', onFocus)
 
     return () => {
       window.removeEventListener('pagehide', onPageHide)
       window.removeEventListener('beforeunload', onBeforeUnload)
       document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('blur', onBlur)
+      window.removeEventListener('focus', onFocus)
       if (bgTimer) window.clearTimeout(bgTimer)
       // ⚠️ leave 는 호출하지 않는다. Effect B 의 unmount cleanup 이 일괄 처리.
     }
@@ -666,7 +774,7 @@ export default function ChatRoom() {
     const ta = textareaRef.current
     if (!ta) return
     ta.style.height = 'auto'
-    const lineHeight = 22
+    const lineHeight = 24 // 2026-05-30 폰트 16px / 줄높이 24px 로 동기
     const maxHeight = lineHeight * MAX_INPUT_ROWS
     ta.style.height = `${Math.min(ta.scrollHeight, maxHeight)}px`
   }, [input])
@@ -742,6 +850,66 @@ export default function ChatRoom() {
     ? '회원이 대기중입니다. 인사말로 상담을 시작해주세요.'
     : '상담사가 입장하면 상담이 시작됩니다.'
 
+  // [2026-05-27] 5분 잔여 알림 감지 — 새 [ALERT_5MIN] 시스템 메시지 등장 시 1회 모달 + 사운드/진동/TTS
+  useEffect(() => {
+    const seen = fiveMinAlertSeenRef.current
+    const newAlert = messages.find((m) => m.isFiveMinAlert && !seen.has(m.id))
+    if (!newAlert) return
+    seen.add(newAlert.id)
+    // [엄격검증 3차 fix 2026-05-27 T-3] 페이지 이동 후 복귀 시 중복 발화 방지
+    try { sessionStorage.setItem(fiveMinSeenKey, JSON.stringify(Array.from(seen))) } catch { /* ignore */ }
+    // [2026-05-30] 본문에서 라벨 추출 — alloc<5분(1분 테스트 등)이면 "30초", 평소 "5분"
+    const label: '30초' | '5분' = newAlert.text.includes('30초') ? '30초' : '5분'
+    setFiveMinAlertLabel(label)
+    setFiveMinAlertOpen(true)
+    // 사운드 (Web Audio API 짧은 beep — mp3 자산 없이 즉시 효과)
+    // [엄격검증 6차 fix 2026-05-27] iOS Safari: suspended → resume() fallback
+    try {
+      const Ctx = (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)
+      const ctx = new Ctx()
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => { /* iOS pre-interaction 차단 */ })
+      }
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.frequency.value = 880
+      gain.gain.value = 0.15
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.start()
+      setTimeout(() => { osc.stop(); ctx.close().catch(() => {}) }, 350)
+    } catch { /* AudioContext unsupported */ }
+    // TTS — Web Speech API 한국어 음성
+    // [엄격검증 2차 fix 2026-05-27] 상담사는 충전 X — 마무리 안내 멘트로 분리.
+    try {
+      if ('speechSynthesis' in window) {
+        const ttsBody = isMeCounselorRef.current
+          ? `${label} 남았어요. 마무리 멘트를 안내해주세요.`
+          : `${label} 남았어요. 충전하시면 끊김 없이 계속 상담 가능합니다.`
+        const utt = new SpeechSynthesisUtterance(ttsBody)
+        utt.lang = 'ko-KR'
+        utt.rate = 1.0
+        utt.pitch = 1.0
+        window.speechSynthesis.speak(utt)
+      }
+    } catch { /* TTS unsupported */ }
+    // 진동 — 200ms ON / 100 OFF / 200 ON 패턴
+    try {
+      if ('vibrate' in navigator) (navigator as Navigator & { vibrate: (p: number[]) => boolean }).vibrate([200, 100, 200])
+    } catch { /* vibrate unsupported */ }
+  }, [messages])
+
+  // 5분 알림 모달의 충전 버튼 — 결제 후 자동 채팅 복귀 위해 sessionStorage 에 chatRoomId 저장
+  // [엄격검증 4차 fix 2026-05-27 Q-3] timestamp 같이 저장 → ChargeComplete 30분 TTL
+  const handleChargeFromAlert = () => {
+    try {
+      sessionStorage.setItem('chatReturnRoomId', String(chatRoomId))
+      sessionStorage.setItem('chatReturnRoomIdAt', String(Date.now()))
+    } catch { /* storage unsupported */ }
+    setFiveMinAlertOpen(false)
+    navigate('/mypage/charge')
+  }
+
   // 로그인 가드 — 인증 미확인/비로그인 동안엔 본문 렌더 보류 (위 useEffect 가 redirect 한다).
   if (authLoading || !member) {
     return (
@@ -752,9 +920,13 @@ export default function ChatRoom() {
   }
 
   return (
-    <div className="mobile-frame flex flex-col h-screen bg-[#F3EEFE]">
-      {/* 헤더 */}
-      <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-white">
+    // [2026-05-23] sticky 가 모바일 웹뷰에서 밀려 올라가는 이슈 → header 를 fixed 로 강제 고정.
+    //                fixed 는 viewport 기준이라 mobile-frame max-w(560px) 와 동일한 폭으로
+    //                left-1/2 + -translate-x-1/2 가운데 정렬. 메시지 영역엔 pt-[60px] 추가.
+    <div className="mobile-frame flex flex-col h-[100dvh] bg-[#fdf2f8]">
+      {/* 헤더 — fixed top-0 으로 viewport 상단에 강제 고정.
+          + visualViewport.offsetTop 동적 보정 (안드로이드 키보드 pan 모드 회피) */}
+      <header ref={headerRef} className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-[560px] h-[60px] px-4 flex items-center gap-3 z-30 bg-white border-b border-[#F3F4F6]">
         <button
           type="button"
           onClick={() => {
@@ -776,7 +948,7 @@ export default function ChatRoom() {
         </button>
         <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712] flex items-center gap-1.5">
           <span>{headerName}</span>
-          <span className="text-[14px] font-medium text-[#8259F5]">{headerRoleLabel}</span>
+          <span className="text-[14px] font-medium text-[#ec4899]">{headerRoleLabel}</span>
         </h1>
         {/*
           잔여시간 표시는 회원에게만 (상담사는 받는 주체 — 본인 포인트 아님).
@@ -785,38 +957,88 @@ export default function ChatRoom() {
             - 회원: 자기 의지로 종료 (포인트 절약)
             - 상담사: 명시적 종료 — 뒤로가기 ≠ 종료 정책이라 명시 버튼이 필요.
         */}
-        {chatStatus === 'active' && !isMeCounselor && timerText && (
-          <span className="text-[18px] leading-[120%] font-medium text-[#8259F5] tabular-nums">
-            {timerText}
+        {/* [2026-05-23] 상담사도 동일한 타이머 표시 — 회원 잔액 기반 카운트다운.
+            "남은 시간" 라벨 + 시간으로 명확한 안내. */}
+        {chatStatus === 'active' && timerText && (
+          <span className="inline-flex items-baseline gap-1">
+            <span className="text-[12px] font-medium text-[#6A7282]">남은 시간</span>
+            <span className="text-[18px] leading-[120%] font-medium text-[#ec4899] tabular-nums">
+              {timerText}
+            </span>
           </span>
         )}
         {chatStatus === 'active' && (
           <button
             type="button"
             onClick={() => setEndConfirmOpen(true)}
-            className="h-8 px-3 rounded-full bg-white border border-[#9B7AF7] text-[#8259F5] text-[14px] font-medium"
+            className="h-8 px-3 rounded-full bg-white border border-[#f472b6] text-[#ec4899] text-[14px] font-medium"
           >
             상담종료
           </button>
         )}
       </header>
 
-      {/* 메시지 영역 */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+      {/* 메시지 영역 — [2026-05-23] flex-end 정렬로 키보드 올라와도 초기 메시지 가려지지 않음.
+          줄간 간격 압축. fixed 헤더 가림 방지 pt-[60px].
+          배경 워터마크는 메시지 컨테이너 밑(absolute 자식)으로 분리 → flex-end 와 무관하게 보임. */}
+      <div
+        ref={scrollRef}
+        className="relative flex-1 overflow-y-auto px-4 pt-[60px] pb-[88px] flex flex-col justify-end gap-1 [&>*:not([aria-hidden])]:relative [&>*:not([aria-hidden])]:z-10"
+      >
+        {/* 배경 워터마크 — viewport 기준 fixed 로 4개만 지그재그 배치.
+            스크롤해도 항상 같은 4점에 보임 (텍스처 느낌 + 답답함 X). */}
+        <div
+          aria-hidden
+          className="pointer-events-none fixed inset-y-0 left-1/2 -translate-x-1/2 w-full max-w-[560px] z-0"
+          style={{
+            backgroundImage:
+              "url('/img/logo_b.svg'), url('/img/logo_b.svg'), url('/img/logo_b.svg'), url('/img/logo_b.svg')",
+            backgroundPosition: '10% 18%, 90% 40%, 10% 62%, 90% 84%',
+            backgroundSize: '150px auto, 150px auto, 150px auto, 150px auto',
+            backgroundRepeat: 'no-repeat, no-repeat, no-repeat, no-repeat',
+            opacity: 0.08,
+          }}
+        />
         {error && (
           <div className="flex justify-center">
             <span className="text-[13px] text-[#FB2C36]">{error}</span>
           </div>
         )}
         {counselorWaiting && <SystemPill text={waitingText} />}
+        {/* [2026-05-23] 회원 대기 정보 안내 — 자동 차감 시작 + 3분 미응답 자동 취소.
+            회원이 다른 화면 이동 시 자동 이탈 감지로 차감 차단됨 (안전).
+            상담사 본인은 노출 X. 상담사 입장(CNCH) 시 자동 사라짐. */}
+        {counselorWaiting && !isMeCounselor && (
+          <div className="mx-2 my-1 rounded-[16px] bg-[#fdf2f8] border border-[#fbcfe8] p-4">
+            <p className="text-[14px] font-semibold text-[#9d174d] leading-[150%] mb-2">
+              ⏱ 상담사를 기다리는 중...
+            </p>
+            <p className="text-[13px] font-semibold text-[#9d174d] leading-[160%] mb-1">
+              ✓ 지금은 코인이 차감되지 않습니다.
+            </p>
+            <p className="text-[12.5px] leading-[180%] text-[#9d174d]">
+              상담사가 입장하면 그때부터 채팅이 시작되며 코인이 차감됩니다.<br />
+              <span className="text-[11.5px] text-[#be185d]">
+                · 3분 이내 응답이 없으면 요청이 자동 취소됩니다.<br />
+                · 상담 중 다른 화면으로 이동하시면 차감이 자동 중지됩니다.<br />
+                · 비정상적으로 채팅방을 벗어나셔도 3분 안에 돌아오시면 계속 가능합니다.<br />
+                · 종료 버튼을 누르시면 즉시 종료됩니다.
+              </span>
+            </p>
+          </div>
+        )}
         {/* 매뉴얼 §4.5 START_CHAT push 시점 = 상담사 실제 입장.
             폴링이 status STAY→CNCH 전환을 감지한 순간 회원 화면에만 1회 표시. */}
         {counselorEntered && !isMeCounselor && (
           <SystemPill text="상담사가 입장하였습니다." />
         )}
+        {/* [2026-05-23] 5분 전 경고 — 회원/상담사 모두 표시 (양쪽 인지) */}
+        {fiveMinuteWarning && (
+          <SystemPill text={`⏰ 상담 종료 ${fiveMinAlertLabel} 남았습니다.`} />
+        )}
         {/* 메시지 렌더 — other 타입은 senderId 기반 상대방 아바타/이름 채워 넘김.
             상담사 화면에서는 회원 프로필 사진, 회원 화면에서는 상담사 프로필 사진.
-            프로필 미등록 시 기본 사주문 아바타(/img/sample_img03.jpg) 사용.
+            프로필 미등록 시 기본 사주플랜 아바타(/img/sample_img03.jpg) 사용.
             연속 발화 그룹화는 일부러 안 함 — 매 메시지마다 sender 정보 채워서 항상 표시. */}
         {messages.map((m) => {
           let withSender = m
@@ -845,14 +1067,20 @@ export default function ChatRoom() {
         })}
         {chatStatus === 'ended' && <SystemPill text="상담이 종료되었습니다." />}
         {chatStatus === 'ended-points' && (
-          <SystemPill text="포인트 소진으로 상담이 종료되었습니다." />
+          <SystemPill text="코인 소진으로 상담이 종료되었습니다." />
         )}
       </div>
 
-      {/* 입력창 */}
+      {/* 입력창 — 2026-05-30 가독성 강화 (사장님 보고: 키보드 자동완성과 겹쳐 보임)
+          - 폰트 16px (모바일 표준) + 줄높이 24px
+          - 흰 배경 + 진한 보더로 자동완성 영역과 시각 분리
+          - 최소 높이 48px (터치 영역 충분히)
+          - 상단 보더로 메시지 영역과 분리
+          [2026-05-30] fixed bottom-0 — 메시지 흐름에 밀리지 않고 viewport 하단 강제 고정 (헤더와 동일 패턴).
+          사장님 보고: 상대방 글이 계속 오면 입력창이 밀려나서 못 보임. fixed 로 항상 같은 위치. */}
       {chatStatus === 'active' && (
-        <div className="bg-white px-4 py-2 flex items-end gap-2">
-          <div className="flex-1 bg-[#F9FAFB] rounded-[24px] px-4 py-2.5 flex items-end">
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[560px] bg-white px-4 py-3 flex items-end gap-2 border-t border-[#F3F4F6] z-20">
+          <div className="flex-1 bg-white border-2 border-[#E5E7EB] rounded-[20px] px-4 py-2.5 flex items-end min-h-[48px] focus-within:border-[#f472b6] transition-colors">
             <textarea
               ref={textareaRef}
               value={input}
@@ -860,8 +1088,8 @@ export default function ChatRoom() {
               onKeyDown={onKeyDown}
               placeholder="메세지를 입력하세요"
               rows={1}
-              className="flex-1 bg-transparent text-[14px] leading-[22px] text-[#1E2939] placeholder:text-[#99A1AF] resize-none outline-none overflow-y-auto"
-              style={{ maxHeight: `${22 * MAX_INPUT_ROWS}px` }}
+              className="flex-1 bg-transparent text-[16px] leading-[24px] text-[#1E2939] placeholder:text-[#99A1AF] resize-none outline-none overflow-y-auto"
+              style={{ maxHeight: `${24 * MAX_INPUT_ROWS}px` }}
             />
           </div>
           {input.trim() && (
@@ -869,7 +1097,7 @@ export default function ChatRoom() {
               type="button"
               onClick={() => void onSend()}
               aria-label="전송"
-              className="w-9 h-9 rounded-full bg-[#9B7AF7] flex items-center justify-center shrink-0"
+              className="w-9 h-9 rounded-full bg-[#f472b6] flex items-center justify-center shrink-0"
             >
               <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" aria-hidden>
                 <path
@@ -883,6 +1111,69 @@ export default function ChatRoom() {
             </button>
           )}
         </div>
+      )}
+
+      {/* [2026-05-30] 종료 상태 — 입력창 자리에 풀폭 "채팅방 나가기" 버튼.
+          알럿을 외부 클릭으로 닫거나 다시 진입한 경우에도 출구가 항상 보이도록.
+          사장님 보고: 테스터가 종료 후 헤더 작은 화살표 외 출구를 못 찾음. */}
+      {chatStatus !== 'active' && (
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[560px] bg-white px-4 py-3 border-t border-[#F3F4F6] z-20">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="w-full h-12 rounded-full bg-[#f472b6] text-white text-[15px] font-bold"
+          >
+            채팅방 나가기
+          </button>
+        </div>
+      )}
+
+      {/* [2026-05-27] 5분 잔여 알림 모달 — 채팅 시간 5분 진입 시 1회 표시.
+          [엄격검증 2차 fix 2026-05-27] 상담사는 코인 충전 X — 마무리 안내 + [확인] 1버튼만. */}
+      {fiveMinAlertOpen && (
+        <CenterModal onBackdropClick={() => setFiveMinAlertOpen(false)}>
+          <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-[#fdf2f8] flex items-center justify-center text-[36px]">
+            ⏰
+          </div>
+          <h3 className="text-[20px] leading-[130%] font-bold text-[#030712] text-center">
+            {isMeCounselor ? `회원 ${fiveMinAlertLabel} 남았어요` : `${fiveMinAlertLabel} 남았어요`}
+          </h3>
+          <p className="mt-2 text-[14px] leading-[150%] text-[#4A5565] text-center">
+            {isMeCounselor ? (
+              <>마무리 멘트<br />안내 부탁드립니다</>
+            ) : (
+              <>충전하시면 끊김 없이<br />계속 상담 가능합니다</>
+            )}
+          </p>
+          <div className="flex items-center gap-2 mt-5 w-full">
+            {isMeCounselor ? (
+              <button
+                type="button"
+                onClick={() => setFiveMinAlertOpen(false)}
+                className="flex-1 h-12 rounded-full bg-[#f472b6] text-white text-[15px] font-bold"
+              >
+                확인
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setFiveMinAlertOpen(false)}
+                  className="flex-1 h-12 rounded-full bg-white border border-[#E5E7EB] text-[#1E2939] text-[14px] font-medium"
+                >
+                  닫기
+                </button>
+                <button
+                  type="button"
+                  onClick={handleChargeFromAlert}
+                  className="flex-1 h-12 rounded-full bg-[#f472b6] text-white text-[15px] font-bold"
+                >
+                  💳 충전하기
+                </button>
+              </>
+            )}
+          </div>
+        </CenterModal>
       )}
 
       {/* 상담종료 컨펌 모달 */}
@@ -903,7 +1194,7 @@ export default function ChatRoom() {
             <button
               type="button"
               onClick={() => void handleEnd()}
-              className="flex-1 h-11 rounded-full bg-[#9B7AF7] text-white text-[14px] font-medium"
+              className="flex-1 h-11 rounded-full bg-[#f472b6] text-white text-[14px] font-medium"
             >
               상담종료
             </button>
@@ -913,8 +1204,11 @@ export default function ChatRoom() {
 
       {/*
         상담 종료 알럿 — 본문 텍스트가 케이스에 따라 분기:
-          - 포인트 소진(ended-points / pointsAlertOpen)  → "충전된 포인트가 모두 소진되어\n상담이 종료되었습니다."
+          - 포인트 소진(ended-points / pointsAlertOpen)  → "충전된 코인이 모두 소진되어\n상담이 종료되었습니다."
           - 그 외 일반 종료(ended / endedAlertOpen)      → 부제 없이 "상담이 종료되었습니다." 만
+        [2026-05-30] 2버튼화 — 사장님 보고: 테스터가 종료 후 나갈 방법을 못 찾음.
+          [내용 다시 보기] 알럿만 닫고 채팅 화면 유지 (메시지 스크롤 가능)
+          [채팅방 나가기] navigate(-1) 로 즉시 이탈
       */}
       {(pointsAlertOpen || endedAlertOpen) && (
         <CenterModal
@@ -929,21 +1223,34 @@ export default function ChatRoom() {
           </h3>
           {pointsAlertOpen && (
             <p className="text-[14px] leading-[140%] text-[#6A7282] text-center">
-              충전된 포인트가 모두 소진되어
+              충전된 코인이 모두 소진되어
               <br />
               상담이 종료되었습니다.
             </p>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              setPointsAlertOpen(false)
-              setEndedAlertOpen(false)
-            }}
-            className="mt-4 h-11 px-10 rounded-full bg-[#9B7AF7] text-white text-[14px] font-medium"
-          >
-            확인
-          </button>
+          <div className="flex items-center gap-2 mt-4 w-full">
+            <button
+              type="button"
+              onClick={() => {
+                setPointsAlertOpen(false)
+                setEndedAlertOpen(false)
+              }}
+              className="flex-1 h-11 rounded-full bg-white border border-[#E5E7EB] text-[#1E2939] text-[14px] font-medium"
+            >
+              내용 다시 보기
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPointsAlertOpen(false)
+                setEndedAlertOpen(false)
+                navigate(-1)
+              }}
+              className="flex-1 h-11 rounded-full bg-[#f472b6] text-white text-[14px] font-medium"
+            >
+              채팅방 나가기
+            </button>
+          </div>
         </CenterModal>
       )}
     </div>
@@ -956,10 +1263,24 @@ function toDisplay(m: ChatMessage): DisplayMessage {
   const ts = new Date(m.created_at).getTime() || Date.now()
   // message_type=3 = 시스템 메시지 (sample storeChat mbid='SYSTEM').
   if (m.message_type === 3) {
+    const raw = m.message ?? ''
+    // [2026-05-27] 5분 알림 prefix 감지 → 별도 flag + prefix 제거.
+    // [2026-05-30] 본문 동적 — 짧은 alloc(예: 1분 테스트) 시 백엔드가 "30초 안내" 로 INSERT.
+    //   prefix 떼고 본문 그대로 사용해 30초 / 5분 자동 분기.
+    if (raw.startsWith('[ALERT_5MIN]')) {
+      const body = raw.substring('[ALERT_5MIN]'.length).trim() || '잔여 시간 5분 안내'
+      return {
+        id: `db-${m.id}`,
+        type: 'system',
+        text: `⏰ ${body}`,
+        ts,
+        isFiveMinAlert: true,
+      }
+    }
     // dedup_key prefix `[evt-actor-id-window]` 만 제거. 사용자 닉네임 [홍길동] 같은 건 보존.
     // 패턴1: 영문 prefix - 영문/숫자 - 숫자 (선택) - 숫자 시간 슬롯  (leave/rejoin/peer*)
     // 패턴2: csr-entered-{chatRoomId}                               (m2net START_CHAT 시스템 메시지)
-    const stripped = (m.message ?? '')
+    const stripped = raw
       .replace(/^\[(leave|rejoin|peerin|peerout|peer)-[a-zA-Z]+(?:-\d+)?-\d+\]\s*/, '')
       .replace(/^\[csr-entered-\d+\]\s*/, '')
     return {
@@ -981,10 +1302,23 @@ function toDisplay(m: ChatMessage): DisplayMessage {
     time: formatTime(m.created_at),
     ts,
     senderId: m.sender_id ?? null,
+    // [2026-05-23] 안 읽음 표시 — read_at IS NULL 이면 read=false → "1" 표시
+    read: !!m.read_at,
   }
 }
 
 function mergeIncoming(cur: DisplayMessage[], incoming: ChatMessage[]): DisplayMessage[] {
+  // [2026-05-23] 같은 id 메시지의 read_at 갱신 — 본인 메시지의 "1" 자동 제거.
+  const incomingMap = new Map<string, ChatMessage>()
+  for (const m of incoming) incomingMap.set(`db-${m.id}`, m)
+  cur = cur.map((c) => {
+    const inc = incomingMap.get(c.id)
+    if (!inc) return c
+    const newRead = !!inc.read_at
+    if (c.read === newRead) return c
+    return { ...c, read: newRead }
+  })
+
   const ids = new Set(cur.map((c) => c.id))
   // wss echo (wss-* id) 와 DB row (db-* id) 가 같은 메시지를 중복 표시하는 케이스를 막기 위해
   // (type, normalized text, ts ±5s) 키로도 dedup. wss echo 의 ts 는 클라이언트가 정한 값이라
@@ -1018,7 +1352,9 @@ function formatTimer(sec: number): string {
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
   const r = s % 60
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
+  // [2026-05-23] 1시간 미만이면 mm:ss (14:59 형식), 1시간 이상이면 h:mm:ss
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
+  return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`
 }
 
 /* ───────────── 공용 ───────────── */
@@ -1061,8 +1397,8 @@ function CenterModal({
 
 function AlertIcon() {
   return (
-    <div className="w-12 h-12 rounded-full border-2 border-[#9B7AF7] flex items-center justify-center">
-      <span className="text-[26px] leading-[100%] font-bold text-[#9B7AF7] mt-0.5">!</span>
+    <div className="w-12 h-12 rounded-full border-2 border-[#f472b6] flex items-center justify-center">
+      <span className="text-[26px] leading-[100%] font-bold text-[#f472b6] mt-0.5">!</span>
     </div>
   )
 }
@@ -1083,46 +1419,53 @@ function MessageItem({ message: m }: { message: DisplayMessage }) {
 
   if (m.type === 'other') {
     return (
-      <div className="flex flex-col gap-1.5">
+      // [2026-05-23] 줄간 간격 압축 — gap-1.5 → gap-0.5, 버블 px-4 py-3 → px-3 py-2
+      <div className="flex flex-col gap-0.5">
         {m.sender && (
           <div className="flex items-center gap-2 ml-[4px]">
-            <div className="w-10 h-10 rounded-full bg-[#E5E7EB] overflow-hidden shrink-0">
+            <div className="w-8 h-8 rounded-full bg-[#E5E7EB] overflow-hidden shrink-0">
               <ChatAvatar src={m.sender.avatar} alt={m.sender.name} />
             </div>
-            <span className="text-[14px] leading-[130%] font-medium text-[#1E2939]">
+            <span className="text-[14px] leading-[120%] font-medium text-[#1E2939]">
               {m.sender.name}
             </span>
           </div>
         )}
-        <div className="flex items-end gap-2 pl-[52px]">
-          <div className="bg-white rounded-[16px] px-4 py-3 max-w-[70%]">
+        <div className="flex items-end gap-2 pl-[44px]">
+          <div className="bg-white rounded-[14px] px-3 py-2 max-w-[70%]">
             <MessageBody m={m} mine={false} />
           </div>
           {m.time && (
-            <span className="text-[14px] leading-[110%] text-[#99A1AF] mb-1">{m.time}</span>
+            <span className="text-[12px] leading-[110%] text-[#99A1AF] mb-0.5">{m.time}</span>
           )}
         </div>
       </div>
     )
   }
 
-  // mine
+  // mine — [2026-05-23] 패딩 + 글자 크기 압축
   return (
-    <div className="flex items-end justify-end gap-2">
+    <div className="flex items-end justify-end gap-1.5">
       {m.read && (
-        <div className="flex flex-col items-end mb-1 gap-0.5">
-          <span className="text-[12px] leading-[110%] text-[#99A1AF]">읽음</span>
+        <div className="flex flex-col items-end mb-0.5 gap-0.5">
+          <span className="text-[11px] leading-[100%] text-[#99A1AF]">읽음</span>
           {m.time && (
-            <span className="text-[14px] leading-[110%] font-medium text-[#4A5565]">
+            <span className="text-[12px] leading-[110%] font-medium text-[#4A5565]">
               {m.time}
             </span>
           )}
         </div>
       )}
-      {!m.read && m.time && (
-        <span className="text-[14px] leading-[110%] text-[#99A1AF] mb-1">{m.time}</span>
+      {!m.read && (
+        <div className="flex flex-col items-end mb-0.5 gap-0.5">
+          {/* [2026-05-23] 안 읽음 표시 — 카톡 패턴의 "1" */}
+          <span className="text-[11px] leading-[100%] text-[#FB2C36] font-bold">1</span>
+          {m.time && (
+            <span className="text-[12px] leading-[110%] text-[#99A1AF]">{m.time}</span>
+          )}
+        </div>
       )}
-      <div className="bg-[#9B7AF7] rounded-[16px] px-4 py-3 max-w-[70%]">
+      <div className="bg-[#f472b6] rounded-[14px] px-3 py-2 max-w-[70%]">
         <MessageBody m={m} mine={true} />
       </div>
     </div>
@@ -1149,13 +1492,13 @@ function MessageBody({ m, mine }: { m: DisplayMessage; mine: boolean }) {
   if (m.isHtml) {
     return (
       <div
-        className={`text-[14px] leading-[140%] ${textColor} whitespace-pre-line break-words`}
+        className={`text-[16px] leading-[150%] ${textColor} whitespace-pre-line break-words`}
         dangerouslySetInnerHTML={{ __html: m.text }}
       />
     )
   }
   return (
-    <p className={`text-[14px] leading-[140%] ${textColor} whitespace-pre-line break-words`}>
+    <p className={`text-[16px] leading-[150%] ${textColor} whitespace-pre-line break-words`}>
       {m.text}
     </p>
   )

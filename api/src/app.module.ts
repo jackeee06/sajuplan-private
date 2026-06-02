@@ -7,6 +7,7 @@ import { AppService } from './app.service';
 import { AdminModule } from './admin/admin.module';
 import { UserModule } from './user/user.module';
 import { SharedModule } from './shared/shared.module';
+import { AlertsModule } from './shared/alerts/alerts.module';
 import { M2netPushModule } from './pg-callbacks/m2net-push.module';
 import { CronModule } from './cron/cron.module';
 
@@ -27,6 +28,7 @@ import { CronModule } from './cron/cron.module';
       { name: 'login', ttl: 60_000, limit: 20 },
     ]),
     SharedModule,
+    AlertsModule,
     AdminModule,
     UserModule,
     M2netPushModule,

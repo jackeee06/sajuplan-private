@@ -66,9 +66,9 @@ export default function Login() {
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-brand-700/40 rounded-full translate-y-1/3 -translate-x-1/3" />
         <div className="relative z-10 flex flex-col items-center text-center px-10 max-w-xs">
           <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mb-6 shadow-lg p-3">
-            <img src="/mng/logo_w.png" alt="사주문" className="w-full h-full object-contain" />
+            <img src="/mng/logo_b.svg" alt="사주플랜" className="w-full h-full object-contain" />
           </div>
-          <h2 className="text-2xl font-bold text-white mb-3">사주문 Admin</h2>
+          <h2 className="text-2xl font-bold text-white mb-3">사주플랜 Admin</h2>
           <p className="text-brand-200 text-sm leading-relaxed">
             관리자 전용 페이지입니다. 인가된 사용자만 접근할 수 있습니다.
           </p>
@@ -79,7 +79,7 @@ export default function Login() {
         <div className="w-full max-w-md mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">
-              사주문 관리자 로그인
+              사주플랜 관리자 로그인
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               관리자 아이디와 비밀번호를 입력해주세요.

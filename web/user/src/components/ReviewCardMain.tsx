@@ -1,9 +1,9 @@
-import { Link } from 'react-router-dom'
+﻿import { Link } from 'react-router-dom'
 import UploadedImage from './UploadedImage'
 import type { PublicRecentReview } from '../lib/api'
 
 const BADGE_BG: Record<string, string> = {
-  타로: '#8259F5',
+  타로: '#ec4899',
   신점: '#00BBA7',
   사주: '#FF6467',
 }
@@ -36,7 +36,7 @@ export default function ReviewCardMain({ review }: Props) {
   } = review
 
   const badge = category === '기타' ? null : category
-  const badgeBg = badge ? BADGE_BG[badge] : '#8259F5'
+  const badgeBg = badge ? BADGE_BG[badge] : '#ec4899'
   const isSecret = !content
   const dateText = formatDate(created_at)
 
@@ -72,7 +72,7 @@ export default function ReviewCardMain({ review }: Props) {
                 {counselor_nickname}
               </span>
               {counselor_code && (
-                <span className="text-[16px] leading-[120%] font-semibold text-[#8259F5]">
+                <span className="text-[16px] leading-[120%] font-semibold text-[#ec4899]">
                   {counselor_code}
                 </span>
               )}

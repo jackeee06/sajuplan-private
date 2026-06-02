@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom'
+﻿import { Link, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import FloatingActions from './FloatingActions'
 import type { ServiceProduct } from '../data/counselorMyPage'
@@ -67,7 +67,7 @@ export default function CounselorMyProductDetailLayout({ product, activeTab, chi
         <p className="mt-3 text-[14px] text-[#6A7282]">{product.tagline}</p>
         <p className="mt-1 text-[18px] font-bold text-[#030712]">{product.counselorName}</p>
         <div className="mt-1 flex items-center justify-between">
-          <p className="text-[18px] font-bold text-[#8259F5]">{product.price.toLocaleString()}원</p>
+          <p className="text-[18px] font-bold text-[#ec4899]">{product.price.toLocaleString()}원</p>
           <div className="flex items-center gap-3 text-[14px] text-[#6A7282]">
             <span className="inline-flex items-center gap-1.5">
               <ChatBubble />
@@ -89,11 +89,11 @@ export default function CounselorMyProductDetailLayout({ product, activeTab, chi
               key={t}
               to={`/counselor/mypage/products/${id}/${t}`}
               className={`relative h-[44px] flex items-center justify-center text-[15px] ${
-                on ? 'text-[#8259F5] font-bold' : 'text-[#6A7282] font-medium'
+                on ? 'text-[#ec4899] font-bold' : 'text-[#6A7282] font-medium'
               }`}
             >
               {t === 'info' ? '정보' : t === 'reviews' ? '후기' : t === 'qna' ? '문의' : '안내'}
-              {on && <span className="absolute left-0 right-0 -bottom-px h-[2px] bg-[#8259F5]" />}
+              {on && <span className="absolute left-0 right-0 -bottom-px h-[2px] bg-[#ec4899]" />}
             </Link>
           )
         })}
@@ -106,7 +106,7 @@ export default function CounselorMyProductDetailLayout({ product, activeTab, chi
       <div className="fixed left-1/2 -translate-x-1/2 bottom-0 w-full max-w-[600px] px-4 pb-4 pt-3 bg-white">
         <button
           type="button"
-          className="w-full h-[52px] rounded-full bg-[#9B7AF7] text-white text-[16px] font-semibold"
+          className="w-full h-[52px] rounded-full bg-[#f472b6] text-white text-[16px] font-semibold"
         >
           결제하기
         </button>

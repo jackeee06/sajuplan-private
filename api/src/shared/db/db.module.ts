@@ -15,6 +15,15 @@ export type Sql = ReturnType<typeof postgres>;
 export type TxSql = postgres.TransactionSql<Record<string, never>>;
 
 /**
+ * 읽기 전용 SQL 클라이언트 (Phase 2-B Agent / handbook RAG).
+ * handbook_readonly user — SELECT 만 가능, statement_timeout 10초 강제.
+ *
+ * 사용:
+ *   @Inject(SQL_READONLY) private readonly sqlRo: Sql
+ */
+export const SQL_READONLY = Symbol('postgres.sql.readonly');
+
+/**
  * SQL 클라이언트 종료 매니저 (App 종료 시 connection pool drain)
  */
 class SqlShutdown implements OnApplicationShutdown {
@@ -52,7 +61,25 @@ class SqlShutdown implements OnApplicationShutdown {
       inject: [SQL],
       useFactory: (client: Sql) => new SqlShutdown(client),
     },
+    {
+      provide: SQL_READONLY,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): Sql | null => {
+        const url = config.get<string>('DATABASE_URL_READONLY');
+        if (!url) {
+          Logger.warn('DATABASE_URL_READONLY 미설정. handbook Agent SQL Tool 비활성.', 'DbModule');
+          return null;
+        }
+        const client = postgres(url, {
+          max: 3,
+          idle_timeout: 30,
+          onnotice: () => {},
+        });
+        Logger.log(`postgres.js readonly 연결됨 (max=3)`, 'DbModule');
+        return client;
+      },
+    },
   ],
-  exports: [SQL],
+  exports: [SQL, SQL_READONLY],
 })
 export class DbModule {}

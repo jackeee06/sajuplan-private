@@ -36,21 +36,30 @@ export class UserConsultController {
 
   /**
    * POST /api/user/consult/chat
-   * Body: { counselor_id: number }
+   * Body: { counselor_id: number, charge_minutes?: 15|30|45|60 }
    * Resp: { chat_room_id }
    */
   @Post('chat')
   async chat(
     @Req() req: UserAuthedRequest,
-    @Body() body: { counselor_id?: number | string },
+    @Body() body: { counselor_id?: number | string; charge_minutes?: number | string },
   ) {
     const counselorId = Number(body.counselor_id);
     if (!Number.isFinite(counselorId) || counselorId <= 0) {
       throw new BadRequestException('상담사 ID가 올바르지 않습니다.');
     }
+    let chargeMinutes: number | undefined;
+    if (body.charge_minutes != null && body.charge_minutes !== '') {
+      const n = Number(body.charge_minutes);
+      if (!Number.isFinite(n)) {
+        throw new BadRequestException('상담 시간 값이 올바르지 않습니다.');
+      }
+      chargeMinutes = n;
+    }
     return this.svc.startChat({
       memberId: req.user.sub,
       counselorId,
+      chargeMinutes,
     });
   }
 
@@ -84,6 +93,22 @@ export class UserConsultController {
       limit: limit ? Number(limit) : 10,
       type: type === 'call' || type === 'chat' ? type : 'all',
     });
+  }
+
+  /**
+   * [2026-05-23] 상담사 — 들어온 채팅 요청(STAY 채팅방) 목록.
+   *   GET /api/user/consult/incoming
+   *   상담사가 어느 화면에 있든 글로벌 polling 으로 5초마다 호출.
+   *   counselor_id = 토큰 본인 + chat_room.status='STAY' 인 방만 반환.
+   *   가장 오래된 (created_first) 것 우선 정렬.
+   */
+  @Get('incoming')
+  async incoming(@Req() req: UserAuthedRequest) {
+    if (String(req.user.role) !== 'counselor') {
+      // 상담사 아니면 빈 배열 (UI 단에서 호출 안 함이 정상)
+      return { items: [] };
+    }
+    return this.svc.listIncomingChats(req.user.sub);
   }
 
   // ─────────────────────────────────────────────

@@ -29,18 +29,20 @@ export class ResetService {
       const couponHistoryDel = await tx<{ id: number }[]>`DELETE FROM coupon_history RETURNING id`;
       const couponDel = await tx<{ id: number }[]>`DELETE FROM coupon RETURNING id`;
 
-      // 잔액 집계 테이블 리셋
+      // 잔액 집계 테이블 리셋 (소비포인트 free/paid + 수익포인트 earning 모두)
       const pointReset = await tx<{ member_id: number }[]>`
         UPDATE point
-           SET free_balance = 0,
-               paid_balance = 0,
-               total_earned = 0,
-               total_used = 0,
-               updated_at = now()
-         WHERE free_balance <> 0
-            OR paid_balance <> 0
-            OR total_earned <> 0
-            OR total_used <> 0
+           SET free_balance    = 0,
+               paid_balance    = 0,
+               earning_balance = 0,
+               total_earned    = 0,
+               total_used      = 0,
+               updated_at      = now()
+         WHERE free_balance    <> 0
+            OR paid_balance    <> 0
+            OR earning_balance <> 0
+            OR total_earned    <> 0
+            OR total_used      <> 0
         RETURNING member_id
       `;
       const memberPointReset = await tx<{ id: number }[]>`
@@ -82,10 +84,10 @@ export class ResetService {
    */
   async diagnoseAutopay(mbId: string, hours: number) {
     const memberRow = await this.sql<{
-      id: number; mb_id: string; csrid: string | null; phone: string | null;
+      id: number; mb_id: string; m2net_membid: string | null; phone: string | null;
       point: number; created_at: string;
     }[]>`
-      SELECT id, mb_id, csrid, phone, point, created_at::text
+      SELECT id, mb_id, m2net_membid, phone, point, created_at::text
         FROM member WHERE mb_id = ${mbId} LIMIT 1
     `;
     if (memberRow.length === 0) return { error: 'member not found', mbId };
@@ -132,7 +134,7 @@ export class ResetService {
       if (fs.existsSync(logFile)) {
         const content = fs.readFileSync(logFile, 'utf-8');
         const lines = content.split('\n').filter(Boolean);
-        const needle = m.csrid ?? mbId;
+        const needle = m.m2net_membid ?? mbId;
         pushLogLines = lines
           .filter((l) => l.includes(needle) || l.includes(mbId))
           .slice(-30);

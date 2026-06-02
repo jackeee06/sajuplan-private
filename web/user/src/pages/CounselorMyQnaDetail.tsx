@@ -1,4 +1,5 @@
-import { useNavigate, useParams } from 'react-router-dom'
+﻿import { useNavigate, useParams } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import { MOCK_COUNSELOR_MY_QNAS } from '../data/counselorMyPage'
 
@@ -16,7 +17,7 @@ export default function CounselorMyQnaDetail() {
   const replies = qna.replies ?? []
 
   return (
-    <div className="mobile-frame flex flex-col pb-6">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -33,7 +34,7 @@ export default function CounselorMyQnaDetail() {
         <span
           className={`inline-flex items-center h-[22px] px-2 rounded-full text-[12px] leading-none font-medium ${
             qna.status === '답변완료'
-              ? 'bg-[#F3EEFE] text-[#8259F5]'
+              ? 'bg-[#f3f0ff] text-[#8259F5]'
               : 'bg-[#F3F4F6] text-[#6A7282]'
           }`}
         >
@@ -92,7 +93,7 @@ export default function CounselorMyQnaDetail() {
           <button
             type="button"
             onClick={() => navigate('/counselor/mypage/qnas')}
-            className="h-10 px-6 rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]"
+            className="h-10 px-6 rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]"
           >
             목록으로
           </button>
@@ -100,6 +101,7 @@ export default function CounselorMyQnaDetail() {
       </main>
 
       <FloatingActions bottomOffset={24} />
-    </div>
+      <BottomNav myHref="/counselor/mypage" />
+      </div>
   )
 }

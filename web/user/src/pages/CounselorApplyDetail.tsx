@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import ConfirmModal from '../components/ConfirmModal'
@@ -14,7 +14,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  pending: 'border-[#9B7AF7] text-[#8259F5]',
+  pending: 'border-[#f472b6] text-[#ec4899]',
   accepted: 'border-[#16A34A] text-[#16A34A]',
   rejected: 'border-[#FB2C36] text-[#FB2C36]',
   cancelled: 'border-[#9CA3AF] text-[#6A7282]',
@@ -119,7 +119,7 @@ export default function CounselorApplyDetail() {
           <button
             type="button"
             onClick={() => navigate('/mypage/counselor-apply')}
-            className="h-[44px] px-7 rounded-full border border-[#9B7AF7] text-[15px] font-medium text-[#8259F5]"
+            className="h-[44px] px-7 rounded-full border border-[#f472b6] text-[15px] font-medium text-[#ec4899]"
           >
             목록으로
           </button>
@@ -182,13 +182,13 @@ export default function CounselorApplyDetail() {
       <main className="flex-1 px-4 pt-2">
         <div className="flex items-center gap-2">
           {isNotice && (
-            <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#9B7AF7] text-[12px] leading-none font-medium text-[#8259F5]">
+            <span className="inline-flex items-center h-[24px] px-2.5 rounded-full bg-white border border-[#f472b6] text-[12px] leading-none font-medium text-[#ec4899] shadow-[0_1px_2px_rgba(244,114,182,0.12)]">
               공지
             </span>
           )}
           {!isNotice && data.is_mine && (
             <span
-              className={`inline-flex items-center h-[22px] px-2 rounded-full bg-white border text-[12px] leading-none font-medium ${
+              className={`inline-flex items-center h-[24px] px-2.5 rounded-full bg-white border text-[12px] leading-none font-medium shadow-[0_1px_2px_rgba(0,0,0,0.04)] ${
                 STATUS_COLOR[data.status] ?? STATUS_COLOR.pending
               }`}
             >
@@ -205,7 +205,7 @@ export default function CounselorApplyDetail() {
 
         {(extras.real_name || extras.pen_name || extras.region || extras.field || (extras.specialties && extras.specialties.length > 0)) && (
           <div className="mt-4 border-t border-[#F3F4F6] pt-4">
-            <dl className="flex flex-col gap-2">
+            <dl className="flex flex-col gap-2.5">
               {extras.real_name && <Row label="이름" value={extras.real_name} />}
               {extras.pen_name && <Row label="예명" value={extras.pen_name} />}
               {extras.region && <Row label="지역" value={extras.region} />}
@@ -224,31 +224,47 @@ export default function CounselorApplyDetail() {
             <p className="text-[14px] leading-[140%] font-semibold text-[#030712] mb-2">
               본인소개
             </p>
-            <p className="text-[15px] leading-[160%] text-[#364153] whitespace-pre-line">
-              {data.content || extras.intro || ''}
-            </p>
+            {(() => {
+              // NoticeDetail.tsx 와 동일한 패턴 — 본문이 `<` 로 시작하면 HTML 로 렌더,
+              // 아니면 plain text. 어드민 에디터에서 HTML 저장된 케이스 대응.
+              const bodyText = data.content || extras.intro || ''
+              if (/^\s*</.test(bodyText)) {
+                return (
+                  <div
+                    className="text-[15px] leading-[160%] text-[#364153] notice-html"
+                    dangerouslySetInnerHTML={{ __html: bodyText }}
+                  />
+                )
+              }
+              return (
+                <p className="text-[15px] leading-[160%] text-[#364153] whitespace-pre-line">
+                  {bodyText}
+                </p>
+              )
+            })()}
             {widePhoto && (
               <UploadedImage
                 src={widePhoto}
                 alt="와이드 사진"
-                className="mt-3 w-full aspect-[65/32] rounded-[12px] object-cover"
+                className="mt-3 w-full aspect-[65/32] rounded-[16px] object-cover shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
               />
             )}
             {profilePhoto && (
               <UploadedImage
                 src={profilePhoto}
                 alt="프로필 사진"
-                className="mt-3 w-[160px] aspect-square rounded-[12px] object-cover"
+                className="mt-3 w-[160px] aspect-square rounded-[16px] object-cover shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
               />
             )}
           </div>
         )}
 
+
         <div className="mt-8 flex justify-center">
           <button
             type="button"
             onClick={() => navigate('/mypage/counselor-apply')}
-            className="h-[44px] px-7 rounded-full border border-[#9B7AF7] text-[15px] font-medium text-[#8259F5]"
+            className="h-[44px] px-7 rounded-full border border-[#f472b6] text-[15px] font-medium text-[#ec4899] bg-white shadow-[0_2px_6px_rgba(244,114,182,0.18)] hover:bg-[#fdf2f8] transition-colors"
           >
             목록으로
           </button>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -13,10 +13,11 @@ import {
 /**
  * 정산내역 (상담사 마이페이지 → 정산내역).
  *
- *   /mypage/settlement/history?tab=income|realtime
+ *   /counselor/mypage/settlement/history?tab=income|realtime
+ *   (legacy: /mypage/settlement/history → 자동 redirect, 호환용)
  *
  * 사용자 시안 (thesaju 의 counselor_settlement.php + counselor_settlement_03.php) 을
- * 사주문 디자인 시스템 (보라 #8259F5 / Pretendard / radius 16-20) 으로 재구성:
+ * 사주플랜 디자인 시스템 (보라 #8259F5 / Pretendard / radius 16-20) 으로 재구성:
  *
  *  - 상단 탭: [코인수익] [실시간 코인 정산]
  *  - 카드: 이번달 누적 코인 (전달 / 이달)
@@ -24,7 +25,7 @@ import {
  *  ── 코인수익 탭 ──
  *    필터: 전체 / 선불 / 후불
  *    기간 검색 (yyyy-mm-dd ~)
- *    카드형 리스트 (날짜 + 상담유형 + 고객명 + 구분뱃지 + 획득코인)
+ *    카드형 리스트 (날짜 + 상담유형 + 고객명 + 구분뱃지 + 수익금)
  *
  *  ── 실시간 코인 정산 탭 ──
  *    월 셀렉트 (이전/다음)
@@ -78,7 +79,7 @@ export default function SettlementHistory() {
           <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
         </button>
         <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">
-          {tab === 'realtime' ? '실시간 코인 정산' : '코인내역'}
+          {tab === 'realtime' ? '실시간 정산' : '수익금 내역'}
         </h1>
       </header>
 
@@ -86,7 +87,7 @@ export default function SettlementHistory() {
       <nav className="grid grid-cols-2 border-b border-[#F3F4F6] bg-white">
         {(['income', 'realtime'] as Tab[]).map((t) => {
           const on = tab === t
-          const label = t === 'income' ? '코인수익' : '실시간 코인 정산'
+          const label = t === 'income' ? '수익금 내역' : '실시간 정산'
           return (
             <button
               key={t}
@@ -104,9 +105,10 @@ export default function SettlementHistory() {
       </nav>
 
       <main className="flex-1 px-4 pt-3 flex flex-col gap-4">
-        {/* 누적 카드 — 시안의 "이번달 누적 코인 / 전달 / 이달" 그대로 */}
+        {/* 누적 카드 — 시안의 "이번달 누적 코인 / 전달 / 이달" 그대로
+            [2026-05-28] 상담사 요청: 원천징수 3.3% 공제 안내 + 실수령 예상 같이 표시 */}
         <section className="rounded-[16px] bg-[#F9FAFB] px-5 py-4">
-          <p className="text-[14px] leading-[140%] text-[#6A7282]">이번달 누적 코인</p>
+          <p className="text-[14px] leading-[140%] text-[#6A7282]">이번달 누적 수익금</p>
           <div className="mt-2 flex items-baseline gap-6">
             <div className="flex items-baseline gap-2">
               <span className="text-[13px] text-[#99A1AF]">전달</span>
@@ -121,13 +123,30 @@ export default function SettlementHistory() {
               </span>
             </div>
           </div>
+          {(() => {
+            const thisMonth = Number(headerSummary?.this_month ?? 0)
+            const netExpected = Math.floor(thisMonth * 0.967)
+            return (
+              <>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-[13px] text-[#99A1AF]">실수령 예상</span>
+                  <span className="text-[15px] font-semibold text-[#8259F5] tabular-nums">
+                    {netExpected.toLocaleString()}원
+                  </span>
+                </div>
+                <p className="mt-2 text-[12px] leading-[150%] text-[#9CA3AF]">
+                  ※ 정산 시 원천징수 3.3% 공제 후 입금됩니다.
+                </p>
+              </>
+            )
+          })()}
         </section>
 
         {tab === 'income' ? <IncomeTab /> : <RealtimeTab />}
       </main>
 
       <FloatingActions bottomOffset={100} />
-      <BottomNav />
+      <BottomNav myHref="/counselor/mypage" />
     </div>
   )
 }
@@ -169,7 +188,7 @@ function IncomeTab() {
       .catch((e) => {
         if (!mounted) return
         if (e instanceof ApiError && e.status === 401) {
-          navigate('/login', { replace: true, state: { from: '/mypage/settlement/history' } })
+          navigate('/login', { replace: true, state: { from: '/counselor/mypage/settlement/history' } })
           return
         }
         setError(e instanceof Error ? e.message : '내역을 불러오지 못했습니다.')
@@ -212,14 +231,14 @@ function IncomeTab() {
           type="date"
           value={fromDate}
           onChange={(e) => setFromDate(e.target.value)}
-          className="flex-1 h-11 px-3 rounded-[12px] bg-[#F9FAFB] border border-[#F3F4F6] text-[13px] text-[#1E2939] focus:outline-none focus:border-[#9B7AF7]"
+          className="flex-1 h-11 px-3 rounded-[12px] bg-[#F9FAFB] border border-[#F3F4F6] text-[13px] text-[#1E2939] focus:outline-none focus:border-[#8259F5]"
         />
         <span className="text-[#99A1AF]">~</span>
         <input
           type="date"
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}
-          className="flex-1 h-11 px-3 rounded-[12px] bg-[#F9FAFB] border border-[#F3F4F6] text-[13px] text-[#1E2939] focus:outline-none focus:border-[#9B7AF7]"
+          className="flex-1 h-11 px-3 rounded-[12px] bg-[#F9FAFB] border border-[#F3F4F6] text-[13px] text-[#1E2939] focus:outline-none focus:border-[#8259F5]"
         />
         <button
           type="button"
@@ -249,14 +268,14 @@ function IncomeTab() {
         </button>
       )}
 
-      {/* 리스트 — 시안의 열 구성 (일자/상담유형/고객명/구분/획득코인) */}
+      {/* 리스트 — 시안의 열 구성 (일자/상담유형/고객명/구분/수익금) */}
       <section className="-mx-4">
         <div className="grid grid-cols-[1.4fr_1.3fr_1fr_0.6fr_0.9fr] gap-2 px-4 py-2 bg-[#F9FAFB] border-y border-[#F3F4F6] text-[12px] font-semibold text-[#8259F5]">
           <span>일자</span>
           <span>내역</span>
           <span>고객명</span>
           <span className="text-center">구분</span>
-          <span className="text-right">획득코인</span>
+          <span className="text-right">수익금</span>
         </div>
 
         {loading && (
@@ -345,7 +364,7 @@ function RealtimeTab() {
       .catch((e) => {
         if (!mounted) return
         if (e instanceof ApiError && e.status === 401) {
-          navigate('/login', { replace: true, state: { from: '/mypage/settlement/history' } })
+          navigate('/login', { replace: true, state: { from: '/counselor/mypage/settlement/history' } })
           return
         }
         setError(e instanceof Error ? e.message : '정산 정보를 불러오지 못했습니다.')
@@ -439,10 +458,10 @@ function RealtimeTab() {
 
       <section className="flex items-center gap-2">
         <h2 className="text-[16px] font-bold text-[#030712]">
-          {monthLabel} 코인 정산
+          {monthLabel} 수익금 정산
         </h2>
         {isCurrent && (
-          <span className="px-2 py-[2px] rounded-full text-[11px] font-semibold text-[#8259F5] bg-[#F3EEFE]">
+          <span className="px-2 py-[2px] rounded-full text-[11px] font-semibold text-[#8259F5] bg-[#f3f0ff]">
             실시간
           </span>
         )}
@@ -496,7 +515,7 @@ function RealtimeTab() {
                 onClick={() => setFormulaOpen((v) => !v)}
                 className="text-[12px] text-[#8259F5] font-medium flex items-center gap-1"
               >
-                <span className="w-4 h-4 inline-flex items-center justify-center rounded-full bg-[#F3EEFE] text-[10px]">?</span>
+                <span className="w-4 h-4 inline-flex items-center justify-center rounded-full bg-[#f3f0ff] text-[10px]">?</span>
                 정산구조 설명
               </button>
             </div>
@@ -518,7 +537,7 @@ function RealtimeTab() {
           {/* 예상 실수령액 */}
           <section
             className="rounded-[20px] px-5 py-5 text-center text-white"
-            style={{ background: 'linear-gradient(135deg, #9B7AF7, #6B3FE4)' }}
+            style={{ background: 'linear-gradient(135deg, #8259F5, #6B3FE4)' }}
           >
             <p className="text-[13px] opacity-80">예상 실수령액</p>
             <p className="mt-1 text-[26px] font-bold tabular-nums">
@@ -554,7 +573,7 @@ function RealtimeTab() {
               <span>일자</span>
               <span>고객명</span>
               <span className="text-center">구분</span>
-              <span className="text-right">정산코인</span>
+              <span className="text-right">정산금액</span>
             </div>
             {itemsLoading ? (
               <p className="py-10 text-center text-[14px] text-[#99A1AF]">불러오는 중…</p>
@@ -630,9 +649,10 @@ function formatDateTime(iso: string): string {
 
 // point_history.content 를 간결한 표시값으로 단축.
 //  [전화/채팅] prefix 는 유지, "상담코인 증가/차감" 부분만 줄임.
+//  [2026-05-28] 상담사 영역 용어 통일 — "코인" 단어 제거, "수익금"/"환불" 로 표기.
 function shortContent(s: string | null | undefined): string {
   if (!s) return '-'
   return s
-    .replace('상담코인 증가', '코인')
-    .replace('상담코인 차감', '차감')
+    .replace('상담코인 증가', '수익금')
+    .replace('상담코인 차감', '환불')
 }

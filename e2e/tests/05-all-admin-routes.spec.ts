@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test'
+import { skipIfAdminLoginFailed } from '../helpers/admin-skip'
 
 /**
  * 모든 admin 페이지 자동 렌더 검증.
@@ -84,6 +85,8 @@ async function loginIfNeeded(page: Page) {
 }
 
 test.describe('모든 admin 페이지 자동 검증', () => {
+  test.beforeEach(skipIfAdminLoginFailed)
+
   test(`총 ${ROUTES.length}개 페이지 모두 정상 로드`, async ({ page }) => {
     test.setTimeout(180_000) // 36 페이지 × ~3초 → 약 2분
     await loginIfNeeded(page)

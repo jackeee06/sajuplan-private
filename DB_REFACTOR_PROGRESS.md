@@ -1,4 +1,4 @@
-# 사주문1 DB 리팩토링 진행 상황
+# 사주플랜1 DB 리팩토링 진행 상황
 
 > 이 문서는 작업 재개 시 컨텍스트 복원용입니다. 새 세션이 시작되면 가장 먼저 이 파일을 읽으세요.
 > 마지막 업데이트: 2026-04-27
@@ -17,7 +17,7 @@
 
 이전 플랜 파일([../../../../.claude/plans/misty-hugging-lollipop.md](../../../.claude/plans/misty-hugging-lollipop.md))은 **"같은 라이브 DB에 `v2` 스키마를 추가"** 전제로 작성되어 있음. 사용자가 정정함:
 
-> "지금 돌고있는 사주문 DB를 고치라는게 아니야. 지금 새로운 서버쪽에 DB를 다시 깔끔히 정리중인거야"
+> "지금 돌고있는 사주플랜 DB를 고치라는게 아니야. 지금 새로운 서버쪽에 DB를 다시 깔끔히 정리중인거야"
 
 따라서 다음 항목은 **반영 필요**:
 - ETL 소스가 라이브 DB(`104.64.128.103`)가 아니라 **dump 파일** (`sajumoon_db_2026-04-24.sql`)
@@ -112,10 +112,10 @@
 
 | 용도 | 경로 |
 |---|---|
-| 프로젝트 루트 | [/Users/jin-yubi/dwork/AI/사주문1/](.) |
+| 프로젝트 루트 | [/Users/jin-yubi/dwork/AI/사주플랜1/](.) |
 | NestJS API 스켈레톤 | [api/](api/) |
 | Admin 웹 (React+Vite) | [web/mng/](web/mng/) |
-| 레거시 PHP (의미 추적용) | [/Users/jin-yubi/dwork/AI/사주문/](../사주문/) |
+| 레거시 PHP (의미 추적용) | [/Users/jin-yubi/dwork/AI/사주플랜/](../사주플랜/) |
 | 영카트 dump | [sajumoon_db_2026-04-24.sql](sajumoon_db_2026-04-24.sql) |
 | 상세 플랜 | [../../../../.claude/plans/misty-hugging-lollipop.md](../../../.claude/plans/misty-hugging-lollipop.md) |
 

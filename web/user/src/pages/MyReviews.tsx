@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
 import ConfirmModal from '../components/ConfirmModal'
@@ -9,7 +10,7 @@ import { ApiError, reviewsApi, settingsApi, type MyReviewItem } from '../lib/api
 const PAGE_SIZE = 10
 
 const BADGE_BG: Record<MyReviewItem['counselor_badge'], string> = {
-  타로: '#8259F5',
+  타로: '#ec4899',
   신점: '#00BBA7',
   사주: '#FF6467',
   기타: '#6A7282',
@@ -125,7 +126,7 @@ export default function MyReviews() {
   }
 
   return (
-    <div ref={containerRef} className="mobile-frame flex flex-col pb-[40px]">
+    <div ref={containerRef} className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -153,20 +154,20 @@ export default function MyReviews() {
           <div className="rounded-[12px] bg-[#F9FAFB] px-4 py-4">
             <div className="flex items-center gap-3">
               <img src="/img/review_visual_img.png" alt="" className="w-[46px] h-[28px] shrink-0" />
-              <p className="text-[15px] font-bold text-[#8259F5]">
-                후기 작성 시 {payout.amount.toLocaleString()}P 지급!
+              <p className="text-[15px] font-bold text-[#ec4899]">
+                후기 작성 시 {payout.amount.toLocaleString()} 코인 지급!
               </p>
             </div>
             <p className="mt-2 text-[13px] leading-[150%] text-[#4A5565]">
               {payout.minUsed > 0 ? (
                 <>
                   <span className="font-semibold text-[#1E2939]">
-                    {payout.minUsed.toLocaleString()}P 이상
+                    {payout.minUsed.toLocaleString()} 코인 이상
                   </span>
-                  {' '}사용하신 상담에 한하여 후기 작성 시 포인트가 지급됩니다.
+                  {' '}사용하신 상담에 한하여 후기 작성 시 코인이 지급됩니다.
                 </>
               ) : (
-                '후기를 작성하신 모든 고객님께 포인트가 지급됩니다.'
+                '후기를 작성하신 모든 고객님께 코인이 지급됩니다.'
               )}
             </p>
             <Link
@@ -184,7 +185,7 @@ export default function MyReviews() {
 
       <div className="px-4 py-3 flex items-center justify-between border-b border-[#F3F4F6]">
         <span className="text-[14px] text-[#4A5565]">
-          전체 <span className="text-[#8259F5] font-medium">{total.toLocaleString()}</span>건
+          전체 <span className="text-[#ec4899] font-medium">{total.toLocaleString()}</span>건
         </span>
         <label className="flex items-center gap-2 cursor-pointer">
           <input
@@ -229,7 +230,7 @@ export default function MyReviews() {
               </span>
               <span className="text-[15px] font-bold text-[#030712] truncate">{r.counselor_name}</span>
               {r.counselor_code && (
-                <span className="text-[14px] font-medium text-[#8259F5] shrink-0">{r.counselor_code}</span>
+                <span className="text-[14px] font-medium text-[#ec4899] shrink-0">{r.counselor_code}</span>
               )}
 
               <div className="ml-auto relative">
@@ -308,6 +309,7 @@ export default function MyReviews() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
       />
-    </div>
+      <BottomNav />
+      </div>
   )
 }

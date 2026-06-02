@@ -9,5 +9,6 @@ import { UserChatService } from './chat.service';
   imports: [AuthModule, M2netModule, M2netPushModule],
   controllers: [UserChatController],
   providers: [UserChatService],
+  exports: [UserChatService],
 })
 export class UserChatModule {}

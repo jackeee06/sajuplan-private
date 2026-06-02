@@ -227,7 +227,7 @@ define('G5_BROWSCAP_USE', true);
 define('G5_VISIT_BROWSCAP_USE', false);
 
 define('IS_LIVE',true);
-//사주문 연동 키
+//사주플랜 연동 키
 // define('MOTONET_CALL_KEY', 'pGXygBXTMNNuRJzCutMYIaAc');
 // define('MOTONET_CPID', '0047');
 

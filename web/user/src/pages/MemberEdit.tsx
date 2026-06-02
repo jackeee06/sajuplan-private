@@ -1,15 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import ConfirmModal from '../components/ConfirmModal'
 import HtmlEditor, { type HtmlEditorHandle } from '../components/HtmlEditor'
 import UploadedImage from '../components/UploadedImage'
-import { ApiError, authApi, captchaApi, counselorMypageApi, settingsApi, smsApi, type MeProfile } from '../lib/api'
+import { resizeImage } from '../lib/image-resize'
+import EmailDomainChips from '../components/EmailDomainChips'
+import AgreeAllSection from '../components/AgreeAllSection'
+import { ApiError, authApi, counselorMypageApi, settingsApi, smsApi, type MeProfile } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 import { openExternalUrl } from '../lib/native-bridge'
 import { FILE_BASE } from '../lib/runtime-env'
 
 // readOnly 필드(아이디/이름/상담사 닉네임) 옆에 노출하는 카카오 1:1 문의 안내.
-// kakaoUrl 미설정 시 사주문 라이브 채널로 폴백 — Help 페이지와 동일 정책.
+// kakaoUrl 미설정 시 사주플랜 라이브 채널로 폴백 — Help 페이지와 동일 정책.
 const KAKAO_FALLBACK = 'https://pf.kakao.com/_gLTVX'
 
 function resolveImageUrl(u: string | null): string | null {
@@ -32,7 +36,7 @@ function resolveImageUrl(u: string | null): string | null {
  */
 
 const INPUT_BASE =
-  'w-full h-12 px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#9B7AF7]'
+  'w-full h-12 px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#f472b6]'
 const INPUT_READONLY =
   'w-full h-12 px-4 rounded-full bg-[#F3F4F6] border border-[#F3F4F6] text-[14px] text-[#6A7282] focus:outline-none'
 
@@ -73,17 +77,10 @@ export default function MemberEdit() {
   const [phoneSent, setPhoneSent] = useState(false)
   const [calendar, setCalendar] = useState<Calendar>('SOLAR')
   const [birth, setBirth] = useState('')
-  const [zipcode, setZipcode] = useState('')
-  const [address, setAddress] = useState('')
-  const [addressDetail, setAddressDetail] = useState('')
   const [source, setSource] = useState('')
   const [emailMarketing, setEmailMarketing] = useState(false)
   const [smsMarketing, setSmsMarketing] = useState(false)
 
-  // 캡차
-  const [captchaToken, setCaptchaToken] = useState('')
-  const [captchaSvg, setCaptchaSvg] = useState('')
-  const [captchaInput, setCaptchaInput] = useState('')
 
   // 모달/토스트
   const [withdrawOpen, setWithdrawOpen] = useState(false)
@@ -95,10 +92,6 @@ export default function MemberEdit() {
   const [phoneError, setPhoneError] = useState<string | null>(null)
   const [phoneSendBusy, setPhoneSendBusy] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
-
-  // 주소 검색 인라인 임베드
-  const [postcodeOpen, setPostcodeOpen] = useState(false)
-  const postcodeRef = useRef<HTMLDivElement | null>(null)
 
   // 프로필 사진
   const [profileImage, setProfileImage] = useState<string | null>(null)
@@ -130,8 +123,8 @@ export default function MemberEdit() {
   // 초기 prefill
   useEffect(() => {
     let alive = true
-    Promise.all([authApi.meProfile(), captchaApi.issue()])
-      .then(([p, c]) => {
+    authApi.meProfile()
+      .then((p) => {
         if (!alive) return
         setProfile(p)
         setNickname(p.nickname)
@@ -140,16 +133,11 @@ export default function MemberEdit() {
         setGender((p.gender as Gender) || 'M')
         setBirth(p.birth_date ?? '')
         setCalendar((p.calendar_type as Calendar) || 'SOLAR')
-        setZipcode(p.zip ?? '')
-        setAddress(p.addr1 ?? '')
-        setAddressDetail(p.addr2 ?? '')
         setSource(p.acquisition_source ?? '')
         setEmailMarketing(p.agree_email)
         setSmsMarketing(p.agree_sms)
         setProfileImage(resolveImageUrl(p.profile_image))
         setProfileImageWebp(resolveImageUrl(p.profile_image_webp))
-        setCaptchaToken(c.token)
-        setCaptchaSvg(c.svg)
       })
       .catch((e) => {
         if (!alive) return
@@ -210,13 +198,15 @@ export default function MemberEdit() {
     e.target.value = ''
     if (!file) return
     setProfileError(null)
-    if (file.size > 5 * 1024 * 1024) {
-      setProfileError('5MB 이하 이미지만 업로드 가능합니다.')
+    // 사용자 편의: 큰 사진도 자동 리사이즈해서 업로드 (~1MB 미만으로 줄임)
+    if (file.size > 30 * 1024 * 1024) {
+      setProfileError('30MB 이하 이미지만 업로드 가능합니다.')
       return
     }
     setProfileBusy(true)
     try {
-      const r = await authApi.uploadProfileImage(file)
+      const resized = await resizeImage(file, 1024)
+      const r = await authApi.uploadProfileImage(resized)
       setProfileImage(resolveImageUrl(r.profile_image))
       setProfileImageWebp(resolveImageUrl(r.profile_image_webp))
       setToast('프로필 사진이 변경되었습니다.')
@@ -242,17 +232,6 @@ export default function MemberEdit() {
     }
   }
 
-  const refreshCaptcha = async () => {
-    try {
-      const c = await captchaApi.issue()
-      setCaptchaToken(c.token)
-      setCaptchaSvg(c.svg)
-      setCaptchaInput('')
-    } catch {
-      // 무시 — 다음 시도에 다시 발급
-    }
-  }
-
   const sendPhoneCode = async () => {
     setPhoneError(null)
     if (!phone.trim()) {
@@ -263,7 +242,7 @@ export default function MemberEdit() {
     try {
       await smsApi.send(phone)
       setPhoneSent(true)
-      setToast('인증번호를 발송했습니다.')
+      setToast('인증번호를 발송했습니다. 카카오톡을 확인해주세요.')
     } catch (e) {
       setPhoneError(e instanceof Error ? e.message : '인증번호 발송에 실패했습니다.')
     } finally {
@@ -298,8 +277,12 @@ export default function MemberEdit() {
       setPwError('현재 비밀번호를 입력해주세요.')
       return
     }
-    if (!newPw || newPw.length < 6) {
-      setPwError('새 비밀번호는 6자 이상이어야 합니다.')
+    if (!newPw || newPw.length < 8 || newPw.length > 20) {
+      setPwError('새 비밀번호는 8~20자여야 합니다.')
+      return
+    }
+    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(newPw)) {
+      setPwError('영문과 숫자를 각각 1개 이상 포함해주세요.')
       return
     }
     if (newPw !== newPwConfirm) {
@@ -342,10 +325,6 @@ export default function MemberEdit() {
       setSubmitError('휴대폰 번호 변경 시 인증을 완료해주세요.')
       return
     }
-    if (!captchaInput.trim()) {
-      setSubmitError('자동등록방지 문자를 입력해주세요.')
-      return
-    }
     setSubmitting(true)
     try {
       const updated = await authApi.updateMeProfile({
@@ -356,14 +335,9 @@ export default function MemberEdit() {
         gender,
         birth_date: birth.trim() || null,
         calendar_type: calendar,
-        zip: zipcode || undefined,
-        addr1: address || undefined,
-        addr2: addressDetail || undefined,
         acquisition_source: source || undefined,
         agree_email: emailMarketing,
         agree_sms: smsMarketing,
-        captcha_token: captchaToken,
-        captcha_input: captchaInput,
       })
       setProfile(updated)
       setPhoneVerified(false)
@@ -384,69 +358,16 @@ export default function MemberEdit() {
         }
       }
 
-      await refreshCaptcha()
       setToast('회원 정보 수정이 완료되었습니다.')
     } catch (e) {
       if (e instanceof ApiError) {
         setSubmitError(e.message)
-        if (/자동등록방지/.test(e.message)) {
-          await refreshCaptcha()
-        }
       } else {
         setSubmitError(e instanceof Error ? e.message : '저장에 실패했습니다.')
       }
     } finally {
       setSubmitting(false)
     }
-  }
-
-  // 카카오 우편번호 — 인라인 embed (앱 웹뷰 호환을 위해 팝업 대신 같은 페이지에 펼침)
-  const togglePostcode = () => {
-    if (postcodeOpen) {
-      setPostcodeOpen(false)
-      return
-    }
-    setPostcodeOpen(true)
-    // 다음 렌더 사이클에 ref 가 마운트된 후 embed
-    setTimeout(() => embedPostcode(), 0)
-  }
-
-  const embedPostcode = () => {
-    type PostcodeData = {
-      zonecode?: string
-      address?: string
-      roadAddress?: string
-      jibunAddress?: string
-    }
-    type PostcodeOpts = {
-      oncomplete: (data: PostcodeData) => void
-      width?: string | number
-      height?: string | number
-    }
-    type PostcodeInstance = { embed: (el: HTMLElement) => void }
-    const w = window as unknown as {
-      daum?: { Postcode: new (opts: PostcodeOpts) => PostcodeInstance }
-    }
-    if (!postcodeRef.current) return
-    if (!w.daum?.Postcode) {
-      // 스크립트 동적 로드 후 다시 시도
-      const s = document.createElement('script')
-      s.src = '//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js'
-      s.onload = () => embedPostcode()
-      document.head.appendChild(s)
-      return
-    }
-    // 매번 새로 embed (이전 자식 정리)
-    postcodeRef.current.innerHTML = ''
-    new w.daum.Postcode({
-      oncomplete: (data) => {
-        setZipcode(data.zonecode ?? '')
-        setAddress(data.roadAddress || data.jibunAddress || data.address || '')
-        setPostcodeOpen(false)
-      },
-      width: '100%',
-      height: '100%',
-    }).embed(postcodeRef.current)
   }
 
   if (loading) {
@@ -473,7 +394,22 @@ export default function MemberEdit() {
   }
 
   return (
-    <div className="mobile-frame flex flex-col pb-[40px] relative">
+    <div className="mobile-frame flex flex-col pb-[100px] relative">
+      {/* 프로필 사진 업로드 중 — 전체 화면 오버레이 (다른 입력 차단) */}
+      {profileBusy && (
+        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center px-6">
+          <div className="bg-white rounded-2xl px-6 py-5 shadow-xl flex flex-col items-center gap-3 min-w-[260px]">
+            <div className="w-10 h-10 rounded-full border-[3px] border-[#f472b6] border-t-transparent animate-spin" />
+            <p className="text-[15px] font-semibold text-[#030712] text-center">
+              사진 처리 중…
+            </p>
+            <p className="text-[12px] text-[#6A7282] text-center leading-[150%]">
+              잠시만 기다려주세요.<br/>다른 항목을 만지면 업로드가 끊길 수 있어요.
+            </p>
+          </div>
+        </div>
+      )}
+
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -512,7 +448,7 @@ export default function MemberEdit() {
               onClick={onPickProfileFile}
               disabled={profileBusy}
               aria-label="프로필 사진 변경"
-              className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#9B7AF7] border-2 border-white flex items-center justify-center disabled:opacity-60"
+              className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-[#f472b6] border-2 border-white flex items-center justify-center disabled:opacity-60"
             >
               <svg viewBox="0 0 20 20" className="w-4 h-4" fill="none" aria-hidden>
                 <path d="M3.5 6.5h2.2l1-1.5h6.6l1 1.5h2.2c.6 0 1 .4 1 1V15c0 .6-.4 1-1 1H3.5c-.6 0-1-.4-1-1V7.5c0-.6.4-1 1-1z" stroke="white" strokeWidth="1.4" strokeLinejoin="round" />
@@ -532,7 +468,7 @@ export default function MemberEdit() {
               type="button"
               onClick={onPickProfileFile}
               disabled={profileBusy}
-              className="text-[14px] font-medium text-[#8259F5] disabled:opacity-60"
+              className="text-[14px] font-medium text-[#ec4899] disabled:opacity-60"
             >
               {profileBusy ? '처리 중…' : profileImage ? '사진 변경' : '사진 등록'}
             </button>
@@ -554,7 +490,7 @@ export default function MemberEdit() {
             <p className="text-[13px] text-[#FB2C36] text-center">{profileError}</p>
           )}
           <p className="text-[12px] text-[#99A1AF]">
-            JPG · PNG · GIF · WEBP, 5MB 이하
+            JPG · PNG · GIF · WEBP — 큰 사진도 자동으로 줄여서 업로드됩니다
           </p>
         </section>
 
@@ -567,7 +503,7 @@ export default function MemberEdit() {
           />
           <p className="mt-1 text-[12px] text-[#6A7282]">
             변경이 필요하시면{' '}
-            <button type="button" onClick={handleInquiry} className="underline text-[#8259F5]">
+            <button type="button" onClick={handleInquiry} className="underline text-[#ec4899]">
               카카오톡 1:1 문의
             </button>
             로 요청해주세요.
@@ -596,7 +532,7 @@ export default function MemberEdit() {
                   setNewPw(v)
                   if (pwError) setPwError(null)
                 }}
-                placeholder="새 비밀번호를 입력해주세요. (6자 이상)"
+                placeholder="새 비밀번호 8~20자 (영문+숫자)"
                 visible={showNewPw}
                 onToggle={() => setShowNewPw((v) => !v)}
               />
@@ -625,7 +561,7 @@ export default function MemberEdit() {
               type="button"
               onClick={handlePwModify}
               disabled={pwSubmitting}
-              className="w-full h-12 rounded-full bg-white border border-[#9B7AF7] text-[15px] font-medium text-[#8259F5] disabled:opacity-60"
+              className="w-full h-12 rounded-full bg-white border border-[#f472b6] text-[15px] font-medium text-[#ec4899] disabled:opacity-60"
             >
               {pwSubmitting ? '수정 중…' : '비밀번호 수정'}
             </button>
@@ -636,7 +572,7 @@ export default function MemberEdit() {
           <input type="text" value={profile.name} readOnly className={INPUT_READONLY} />
           <p className="mt-1 text-[12px] text-[#6A7282]">
             변경이 필요하시면{' '}
-            <button type="button" onClick={handleInquiry} className="underline text-[#8259F5]">
+            <button type="button" onClick={handleInquiry} className="underline text-[#ec4899]">
               카카오톡 1:1 문의
             </button>
             로 요청해주세요.
@@ -659,8 +595,8 @@ export default function MemberEdit() {
                   onClick={() => setGender(g.v)}
                   className={`h-12 rounded-full text-[15px] font-medium border ${
                     on
-                      ? 'bg-[#9B7AF7] text-white border-transparent'
-                      : 'bg-white text-[#9B7AF7] border-[#9B7AF7]'
+                      ? 'bg-[#f472b6] text-white border-transparent'
+                      : 'bg-white text-[#f472b6] border-[#f472b6]'
                   }`}
                 >
                   {g.label}
@@ -682,7 +618,7 @@ export default function MemberEdit() {
           {isCounselor && (
             <p className="mt-1 text-[12px] text-[#6A7282]">
               상담사 닉네임은 카드/리스트에 노출되는 표시명입니다. 변경이 필요하시면{' '}
-              <button type="button" onClick={handleInquiry} className="underline text-[#8259F5]">
+              <button type="button" onClick={handleInquiry} className="underline text-[#ec4899]">
                 카카오톡 1:1 문의
               </button>
               로 요청해주세요.
@@ -698,6 +634,7 @@ export default function MemberEdit() {
             className={INPUT_BASE}
             placeholder="example@domain.com"
           />
+          <EmailDomainChips value={email} onChange={setEmail} />
         </Field>
 
         <Field label="휴대폰번호">
@@ -722,7 +659,7 @@ export default function MemberEdit() {
                 disabled={!phoneChanged || phoneSendBusy}
                 className={`h-12 px-4 rounded-full border text-[14px] font-medium shrink-0 ${
                   phoneChanged && !phoneSendBusy
-                    ? 'border-[#9B7AF7] bg-white text-[#8259F5]'
+                    ? 'border-[#f472b6] bg-white text-[#ec4899]'
                     : 'border-[#E5E7EB] bg-white text-[#99A1AF] cursor-not-allowed'
                 }`}
               >
@@ -732,6 +669,11 @@ export default function MemberEdit() {
             {!phoneChanged && (
               <p className="text-[12px] text-[#99A1AF] leading-[140%]">
                 휴대폰 번호를 변경하시려면 새 번호를 입력해주세요.
+              </p>
+            )}
+            {phoneChanged && !phoneSent && !phoneVerified && (
+              <p className="text-[12px] text-[#6A7282] leading-[140%]">
+                💬 인증번호는 <span className="font-semibold text-[#1E2939]">카카오톡</span>으로 발송됩니다. 카카오톡 알림이 안 오면 잠시 후 다시 시도해 주세요.
               </p>
             )}
             {phoneChanged && phoneSent && !phoneVerified && (
@@ -749,7 +691,7 @@ export default function MemberEdit() {
                   type="button"
                   onClick={verifyPhoneCode}
                   disabled={phoneVerifying}
-                  className="h-12 px-4 rounded-full bg-[#9B7AF7] text-white text-[14px] font-medium shrink-0 disabled:opacity-60"
+                  className="h-12 px-4 rounded-full bg-[#f472b6] text-white text-[14px] font-medium shrink-0 disabled:opacity-60"
                 >
                   {phoneVerifying ? '확인 중…' : '확인'}
                 </button>
@@ -781,8 +723,8 @@ export default function MemberEdit() {
                     onClick={() => setCalendar(c.v)}
                     className={`h-12 rounded-full text-[15px] font-medium border ${
                       on
-                        ? 'bg-[#9B7AF7] text-white border-transparent'
-                        : 'bg-white text-[#9B7AF7] border-[#9B7AF7]'
+                        ? 'bg-[#f472b6] text-white border-transparent'
+                        : 'bg-white text-[#f472b6] border-[#f472b6]'
                     }`}
                   >
                     {c.label}
@@ -795,41 +737,6 @@ export default function MemberEdit() {
               value={birth}
               onChange={(e) => setBirth(e.target.value)}
               className={INPUT_BASE}
-            />
-          </div>
-        </Field>
-
-        <Field label="주소">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={zipcode}
-                readOnly
-                className={`${INPUT_READONLY} flex-1`}
-                placeholder="우편번호"
-              />
-              <button
-                type="button"
-                onClick={togglePostcode}
-                className="h-12 px-4 rounded-full border border-[#9B7AF7] bg-white text-[14px] font-medium text-[#8259F5] shrink-0"
-              >
-                {postcodeOpen ? '닫기' : '주소검색'}
-              </button>
-            </div>
-            {/* 인라인 주소 검색 패널 — 앱 웹뷰 호환 (팝업 대신 같은 페이지에 노출) */}
-            {postcodeOpen && (
-              <div className="rounded-[14px] border border-[#E5E7EB] overflow-hidden bg-white">
-                <div ref={postcodeRef} style={{ width: '100%', height: 380 }} />
-              </div>
-            )}
-            <input type="text" value={address} readOnly className={INPUT_READONLY} placeholder="기본 주소" />
-            <input
-              type="text"
-              value={addressDetail}
-              onChange={(e) => setAddressDetail(e.target.value)}
-              className={INPUT_BASE}
-              placeholder="상세주소"
             />
           </div>
         </Field>
@@ -868,41 +775,15 @@ export default function MemberEdit() {
           </section>
         )}
 
-        <Field label="자동등록방지" required>
-          <div className="flex items-center gap-2">
-            <div
-              className="h-12 flex-1 rounded-[14px] bg-[#F3F4F6] flex items-center justify-center overflow-hidden"
-              dangerouslySetInnerHTML={{ __html: captchaSvg }}
-            />
-            <button
-              type="button"
-              onClick={refreshCaptcha}
-              aria-label="자동등록방지 새로고침"
-              className="w-12 h-12 rounded-full border border-[#E5E7EB] bg-white flex items-center justify-center"
-            >
-              <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" aria-hidden>
-                <path
-                  d="M3 12C3 7 7 3 12 3C15 3 17.5 4.5 19 7M21 4V8H17M21 12C21 17 17 21 12 21C9 21 6.5 19.5 5 17M3 20V16H7"
-                  stroke="#4A5565"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-          </div>
-          <input
-            type="text"
-            value={captchaInput}
-            onChange={(e) => setCaptchaInput(e.target.value)}
-            className={`${INPUT_BASE} mt-2`}
-            placeholder="자동등록방지 문자 입력"
-          />
-        </Field>
-
-        <div className="flex flex-col gap-2 mt-1">
-          <CheckRow checked={emailMarketing} onChange={setEmailMarketing} label="이메일 수신 동의" />
-          <CheckRow checked={smsMarketing} onChange={setSmsMarketing} label="문자 수신 동의" />
+        <div className="mt-1">
+          <AgreeAllSection
+            allChecked={emailMarketing && smsMarketing}
+            onAllToggle={(v) => { setEmailMarketing(v); setSmsMarketing(v) }}
+            label="마케팅 수신 전체 동의"
+          >
+            <CheckRow checked={emailMarketing} onChange={setEmailMarketing} label="이메일 수신 동의" />
+            <CheckRow checked={smsMarketing} onChange={setSmsMarketing} label="문자 수신 동의" />
+          </AgreeAllSection>
         </div>
 
         {submitError && <p className="text-[13px] text-[#FB2C36]">{submitError}</p>}
@@ -911,7 +792,7 @@ export default function MemberEdit() {
           type="button"
           onClick={handleSubmit}
           disabled={submitting}
-          className="mt-3 w-full h-12 rounded-full bg-[#9B7AF7] text-[16px] font-medium text-white disabled:opacity-60"
+          className="mt-3 w-full h-12 rounded-full bg-[#f472b6] text-[16px] font-medium text-white disabled:opacity-60"
         >
           {submitting ? '저장 중…' : '정보 수정'}
         </button>
@@ -940,7 +821,8 @@ export default function MemberEdit() {
         onCancel={() => setWithdrawOpen(false)}
         onConfirm={handleWithdraw}
       />
-    </div>
+      <BottomNav />
+      </div>
   )
 }
 

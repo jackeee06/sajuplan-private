@@ -47,7 +47,7 @@ export const MOCK_EVENTS: EventItem[] = [
 export interface NoticeItem {
   id: number
   title: string
-  /** 작성자 (예: "사주문") */
+  /** 작성자 (예: "사주플랜") */
   author: string
   /** 리스트 카드용 짧은 날짜 (예: "2026.04.23") */
   date: string
@@ -66,24 +66,24 @@ export interface NoticeItem {
 export const MOCK_NOTICES: NoticeItem[] = [
   {
     id: 1,
-    title: '사주문 공지사항입니다.',
-    author: '사주문',
+    title: '사주플랜 공지사항입니다.',
+    author: '사주플랜',
     date: '2026.04.23',
     postedAt: '2026.04.23 15:00',
     pinned: true,
     isNew: true,
-    content: '사주문에서 작성한 공지사항의 내용이 이곳에 들어갑니다.',
+    content: '사주플랜에서 작성한 공지사항의 내용이 이곳에 들어갑니다.',
     bodyImg: '/img/sample_img04.jpg',
   },
-  { id: 2, title: '사주문 공지사항입니다.', author: '사주문', date: '2026.04.23', postedAt: '2026.04.23 14:00', pinned: true, content: '사주문에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
-  { id: 3, title: '사주문 공지사항입니다.', author: '사주문', date: '2026.04.23', postedAt: '2026.04.23 13:00', pinned: true, content: '사주문에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
-  { id: 4, title: '사주문 공지사항입니다.', author: '사주문', date: '2026.04.23', postedAt: '2026.04.23 12:00', content: '사주문에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
-  { id: 5, title: '사주문 공지사항입니다.', author: '사주문', date: '2026.04.23', postedAt: '2026.04.23 11:30', content: '사주문에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
-  { id: 6, title: '사주문 공지사항입니다.', author: '사주문', date: '2026.04.23', postedAt: '2026.04.23 11:00', content: '사주문에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
-  { id: 7, title: '사주문 공지사항입니다.', author: '사주문', date: '2026.04.23', postedAt: '2026.04.23 10:30', content: '사주문에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
-  { id: 8, title: '사주문 공지사항입니다.', author: '사주문', date: '2026.04.23', postedAt: '2026.04.23 10:00', content: '사주문에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
-  { id: 9, title: '사주문 공지사항입니다.', author: '사주문', date: '2026.04.23', postedAt: '2026.04.23 09:30', content: '사주문에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
-  { id: 10, title: '사주문 공지사항입니다.', author: '사주문', date: '2026.04.23', postedAt: '2026.04.23 09:00', content: '사주문에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
+  { id: 2, title: '사주플랜 공지사항입니다.', author: '사주플랜', date: '2026.04.23', postedAt: '2026.04.23 14:00', pinned: true, content: '사주플랜에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
+  { id: 3, title: '사주플랜 공지사항입니다.', author: '사주플랜', date: '2026.04.23', postedAt: '2026.04.23 13:00', pinned: true, content: '사주플랜에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
+  { id: 4, title: '사주플랜 공지사항입니다.', author: '사주플랜', date: '2026.04.23', postedAt: '2026.04.23 12:00', content: '사주플랜에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
+  { id: 5, title: '사주플랜 공지사항입니다.', author: '사주플랜', date: '2026.04.23', postedAt: '2026.04.23 11:30', content: '사주플랜에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
+  { id: 6, title: '사주플랜 공지사항입니다.', author: '사주플랜', date: '2026.04.23', postedAt: '2026.04.23 11:00', content: '사주플랜에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
+  { id: 7, title: '사주플랜 공지사항입니다.', author: '사주플랜', date: '2026.04.23', postedAt: '2026.04.23 10:30', content: '사주플랜에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
+  { id: 8, title: '사주플랜 공지사항입니다.', author: '사주플랜', date: '2026.04.23', postedAt: '2026.04.23 10:00', content: '사주플랜에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
+  { id: 9, title: '사주플랜 공지사항입니다.', author: '사주플랜', date: '2026.04.23', postedAt: '2026.04.23 09:30', content: '사주플랜에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
+  { id: 10, title: '사주플랜 공지사항입니다.', author: '사주플랜', date: '2026.04.23', postedAt: '2026.04.23 09:00', content: '사주플랜에서 작성한 공지사항의 내용이 이곳에 들어갑니다.' },
 ]
 
 export const NOTICE_CATEGORIES = ['전체', '공지', '이벤트', '업데이트'] as const
@@ -118,9 +118,9 @@ export interface CounselorApplyPost {
 }
 
 export const MOCK_APPLY_POSTS: CounselorApplyPost[] = [
-  { id: 101, title: '사주문 공지사항입니다.', pinned: true, isNew: true, customerName: '사주문', date: '2026.04.23' },
-  { id: 102, title: '사주문 공지사항입니다.', pinned: true, customerName: '사주문', date: '2026.04.23' },
-  { id: 103, title: '사주문 공지사항입니다.', pinned: true, customerName: '사주문', date: '2026.04.23' },
+  { id: 101, title: '사주플랜 공지사항입니다.', pinned: true, isNew: true, customerName: '사주플랜', date: '2026.04.23' },
+  { id: 102, title: '사주플랜 공지사항입니다.', pinned: true, customerName: '사주플랜', date: '2026.04.23' },
+  { id: 103, title: '사주플랜 공지사항입니다.', pinned: true, customerName: '사주플랜', date: '2026.04.23' },
   { id: 1, title: '타로상담사 지원합니다', isNew: true, customerName: '오**', date: '2026.04.23', locked: true },
   { id: 2, title: '타로상담사 지원합니다', customerName: '오**', date: '2026.04.23', locked: true },
   { id: 3, title: '타로상담사 지원합니다', customerName: '오**', date: '2026.04.23', locked: true },

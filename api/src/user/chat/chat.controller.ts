@@ -142,6 +142,20 @@ export class UserChatController {
   }
 
   /**
+   * [2026-05-23] 안 읽음 마킹 — 상대 메시지를 본 시점.
+   *   POST /api/user/chat/rooms/:id/mark-read
+   *   본인이 채팅방 화면을 보고 있는 상태에서 폴링 결과 + 신규 도착 시 호출.
+   */
+  @Post('rooms/:id/mark-read')
+  @HttpCode(200)
+  async markRead(
+    @Req() req: UserAuthedRequest,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.svc.markRead({ me: req.user.sub, chatRoomId: id });
+  }
+
+  /**
    * POST /api/user/chat/rooms/:id/system-message
    * 시스템 메시지(입장/퇴장/재입장 등) 영구 저장.
    * sample/counsel/chat.php 의 storeChat(mbid='SYSTEM', msg_type=3) 동등.

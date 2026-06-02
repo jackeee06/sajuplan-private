@@ -35,11 +35,14 @@ export class OpsAlertService {
 
   /**
    * 운영자 알림 발송.
+   * @param opts.cooldownSec — 이 호출에만 적용할 카테고리별 쿨다운 (초). 미지정 시 글로벌 정책값 사용.
+   *                          예: health-check 처럼 매시간 cron 으로 반복되는 알림은 21600 (6시간) 권장.
    * @returns { sent, failed, skipped } — 호출자가 로그 남길 수 있게 결과 반환
    */
   async send(
     category: string,
     detail: string,
+    opts?: { cooldownSec?: number },
   ): Promise<{ sent: number; failed: number; skipped: boolean; reason?: string }> {
     try {
       const policy = await this.loadPolicy();
@@ -54,10 +57,14 @@ export class OpsAlertService {
       }
 
       // 쿨다운 체크 — 같은 카테고리 알림이 너무 자주 오면 발송 차단
+      //   호출자 지정 cooldownSec 우선, 미지정 시 글로벌 정책 (기본 300초)
+      const effectiveCooldownMs = opts?.cooldownSec != null
+        ? Math.max(0, opts.cooldownSec) * 1000
+        : policy.cooldownMs;
       const now = Date.now();
       const last = this.lastSentAt.get(category) ?? 0;
-      if (now - last < policy.cooldownMs) {
-        this.logger.warn(`[OpsAlert SKIP — cooldown] ${category} (last ${Math.round((now - last) / 1000)}s ago)`);
+      if (now - last < effectiveCooldownMs) {
+        this.logger.warn(`[OpsAlert SKIP — cooldown] ${category} (last ${Math.round((now - last) / 1000)}s ago, cooldown=${Math.round(effectiveCooldownMs / 1000)}s)`);
         return { sent: 0, failed: 0, skipped: true, reason: 'cooldown' };
       }
       this.lastSentAt.set(category, now);
@@ -80,7 +87,7 @@ export class OpsAlertService {
             policy.templateCode,
             phone,
             { category, at, detail: truncatedDetail },
-            `[사주문 운영] ${category}`,
+            `[사주플랜 운영] ${category}`,
           );
           if (r.ok) {
             sent++;
@@ -91,7 +98,7 @@ export class OpsAlertService {
           //   그 동안 SMS 라도 보내야 알림이 끊기지 않는다.
           this.logger.warn(`[OpsAlert] BizM 거부 phone=${phone} reason=${r.reason ?? '?'} → SMS 폴백 시도`);
           const smsBody =
-            `[사주문 운영 알림]\n` +
+            `[사주플랜 운영 알림]\n` +
             `유형: ${category}\n` +
             `시각: ${at}\n\n` +
             truncatedDetail;

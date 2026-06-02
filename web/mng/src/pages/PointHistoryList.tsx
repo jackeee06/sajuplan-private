@@ -60,6 +60,20 @@ interface Resp {
 
 type Sfl = 'mb_id' | 'po_content'
 
+/**
+ * 거래 흐름 분류 (행 좌측 색 막대 + 미니 칩):
+ *   - earning(수익): 상담사 적립 / 정산 차감 — amber 톤
+ *   - consume(소비): 회원 충전 / 회원 상담 사용 / 환불 회수 — rose 톤
+ *   - other       : 그 외 (이벤트 보너스, 어드민 조정 등) — 색 없음
+ */
+function classifyFlow(h: { rel_table: string | null; earn_point: number; use_point: number }): 'earning' | 'consume' | 'other' {
+  if (h.rel_table === 'settlement_monthly') return 'earning'
+  if (h.rel_table === 'consultation') return h.earn_point > 0 ? 'earning' : 'consume'
+  if (h.rel_table === 'payment' || h.rel_table === 'payment_autopay') return 'consume'
+  if (h.rel_table === 'refund_request') return 'consume'
+  return 'other'
+}
+
 interface Filter {
   sfl: Sfl
   stx: string
@@ -298,12 +312,24 @@ export default function PointHistoryList() {
           ) : (
             data.items.map((h) => {
               const variation = h.earn_point - h.use_point
+              const flow = classifyFlow(h)
+              const flowShadow = flow === 'earning'
+                ? 'shadow-[inset_4px_0_0_0_#f59e0b]'
+                : flow === 'consume'
+                  ? 'shadow-[inset_4px_0_0_0_#fda4af]'
+                  : ''
               return (
                 <tr
                   key={h.id}
-                  className="border-b border-gray-100 dark:border-gray-800 last:border-b-0 hover:bg-brand-50/40 dark:hover:bg-brand-500/5 transition-colors"
+                  className={`border-b border-gray-100 dark:border-gray-800 last:border-b-0 hover:bg-brand-50/40 dark:hover:bg-brand-500/5 transition-colors ${flowShadow}`}
                 >
                   <Td align="left" className="text-gray-700 max-w-[280px] truncate">
+                    {flow === 'earning' && (
+                      <span className="inline-block mr-1.5 px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-medium align-middle">수익</span>
+                    )}
+                    {flow === 'consume' && (
+                      <span className="inline-block mr-1.5 px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-medium align-middle">소비</span>
+                    )}
                     {h.content || <span className="text-gray-300">-</span>}
                   </Td>
                   <Td align="center">{renderLevelBadge(h.member_level, h.member_role)}</Td>

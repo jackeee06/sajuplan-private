@@ -22,7 +22,7 @@ import paramiko
 
 TARGETS = [
     ("test", "172.235.211.75", "/data/wwwroot/api.sajumoon.kr/.env"),
-    ("prod", "104.64.128.103", "/data/wwwroot/api.sajumoon.co.kr/.env"),
+    ("prod", "104.64.128.103", "/data/wwwroot/api.sajuplan.com/.env"),
 ]
 
 # 10건 샘플 — (title, content, category, status, phone, email, extras_dict, created_offset_days)
@@ -177,7 +177,7 @@ SAMPLES = [
     # 9) other + pending (기타 문의)
     {
         "title": "광고 제휴 문의",
-        "content": "<p>사주문 사이트와 광고 제휴를 진행하고 싶은데 담당자 연결 부탁드립니다.</p>",
+        "content": "<p>사주플랜 사이트와 광고 제휴를 진행하고 싶은데 담당자 연결 부탁드립니다.</p>",
         "category": "other",
         "status": "pending",
         "phone": "01011112209",

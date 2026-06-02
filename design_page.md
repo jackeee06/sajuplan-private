@@ -1,4 +1,4 @@
-# 사주문 — 사용자 프론트엔드 페이지/URL 정리
+# 사주플랜 — 사용자 프론트엔드 페이지/URL 정리
 
 > `web/user` (React + Vite SPA) 기준. 관리자(`web/mng`)·API는 별도 문서.
 
@@ -14,7 +14,7 @@
 
 ## 디자인 원본
 
-- Figma: https://www.figma.com/design/v9JT0ZgilboPxdXAnpH4sS/사주문_디자인
+- Figma: https://www.figma.com/design/v9JT0ZgilboPxdXAnpH4sS/사주플랜_디자인
 - 컬러 정의: `node-id=91-6911`
 - 기본 컴포넌트: 버튼 `node-id=6-2225` / 인풋 `node-id=12-1983` / 탭 `node-id=79-4139`
 - 시안 PNG: `design/screens/` (카테고리별 정리)
@@ -102,11 +102,11 @@
 | URL | 페이지 |
 |---|---|
 | `/counselor/mypage` | 상담사 마이페이지 메인 |
-| `/counselor/mypage/tips` | 알짜 정보 (사주문에서 상담사에게 발신) |
+| `/counselor/mypage/tips` | 알짜 정보 (사주플랜에서 상담사에게 발신) |
 | `/counselor/mypage/tips/:id` | 알짜 정보 상세 |
 | `/counselor/mypage/notices` | 공지사항 |
 | `/counselor/mypage/notices/:id` | 공지 상세 |
-| `/counselor/mypage/qnas` | 내 문의 (상담사 → 사주문) |
+| `/counselor/mypage/qnas` | 내 문의 (상담사 → 사주플랜) |
 | `/counselor/mypage/qnas/new` | 문의 작성 |
 | `/counselor/mypage/qnas/:id` | 내 문의 상세 |
 | `/counselor/mypage/customer-qnas` | 고객 문의 관리 (회원 → 상담사) |

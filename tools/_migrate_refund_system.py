@@ -25,7 +25,7 @@ import paramiko
 
 TARGETS = [
     ("test", "172.235.211.75", "/data/wwwroot/api.sajumoon.kr/.env"),
-    ("prod", "104.64.128.103", "/data/wwwroot/api.sajumoon.co.kr/.env"),
+    ("prod", "104.64.128.103", "/data/wwwroot/api.sajuplan.com/.env"),
 ]
 
 SQL = """

@@ -374,7 +374,7 @@ body { background-color:#f5f5f5;}
         <li class="my_menu_item">
        	  <a href="<?php echo G5_URL; ?>/bbs/board.php?bo_table=column">
    	    	<p class="my_menu_icon"><img src="../img/my/my_menu_04.png"/></p>
-            <p class="my_menu_text">사주문 칼럼</p>
+            <p class="my_menu_text">사주플랜 칼럼</p>
             </a>
         </li>
         
@@ -388,7 +388,7 @@ body { background-color:#f5f5f5;}
         <li class="my_menu_item">
         	<a href="<?php echo G5_URL; ?>/bbs/board.php?bo_table=way">
    	    	<p class="my_menu_icon"><img src="../img/my/my_menu_05.png"/></p>
-            <p class="my_menu_text">사주문의 길</p>
+            <p class="my_menu_text">사주플랜의 길</p>
             </a>
         </li>
         

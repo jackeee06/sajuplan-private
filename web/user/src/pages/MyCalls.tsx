@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import ConsultHistoryCard from '../components/ConsultHistoryCard'
 import { MOCK_CALL_HISTORY } from '../data/myActivities'
@@ -17,7 +18,7 @@ export default function MyCalls() {
   }
 
   return (
-    <div className="mobile-frame flex flex-col pb-[40px]">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -39,6 +40,7 @@ export default function MyCalls() {
       </main>
 
       <FloatingActions bottomOffset={24} />
-    </div>
+      <BottomNav />
+      </div>
   )
 }

@@ -11,7 +11,7 @@ if(defined('G5_THEME_MSHOP_PATH')) {
     }
 }
 
-$g5['title'] = "사주문 추천 상담사";
+$g5['title'] = "사주플랜 추천 상담사";
 include_once(G5_MSHOP_PATH.'/_head.php');
 ?>
 

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import {
   CHARGE_NOTICES,
   GENERAL_PAY_OPTIONS,
@@ -10,6 +11,7 @@ import {
   pointsApi,
   type ChargePackageDto,
   type GeneralPayMethod,
+  type PointHistoryItem,
   type RegisteredCardDto,
 } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
@@ -19,12 +21,12 @@ import { useAuth } from '../lib/auth-context'
  *
  *  sample 정책 1:1 마이그레이션 (sample/coin/coin_fill.php · coin_fill_auto.php).
  *  - 일반결제: chargeApi.prepare → form auto submit → PG → returnurl 콜백 → /charge/complete
- *  - 사주문페이(BillKey 보유): chargeApi.autopayCharge → /charge/complete?oid=...
- *  - 사주문페이(카드 미등록): /mypage/charge/card-register 로 이동
+ *  - 사주플랜페이(BillKey 보유): chargeApi.autopayCharge → /charge/complete?oid=...
+ *  - 사주플랜페이(카드 미등록): /mypage/charge/card-register 로 이동
  *  - 자동충전 토글: chargeApi.setAutoConfig
  */
 
-type ChargeTab = 'charge' | 'auto'
+type ChargeTab = 'charge' | 'history' | 'auto'
 type PaymentMethod = 'sajumun_pay' | 'general'
 
 const PAY_OPTION_TO_METHOD: Record<GeneralPayOption, GeneralPayMethod> = {
@@ -47,7 +49,7 @@ function brandColors(brand: string): { bg: string; fg: string; trash: string } {
     if (brand.includes(key)) return c
   }
   // 디폴트 — 보라
-  return { bg: '#9B7AF7', fg: '#FFFFFF', trash: '/img/ic_trash_w.svg' }
+  return { bg: '#f472b6', fg: '#FFFFFF', trash: '/img/ic_trash_w.svg' }
 }
 
 export default function Charge() {
@@ -133,7 +135,7 @@ export default function Charge() {
   )
 
   const handleRemoveCard = async () => {
-    if (!confirm('등록된 결제수단을 삭제하시겠습니까?\n\n삭제 후 새 카드를 등록해야 사주문페이/자동결제 사용이 가능합니다.')) {
+    if (!confirm('등록된 결제수단을 삭제하시겠습니까?\n\n삭제 후 새 카드를 등록해야 사주플랜페이/자동결제 사용이 가능합니다.')) {
       return
     }
     setErrorMsg(null)
@@ -211,7 +213,7 @@ export default function Charge() {
 
   const handleAutoToggle = async () => {
     if (cards.length === 0) {
-      alert('자동충전을 사용하려면 사주문페이 카드를 먼저 등록해주세요.')
+      alert('자동충전을 사용하려면 사주플랜페이 카드를 먼저 등록해주세요.')
       return
     }
     if (!selectedPkg) {
@@ -235,7 +237,7 @@ export default function Charge() {
   // (data loading state는 useEffect에서 비로그인 시 일찍 return하기 때문에 false로 전이되지 않음)
   if (authLoading) {
     return (
-      <div className="mobile-frame flex flex-col pb-6 items-center justify-center min-h-[60vh]">
+      <div className="mobile-frame flex flex-col pb-[100px] items-center justify-center min-h-[60vh]">
         <p className="text-[14px] text-[#6A7282]">불러오는 중...</p>
       </div>
     )
@@ -247,14 +249,14 @@ export default function Charge() {
 
   if (loading) {
     return (
-      <div className="mobile-frame flex flex-col pb-6 items-center justify-center min-h-[60vh]">
+      <div className="mobile-frame flex flex-col pb-[100px] items-center justify-center min-h-[60vh]">
         <p className="text-[14px] text-[#6A7282]">불러오는 중...</p>
       </div>
     )
   }
 
   return (
-    <div className="mobile-frame flex flex-col pb-6">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -264,39 +266,43 @@ export default function Charge() {
         >
           <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
         </button>
-        <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">포인트 충전</h1>
+        <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">코인 충전</h1>
       </header>
 
-      {/* 탭 */}
-      <div className="grid grid-cols-2 border-b border-[#F3F4F6]">
-        {(['charge', 'auto'] as ChargeTab[]).map((t) => {
+      {/* 탭 — [2026-05-28] 사용내역 탭 추가 (사장님 요청, 회원 영역 코인 통합 관리) */}
+      <div className="grid grid-cols-3 border-b border-[#F3F4F6]">
+        {(['charge', 'history', 'auto'] as ChargeTab[]).map((t) => {
           const on = tab === t
+          const label = t === 'charge' ? '충전' : t === 'history' ? '사용내역' : '자동충전'
           return (
             <button
               key={t}
               type="button"
               onClick={() => setTab(t)}
               className={`relative h-[44px] flex items-center justify-center text-[15px] ${
-                on ? 'text-[#8259F5] font-bold' : 'text-[#99A1AF] font-medium'
+                on ? 'text-[#ec4899] font-bold' : 'text-[#99A1AF] font-medium'
               }`}
             >
-              {t === 'charge' ? '충전' : '자동충전'}
-              {on && <span className="absolute left-0 right-0 -bottom-px h-[2px] bg-[#8259F5]" />}
+              {label}
+              {on && <span className="absolute left-0 right-0 -bottom-px h-[2px] bg-[#ec4899]" />}
             </button>
           )
         })}
       </div>
 
-      {tab === 'charge' ? (
-        <BalanceCard balance={balance} />
-      ) : (
+      {tab === 'charge' && <BalanceCard balance={balance} />}
+      {tab === 'auto' && (
         <AutoChargeHeader
           enabled={autoEnabled}
           onToggle={handleAutoToggle}
           threshold={AUTO_THRESHOLD}
         />
       )}
+      {tab === 'history' && <PointHistoryInline />}
 
+      {/* [2026-05-28] tab='history' 가 아닐 때만 결제 영역 노출 */}
+      {tab !== 'history' && (
+      <>
       {/* 결제요금 선택 */}
       <section className="px-4 pt-5">
         <div className="flex items-center justify-between">
@@ -336,16 +342,16 @@ export default function Charge() {
         >
           <Radio checked={paymentMethod === 'sajumun_pay'} />
           <img src="/img/sajumoon_pay_logo.svg" alt="" className="h-5" />
-          <span className="text-[15px] text-[#1E2939] font-semibold">사주문페이</span>
+          <span className="text-[15px] text-[#1E2939] font-semibold">사주플랜페이</span>
           <HelpIcon />
         </button>
 
         {paymentMethod === 'sajumun_pay' && (
           <div className="mt-3">
             {firstChargeNoticeOpen && cards.length === 0 && (
-              <div className="mb-3 ml-7 relative inline-block max-w-full px-3 py-2.5 bg-[#F3EEFE] rounded-[12px]">
+              <div className="mb-3 ml-7 relative inline-block max-w-full px-3 py-2.5 bg-[#fdf2f8] rounded-[12px]">
                 <p className="text-[13px] text-[#1E2939] leading-[140%] pr-5">
-                  첫 결제 시 포인트 50% 추가 적립!
+                  첫 결제 시 코인 50% 추가 적립!
                   <br />
                   (최초 1회 결제에 한해 제공되는 혜택입니다)
                 </p>
@@ -402,7 +408,7 @@ export default function Charge() {
                   onClick={() => setGeneralOption(opt)}
                   className={`flex-1 min-w-[140px] h-11 rounded-full text-[14px] ${
                     on
-                      ? 'bg-[#9B7AF7] text-white font-semibold'
+                      ? 'bg-[#f472b6] text-white font-semibold'
                       : 'border border-[#E5E7EB] text-[#4A5565]'
                   }`}
                 >
@@ -443,8 +449,8 @@ export default function Charge() {
             tab === 'auto' && !autoEnabled
               ? 'bg-[#D1D5DB] text-white'
               : submitting
-              ? 'bg-[#8259F5] text-white'
-              : 'bg-[#9B7AF7] text-white active:bg-[#8259F5]'
+              ? 'bg-[#ec4899] text-white'
+              : 'bg-[#f472b6] text-white active:bg-[#ec4899]'
           }`}
         >
           {submitting ? '결제 진행 중... (다시 누르면 재시도)' : '결제하기'}
@@ -453,11 +459,127 @@ export default function Charge() {
 
       {/* 일반결제 form submit용 hidden form (동일창 PG 이동). */}
       <form ref={formRef} target="_self" acceptCharset="UTF-8" style={{ display: 'none' }} />
+      </>
+      )}
 
       {/* 상담시간 계산 가이드 모달 — sample/include/guide_coin_fill.php 그대로 매핑 */}
       <ConsultTimeGuideModal open={timeGuideOpen} onClose={() => setTimeGuideOpen(false)} />
-    </div>
+      <BottomNav />
+      </div>
   )
+}
+
+/**
+ * [2026-05-28] 코인 사용내역 인라인 컴포넌트 — Points.tsx 의 history 리스트 로직 동등.
+ * 충전 페이지의 '사용내역' 탭에서 사용. /mypage/points 로 별도 이동 안 해도 한 화면에서 확인.
+ */
+function PointHistoryInline() {
+  const [items, setItems] = useState<PointHistoryItem[]>([])
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const PAGE_SIZE = 20
+
+  useEffect(() => {
+    let alive = true
+    pointsApi.history({ page: 1, limit: PAGE_SIZE }).then(
+      (h) => {
+        if (!alive) return
+        setItems(h.items ?? [])
+        setTotal(h.total ?? 0)
+        setPage(1)
+        setLoading(false)
+      },
+      () => { if (alive) setLoading(false) },
+    )
+    return () => { alive = false }
+  }, [])
+
+  const loadMore = async () => {
+    if (loadingMore) return
+    const next = page + 1
+    setLoadingMore(true)
+    try {
+      const r = await pointsApi.history({ page: next, limit: PAGE_SIZE })
+      setItems((prev) => [...prev, ...(r.items ?? [])])
+      setPage(next)
+    } catch { /* swallow */ }
+    finally { setLoadingMore(false) }
+  }
+
+  const hasMore = items.length < total
+
+  if (loading) {
+    return (
+      <div className="py-12 flex justify-center">
+        <div className="w-6 h-6 border-2 border-[#E5E7EB] border-t-[#ec4899] rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (items.length === 0) {
+    return <div className="py-20 text-center text-[14px] text-[#99A1AF]">코인 내역이 없습니다.</div>
+  }
+
+  return (
+    <main className="flex-1 px-4 pt-4 pb-6 flex flex-col gap-5">
+      {items.map((log) => {
+        const isIn = log.direction === 'in'
+        return (
+          <article key={log.id} className="flex items-start gap-3">
+            <div className="w-11 h-11 rounded-[12px] border border-[#F3F4F6] bg-white flex items-center justify-center shrink-0">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                {isIn ? (
+                  <path d="M4 10H16M16 10L11 5M16 10L11 15" stroke="#ec4899" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                ) : (
+                  <path d="M16 10H4M4 10L9 5M4 10L9 15" stroke="#99A1AF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                )}
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[16px] text-[#1E2939] leading-[140%] break-keep">{shortPointTitle(log.title)}</p>
+              <p className="mt-1 text-[13px] text-[#99A1AF] leading-[140%]">{formatPointDate(log.occurred_at)}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className={`text-[16px] font-bold leading-[140%] ${isIn ? 'text-[#ec4899]' : 'text-[#1E2939]'}`}>
+                {isIn ? '+' : '-'}{log.amount.toLocaleString()} 코인
+              </p>
+              <p className="mt-1 text-[13px] text-[#99A1AF] leading-[140%]">
+                {log.balance_after.toLocaleString()} 코인
+              </p>
+            </div>
+          </article>
+        )
+      })}
+      {hasMore && (
+        <div className="flex justify-center pt-2 pb-4">
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="inline-flex items-center gap-1 h-10 px-5 rounded-full border border-[#E5E7EB] bg-white text-[14px] text-[#364153] font-medium hover:bg-[#F9FAFB] transition disabled:opacity-60"
+          >
+            {loadingMore ? '불러오는 중...' : '더보기'}
+          </button>
+        </div>
+      )}
+    </main>
+  )
+}
+
+/** [2026-05-28] 회원 코인 내역 표시 — backend content 의 "상담코인 차감" 을 "코인차감" 으로 단축. */
+function shortPointTitle(s: string | null | undefined): string {
+  if (!s) return ''
+  return s.replace('상담코인 차감', '코인차감').replace('상담코인 증가', '코인증가')
+}
+
+function formatPointDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 /** 상담 예상 시간 — 100,000P 기준 30초당 단가별 사용가능 시간.
@@ -503,7 +625,7 @@ function ConsultTimeGuideModal({ open, onClose }: { open: boolean; onClose: () =
           <div className="flex items-center gap-1.5">
             <img src="/img/ic_point.svg" alt="" className="w-5 h-5" />
             <span className="text-[15px] text-[#1E2939]">
-              <span className="text-[#8259F5] font-bold">100,000</span>
+              <span className="text-[#ec4899] font-bold">100,000</span>
               <span className="ml-1 text-[#4A5565]">ⓟ 기준</span>
             </span>
           </div>
@@ -528,7 +650,7 @@ function ConsultTimeGuideModal({ open, onClose }: { open: boolean; onClose: () =
           <ul className="mt-3 space-y-1.5">
             <li className="text-[12px] leading-[160%] text-[#6A7282] flex">
               <span className="mr-1">·</span>
-              <span className="flex-1">상담사와 연결 시, 30초당 800~1,600포인트가 차감됩니다.</span>
+              <span className="flex-1">상담사와 연결 시, 30초당 800~1,600 코인이 차감됩니다.</span>
             </li>
             <li className="text-[12px] leading-[160%] text-[#6A7282] flex">
               <span className="mr-1">·</span>
@@ -541,7 +663,7 @@ function ConsultTimeGuideModal({ open, onClose }: { open: boolean; onClose: () =
           <button
             type="button"
             onClick={onClose}
-            className="w-full h-[44px] rounded-full bg-[#9B7AF7] text-white text-[14px] font-semibold"
+            className="w-full h-[44px] rounded-full bg-[#f472b6] text-white text-[14px] font-semibold"
           >
             확인
           </button>
@@ -557,9 +679,9 @@ function BalanceCard({ balance }: { balance: number }) {
   return (
     <section className="px-4 pt-4">
       <div className="rounded-[16px] bg-[#F9FAFB] px-5 py-4">
-        <p className="text-[14px] text-[#99A1AF] leading-[140%]">보유 포인트</p>
+        <p className="text-[14px] text-[#99A1AF] leading-[140%]">보유 코인</p>
         <div className="mt-1 flex items-center gap-2">
-          <span className="text-[24px] font-bold text-[#8259F5] leading-[120%]">
+          <span className="text-[24px] font-bold text-[#ec4899] leading-[120%]">
             {balance.toLocaleString()}
           </span>
           <img src="/img/ic_point.svg" alt="" className="w-6 h-6" />
@@ -587,7 +709,7 @@ function AutoChargeHeader({
           onClick={onToggle}
           aria-label="자동충전 사용 토글"
           className={`relative w-12 h-7 rounded-full transition-colors ${
-            enabled ? 'bg-[#9B7AF7]' : 'bg-[#D1D5DB]'
+            enabled ? 'bg-[#f472b6]' : 'bg-[#D1D5DB]'
           }`}
         >
           <span
@@ -599,7 +721,7 @@ function AutoChargeHeader({
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path
                   d="M3 7L6 10L11 4"
-                  stroke="#9B7AF7"
+                  stroke="#f472b6"
                   strokeWidth="1.8"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -635,7 +757,7 @@ function AutoChargeHeader({
 
       <section className="px-4 pt-5">
         <h2 className="text-[16px] font-semibold text-[#1E2939]">충전 기준 잔액</h2>
-        <div className="mt-3 h-[52px] px-4 flex items-center rounded-[12px] border border-[#9B7AF7] text-[15px] text-[#1E2939]">
+        <div className="mt-3 h-[52px] px-4 flex items-center rounded-[12px] border border-[#f472b6] text-[15px] text-[#1E2939]">
           {threshold.toLocaleString()}P보다 낮아지면 자동충전
         </div>
       </section>
@@ -657,15 +779,15 @@ function PackageRow({
       type="button"
       onClick={onSelect}
       className={`w-full h-[52px] px-4 flex items-center justify-between rounded-[12px] border transition-colors ${
-        selected ? 'border-[#9B7AF7] bg-[#F3EEFE]' : 'border-[#F3F4F6] bg-white'
+        selected ? 'border-[#f472b6] bg-[#fdf2f8]' : 'border-[#F3F4F6] bg-white'
       }`}
     >
       <div className="flex items-center gap-2">
         <span className="text-[16px] font-semibold text-[#1E2939]">
-          {pkg.totalPoint.toLocaleString()}P
+          {pkg.totalPoint.toLocaleString()} 코인
         </span>
         {pkg.bonusPercent > 0 && (
-          <span className="h-5 px-2 rounded-full bg-[#EDE5FE] text-[12px] font-medium text-[#8259F5] flex items-center">
+          <span className="h-5 px-2 rounded-full bg-[#EDE5FE] text-[12px] font-medium text-[#ec4899] flex items-center">
             +{pkg.bonusPercent}%
           </span>
         )}
@@ -681,10 +803,10 @@ function Radio({ checked }: { checked: boolean }) {
   return (
     <span
       className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-        checked ? 'border-[#9B7AF7]' : 'border-[#D1D5DB]'
+        checked ? 'border-[#f472b6]' : 'border-[#D1D5DB]'
       }`}
     >
-      {checked && <span className="w-2.5 h-2.5 rounded-full bg-[#9B7AF7]" />}
+      {checked && <span className="w-2.5 h-2.5 rounded-full bg-[#f472b6]" />}
     </span>
   )
 }
@@ -712,8 +834,8 @@ function EmptyCardBox({ onAdd }: { onAdd: () => void }) {
       onClick={onAdd}
       className="ml-7 w-[calc(100%-1.75rem)] rounded-[16px] bg-[#F9FAFB] py-10 flex flex-col items-center gap-2"
     >
-      <img src="/img/sajumoon_pay_logo.svg" alt="사주문페이" className="h-10" />
-      <p className="text-[13px] text-[#4A5565]">사주문페이를 추가하고 빠르게 결제하세요!</p>
+      <img src="/img/sajumoon_pay_logo.svg" alt="사주플랜페이" className="h-10" />
+      <p className="text-[13px] text-[#4A5565]">사주플랜페이를 추가하고 빠르게 결제하세요!</p>
     </button>
   )
 }

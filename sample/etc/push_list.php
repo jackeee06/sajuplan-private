@@ -5,7 +5,7 @@ include_once("../include/head.php");
 include_once("./_common.php"); // 메뉴별 공통파일
 ?>
 
-<ul class="title">사주문 알림함</ul>
+<ul class="title">사주플랜 알림함</ul>
 
 <div class="push_wrap">
 	<ul class="push_item">    	        

@@ -1,4 +1,4 @@
-# 사주문 운영 대응 매뉴얼 (Ops Runbook)
+# 사주플랜 운영 대응 매뉴얼 (Ops Runbook)
 
 > 작성: 2026-05-17
 > 대상: 운영자(jackeee06)
@@ -53,7 +53,7 @@ SELECT * FROM point_history WHERE rel_table='consultation' AND rel_id='<consulta
 **즉시 확인**:
 ```bash
 # 직접 호출
-curl -H "X-Cron-Token: $TOKEN" https://api.sajumoon.co.kr/api/cron/health-check
+curl -H "X-Cron-Token: $TOKEN" https://api.sajuplan.com/api/cron/health-check
 ```
 
 **위반별 조치**:
@@ -223,7 +223,7 @@ SELECT m2net_retry_count, COUNT(*)
 ### 외과적 패치 (단일 파일)
 ```bash
 SSHPASS=<root비번> python tools/_patch_api.py root@172.235.211.75 /data/wwwroot/api.sajumoon.kr sajumoon-api
-SSHPASS=<root비번> python tools/_patch_api.py root@104.64.128.103 /data/wwwroot/api.sajumoon.co.kr sajumoon-api
+SSHPASS=<root비번> python tools/_patch_api.py root@104.64.128.103 /data/wwwroot/api.sajuplan.com sajumoon-api
 ```
 
 ### 전체 배포

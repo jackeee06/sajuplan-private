@@ -15,7 +15,10 @@ interface Notice {
   updated_at: string
 }
 
+const PAGE_SIZE = 20
+
 export default function NoticesList() {
+  const navigate = useNavigate()
   const [filter, setFilter] = useState({ q: '', page: 1 })
   const [pending, setPending] = useState({ q: '' })
   const [data, setData] = useState<{ items: Notice[]; total: number } | null>(null)
@@ -29,6 +32,8 @@ export default function NoticesList() {
     api<{ items: Notice[]; total: number }>(`/admin/notices?${p}`).then(setData).finally(() => setLoading(false))
   }, [filter])
 
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
+
   return (
     <div className="space-y-3 max-w-[1100px]">
       <div className="flex items-center justify-between">
@@ -38,74 +43,61 @@ export default function NoticesList() {
             총 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건
           </p>}
         </div>
-        <Link
-          to="/notices/new"
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white"
-        >
+        <Link to="/notices/new" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium">
           <Plus className="w-4 h-4" /> 공지 추가
         </Link>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 w-fit max-w-full">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <input
-            type="text"
-            value={pending.q}
-            onChange={(e) => setPending({ q: e.target.value })}
-            onKeyDown={(e) => e.key === 'Enter' && setFilter({ q: pending.q, page: 1 })}
-            placeholder="제목/본문 검색"
-            className={`w-72 ${cls}`}
-          />
-          <button onClick={() => setFilter({ q: pending.q, page: 1 })} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">
-            <Search className="w-4 h-4" /> 검색
-          </button>
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div className="w-[260px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
+            <input type="text" value={pending.q} onChange={(e) => setPending({ q: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && setFilter({ q: pending.q, page: 1 })} placeholder="제목/본문 검색" className={inputCls} />
+          </div>
+          <div className="ml-auto">
+            <button onClick={() => setFilter({ q: pending.q, page: 1 })} className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium">
+              <Search className="w-4 h-4" /> 검색
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
-        <div className="overflow-x-auto">
-          <table className="text-sm w-auto">
-            <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
-              <tr>
-                <th className="px-3 py-1.5 text-left font-medium">번호</th>
-                <th className="px-3 py-1.5 text-left font-medium">제목</th>
-                <th className="px-3 py-1.5 text-left font-medium">카테고리</th>
-                <th className="px-3 py-1.5 text-right font-medium">조회수</th>
-                <th className="px-3 py-1.5 text-left font-medium">작성일</th>
-                <th className="px-3 py-1.5 text-left font-medium">관리</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading && !data ? (
-                <tr><td colSpan={6} className="px-3 py-3 text-xs text-gray-400">로딩...</td></tr>
-              ) : !data || data.items.length === 0 ? (
-                <tr><td colSpan={6} className="px-3 py-3 text-xs text-gray-400">공지가 없습니다.</td></tr>
-              ) : data.items.map((n) => (
-                <tr key={n.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
-                  <td className="px-3 py-1.5 text-xs text-gray-400 tabular-nums">{n.id}</td>
-                  <td className="px-3 py-1.5 text-xs">
-                    {n.is_pinned && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] mr-1.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"><Pin className="w-2.5 h-2.5" /> 고정</span>}
-                    <span className="font-medium text-gray-800 dark:text-gray-100">{n.title}</span>
-                  </td>
-                  <td className="px-3 py-1.5 text-xs text-gray-500">{n.category ?? <span className="text-gray-300">—</span>}</td>
-                  <td className="px-3 py-1.5 text-xs text-gray-500 text-right tabular-nums">{n.view_count.toLocaleString()}</td>
-                  <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{formatDT(n.created_at)}</td>
-                  <td className="px-3 py-1.5 text-xs">
-                    <Link to={`/notices/${n.id}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <Pencil className="w-3 h-3" /> 수정
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <TableShell>
+        <THead>
+          <Th align="right">번호</Th>
+          <Th align="left">제목</Th>
+          <Th align="left">카테고리</Th>
+          <Th align="right">조회수</Th>
+          <Th align="left">작성일</Th>
+        </THead>
+        <TBody>
+          {loading && !data ? (
+            <EmptyRow colSpan={5} loading />
+          ) : !data || data.items.length === 0 ? (
+            <EmptyRow colSpan={5} />
+          ) : data.items.map((n) => (
+            <Tr key={n.id} onClick={() => navigate(`/notices/${n.id}`)}>
+              <IdCell id={n.id} />
+              <Td align="left">
+                {n.is_pinned && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] mr-1.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200"><Pin className="w-2.5 h-2.5" /> 고정</span>}
+                <span className="font-medium text-gray-900 dark:text-gray-100">{n.title}</span>
+              </Td>
+              <Td align="left" className="text-xs text-gray-500">{n.category ?? <span className="text-gray-300">—</span>}</Td>
+              <Td align="right" className="text-xs text-gray-500 tabular-nums">
+                {n.view_count === 0 ? <span className="text-gray-300">0</span> : n.view_count.toLocaleString()}
+              </Td>
+              <Td align="left" className="text-xs text-gray-500 tabular-nums">{formatDT(n.created_at)}</Td>
+            </Tr>
+          ))}
+        </TBody>
+      </TableShell>
+
+      {data && (
+        <PaginationBar page={filter.page} totalPages={totalPages} total={data.total} pageSize={PAGE_SIZE} onChange={(p) => setFilter((f) => ({ ...f, page: p }))} unit="건" />
+      )}
     </div>
   )
 }
-
-const cls = 'px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none'
 
 function formatDT(s: string): string {
   if (!s) return '-'

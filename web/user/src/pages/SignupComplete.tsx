@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+﻿import { useNavigate } from 'react-router-dom'
 import PrimaryButton from '../components/PrimaryButton'
 import { CloseIcon, PartyIcon } from '../components/icons'
 
@@ -23,12 +23,12 @@ export default function SignupComplete() {
       </header>
 
       <main className="flex-1 px-6 flex flex-col items-center justify-center">
-        <div className="w-20 h-20 rounded-full bg-[#f1ecfe] flex items-center justify-center mb-7">
+        <div className="w-20 h-20 rounded-full bg-[#fdf2f8] flex items-center justify-center mb-7">
           <PartyIcon className="w-10 h-10" />
         </div>
         <h1 className="text-[20px] font-bold text-[#1E2939]">회원가입이 완료되었습니다.</h1>
         <p className="text-[15px] text-[#4a5565] mt-2.5 text-center">
-          로그인하고 사주문 서비스를 이용해보세요.
+          로그인하고 사주플랜 서비스를 이용해보세요.
         </p>
       </main>
 

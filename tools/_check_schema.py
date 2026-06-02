@@ -12,7 +12,7 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 SSH_HOST = "104.64.128.103"
-ENV_FILE = "/data/wwwroot/api.sajumoon.co.kr/.env"
+ENV_FILE = "/data/wwwroot/api.sajuplan.com/.env"
 
 QUERIES = [
     r"\d post_review",

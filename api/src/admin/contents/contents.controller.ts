@@ -5,6 +5,9 @@ import { AdminAuthGuard } from '../auth/admin-auth.guard';
 import { ContentsService } from './contents.service';
 import type { PageInput } from './contents.service';
 
+/**
+ * 약관/처리방침 등 페이지 콘텐츠 — 일반관리자도 수정 가능 (운영팀 일상 업무).
+ */
 @Controller('admin/contents')
 @UseGuards(AdminAuthGuard)
 export class ContentsController {

@@ -3,7 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom'
 import {
   Users, CreditCard, Headphones, FileText, Bell, BarChart3, Shield,
   MoreHorizontal, Settings as SettingsIcon, Ticket, Search, Star, X,
+  Wrench,
 } from 'lucide-react'
+import { useAuth } from '../lib/auth'
 
 /**
  * 전체 메뉴 — 관리자 페이지의 모든 기능을 한 화면에 나열한 인덱스.
@@ -32,6 +34,10 @@ interface MenuItem {
   path: string
   star?: boolean
   subFeatures?: SubFeature[]
+  /** 검색용 별칭 (한글 동의어·약칭·관련 키워드). 예: 소셜로그인 → ['카톡 키', '카카오 API'] */
+  aliases?: string[]
+  /** true 면 슈퍼관리자(is_super=true)에게만 노출. 일반 admin 검색/리스트에 안 잡힘. */
+  superOnly?: boolean
 }
 
 interface MenuGroup {
@@ -46,11 +52,15 @@ const GROUPS: MenuGroup[] = [
     icon: Users,
     items: [
       { label: '고객 리스트', path: '/members/customers',
+        aliases: ['회원', '유저', '사용자', '닉네임', '휴대폰', '전화번호', '이메일', '차단', '블랙', '탈퇴', '활동 회원'],
         subFeatures: ['전체', '활동 회원', '차단 회원', '탈퇴 회원'] },
       { label: '상담사 리스트', path: '/members/counselors',
+        aliases: ['강사', '선생님', '상담원', '해시태그', '태그', '프로필', '한줄소개', '헤드라인', '닉네임', '단가', '분야', '사주', '타로', '신점', '심리', '사진', '이미지'],
         subFeatures: ['상태: 상담가능', '상태: 상담중', '상태: 부재', '분야: 타로', '분야: 신점', '분야: 사주', '분야: 심리'] },
-      { label: '상담사 신청 내역', path: '/members/counselor-apply' },
+      { label: '상담사 신청 내역', path: '/members/counselor-apply',
+        aliases: ['지원', '신청', '가입 신청', '승인', '심사', '신청서', '대기', '반려'] },
       { label: '출석 관리', path: '/attendance', star: true,
+        aliases: ['출석', '체크인', '출석체크', '보너스 포인트', '일일 출석'],
         subFeatures: [
           { label: '정책 설정', tab: '정책' },
           { label: '통계', tab: '통계' },
@@ -58,7 +68,14 @@ const GROUPS: MenuGroup[] = [
           '회원/상담사 토글',
         ] },
       { label: '등급 관리', path: '/grade', star: true,
-        subFeatures: ['등급별 분포', '최근 등급 변동', '정책 변경 이력'] },
+        aliases: ['등급', '단가', '정산률', '승급', '강등'],
+        subFeatures: [
+          '등급별 분포',
+          '단가·정산률 변경',
+          '재산정 D-day',
+          '최근 등급 변동',
+          '정책 변경 이력',
+        ] },
     ],
   },
   {
@@ -66,18 +83,38 @@ const GROUPS: MenuGroup[] = [
     icon: CreditCard,
     items: [
       { label: '사용(상담) 내역', path: '/consultations',
+        aliases: ['통화', '상담 내역', '전화 내역'],
         subFeatures: ['전체목록', '060', '070', '채팅'] },
       { label: '환불 이력', path: '/refunds', star: true,
+        aliases: ['취소', '환급', '환불 신청', '환불 요청', '리펀드'],
         subFeatures: ['회원 아이디 검색', '상태별 필터'] },
+      { label: '고객보호비용 내역', path: '/short-call-refunds', star: true,
+        aliases: ['매몰비용', '30초 미만', '짧은 통화', '환원', '자동 환원', '단기 통화'],
+        subFeatures: ['이번달 합계', '발생일 필터', '회원 매핑', 'callid·csrid·membid'] },
       { label: '운영 KPI', path: '/ops-kpi', star: true,
+        aliases: ['지표', '실적', '성과', '매출 지표'],
         subFeatures: ['최근 7일', '최근 30일', '최근 90일', 'KPI 카드', '상담사 순위'] },
-      { label: '충전금액 설정', path: '/charge-amounts' },
+      { label: '충전금액 설정', path: '/charge-amounts',
+        aliases: ['코인 충전', '충전 금액', '결제 옵션'] },
       { label: '결제 내역', path: '/payments',
+        aliases: ['주문', '구매', '카드 결제', '가상계좌'],
         subFeatures: ['전체목록', '카드', '가상결제', '카드취소'] },
       { label: '포인트 관리', path: '/points/history',
+        aliases: ['포인트', '코인', '잔액', '잔액 조정', '지급', '차감', '증감'],
         subFeatures: ['포인트 이력', '개별회원 포인트 증감 설정'] },
       { label: '정산 이력', path: '/settlements',
+        aliases: ['정산', '부가세', 'VAT', '회선비', '원천세', '월정산', '월별 정산'],
         subFeatures: ['총건수', '총정산금액', '부가세', '원천세', '회선비'] },
+      { label: '선지급 관리', path: '/payouts', star: true,
+        aliases: ['선지급', '가불', '미리 지급', '수수료', '원천세'],
+        subFeatures: [
+          '처리 대기',
+          '오늘 지급',
+          '이번달 누적',
+          '24h+ 미처리',
+          { label: '대기 CSV 다운로드', tab: 'pending' },
+          '선지급 운영 정책',
+        ] },
       { label: '상담사 추천 수당 (프로모션)', path: '/referrals', star: true,
         subFeatures: ['활성 관계', '이번 달 지급대상', '지급 완료', '미지급', '월별 필터', '상태별 필터'] },
     ],
@@ -115,13 +152,29 @@ const GROUPS: MenuGroup[] = [
     title: '알림',
     icon: Bell,
     items: [
-      { label: '푸시 알림', path: '/push-notifications' },
+      { label: '🔔 알림 가이드 (3채널 통합)', path: '/alert-guide', star: true,
+        aliases: ['알림 가이드', '알림 매트릭스', '알림 정책', '알림 정리', '채널', '푸시 인앱 알림톡', '결정', '중복', '카탈로그', '온보딩', '신입 관리자'],
+        subFeatures: [
+          '38개 이벤트 × 3채널 매트릭스',
+          '결정완료/검토중 표시',
+          '중복 위험 행 강조',
+          '결정 기준 8가지',
+          '읽는 법 안내',
+        ] },
+      { label: '📱 푸시 가이드 (카드)', path: '/push-guide',
+        aliases: ['푸시 가이드', '푸시 카탈로그', '푸시 종류', 'FCM 종류', 'push catalog'],
+        subFeatures: ['30+ 푸시 종류', '카테고리별 그리드', '상태 칩 (완료/예정/안함)'] },
+      { label: '푸시 알림 (발송)', path: '/push-notifications',
+        aliases: ['푸시', '앱 알림', '앱 푸시', '푸시 발송', '푸시 이력', 'FCM 발송'],
+        subFeatures: ['발송', '이력 조회', '카테고리 필터'] },
       { label: '알림톡 발송', path: '/alimtalk-bulk', star: true,
+        aliases: ['카톡', '카카오톡', '문자', '메시지', 'SMS', '비즈엠'],
         subFeatures: [
           { label: '발송', tab: '발송' },
           { label: '이력', tab: '이력' },
         ] },
-      { label: '알림톡 템플릿', path: '/alimtalk-templates' },
+      { label: '알림톡 템플릿', path: '/alimtalk-templates',
+        aliases: ['템플릿', '카톡 양식', '메시지 양식', '비즈엠', 'BizM', 'v1', 'v2', '카톡 본문'] },
     ],
   },
   {
@@ -136,17 +189,22 @@ const GROUPS: MenuGroup[] = [
     title: '권한관리',
     icon: Shield,
     items: [
-      { label: '관리자 계정', path: '/admin-users' },
+      { label: '관리자 계정', path: '/admin-users',
+        aliases: ['어드민', '권한', '하위 관리자', '운영자'] },
     ],
   },
   {
     title: '기타',
     icon: MoreHorizontal,
     items: [
-      { label: '배너관리', path: '/banners' },
-      { label: '팝업레이어 관리', path: '/popup-layers' },
-      { label: '사주메인관리', path: '/saju-config' },
-      { label: '상담문의', path: '/posts/qa' },
+      { label: '배너관리', path: '/banners',
+        aliases: ['배너', '광고', '메인 배너'] },
+      { label: '팝업레이어 관리', path: '/popup-layers',
+        aliases: ['팝업', '레이어', '공지 팝업'] },
+      { label: '사주메인관리', path: '/saju-config',
+        aliases: ['사주 메인', '운세 메인', '사주 페이지', '메인 페이지', '홈 설정'] },
+      { label: '상담문의', path: '/posts/qa',
+        aliases: ['1:1 문의', '고객 문의', '문의 게시판', '고객센터'] },
       { label: '1:1문의(상담사)', path: '/posts/qa_counselor' },
     ],
   },
@@ -155,19 +213,44 @@ const GROUPS: MenuGroup[] = [
     icon: SettingsIcon,
     items: [
       { label: '기본환경설정', path: '/settings',
+        aliases: [
+          '카톡 키', '카카오 키', '네이버 키', '소셜 키', 'API 키',
+          '회사 정보', '사업자번호', '대표', '주소',
+          '회원가입 포인트', '추천인 포인트',
+          '스팸', '차단', '금지', 'IP',
+          '세금', '원천', '수수료',
+          // 2026-05-28 점검 안내 배너 추가
+          '점검', '점검 안내', '점검 배너', '서비스 점검', 'maintenance',
+        ],
         subFeatures: [
-          '기본환경',
-          { label: '등급/단가', tab: '등급/단가' },
-          { label: '단가 옵션', tab: '등급/단가' },
-          { label: '정산률', tab: '등급/단가' },
-          { label: '임계값', tab: '등급/단가' },
-          { label: '월 1일 락', tab: '등급/단가' },
-          { label: '재산정 일자/시각', tab: '등급/단가' },
-          { label: '강등 최대 단계', tab: '등급/단가' },
-          { label: '운영알림', tab: '운영알림' },
-          { label: '운영자 알림 활성', tab: '운영알림' },
-          { label: '수신자 목록', tab: '운영알림' },
-          { label: '약관/처리방침', tab: '약관/처리방침' },
+          // ─ 점검 안내 배너 (NEW 2026-05-28) — Settings.tsx ?tab=general
+          { label: '🔧 점검 안내 배너', tab: 'general' },
+          { label: '배너 활성 ON/OFF', tab: 'general' },
+          // ─ 기본환경 탭 (6 섹션) — Settings.tsx ?tab=general (디폴트)
+          '사이트',
+          { label: '회원가입', tab: 'general' },
+          { label: '후기 포인트', tab: 'general' },
+          { label: '소셜로그인 (카카오/네이버)', tab: 'general' },
+          { label: '보안 (IP 차단/금지 ID)', tab: 'general' },
+          { label: '푸터(회사정보)', tab: 'general' },
+          // ─ 등급/단가 탭
+          { label: '등급/단가', tab: 'grade' },
+          { label: '단가 옵션', tab: 'grade' },
+          { label: '정산률', tab: 'grade' },
+          { label: '임계값', tab: 'grade' },
+          { label: '월 1일 락', tab: 'grade' },
+          { label: '재산정 일자/시각', tab: 'grade' },
+          { label: '강등 최대 단계', tab: 'grade' },
+          // ─ 선지급 탭 (NEW)
+          { label: '선지급 정책 안내문', tab: 'payout' },
+          { label: '선지급 수수료율', tab: 'payout' },
+          { label: '선지급 원천세율', tab: 'payout' },
+          // ─ 운영알림 탭
+          { label: '운영알림', tab: 'ops' },
+          { label: '운영자 알림 활성', tab: 'ops' },
+          { label: '수신자 목록', tab: 'ops' },
+          // ─ 약관/처리방침 탭
+          { label: '약관/처리방침', tab: 'legal' },
         ] },
       { label: '내용 관리 (약관/처리방침)', path: '/contents' },
     ],
@@ -178,6 +261,18 @@ const GROUPS: MenuGroup[] = [
     items: [
       { label: '대시보드', path: '/dashboard',
         subFeatures: ['14일 매출 추이', '상담사 상태', '14일 방문자 추이', 'TOP5 상담사', 'TOP5 고객', '최근 가입', '최근 게시물', '최근 포인트'] },
+    ],
+  },
+  {
+    title: '운영 도구',
+    icon: Wrench,
+    items: [
+      // 2026-05-22: 어제 신설 메모장 등록 (사이드바 단독 → AllMenus 누락 보강)
+      { label: '메모장', path: '/memo',
+        aliases: ['노트', '기록', '필기', '비망록', '메모'] },
+      // 2026-05-24: 영업이익 시뮬레이터 — 슈퍼 전용. 일반 admin 에게는 메뉴 자체 비노출.
+      { label: '💰 영업이익 시뮬레이터', path: '/profit-simulator', star: true, superOnly: true,
+        aliases: ['수익', '재무', '이익', '시뮬레이션', '시뮬', '손익', '마진'] },
     ],
   },
 ]
@@ -226,11 +321,14 @@ function matchItem(item: MenuItem, groupTitle: string, q: string): { matched: bo
   if (!q) return { matched: true, subHits: [] }
   const inLabel = item.label.toLowerCase().includes(q)
   const inGroup = groupTitle.toLowerCase().includes(q)
+  const inAlias = (item.aliases ?? []).some((a) => a.toLowerCase().includes(q))
   const subHits = (item.subFeatures ?? []).filter((s) => subLabel(s).toLowerCase().includes(q))
-  return { matched: inLabel || inGroup || subHits.length > 0, subHits }
+  return { matched: inLabel || inGroup || inAlias || subHits.length > 0, subHits }
 }
 
 export default function AllMenus() {
+  const { admin } = useAuth()
+  const isSuper = !!admin?.is_super
   // 검색어를 URL ?q=... 에 저장 — 사이드바 '전체 메뉴' 재클릭 시 자동 초기화
   const [searchParams, setSearchParams] = useSearchParams()
   const query = searchParams.get('q') ?? ''
@@ -259,18 +357,19 @@ export default function AllMenus() {
   const q = query.trim().toLowerCase()
   const isSearching = q.length > 0
 
-  // 필터링 + 각 아이템에 subHits 부착
+  // 필터링 + 각 아이템에 subHits 부착. superOnly 메뉴는 슈퍼관리자에게만.
   const filteredGroups = useMemo(() => {
     return GROUPS.map((g) => ({
       ...g,
       items: g.items
+        .filter((it) => !it.superOnly || isSuper)
         .map((it) => {
           const r = matchItem(it, g.title, q)
           return r.matched ? { ...it, _subHits: r.subHits } : null
         })
         .filter((x): x is MenuItem & { _subHits: string[] } => x != null),
     })).filter((g) => g.items.length > 0)
-  }, [q])
+  }, [q, isSuper])
 
   const totalSubHits = useMemo(() => {
     if (!isSearching) return 0
@@ -285,7 +384,7 @@ export default function AllMenus() {
     .filter((x): x is { path: string; label: string; groupTitle: string } => x != null)
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-[1400px]">
       {/* 타이틀 */}
       <div>
         <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">전체 메뉴</h1>

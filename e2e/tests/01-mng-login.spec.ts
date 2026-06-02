@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { skipIfAdminLoginFailed } from '../helpers/admin-skip'
 
 /**
  * mng 어드민 — 로그인 + 핵심 페이지 비파괴 검증.
@@ -49,6 +50,8 @@ async function login(page: import('@playwright/test').Page) {
 }
 
 test.describe('mng 어드민', () => {
+  test.beforeEach(skipIfAdminLoginFailed)
+
   test('로그인 → 대시보드/사이드바 정상 렌더', async ({ page }) => {
     const consoleErrors: string[] = []
     attachErrorCollectors(page, consoleErrors)

@@ -345,7 +345,7 @@ setInterval(function(){
 
     <div class="conbox con3">
 		
-		<div class="counselor_tap_title">사주문에 새롭게 모셔온 상담사</div>        
+		<div class="counselor_tap_title">사주플랜에 새롭게 모셔온 상담사</div>        
 
 		<div class="latest_wr">
 		    <!-- 사진 최신글2 { -->
@@ -393,7 +393,7 @@ setInterval(function(){
 
 <div class="counselor_list_wrap" >
         	
-  <h2 style=" width:100%; float:left; font-size:20px; font-weight:600; padding:20px 20px 0;"><!--<span class="point"><?=$member["mb_name"]?></span>님을 위한 -->사주문 AI 상담사 추천!</h2>
+  <h2 style=" width:100%; float:left; font-size:20px; font-weight:600; padding:20px 20px 0;"><!--<span class="point"><?=$member["mb_name"]?></span>님을 위한 -->사주플랜 AI 상담사 추천!</h2>
 
 	<div class="counselor_list bo_none" >
        <?php
@@ -452,7 +452,7 @@ setInterval(function(){
 	    </div>
   	</details>
     
-    <div class="main_footer_copy">Copyrightⓒ 사주문. All Rights Reserved.</div>
+    <div class="main_footer_copy">Copyrightⓒ 사주플랜. All Rights Reserved.</div>
 </div>
 
 

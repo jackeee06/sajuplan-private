@@ -1,4 +1,5 @@
-import { Link, useNavigate, useParams } from 'react-router-dom'
+﻿import { Link, useNavigate, useParams } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import { MOCK_REVIEWS, type Review } from './Reviews'
 
@@ -19,7 +20,7 @@ import { MOCK_REVIEWS, type Review } from './Reviews'
  *       · 본문 텍스트 (14px regular line-height 150% #4A5565)
  *       · 큰 이미지 (full-width)
  *  [답변 섹션 (gap 24)]
- *    · 카운터 "상담사 답변 N건" (15px, N만 #8259F5 medium) + border-b
+ *    · 카운터 "상담사 답변 N건" (15px, N만 #ec4899 medium) + border-b
  *    · 답변 있음: 답변 본문 → 작은 아바타 + 상담사명 · 날짜시간
  *    · 답변 없음: 연보라 원형 + 말풍선 아이콘 + "등록된 답변이 없습니다."
  *  [목록으로 outline-primary 버튼 (좌측 정렬, 120×40)]
@@ -62,7 +63,7 @@ export default function ReviewDetail() {
         <div className="px-4 mt-10">
           <Link
             to="/reviews"
-            className="inline-flex items-center justify-center w-[120px] h-10 px-4 rounded-full bg-white border border-[#9B7AF7] text-[#8259F5] text-[14px] font-medium"
+            className="inline-flex items-center justify-center w-[120px] h-10 px-4 rounded-full bg-white border border-[#f472b6] text-[#ec4899] text-[14px] font-medium"
           >
             목록으로
           </Link>
@@ -70,7 +71,8 @@ export default function ReviewDetail() {
       </main>
 
       <FloatingActions bottomOffset={16} showKakao={false} />
-    </div>
+      <BottomNav />
+      </div>
   )
 }
 
@@ -140,7 +142,7 @@ function ReplySection({ review, className = '' }: { review: Review; className?: 
       <div className="px-4 pb-3 flex items-center border-b border-[#F3F4F6]">
         <p className="text-[15px] leading-[130%] text-[#364153]">
           상담사 답변{' '}
-          <span className="font-medium text-[#8259F5]">{hasReply ? 1 : 0}</span>건
+          <span className="font-medium text-[#ec4899]">{hasReply ? 1 : 0}</span>건
         </p>
       </div>
 
@@ -167,7 +169,7 @@ function ReplySection({ review, className = '' }: { review: Review; className?: 
       ) : (
         <div className="h-[230px] flex flex-col items-center justify-center gap-3 px-4">
           {/* 연보라 원형 + 말풍선 아이콘 */}
-          <div className="w-[60px] h-[60px] rounded-full bg-[#F3EEFE] flex items-center justify-center">
+          <div className="w-[60px] h-[60px] rounded-full bg-[#fdf2f8] flex items-center justify-center">
             <SpeechBubbleIcon />
           </div>
           <p className="text-[14px] leading-[130%] text-[#99A1AF]">
@@ -196,7 +198,7 @@ function SpeechBubbleIcon() {
     <svg viewBox="0 0 28 28" className="w-7 h-7" fill="none" aria-hidden>
       <path
         d="M5 8c0-1.66 1.34-3 3-3h12c1.66 0 3 1.34 3 3v8c0 1.66-1.34 3-3 3h-6l-4.5 4v-4H8c-1.66 0-3-1.34-3-3V8z"
-        stroke="#9B7AF7"
+        stroke="#f472b6"
         strokeWidth="1.6"
         strokeLinecap="round"
         strokeLinejoin="round"

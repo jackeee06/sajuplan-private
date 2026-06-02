@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # ============================================================
-# 사주문 배포 환경 설정 (단일 진실 원천)
+# 사주플랜 배포 환경 설정 (단일 진실 원천)
 # ============================================================
 #
 # 사용법:
 #   DEPLOY_TARGET=test  ./deploy.sh api    # 테스트 서버 (기본, sajumoon.kr)
-#   DEPLOY_TARGET=prod  ./deploy.sh api    # 운영 서버  (sajumoon.co.kr)
+#   DEPLOY_TARGET=prod  ./deploy.sh api    # 운영 서버  (sajuplan.com)
 #
 # - 모든 도메인은 이 파일의 case 한 곳에서만 정한다.
 # - SSH_HOST 는 운영 서버 IP 결정되면 prod 섹션을 갱신.
@@ -32,10 +32,12 @@ case "${DEPLOY_TARGET:-test}" in
     ;;
 
   prod)
-    # 운영 서버 — sajumoon.co.kr (104.64.128.103, OneInStack on Ubuntu 24.04)
+    # 운영 서버 — sajuplan.com (104.64.128.103, OneInStack on Ubuntu 24.04, 신규 브랜드)
+    # 원격 경로는 nginx vhost 갱신 전까진 기존 디렉터리(sajumoon.co.kr) 유지.
+    # 양쪽 도메인이 같은 디렉터리를 가리키는 동안 호환됨.
     SSH_HOST="${SSH_HOST:-root@104.64.128.103}"
-    USER_DOMAIN="sajumoon.co.kr"
-    API_DOMAIN="api.sajumoon.co.kr"
+    USER_DOMAIN="sajuplan.com"
+    API_DOMAIN="api.sajuplan.com"
     MNG_PATH="/mng/"
     USER_REMOTE="/data/wwwroot/sajumoon.co.kr"
     MNG_REMOTE="/data/wwwroot/sajumoon.co.kr/mng"

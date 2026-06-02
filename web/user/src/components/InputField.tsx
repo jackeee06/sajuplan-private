@@ -26,7 +26,7 @@ interface Props {
 }
 
 /**
- * 사주문 공용 입력 — Figma 스펙
+ * 사주플랜 공용 입력 — Figma 스펙
  * - h40, bg #f9fafb, border #f3f4f6, fully pill (rounded-full)
  * - placeholder 15/400 #99a1af, value 15/400 #1e2939
  * - error: border #f87171 (red-400), error msg는 부모가 별도 렌더

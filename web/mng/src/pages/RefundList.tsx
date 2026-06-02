@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
-import { inputCls } from '../components/table'
+import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Badge, BadgeColor, inputCls } from '../components/table'
 
 /**
  * 어드민 — 환불 이력 (Phase 10).
@@ -33,13 +33,14 @@ interface Resp {
   offset: number
 }
 
-const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
-  pending: { label: '대기', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
-  approved: { label: '승인', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
-  rejected: { label: '반려', cls: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
+const STATUS_LABEL: Record<string, { label: string; color: BadgeColor }> = {
+  pending: { label: '대기', color: 'amber' },
+  approved: { label: '승인', color: 'emerald' },
+  rejected: { label: '반려', color: 'gray' },
 }
 
 export default function RefundList() {
+  const navigate = useNavigate()
   const [data, setData] = useState<Resp | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -122,81 +123,45 @@ export default function RefundList() {
           환불 이력 없음
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
-          <div className="overflow-x-auto">
-            <table className="text-sm w-auto">
-              <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
-                <tr>
-                  <th className="px-3 py-1.5 text-left font-medium">시각</th>
-                  <th className="px-3 py-1.5 text-left font-medium">상담</th>
-                  <th className="px-3 py-1.5 text-left font-medium">회원</th>
-                  <th className="px-3 py-1.5 text-left font-medium">상담사</th>
-                  <th className="px-3 py-1.5 text-right font-medium">금액</th>
-                  <th className="px-3 py-1.5 text-left font-medium">상태</th>
-                  <th className="px-3 py-1.5 text-left font-medium">사유</th>
-                  <th className="px-3 py-1.5 text-left font-medium">처리자</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {data.items.map((r) => (
-                  <tr key={r.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
-                    <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">
-                      {r.created_at.slice(0, 16).replace('T', ' ')}
-                    </td>
-                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
-                      <Link
-                        to={`/consultations/${r.consultation_id}`}
-                        className="text-brand-600 hover:underline"
-                      >
-                        #{r.consultation_id}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
-                      {r.member_mb_id ? (
-                        <Link
-                          to={`/members/customers/${r.member_id}`}
-                          className="text-brand-600 hover:underline"
-                        >
-                          {r.member_mb_id}
-                        </Link>
-                      ) : (
-                        <span className="text-gray-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
-                      {r.counselor_id && r.counselor_mb_id ? (
-                        <Link
-                          to={`/members/counselors/${r.counselor_id}`}
-                          className="text-brand-600 hover:underline"
-                        >
-                          {r.counselor_nickname || r.counselor_mb_id}
-                        </Link>
-                      ) : (
-                        <span className="text-gray-300">—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-1.5 text-xs text-right font-medium tabular-nums whitespace-nowrap">
-                      {r.amount.toLocaleString()}P
-                    </td>
-                    <td className="px-3 py-1.5 text-xs whitespace-nowrap">
-                      <span
-                        className={`inline-flex px-2 py-0.5 rounded text-[10px] font-medium ${
-                          STATUS_LABEL[r.status]?.cls ?? 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {STATUS_LABEL[r.status]?.label ?? r.status}
-                      </span>
-                    </td>
-                    <td className="px-3 py-1.5 text-xs text-gray-600 max-w-[200px] truncate" title={r.reason}>
-                      {r.reason}
-                    </td>
-                    <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{r.decided_by ?? r.requested_by}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <TableShell>
+          <THead>
+            <Th align="left">시각</Th>
+            <Th align="left">상담</Th>
+            <Th align="left">회원</Th>
+            <Th align="left">상담사</Th>
+            <Th align="right">금액</Th>
+            <Th align="center">상태</Th>
+            <Th align="left">사유</Th>
+            <Th align="left">처리자</Th>
+          </THead>
+          <TBody>
+            {data.items.map((r) => {
+              const s = STATUS_LABEL[r.status] ?? { label: r.status, color: 'gray' as BadgeColor }
+              return (
+                <Tr key={r.id} onClick={() => navigate(`/consultations/${r.consultation_id}`)}>
+                  <Td align="left" className="text-xs text-gray-500 tabular-nums">{r.created_at.slice(0, 16).replace('T', ' ')}</Td>
+                  <Td align="left">
+                    <Link to={`/consultations/${r.consultation_id}`} onClick={(e) => e.stopPropagation()} className="text-brand-600 hover:underline font-medium">#{r.consultation_id}</Link>
+                  </Td>
+                  <Td align="left">
+                    {r.member_mb_id ? (
+                      <Link to={`/members/customers/${r.member_id}`} onClick={(e) => e.stopPropagation()} className="text-brand-600 hover:underline font-medium">{r.member_mb_id}</Link>
+                    ) : <span className="text-gray-300">—</span>}
+                  </Td>
+                  <Td align="left">
+                    {r.counselor_id && r.counselor_mb_id ? (
+                      <Link to={`/members/counselors/${r.counselor_id}`} onClick={(e) => e.stopPropagation()} className="text-brand-600 hover:underline font-medium">{r.counselor_nickname || r.counselor_mb_id}</Link>
+                    ) : <span className="text-gray-300">—</span>}
+                  </Td>
+                  <Td align="right" className="font-medium tabular-nums">{r.amount.toLocaleString()}P</Td>
+                  <Td align="center"><Badge color={s.color}>{s.label}</Badge></Td>
+                  <Td align="left" className="text-xs text-gray-600 max-w-[200px] truncate"><span title={r.reason}>{r.reason}</span></Td>
+                  <Td align="left" className="text-xs text-gray-500">{r.decided_by ?? r.requested_by}</Td>
+                </Tr>
+              )
+            })}
+          </TBody>
+        </TableShell>
       )}
 
       {data && data.total > 30 && (

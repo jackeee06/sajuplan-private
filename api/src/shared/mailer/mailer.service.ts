@@ -10,7 +10,7 @@ import nodemailer, { Transporter } from 'nodemailer';
  *   SMTP_PORT=587 (TLS) 또는 465 (SSL)
  *   SMTP_USER=네이버메일아이디           (예: originhouse9 — '@naver.com' 자동 추가)
  *   SMTP_PASS=애플리케이션 비밀번호
- *   MAIL_FROM_NAME=사주문
+ *   MAIL_FROM_NAME=사주플랜
  */
 @Injectable()
 export class MailerService {
@@ -27,7 +27,7 @@ export class MailerService {
     const user = userRaw.includes('@') ? userRaw : `${userRaw}@naver.com`;
 
     this.fromAddress = user;
-    this.fromName = config.get<string>('MAIL_FROM_NAME') ?? '사주문';
+    this.fromName = config.get<string>('MAIL_FROM_NAME') ?? '사주플랜';
 
     if (!host || !userRaw || !pass) {
       this.logger.warn(

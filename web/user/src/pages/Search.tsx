@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+﻿import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import { counselorsApi } from '../lib/api'
@@ -26,7 +26,7 @@ const FALLBACK_POPULAR: PopularKeyword[] = [
  * 본문: y=80, width 358, column gap 20 (제목 + 리스트)
  *  - 제목 "인기 검색어" 18/600/120% #101828
  *  - 리스트: column gap 20, 각 항목 row gap 16 items center
- *    - 순위 16/700/120% #8259F5
+ *    - 순위 16/700/120% #ec4899
  *    - 검색어 16/400/120% #1E2939 (flex-1)
  *    - NEW 16/500/120% #FF6467 (옵션)
  */
@@ -84,7 +84,7 @@ export default function Search() {
             onChange={(e) => setQ(e.target.value)}
             autoFocus
             placeholder="상담사, 상담분야, 해시태그 검색"
-            className="w-full h-10 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] px-4 py-1 text-[15px] leading-[150%] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#8259F5] focus:bg-white transition"
+            className="w-full h-10 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] px-4 py-1 text-[15px] leading-[150%] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#ec4899] focus:bg-white transition"
           />
         </form>
         <button
@@ -110,7 +110,7 @@ export default function Search() {
                   onClick={() => navigate(`/search/result?q=${encodeURIComponent(item.keyword)}`)}
                   className="w-full flex items-center gap-4 text-left"
                 >
-                  <span className="text-[16px] font-bold leading-[120%] text-[#8259F5] tabular-nums">
+                  <span className="text-[16px] font-bold leading-[120%] text-[#ec4899] tabular-nums">
                     {item.rank}
                   </span>
                   <span className="flex-1 text-[16px] font-normal leading-[120%] text-[#1E2939]">

@@ -26,8 +26,14 @@ import { StatsModule } from './stats/stats.module';
 import { AdminAttendanceModule } from './attendance/attendance.module';
 import { AdminGradeModule } from './grade/grade.module';
 import { AdminRefundsModule } from './refunds/refunds.module';
+import { AdminShortCallRefundsModule } from './short-call-refunds/short-call-refunds.module';
+import { AdminCounselorOpsModule } from './counselor-ops/counselor-ops.module';
+import { AdminPayoutsModule } from './payouts/payouts.module';
 import { AlimtalkBulkModule } from './alimtalk-bulk/alimtalk-bulk.module';
 import { AdminReferralsModule } from './referrals/referrals.module';
+import { AdminMemoModule } from './memo/memo.module';
+import { AdminHandbookModule } from './handbook/handbook.module';
+import { ProfitSimModule } from './profit-sim/profit-sim.module';
 
 @Module({
   imports: [
@@ -58,8 +64,14 @@ import { AdminReferralsModule } from './referrals/referrals.module';
     AdminAttendanceModule,
     AdminGradeModule,
     AdminRefundsModule,
+    AdminShortCallRefundsModule,
+    AdminCounselorOpsModule,
+    AdminPayoutsModule,
     AlimtalkBulkModule,
     AdminReferralsModule,
+    AdminMemoModule,
+    AdminHandbookModule,
+    ProfitSimModule,
   ],
 })
 export class AdminModule {}

@@ -1005,13 +1005,13 @@ $cp_count = get_shop_member_coupon_count($member['mb_id'], true);
                 </li>
                 <!--
                 <li style="background-image:url(../../img/my/my_menu_17.png);">
-                    <a href="<?php echo G5_URL; ?>/bbs/board.php?bo_table=column">사주문 칼럼</a>
+                    <a href="<?php echo G5_URL; ?>/bbs/board.php?bo_table=column">사주플랜 칼럼</a>
                 </li>
                 <li style="background-image:url(../../img/my/my_menu_19.png);">
                     <a href="<?php echo G5_URL; ?>/bbs/board.php?bo_table=charm">내맘대로 부적</a>
                 </li>
                 <li style="background-image:url(../../img/my/my_menu_18.png);">
-                    <a href="<?php echo G5_URL; ?>/sub/way.php">사주문의 길</a>
+                    <a href="<?php echo G5_URL; ?>/sub/way.php">사주플랜의 길</a>
                 </li>
                 -->
                 <li style="background-image:url(../../img/my/my_menu_20.png);">

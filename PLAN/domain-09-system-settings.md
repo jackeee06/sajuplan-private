@@ -8,14 +8,14 @@
 
 ## 개요
 
-이 도메인은 사주문1 관리자(sample/adm)의 **사이트 운영 환경 + 정적 운영 콘텐츠** 영역을 다룬다. 그누보드5 표준 시스템(`g5_config`, `g5_menu`, `g5_new_win`, `g5_qa_config`, `g5_shop_banner`) 위에 사주문 자체 비즈니스 설정 1개(`saju_config`)와 도메인 특화 콘텐츠 1개(`g5_write_wish` — 소원다락방)가 얹혀 있다.
+이 도메인은 사주플랜1 관리자(sample/adm)의 **사이트 운영 환경 + 정적 운영 콘텐츠** 영역을 다룬다. 그누보드5 표준 시스템(`g5_config`, `g5_menu`, `g5_new_win`, `g5_qa_config`, `g5_shop_banner`) 위에 사주플랜 자체 비즈니스 설정 1개(`saju_config`)와 도메인 특화 콘텐츠 1개(`g5_write_wish` — 소원다락방)가 얹혀 있다.
 
 핵심 관찰:
 
 1. **`g5_config`은 1행짜리 거대 테이블**(140+ 컬럼). 현재 라이브 운영 중이다(`INSERT INTO g5_config` 1행이 있음). 신규에서는 **`setting(namespace, key, value)` EAV 패턴**으로 통합 — 이미 [`0009_popup_settings.sql`](../api/db/migrations/0009_popup_settings.sql)에 시드되어 있고 [`Settings.tsx`](../web/mng/src/pages/Settings.tsx)가 4개 탭(site/member/social/security)으로 구현되어 있음. 즉, **기본 환경설정은 90% 완료 상태**. 남은 일은 mail/cert/qa/saju namespace 추가.
 2. **`g5_menu`는 6개 row만 사용 중**(홈/이용안내/공지/고객문의/앱설정 — 라이브 데이터 확인). me_code prefix-2 + suffix-2 의 36진수 트리 구조가 그누보드 식. 신규는 [`site_menu`](../api/db/migrations/0005_cms_system.sql)로 슬림화되어 있으나 **트리 깊이 1이상의 메뉴 관리 UI는 mng에 미구현**.
-3. **`g5_new_win`(팝업레이어)** 는 사주문 라이브에서 0건 추정(덤프에 INSERT 없음). 그러나 [`PopupLayerList.tsx`](../web/mng/src/pages/PopupLayerList.tsx) + [`PopupLayerForm.tsx`](../web/mng/src/pages/PopupLayerForm.tsx)가 이미 신규 스키마([`popup_notice`](../api/db/migrations/0009_popup_settings.sql))로 작성됨. **누락 필드 거의 없음 — 사주문 sample/adm/newwinform.php가 이미 left/top/width/height를 hidden으로 숨겨놓고 image_url/link_url 사용 패턴이라 신규 mng가 사실상 동일 모델**.
-4. **`g5_shop_banner`(배너)** 가 이 사이트의 핵심 운영 도구. 라이브에 데이터 있음. **17개 위치(`bn_position`) 한국어 enum**으로 운영 중(메인-비주얼, 메인-상단띠배너, 소원다락방-상단, 사주문의길 등). 신규에 [`shop_banner`](../api/db/migrations/0007_shop.sql)가 정의되어 있으나 **mng에 페이지 미구현**. 도메인 09에서 새 React 페이지가 필요.
+3. **`g5_new_win`(팝업레이어)** 는 사주플랜 라이브에서 0건 추정(덤프에 INSERT 없음). 그러나 [`PopupLayerList.tsx`](../web/mng/src/pages/PopupLayerList.tsx) + [`PopupLayerForm.tsx`](../web/mng/src/pages/PopupLayerForm.tsx)가 이미 신규 스키마([`popup_notice`](../api/db/migrations/0009_popup_settings.sql))로 작성됨. **누락 필드 거의 없음 — 사주플랜 sample/adm/newwinform.php가 이미 left/top/width/height를 hidden으로 숨겨놓고 image_url/link_url 사용 패턴이라 신규 mng가 사실상 동일 모델**.
+4. **`g5_shop_banner`(배너)** 가 이 사이트의 핵심 운영 도구. 라이브에 데이터 있음. **17개 위치(`bn_position`) 한국어 enum**으로 운영 중(메인-비주얼, 메인-상단띠배너, 소원다락방-상단, 사주플랜의길 등). 신규에 [`shop_banner`](../api/db/migrations/0007_shop.sql)가 정의되어 있으나 **mng에 페이지 미구현**. 도메인 09에서 새 React 페이지가 필요.
 5. **`saju_config`은 단 3컬럼짜리 사이비-테이블**(cf_now_add, cf_con_num, cf_1) — 메인페이지에 표시될 "가짜 숫자"(접속중 상담사 수 + 보정값)를 저장. 비즈니스적으로 필수 같지만 신규 DB에 별도 테이블/매핑이 **없음**. 클린 빌드 시 `setting` 테이블의 `namespace='saju'`로 흡수 권장.
 6. **`g5_qa_config`은 36개 컬럼의 1:1문의 설정 테이블**. 라이브 1행 운영 중. 신규에 별도 매핑 없음. **`setting` 테이블 `namespace='qa'`로 흡수**.
 7. **소원다락방(`g5_write_wish`)** 는 게시판이지만 sample/adm에서 **wr_subject/wr_1/wr_2를 "기도기간/진행상태/적립포인트"로 의미를 redefine해서 운영**. 신규 [`post_wish`](../api/db/migrations/0002_board_post.sql)는 표준 게시판 컬럼 + `extras JSONB`로 정의됨 — wr_1/wr_2 의미는 ETL 시 `extras.prayer_total_days`/`extras.prayer_progress_days`/`extras.reward_points`로 매핑 필요. **도메인 04와 중복되므로 도메인 04의 wish 항목 보강만**.
@@ -65,7 +65,7 @@
 - 회원 옵션: `cf_use_homepage/req_homepage`, `cf_use_tel/req_tel`, `cf_use_hp/req_hp`, `cf_use_addr/req_addr`, `cf_register_level`, `cf_leave_day`, `cf_use_recommend`, `cf_nick_modify`
 - 메일: `cf_email_use`, `cf_email_wr_*`, `cf_email_mb_*`, `cf_email_po_super_admin`
 - 여분필드: `cf_1_subj`~`cf_10_subj`, `cf_1`~`cf_10`
-- 사주문 추가: `cf_auth_hp`
+- 사주플랜 추가: `cf_auth_hp`
 
 **검증/권한**:
 - `auth_check($auth[$sub_menu], 'w')` — 메뉴 권한
@@ -91,13 +91,13 @@
 - **여분필드 cf_1_subj ~ cf_10_subj** 의미 미상. 라이브 덤프에서도 빈 값.
 - **비밀키 평문 노출**: cf_naver_secret, cf_google_secret, cf_kakao_client_secret 등 모든 OAuth secret이 평문 SELECT되어 admin 페이지 HTML에 출력됨.
 
-**운영 사용 여부 추정**: **사용 중 (필수)**. 라이브 덤프에 1행 INSERT 있음. cf_title='사주문', cf_admin='admin' 등 실제 값. 단, 다수 옵션은 디폴트 0/공백 — 즉 **실제 사용되는 키는 50% 이하**일 가능성.
+**운영 사용 여부 추정**: **사용 중 (필수)**. 라이브 덤프에 1행 INSERT 있음. cf_title='사주플랜', cf_admin='admin' 등 실제 값. 단, 다수 옵션은 디폴트 0/공백 — 즉 **실제 사용되는 키는 50% 이하**일 가능성.
 
 ---
 
 ### 2) 배너 (`bannerform.php`, `bannerlist.php`)
 
-**역할**: 메인/이벤트/상담사 페이지의 운영 배너 등록·수정·목록·삭제. 사주문1의 **시각적 운영의 핵심**.
+**역할**: 메인/이벤트/상담사 페이지의 운영 배너 등록·수정·목록·삭제. 사주플랜1의 **시각적 운영의 핵심**.
 
 **읽는 테이블**: `g5_shop_banner`
 **쓰는 테이블**: `g5_shop_banner` (INSERT/UPDATE/DELETE — 별도 `bannerformupdate.php`. 코드는 본 분석 대상 외)
@@ -110,16 +110,16 @@
 - `bn_device` (덤프 보면 빈 값 — 사실상 미사용)
 - `bn_border`, `bn_new_win` — 폼에 없으나 컬럼 존재
 
-**bn_position enum (17종, 한국어 — 사주문 핵심 비즈니스)**:
+**bn_position enum (17종, 한국어 — 사주플랜 핵심 비즈니스)**:
 ```
 회원가입완료, 메인-비주얼, 메인-상단띠배너, 메인-중앙배너,
 로그인-상단띠배너, 마이페이지, 일반-상담후기, 일반-이용안내,
 일반-상담사신청, 상담사-코인내역, 상담사-공지사항,
 이벤트1, 이벤트2, 이벤트3, 오늘의운세,
-소원다락방-상단, 소원다락방-하단, 사주문의길
+소원다락방-상단, 소원다락방-하단, 사주플랜의길
 ```
 
-각 위치별 권장 이미지 크기는 `bannerform.php` line 81~96에 한국어 help 텍스트로 박혀있음 (예: 메인-비주얼 1000×520, 메인-상단띠배너 1000×80, 사주문의길 1000×1100).
+각 위치별 권장 이미지 크기는 `bannerform.php` line 81~96에 한국어 help 텍스트로 박혀있음 (예: 메인-비주얼 1000×520, 메인-상단띠배너 1000×80, 사주플랜의길 1000×1100).
 
 **검증/권한**:
 - `auth_check_menu($auth, $sub_menu, "w"|"r")` — 그누보드 권한 (sub_menu='350600')
@@ -146,7 +146,7 @@
 - **bn_border, bn_new_win 컬럼은 폼에 없음** — list 페이지에서만 표시용. 의미 미상.
 - **이미지가 bn_id 파일명**: `/data/banner/124` (확장자 없음). MIME sniff로 처리. 신규는 **확장자 + 객체 스토리지 URL** 권장.
 
-**운영 사용 여부 추정**: **사용 중 (핵심)**. 라이브 덤프에 2행. 하지만 모두 `bn_url='http://'`, `bn_alt=''`로 빈 껍데기 — 실제 운영은 다른 위치에서 이미지 업로드/관리되거나 최근 정리됨. 그래도 위치 매핑 17종은 사주문 사이트 IA의 핵심.
+**운영 사용 여부 추정**: **사용 중 (핵심)**. 라이브 덤프에 2행. 하지만 모두 `bn_url='http://'`, `bn_alt=''`로 빈 껍데기 — 실제 운영은 다른 위치에서 이미지 업로드/관리되거나 최근 정리됨. 그래도 위치 매핑 17종은 사주플랜 사이트 IA의 핵심.
 
 ---
 
@@ -173,15 +173,15 @@
 4. 자가-마이그레이션: `g5_new_win` 테이블 없으면 CREATE, `g5_shop_new_win`이 있으면 RENAME, `nw_division` 컬럼 ADD
 
 **발견된 이슈**:
-- **사주문 운영 패턴이 그누보드 기본과 다름**: form에서 `nw_left/nw_top/nw_width/nw_height`를 hidden으로 숨김 + `nw_division`도 hidden. 즉, **위치/크기는 고정, 분류 미사용**. 신규 mng의 [`PopupLayerForm.tsx`](../web/mng/src/pages/PopupLayerForm.tsx)는 위치/크기를 폼에 노출해놨음 → **사주문 운영자가 안 쓰는 필드라 단순화 가능**.
+- **사주플랜 운영 패턴이 그누보드 기본과 다름**: form에서 `nw_left/nw_top/nw_width/nw_height`를 hidden으로 숨김 + `nw_division`도 hidden. 즉, **위치/크기는 고정, 분류 미사용**. 신규 mng의 [`PopupLayerForm.tsx`](../web/mng/src/pages/PopupLayerForm.tsx)는 위치/크기를 폼에 노출해놨음 → **사주플랜 운영자가 안 쓰는 필드라 단순화 가능**.
 - nw_subject는 strip_tags + clean_xss_attributes, 본문은 html_purifier — **본문은 HTML 허용**.
 
 **운영 사용 여부 추정**: **현재 사용 안 함** (라이브 덤프에 INSERT 0건). 그러나 메인 페이지 마케팅 도구로 언제든 살아날 수 있는 기능.
 
 **기존 mng 구현과의 비교**:
-- ✅ 신규 [`PopupLayerForm.tsx`](../web/mng/src/pages/PopupLayerForm.tsx)는 **사주문 라이브가 안 쓰는 필드까지 다 들어있음** (left/top/width/height, is_html). 추가 누락 필드 없음.
-- ✅ image_url, link_url은 신규 신설 필드 (raw 그누보드엔 없음). 사주문 운영에 더 적합.
-- ⚠️ **Division (comm/shop/both) 필드는 신규 popup_notice에 있으나 mng 폼에 미노출** — 사주문 라이브에서도 hidden이라 **불필요. 폼에서 영구 제거 권장**.
+- ✅ 신규 [`PopupLayerForm.tsx`](../web/mng/src/pages/PopupLayerForm.tsx)는 **사주플랜 라이브가 안 쓰는 필드까지 다 들어있음** (left/top/width/height, is_html). 추가 누락 필드 없음.
+- ✅ image_url, link_url은 신규 신설 필드 (raw 그누보드엔 없음). 사주플랜 운영에 더 적합.
+- ⚠️ **Division (comm/shop/both) 필드는 신규 popup_notice에 있으나 mng 폼에 미노출** — 사주플랜 라이브에서도 hidden이라 **불필요. 폼에서 영구 제거 권장**.
 - ⚠️ disable_hours 24시간 default OK.
 
 ---
@@ -245,7 +245,7 @@
 
 ---
 
-### 6) 사주 메인 설정 (`saju_config.php`, `saju_config_update.php`) ★사주문1 특화
+### 6) 사주 메인 설정 (`saju_config.php`, `saju_config_update.php`) ★사주플랜1 특화
 
 **역할**: 메인 페이지 표시될 **가상 카운터**(접속중 상담사 수, 일주일 상담건수, 라이브 숫자) 보정값.
 
@@ -310,7 +310,7 @@ if ($cf_now_add || $cf_con_num) {
 - **콜럼 의미가 코드 주석 외에 어디에도 정의되지 않음** — `wr_subject = "기도기간"` 같은 도메인 의미는 PHP 코드 안 if 분기로만 추론 가능. 신규 클린 빌드 시 **`extras` JSONB의 키 명세화 필수**.
 - **excel_form은 없고 즉시 다운로드** — sub_menu auth='r'만 체크.
 
-**운영 사용 여부 추정**: **사용 중**. wr_subject/wr_1/wr_2 의미가 사주문 비즈니스 로직(소원 기도 카운트다운)에 결합됨. **도메인 04에서 이미 wr_1~10을 extras로 보존하기로 결정**되어 있으므로 ETL 시 의미 매핑 필요.
+**운영 사용 여부 추정**: **사용 중**. wr_subject/wr_1/wr_2 의미가 사주플랜 비즈니스 로직(소원 기도 카운트다운)에 결합됨. **도메인 04에서 이미 wr_1~10을 extras로 보존하기로 결정**되어 있으므로 ETL 시 의미 매핑 필요.
 
 ---
 
@@ -392,7 +392,7 @@ if ($cf_now_add || $cf_con_num) {
 | `cf_sms_use`/`cf_sms_type`/`cf_icode_id`/`cf_icode_pw`/`cf_icode_server_ip`/`cf_icode_server_port` | `sms.use`/`type`/`icode_id`/`icode_pw`/`server_ip`/`server_port` | bool/string | ❌ **신규 시드 필요** |
 | `cf_use_point`/`cf_point_term` | `point.use`/`expire_days` | bool/int | ❌ 도메인 01과 협의 |
 | `cf_1_subj`~`cf_10_subj`, `cf_1`~`cf_10` | (제거 권장 — 미사용) | — | 의미 미상, 0건 |
-| `cf_auth_hp` | `cert.auth_hp_required` | bool | ❌ 사주문 추가 필드 |
+| `cf_auth_hp` | `cert.auth_hp_required` | bool | ❌ 사주플랜 추가 필드 |
 | `cf_new_skin/search_skin/...` | (제거) | — | 그누보드 스킨 시스템 폐기 |
 | `cf_image_extension/flash_extension/movie_extension` | `upload.allowed_image_ext` 등 | string | (도메인 04와 협의) |
 | `cf_open_modify`, `cf_member_icon_*`, `cf_login_minutes` | (필요 시 추가) | — | 미사용 가능성 |
@@ -432,7 +432,7 @@ CREATE TABLE banner_position (
 **작업 필요사항** (PopupLayerForm.tsx 보강):
 - ✅ image_url, link_url, is_active 모두 구현됨
 - ⚠️ `division` 필드는 schema에 있으나 폼에 미노출 — **OK, 그대로 두되 default 'both' 강제**
-- ⚠️ `is_html` 폼에 노출되어 있으나 사주문 라이브가 안 쓴 컬럼 — **그대로 두기**
+- ⚠️ `is_html` 폼에 노출되어 있으나 사주플랜 라이브가 안 쓴 컬럼 — **그대로 두기**
 - ✅ disable_hours, pos_left/top, size_width/height 모두 구현
 - 누락 없음.
 
@@ -480,7 +480,7 @@ CREATE INDEX idx_site_menu_parent ON site_menu (parent_id, display_order);
 
 **확장**: `faq_category`/`faq` 테이블이 별도 도메인. 해당 영역은 도메인 04 또는 별도 정리.
 
-### F. 사주 메인 설정 → `setting` namespace='saju' (★사주문 핵심)
+### F. 사주 메인 설정 → `setting` namespace='saju' (★사주플랜 핵심)
 
 **DB 마이그레이션 추가 필요** (0009 또는 별도):
 ```sql

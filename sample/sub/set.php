@@ -14,7 +14,7 @@ include_once(G5_THEME_MOBILE_PATH.'/head.php');
     
     <ul class="set_div">        
 		<li class="dis_none" style="background-image:url(../img/etc/icon_push.png);">
-	        사주문 무료 일일운세 받아보기
+	        사주플랜 무료 일일운세 받아보기
 
        		<label class="switch">
   				<input name="push_service" type="checkbox" id="push_service"  onclick="set_push_mb('push_service')" value="Y" checked="checked" <?=$push_service_class?>>

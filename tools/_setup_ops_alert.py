@@ -28,7 +28,7 @@ import paramiko
 
 TARGETS = [
     ("test", "172.235.211.75", "/data/wwwroot/api.sajumoon.kr", "api.sajumoon.kr"),
-    ("prod", "104.64.128.103", "/data/wwwroot/api.sajumoon.co.kr", "api.sajumoon.co.kr"),
+    ("prod", "104.64.128.103", "/data/wwwroot/api.sajuplan.com", "api.sajuplan.com"),
 ]
 
 # 시드 SQL — setting + alimtalk_template
@@ -45,7 +45,7 @@ ON CONFLICT (namespace, key) DO NOTHING;
 INSERT INTO alimtalk_template (template_code, message, is_active)
 VALUES (
   'ops_admin_alert',
-  E'[사주문 운영 알림]\\n\\n유형: #{category}\\n시각: #{at}\\n\\n#{detail}',
+  E'[사주플랜 운영 알림]\\n\\n유형: #{category}\\n시각: #{at}\\n\\n#{detail}',
   true
 )
 ON CONFLICT (template_code) DO NOTHING;

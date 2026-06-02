@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SQL, type Sql } from '../shared/db/db.module';
 import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
+import { AlertsService } from '../shared/alerts/alerts.service';
 
 /**
  * Phase G — DB 일관성 health-check 서비스.
@@ -21,6 +22,7 @@ export class HealthCheckService {
   constructor(
     @Inject(SQL) private readonly sql: Sql,
     private readonly opsAlert: OpsAlertService,
+    private readonly alerts: AlertsService,
   ) {}
 
   /**
@@ -34,9 +36,11 @@ export class HealthCheckService {
   }> {
     const checks: Array<{ id: string; name: string; severity: 'critical' | 'warning' | 'info'; violations: number; detail?: string }> = [];
 
-    // C-1 음수 포인트 잔액
+    // C-1 음수 포인트 잔액 (소비포인트 free/paid + 수익포인트 earning 모두 검증)
     const c1 = await this.sql<{ cnt: string }[]>`
-      SELECT COUNT(*)::text AS cnt FROM point WHERE free_balance < 0 OR paid_balance < 0
+      SELECT COUNT(*)::text AS cnt
+        FROM point
+       WHERE free_balance < 0 OR paid_balance < 0 OR earning_balance < 0
     `;
     checks.push({ id: 'C-1', name: '음수 포인트 잔액', severity: 'critical', violations: Number(c1[0].cnt) });
 
@@ -205,6 +209,134 @@ export class HealthCheckService {
       detail: c18[0].sample ?? undefined,
     });
 
+    // ── 선지급(early payout) 시스템 invariants (Phase 1, 2026-05-21) ──
+    // 명세: memory/project_payout_system_plan.md
+    //   payout_request 테이블이 없으면 (마이그레이션 전) 모두 0 으로 처리.
+
+    const tblExists = await this.sql<{ exists: boolean }[]>`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables WHERE table_name = 'payout_request'
+      ) AS exists
+    `;
+
+    if (!tblExists[0]?.exists) {
+      // 스키마 미적용 환경 — invariant 등록만 하고 0 처리
+      checks.push({ id: 'C-19', name: '선지급 누적 paid > 정산예상 (사기/버그)', severity: 'critical', violations: 0, detail: '(payout_request 테이블 없음)' });
+      checks.push({ id: 'C-20', name: 'paid 됐는데 정산 차감 누락', severity: 'critical', violations: 0, detail: '(payout_request 테이블 없음)' });
+      checks.push({ id: 'C-21', name: '30일+ pending 상태 신청', severity: 'warning', violations: 0, detail: '(payout_request 테이블 없음)' });
+    } else {
+      // C-19 누적 paid > 누적 정산예상 × 1.5 (시스템 버그·사기·환불 폭주 가능성)
+      //   완전 일치 비교는 무의미 (환불 변수). 1.5배 초과만 Critical.
+      //   threshold 는 setting 에서 읽음 (기본 1.5)
+      const thresholdRow = await this.sql<{ value: string }[]>`
+        SELECT value FROM setting
+         WHERE namespace='payout' AND key='anomaly_paid_ratio_threshold'
+         LIMIT 1
+      `;
+      const threshold = thresholdRow.length > 0 ? Number(thresholdRow[0].value) || 1.5 : 1.5;
+      const c19 = await this.sql<{ cnt: string; sample: string | null }[]>`
+        WITH paid_sum AS (
+          SELECT counselor_id, SUM(requested_amount)::bigint AS paid_total
+            FROM payout_request
+           WHERE status = 'paid'
+             AND paid_at >= date_trunc('month', NOW() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul'
+           GROUP BY counselor_id
+        ),
+        estimated AS (
+          SELECT c.counselor_id,
+                 SUM(GREATEST(c.amt_free - COALESCE(rr.refunded_free, 0), 0)
+                   + GREATEST(c.amt_pro  - COALESCE(rr.refunded_pro,  0), 0))::bigint AS amt_total
+            FROM consultation c
+            LEFT JOIN (
+              SELECT consultation_id,
+                     COALESCE(SUM(amount_free),0)::bigint AS refunded_free,
+                     COALESCE(SUM(amount_pro), 0)::bigint AS refunded_pro
+                FROM refund_request WHERE status='approved'
+               GROUP BY consultation_id
+            ) rr ON rr.consultation_id = c.id
+           WHERE c.reason IN ('DISCONNECT','END_CHAT','END_CHAT_LOCAL')
+             AND c.created_at >= date_trunc('month', NOW() AT TIME ZONE 'Asia/Seoul') AT TIME ZONE 'Asia/Seoul'
+             AND c.refund_status IS DISTINCT FROM 'full'
+           GROUP BY c.counselor_id
+        )
+        SELECT COUNT(*)::text AS cnt,
+               STRING_AGG('mb_id=' || m.mb_id || ' paid=' || p.paid_total || ' est=' || COALESCE(e.amt_total, 0), ', ') AS sample
+          FROM paid_sum p
+          LEFT JOIN estimated e ON e.counselor_id = p.counselor_id
+          LEFT JOIN member m ON m.id = p.counselor_id
+         WHERE p.paid_total::numeric > COALESCE(e.amt_total, 0)::numeric * ${threshold}::numeric
+      `;
+      checks.push({
+        id: 'C-19',
+        name: `선지급 누적 paid > 정산예상 × ${threshold}`,
+        severity: 'critical',
+        violations: Number(c19[0].cnt),
+        detail: c19[0].sample ?? undefined,
+      });
+
+      // C-20 paid 됐는데 settlement_month 가 null + 1개월 이상 경과 (정산 cron 미차감)
+      //   paid_at + 1개월 < 현재 면 정산 cron 이 차감했어야 함. 누락된 row 추적.
+      const c20 = await this.sql<{ cnt: string; sample: string | null }[]>`
+        SELECT COUNT(*)::text AS cnt,
+               STRING_AGG('id=' || id::text || ' paid_at=' || paid_at::text, ', ') AS sample
+          FROM payout_request
+         WHERE status = 'paid'
+           AND settled_at IS NULL
+           AND paid_at < (date_trunc('month', NOW() AT TIME ZONE 'Asia/Seoul')) AT TIME ZONE 'Asia/Seoul'
+      `;
+      checks.push({
+        id: 'C-20',
+        name: 'paid 됐는데 정산 차감 누락',
+        severity: 'critical',
+        violations: Number(c20[0].cnt),
+        detail: c20[0].sample ?? undefined,
+      });
+
+      // C-21 30일+ pending 상태 신청 (운영자가 까먹은 신청)
+      //   기본 30일. setting 으로 조정 가능.
+      const pendingDaysRow = await this.sql<{ value: string }[]>`
+        SELECT value FROM setting
+         WHERE namespace='payout' AND key='anomaly_pending_days'
+         LIMIT 1
+      `;
+      const pendingDays = pendingDaysRow.length > 0 ? Number(pendingDaysRow[0].value) || 30 : 30;
+      const c21 = await this.sql<{ cnt: string }[]>`
+        SELECT COUNT(*)::text AS cnt
+          FROM payout_request
+         WHERE status = 'pending'
+           AND requested_at < NOW() - (${pendingDays}::int || ' days')::interval
+      `;
+      checks.push({
+        id: 'C-21',
+        name: `${pendingDays}일+ pending 상태 선지급 신청`,
+        severity: 'warning',
+        violations: Number(c21[0].cnt),
+      });
+    }
+
+    // C-22 (2026-05-22) csrid 없는 counselor 검출
+    //   role=counselor 인데 m2net csrid 가 NULL 이면 통화/채팅 라우팅 불가.
+    //   원인: counselor-apply 승인 시 linkCounselorToM2net 실패 (외부 API 장애 등) 또는
+    //         어드민이 폼 저장 시 register_m2net=false 옵션 사용. 어느 쪽이든 운영자 인지 필요.
+    //   left_at IS NOT NULL (탈퇴) 은 제외.
+    //   더미 데이터(mb_id LIKE 'dummy_%') 는 시연/테스트용이라 검증 제외.
+    const c22 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG('id=' || id || ' mb_id=' || mb_id, ', ') AS sample
+        FROM member
+       WHERE role = 'counselor'
+         AND csrid IS NULL
+         AND left_at IS NULL
+         AND mb_id NOT LIKE 'dummy\\_%' ESCAPE '\\'
+    `;
+    checks.push({
+      id: 'C-22',
+      name: 'csrid 없는 counselor (m2net 등록 누락)',
+      severity: 'warning',
+      violations: Number(c22[0].cnt),
+      detail: c22[0].sample ?? undefined,
+    });
+
     // 종합
     const critical = checks.filter((c) => c.severity === 'critical' && c.violations > 0);
     const warning = checks.filter((c) => c.severity === 'warning' && c.violations > 0);
@@ -215,9 +347,13 @@ export class HealthCheckService {
       const detail = critical
         .map((c) => `[${c.id}] ${c.name}: ${c.violations}건${c.detail ? ` (${c.detail})` : ''}`)
         .join('\n');
+      // 카테고리에 fingerprint 포함 — "동일 증상" 만 6시간 dedup. 다른 invariant 발생 시 즉시 알림.
+      //   예: C-18=1 → 6h 묶임. 그 사이 C-3=2 새 발생 → 다른 카테고리라 즉시 발송.
+      const fingerprint = critical.map((c) => `${c.id}=${c.violations}`).join(',');
       const r = await this.opsAlert.send(
-        'DB 일관성 위반 감지 (Critical)',
+        `DB 일관성 위반 (${fingerprint})`,
         `다음 invariant 가 위반됨:\n${detail}\n\n로그 + DB 점검 필요`,
+        { cooldownSec: 21600 }, // 6시간 — 같은 fingerprint 반복 알림만 차단
       );
       alerted = !r.skipped;
     } else if (warning.length > 0) {
@@ -229,6 +365,15 @@ export class HealthCheckService {
     this.logger.log(
       `[health-check] 완료 — critical=${critical.length} warning=${warning.length} alerted=${alerted}`,
     );
+
+    // [엄격검증 4차 fix 2026-05-27 Q-1] alerts in-memory 큐 TTL 청소 — 매시간 호출.
+    //   비활성 사용자(polling 안 함) 의 만료 alerts 누적 방지.
+    try {
+      const cleaned = this.alerts.sweepExpired();
+      if (cleaned > 0) this.logger.log(`[health-check] alerts.sweepExpired 청소 ${cleaned}건`);
+    } catch (e) {
+      this.logger.warn(`[health-check] alerts.sweepExpired 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
 
     return {
       checks,

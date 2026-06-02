@@ -41,7 +41,7 @@ def main() -> int:
         return 1
     for label, host, domain in [
         ("test", "172.235.211.75", "api.sajumoon.kr"),
-        ("prod", "104.64.128.103", "api.sajumoon.co.kr"),
+        ("prod", "104.64.128.103", "api.sajuplan.com"),
     ]:
         check_one(label, host, domain, pw)
     return 0

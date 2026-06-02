@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+﻿import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { ApiError, attendanceApi, authApi } from '../lib/api'
@@ -12,10 +12,10 @@ type SocialProvider = 'kakao' | 'naver' | 'apple'
  * 핵심 스펙 (Figma JSON 기반)
  * - 폰트: Pretendard 400/500/600
  * - 입력: w358 h40, bg #f9fafb, border #f3f4f6, fully pill (r=1000)
- * - 로그인 버튼: w358 h48, bg #8259F5, fully pill (r=9999), text 16/500 white
+ * - 로그인 버튼: w358 h48, bg #ec4899, fully pill (r=9999), text 16/500 white
  * - 카카오 버튼: w358 h48, bg #fee500, fully pill, text 15/600 black
  * - 네이버 버튼: w358 h48, bg #03a94d, fully pill, text 15/600 white
- * - 체크박스: 22x22, r=6, checked #8259F5
+ * - 체크박스: 22x22, r=6, checked #ec4899
  * - 본문 가로 패딩: 16px (390 - 358 = 32 / 2)
  * - 헤더: h60, 좌측에 ← 아이콘(30x30) + 12gap + 로그인 타이틀(18/600)
  *
@@ -23,7 +23,7 @@ type SocialProvider = 'kakao' | 'naver' | 'apple'
  */
 export default function Login() {
   const navigate = useNavigate()
-  const { refresh } = useAuth()
+  const { refresh, setSession } = useAuth()
   const [searchParams] = useSearchParams()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -115,7 +115,7 @@ export default function Login() {
           if (r.needs_signup) {
             navigate('/signup?social=apple', { replace: true })
           } else {
-            await refresh()
+            setSession(r.member)
             const target =
               redirect && redirect !== '/'
                 ? redirect
@@ -144,7 +144,7 @@ export default function Login() {
         if (r.needs_signup) {
           navigate('/signup?social=kakao', { replace: true })
         } else {
-          await refresh()
+          setSession(r.member)
           const target =
             redirect && redirect !== '/'
               ? redirect
@@ -183,8 +183,9 @@ export default function Login() {
     setSubmitting(true)
     try {
       const r = await authApi.login(id, password, keepLogin)
-      // AuthContext 갱신 → 다른 페이지에서 즉시 로그인 상태 인식
-      await refresh()
+      // [2026-05-25] 로그인 응답의 member 를 즉시 주입 — me() race 회피
+      // 이전 코드: await refresh() → 쿠키 동기화 race 로 401 받아 "첫 로그인 안 됨" 버그 다수 발생
+      setSession(r.member)
 
       // 출석체크 (2026-05-16) — 로그인 직후 자동 처리. 실패해도 로그인은 성공으로 본다.
       // 결과는 sessionStorage 로 다음 화면에 전달 → 토스트/모달 노출.
@@ -248,7 +249,7 @@ export default function Login() {
         <div className="pt-5 flex flex-col items-stretch gap-7">
           {/* 로고 — Figma logo_b (가운데 정렬, h ~46) */}
           <div className="flex justify-center">
-            <img src="/img/logo_b.svg" alt="사주문" className="h-[46px] w-auto" />
+            <img src="/img/logo_b.svg?v=v2" alt="사주플랜" className="h-[46px] w-auto" />
           </div>
 
           {/* Frame 528: 폼 그룹 + 로그인 버튼 (gap 24) */}
@@ -304,11 +305,11 @@ export default function Login() {
               </div>
             )}
 
-            {/* 로그인 버튼 — pill, h48, bg #8259F5 */}
+            {/* 로그인 버튼 — pill, h48, bg #ec4899 */}
             <button
               type="submit"
               disabled={submitting}
-              className="h-12 w-full flex items-center justify-center gap-1 rounded-full bg-[#8259F5] hover:bg-brand-500 active:bg-brand-600 text-white text-[16px] font-medium transition disabled:opacity-60 disabled:cursor-not-allowed"
+              className="h-12 w-full flex items-center justify-center gap-1 rounded-full bg-[#ec4899] hover:bg-brand-500 active:bg-brand-600 text-white text-[16px] font-medium transition disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {submitting ? '로그인 중...' : '로그인'}
@@ -455,7 +456,7 @@ function ClearIcon() {
 
 /* ───────────────────────────────────────────────
  * 네이티브 앱(RN webview) 브릿지
- *  - 사주문은 react-native-webview 기반 — Web→RN 은 window.ReactNativeWebView.postMessage
+ *  - 사주플랜은 react-native-webview 기반 — Web→RN 은 window.ReactNativeWebView.postMessage
  *  - RN→Web 은 webView.injectJavaScript 로 'native_sns_login_result' CustomEvent dispatch
  *  - 메시지 페이로드(JSON string):
  *      Web→RN: { type: 'SNS_LOGIN', provider: 'kakao' }

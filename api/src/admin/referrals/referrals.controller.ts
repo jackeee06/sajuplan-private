@@ -14,7 +14,7 @@ import { AdminAuthGuard, type AuthedRequest } from '../auth/admin-auth.guard';
 import { AdminReferralsService } from './referrals.service';
 
 /**
- * 어드민 — 상담사 추천 수당 관리.
+ * 어드민 — 상담사 추천 수당 관리. 일반관리자도 모든 작업 가능 (운영팀 일상 업무).
  *
  *   GET   /admin/referrals?month=YYYY-MM&status=active
  *   POST  /admin/referrals                      { referrer_id, referee_id, memo? }

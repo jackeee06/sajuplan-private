@@ -1,4 +1,4 @@
-# 사주문 (Sajumoon)
+# 사주플랜 (Sajumoon)
 
 사주·타로·신점 상담 서비스 플랫폼.
 
@@ -15,7 +15,7 @@
 ## 디렉토리 구조
 
 ```
-사주문1/
+사주플랜1/
 ├── api/              # NestJS 백엔드 API
 │   ├── src/          # 소스 (컨트롤러·서비스·엔티티)
 │   ├── db/           # 마이그레이션·DB 스크립트
@@ -37,7 +37,7 @@
 
 ## 프로젝트 정보
 
-- **Figma 디자인**: https://www.figma.com/design/v9JT0ZgilboPxdXAnpH4sS/사주문_디자인
+- **Figma 디자인**: https://www.figma.com/design/v9JT0ZgilboPxdXAnpH4sS/사주플랜_디자인
 - **뷰포트**: 모바일 전용 (기준 375px, 최대 600px 가운데 정렬)
 - **폰트**: Pretendard Variable (로컬 woff2)
 - **컬러 키**: `#9b7af7` (primary-400)

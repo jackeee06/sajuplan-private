@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -10,7 +10,7 @@ import { ApiError, consultApi, type ConsultMyStats, type ConsultStatsItem } from
  *
  *  /mypage/my-consult-stats
  *
- *  경쟁사(사주나루) 의 "나의 상담 관리" 와 같은 목적이지만 사주문 톤으로 재구성:
+ *  경쟁사(사주나루) 의 "나의 상담 관리" 와 같은 목적이지만 사주플랜 톤으로 재구성:
  *   - 기간 프리셋 칩 (오늘 / 7일 / 30일 / 이번달 / 직접입력)
  *   - 합계 카드 3분할 (상담건 / 부재건 / 상담시간)
  *   - 파생지표 한 줄 (평균 통화 · 일평균 · 부재율)  ← 차별화
@@ -169,7 +169,7 @@ export default function CounselorMyConsultStats() {
                   className={
                     'px-3.5 h-[38px] rounded-pill text-[15px] leading-none border transition ' +
                     (active
-                      ? 'bg-[#F3EEFE] border-[#9B7AF7] text-[#8259F5] font-medium'
+                      ? 'bg-[#f3f0ff] border-[#8259F5] text-[#8259F5] font-medium'
                       : 'bg-[#F9FAFB] border-[#F3F4F6] text-[#6A7282]')
                   }
                 >
@@ -187,7 +187,7 @@ export default function CounselorMyConsultStats() {
                 value={customFrom}
                 max={customTo || undefined}
                 onChange={(e) => setCustomFrom(e.target.value)}
-                className="flex-1 h-[44px] px-3 rounded-[12px] border border-[#E5E7EB] bg-white text-[14px] text-[#252B36] focus:outline-none focus:border-[#9B7AF7]"
+                className="flex-1 h-[44px] px-3 rounded-[12px] border border-[#E5E7EB] bg-white text-[14px] text-[#252B36] focus:outline-none focus:border-[#8259F5]"
               />
               <span className="text-[#9CA3AF]">~</span>
               <input
@@ -195,12 +195,12 @@ export default function CounselorMyConsultStats() {
                 value={customTo}
                 min={customFrom || undefined}
                 onChange={(e) => setCustomTo(e.target.value)}
-                className="flex-1 h-[44px] px-3 rounded-[12px] border border-[#E5E7EB] bg-white text-[14px] text-[#252B36] focus:outline-none focus:border-[#9B7AF7]"
+                className="flex-1 h-[44px] px-3 rounded-[12px] border border-[#E5E7EB] bg-white text-[14px] text-[#252B36] focus:outline-none focus:border-[#8259F5]"
               />
               <button
                 type="button"
                 onClick={onSearchCustom}
-                className="h-[44px] px-4 rounded-[12px] bg-[#9B7AF7] text-white text-[14px] font-medium"
+                className="h-[44px] px-4 rounded-[12px] bg-[#8259F5] text-white text-[14px] font-medium"
               >
                 검색
               </button>
@@ -314,7 +314,7 @@ export default function CounselorMyConsultStats() {
                     className={
                       'w-[40px] h-[40px] rounded-full flex items-center justify-center text-[12px] font-medium shrink-0 ' +
                       (it.consult_type === 'call'
-                        ? 'bg-[#F3EEFE] text-[#8259F5]'
+                        ? 'bg-[#f3f0ff] text-[#8259F5]'
                         : 'bg-[#E8F8F4] text-[#00BBA7]')
                     }
                   >
@@ -363,7 +363,7 @@ export default function CounselorMyConsultStats() {
       </main>
 
       <FloatingActions />
-      <BottomNav />
+      <BottomNav myHref="/counselor/mypage" />
     </div>
   )
 }

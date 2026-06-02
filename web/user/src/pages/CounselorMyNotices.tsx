@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FilterDropdown from '../components/FilterDropdown'
@@ -143,7 +143,7 @@ export default function CounselorMyNotices() {
                 key={n.id}
                 className={
                   n.is_pinned
-                    ? 'border-b border-[#F3F4F6] bg-[#F3EEFE]'
+                    ? 'border-b border-[#F3F4F6] bg-[#f3f0ff]'
                     : 'border-b border-[#F3F4F6] bg-white'
                 }
               >
@@ -160,7 +160,7 @@ export default function CounselorMyNotices() {
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     {n.is_pinned && (
-                      <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#9B7AF7] text-[12px] leading-none font-medium text-[#8259F5]">
+                      <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#8259F5] text-[12px] leading-none font-medium text-[#8259F5]">
                         공지
                       </span>
                     )}

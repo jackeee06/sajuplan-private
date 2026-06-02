@@ -145,7 +145,7 @@ export const GENERAL_PAY_OPTIONS = [
 export type GeneralPayOption = (typeof GENERAL_PAY_OPTIONS)[number]
 
 /**
- * 사주문페이 등록 카드.
+ * 사주플랜페이 등록 카드.
  * 카드사 브랜드 컬러는 시안에서 추출:
  *  - BC카드: 빨강 배경 + 흰색 텍스트
  *  - KB 국민카드: 노랑 배경 + 검정 텍스트
@@ -182,7 +182,7 @@ export const MOCK_AUTO_THRESHOLD = 10000
 
 /** 충전 페이지 주의사항 4줄 */
 export const CHARGE_NOTICES = [
-  "충전 불편 및 신청은 카카오톡 '사주문고객센터'로 문의 바랍니다.",
+  "충전 불편 및 신청은 카카오톡 '사주플랜고객센터'로 문의 바랍니다.",
   '상담 종료 후 남은 시간은 부분 환불이 되지 않습니다.',
   '충전·사용 내역은 마이페이지에서 보실 수 있습니다.',
   '제시된 금액은 부가세(VAT) 미포함 가격입니다.',

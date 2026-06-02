@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow } from '../components/table'
 
 /**
  * 어드민 — 일괄 알림톡 발송 + 발송 이력 (Phase 13).
@@ -247,38 +248,32 @@ export default function AlimtalkBulk() {
             ) : jobs.length === 0 ? (
               <div className="px-4 py-3 text-xs text-gray-500 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl w-fit">아직 발송 없음</div>
             ) : (
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
-                <div className="overflow-x-auto">
-                  <table className="text-sm w-auto">
-                    <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-300">
-                      <tr>
-                        <th className="px-3 py-1.5 text-left font-medium">시각</th>
-                        <th className="px-3 py-1.5 text-left font-medium">Job ID</th>
-                        <th className="px-3 py-1.5 text-left font-medium">템플릿</th>
-                        <th className="px-3 py-1.5 text-right font-medium">전체</th>
-                        <th className="px-3 py-1.5 text-right font-medium">성공</th>
-                        <th className="px-3 py-1.5 text-right font-medium">실패</th>
-                        <th className="px-3 py-1.5 text-left font-medium">발송자</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                      {jobs.map((j) => (
-                        <tr key={j.bulk_job_id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5">
-                          <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{j.created_at.slice(0, 16).replace('T', ' ')}</td>
-                          <td className="px-3 py-1.5 text-xs whitespace-nowrap">#{j.bulk_job_id}</td>
-                          <td className="px-3 py-1.5 text-xs font-mono whitespace-nowrap">{j.template_code}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums">{Number(j.total)}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-emerald-700">{Number(j.sent)}</td>
-                          <td className={`px-3 py-1.5 text-right tabular-nums ${Number(j.failed) > 0 ? 'text-rose-600' : 'text-gray-300'}`}>
-                            {Number(j.failed)}
-                          </td>
-                          <td className="px-3 py-1.5 text-xs text-gray-500 whitespace-nowrap">{j.initiated_by ?? '—'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <TableShell>
+                <THead>
+                  <Th align="left">시각</Th>
+                  <Th align="left">Job ID</Th>
+                  <Th align="left">템플릿</Th>
+                  <Th align="right">전체</Th>
+                  <Th align="right">성공</Th>
+                  <Th align="right">실패</Th>
+                  <Th align="left">발송자</Th>
+                </THead>
+                <TBody>
+                  {jobs.map((j) => (
+                    <Tr key={j.bulk_job_id}>
+                      <Td align="left" className="text-xs text-gray-500 tabular-nums">{j.created_at.slice(0, 16).replace('T', ' ')}</Td>
+                      <Td align="left" className="text-xs">#{j.bulk_job_id}</Td>
+                      <Td align="left" className="text-xs font-mono">{j.template_code}</Td>
+                      <Td align="right" className="tabular-nums">{Number(j.total)}</Td>
+                      <Td align="right" className="tabular-nums text-emerald-700 font-medium">{Number(j.sent)}</Td>
+                      <Td align="right" className={`tabular-nums ${Number(j.failed) > 0 ? 'text-rose-600 font-medium' : 'text-gray-300'}`}>
+                        {Number(j.failed)}
+                      </Td>
+                      <Td align="left" className="text-xs text-gray-500">{j.initiated_by ?? '—'}</Td>
+                    </Tr>
+                  ))}
+                </TBody>
+              </TableShell>
             )}
           </section>
 

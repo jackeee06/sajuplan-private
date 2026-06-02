@@ -14,10 +14,10 @@ import { AdminAuthGuard, type AuthedRequest } from '../auth/admin-auth.guard';
 import { AdminGradeService, type Grade } from './grade.service';
 
 /**
- * 어드민 등급/단가 운영 라우트:
- *   GET    /admin/grade/distribution                 — 등급별 분포
- *   GET    /admin/grade/recent-changes               — 최근 변동 (이력)
- *   GET    /admin/grade/counselor/:id                — 단건 상세 (등급/단가/이력)
+ * 어드민 등급/단가 운영 라우트 — 일반관리자도 수정 가능 (운영팀 일상 업무).
+ *   GET    /admin/grade/distribution
+ *   GET    /admin/grade/recent-changes
+ *   GET    /admin/grade/counselor/:id
  *   GET    /admin/grade/counselor/:id/unit-cost-history
  *   GET    /admin/grade/counselor/:id/grade-history
  *   PATCH  /admin/grade/counselor/:id/grade          — 강제 등급 수정

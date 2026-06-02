@@ -168,15 +168,16 @@ export class PaymentsService {
       amount: number;
       coin_amount: number;
     };
+    // 2026-05-22 ID 단일화: 회원 m2net id 는 m2net_membid 컬럼
     const rows = await this.sql<Row[]>`
       SELECT pm.id AS pm_id, pm.member_id,
-             m.csrid AS mb_1, m.name, m.phone,
+             m.m2net_membid AS mb_1, m.name, m.phone,
              pm.billkey, pm.amount, pm.coin_amount
         FROM payment_method pm
         JOIN member m ON m.id = pm.member_id
        WHERE pm.is_active = TRUE
          AND pm.auto_enabled = TRUE
-         AND m.csrid IS NOT NULL
+         AND m.m2net_membid IS NOT NULL
        ORDER BY pm.id
     `;
 

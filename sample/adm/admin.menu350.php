@@ -4,7 +4,7 @@ $sm = date("Y-m",time())."-01";
 $m_endday = date('t', strtotime($sm));
 
 $menu['menu350'] = array (
-    array('350000', '사주문 관리', G5_ADMIN_URL.'/counselor_list.php', 'counselor', 1),
+    array('350000', '사주플랜 관리', G5_ADMIN_URL.'/counselor_list.php', 'counselor', 1),
     //array('350200', '상담사 신청 관리 <i class="xi-external-link"></i>', ''.G5_BBS_URL.'/board.php?bo_table=apply',   'apply'),
     //array('350300', '상담현황', ''.G5_ADMIN_URL.'/counsel_history.php',   'counsel_history'),
 	

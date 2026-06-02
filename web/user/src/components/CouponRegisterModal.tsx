@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { useDismissOnBack } from '../lib/use-dismiss-on-back'
 
 /**
@@ -98,7 +98,7 @@ export default function CouponRegisterModal({ open, onClose, onSubmit, error, su
                 value={p}
                 onChange={(e) => onPartChange(idx, e.target.value)}
                 maxLength={4}
-                className="w-0 flex-1 h-10 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-center text-[14px] font-medium text-[#1E2939] focus:outline-none focus:border-[#9B7AF7]"
+                className="w-0 flex-1 h-10 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-center text-[14px] font-medium text-[#1E2939] focus:outline-none focus:border-[#f472b6]"
               />
               {idx < 3 && <span className="text-[#99A1AF]">-</span>}
             </div>
@@ -112,7 +112,7 @@ export default function CouponRegisterModal({ open, onClose, onSubmit, error, su
             <circle cx="12" cy="16.5" r="1" fill="#99A1AF" />
           </svg>
           <p className="text-[13px] leading-[150%] text-[#4A5565]">
-            쿠폰을 사용하시면 포인트로 바로 적립됩니다.
+            쿠폰을 사용하시면 코인으로 바로 적립됩니다.
           </p>
         </div>
 
@@ -126,7 +126,7 @@ export default function CouponRegisterModal({ open, onClose, onSubmit, error, su
             onClick={handleSubmit}
             disabled={!filled || !!submitting}
             className={`h-11 px-12 rounded-full text-[15px] font-medium text-white transition ${
-              filled && !submitting ? 'bg-[#9B7AF7]' : 'bg-[#9B7AF7]/60 cursor-not-allowed'
+              filled && !submitting ? 'bg-[#f472b6]' : 'bg-[#f472b6]/60 cursor-not-allowed'
             }`}
           >
             {submitting ? '처리 중…' : '사용'}

@@ -1299,7 +1299,7 @@ $(function(){
      <!--20250731 EUN 순위 표시 추가 시작-->
 
      <tr>
-         <th>사주문 추천 순서</th>
+         <th>사주플랜 추천 순서</th>
          <td>
 <!--             <input type="number" name="mb_sort" value="--><?php //echo isset($mb['mb_sort']) ? $mb['mb_sort'] : '-'; ?><!--" min="1" max="20" style="width:60px;">-->
              <input type="number" name="mb_sort" class="frm_input"

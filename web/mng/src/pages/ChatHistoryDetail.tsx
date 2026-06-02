@@ -56,7 +56,7 @@ export default function ChatHistoryDetail() {
   if (!room) return null
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-[1400px]">
       <div className="flex items-center gap-3">
         <button onClick={() => navigate('/chat-history')} className="p-1.5 rounded hover:bg-gray-100 text-gray-500">
           <ArrowLeft className="w-5 h-5" />

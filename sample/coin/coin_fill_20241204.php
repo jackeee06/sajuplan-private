@@ -354,7 +354,7 @@ if(!get_passcall_member($member["mb_1"])){
 
 <div class="con_section con_section_b_bot page_noti gray_bg" style=" padding-top:20px; padding-bottom: 80px;">
 	<ul class="page_noti_item">
-    충전 불편사항이나 직접 충전 신청은 "어플 내 고객문의게시판" 혹은 카카오톡 플러스친구 "사주문고객센터"로 연락주세요.
+    충전 불편사항이나 직접 충전 신청은 "어플 내 고객문의게시판" 혹은 카카오톡 플러스친구 "사주플랜고객센터"로 연락주세요.
     </ul>
     
     <ul class="page_noti_item">

@@ -1386,7 +1386,7 @@ $mcount = $ct;
             </div>
         </details>
 
-        <div class="main_footer_copy">Copyrightⓒ 사주문. All Rights Reserved.</div>
+        <div class="main_footer_copy">Copyrightⓒ 사주플랜. All Rights Reserved.</div>
     </div>
 
     <!-- <details class="company company_more" open="open">

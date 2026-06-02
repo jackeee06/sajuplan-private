@@ -13,7 +13,7 @@ import paramiko
 
 TARGETS = [
     ("test", "172.235.211.75", "sajumoon.kr"),
-    ("prod", "104.64.128.103", "sajumoon.co.kr"),
+    ("prod", "104.64.128.103", "sajuplan.com"),
 ]
 
 

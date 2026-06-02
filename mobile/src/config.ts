@@ -4,8 +4,8 @@
  * 단일 플래그 SAJUMOON_ENV (test|prod) 한 곳에서만 도메인 결정.
  * localhost 는 어디서도 fallback 으로 쓰지 않는다.
  *
- *   SAJUMOON_ENV=test → https://sajumoon.kr     / https://api.sajumoon.kr     (테스트)
- *   SAJUMOON_ENV=prod → https://sajuplan.com    / https://api.sajuplan.com    (운영)
+ *   SAJUMOON_ENV=test → https://sajumoon.kr      / https://api.sajumoon.kr     (테스트)
+ *   SAJUMOON_ENV=prod → https://sajuplan.com     / https://api.sajuplan.com    (운영, 신규 브랜드)
  *
  * .env 의 값을 react-native-config 로 읽는다. 네이티브 dotenv 플러그인이 미연결인 경우엔
  * Config 가 null 일 수 있어 try/catch — 그래도 환경값이 빠지면 명시적으로 throw 해서

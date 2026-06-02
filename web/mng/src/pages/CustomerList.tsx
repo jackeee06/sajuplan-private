@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { api } from '../lib/api'
@@ -32,11 +32,19 @@ interface Resp {
   summary: { total: number; active: number; left: number; blocked: number }
 }
 
+type Segment = '' | 'new7d' | 'no_pay' | 'vip' | 'dormant_balance' | 'churn_risk'
+type Channel = '' | 'chat' | 'phone070' | 'phone060' | 'mixed'
+type Gender = '' | 'M' | 'F' | 'none'
+
 interface Filter {
   q: string
   fr_date: string
   to_date: string
   status: 'all' | 'active' | 'left' | 'blocked'
+  segment: Segment
+  channel: Channel
+  social: string  // '' | 'none' | 'kakao' | 'naver' | ...
+  gender: Gender
   page: number
 }
 
@@ -44,7 +52,7 @@ const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 10)
 
 export default function CustomerList() {
   const navigate = useNavigate()
-  const [filter, setFilter] = useState<Filter>({ q: '', fr_date: '', to_date: '', status: 'all', page: 1 })
+  const [filter, setFilter] = useState<Filter>({ q: '', fr_date: '', to_date: '', status: 'all', segment: '', channel: '', social: '', gender: '', page: 1 })
   const [pending, setPending] = useState<Pick<Filter, 'q' | 'fr_date' | 'to_date'>>({ q: '', fr_date: '', to_date: '' })
   const [data, setData] = useState<Resp | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -56,6 +64,10 @@ export default function CustomerList() {
     if (filter.fr_date) params.set('fr_date', filter.fr_date)
     if (filter.to_date) params.set('to_date', filter.to_date)
     if (filter.status !== 'all') params.set('status', filter.status)
+    if (filter.segment) params.set('segment', filter.segment)
+    if (filter.channel) params.set('channel', filter.channel)
+    if (filter.social) params.set('social', filter.social)
+    if (filter.gender) params.set('gender', filter.gender)
     params.set('page', String(filter.page))
     params.set('limit', String(PAGE_SIZE))
 
@@ -69,7 +81,7 @@ export default function CustomerList() {
   const onSearch = () => setFilter((f) => ({ ...f, ...pending, page: 1 }))
   const onReset = () => {
     setPending({ q: '', fr_date: '', to_date: '' })
-    setFilter({ q: '', fr_date: '', to_date: '', status: 'all', page: 1 })
+    setFilter({ q: '', fr_date: '', to_date: '', status: 'all', segment: '', channel: '', social: '', gender: '', page: 1 })
   }
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
@@ -114,6 +126,51 @@ export default function CustomerList() {
           />
         </div>
       )}
+
+      {/* 운영 세그먼트 칩 (단일 선택, 라디오) — 가장 자주 보는 그룹 한 클릭 */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] text-gray-400 mr-1">자주쓰는 필터</span>
+        <SegChip label="신규 7일" active={filter.segment === 'new7d'} onClick={() => toggleSeg(setFilter, filter.segment, 'new7d')} />
+        <SegChip label="미결제" active={filter.segment === 'no_pay'} onClick={() => toggleSeg(setFilter, filter.segment, 'no_pay')} />
+        <SegChip label="VIP (누적 10만↑)" active={filter.segment === 'vip'} onClick={() => toggleSeg(setFilter, filter.segment, 'vip')} />
+        <SegChip label="잔액 보유 휴면" hint="잔액 1만↑ · 30일 무로그인" active={filter.segment === 'dormant_balance'} onClick={() => toggleSeg(setFilter, filter.segment, 'dormant_balance')} />
+        <SegChip label="이탈 위험" hint="누적 5만↑ · 14일 무로그인" active={filter.segment === 'churn_risk'} onClick={() => toggleSeg(setFilter, filter.segment, 'churn_risk')} />
+      </div>
+
+      {/* 드롭다운 — 유입채널 / 사용채널 / 성별 */}
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterSelect
+          label="유입채널"
+          value={filter.social}
+          options={[
+            { value: 'kakao', label: '카카오' },
+            { value: 'naver', label: '네이버' },
+            { value: 'none', label: '일반가입' },
+          ]}
+          onChange={(v) => setFilter((f) => ({ ...f, social: v, page: 1 }))}
+        />
+        <FilterSelect
+          label="사용채널"
+          value={filter.channel}
+          options={[
+            { value: 'chat', label: '채팅만' },
+            { value: 'phone070', label: '070 (선불)' },
+            { value: 'phone060', label: '060 (후불)' },
+            { value: 'mixed', label: '채팅+전화' },
+          ]}
+          onChange={(v) => setFilter((f) => ({ ...f, channel: v as Channel, page: 1 }))}
+        />
+        <FilterSelect
+          label="성별"
+          value={filter.gender}
+          options={[
+            { value: 'M', label: '남' },
+            { value: 'F', label: '여' },
+            { value: 'none', label: '미입력' },
+          ]}
+          onChange={(v) => setFilter((f) => ({ ...f, gender: v as Gender, page: 1 }))}
+        />
+      </div>
 
       {/* 검색 — 좌측은 검색어, 우측은 날짜/액션 그룹 */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
@@ -189,7 +246,7 @@ export default function CustomerList() {
                 <Th align="left">이름</Th>
                 <Th align="left">휴대폰</Th>
                 <Th align="left">권한</Th>
-                <Th align="right">포인트</Th>
+                <Th align="right">소비포인트</Th>
                 <Th align="center">성별</Th>
                 <Th align="right">연령</Th>
                 <Th align="right">결제</Th>
@@ -263,6 +320,129 @@ export default function CustomerList() {
 
 // ─── 헬퍼 ─────────────────────────────────────
 const inputCls = 'w-full px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400 outline-none transition'
+
+/** 세그먼트 칩 토글 — 같은 값 누르면 해제, 다른 값 누르면 전환 */
+function toggleSeg(
+  setFilter: React.Dispatch<React.SetStateAction<Filter>>,
+  current: Segment,
+  next: Exclude<Segment, ''>,
+) {
+  setFilter((f) => ({ ...f, segment: current === next ? '' : next, page: 1 }))
+}
+
+/** 세그먼트 칩 — Chip 보다 작고 카운트 없음. tooltip 으로 조건 안내 */
+function SegChip({ label, hint, active, onClick }: { label: string; hint?: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title={hint}
+      className={`inline-flex items-center gap-1 px-3 py-1 text-xs rounded-full border transition ${
+        active
+          ? 'bg-brand-50 text-brand-700 border-brand-300 font-semibold dark:bg-brand-500/10 dark:text-brand-300'
+          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300'
+      }`}
+    >
+      {label}
+    </button>
+  )
+}
+
+/** 관리자용 필터 드롭다운 — brand 톤 + 활성 시 선택값을 라벨로 표시 */
+function FilterSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: { value: string; label: string }[]
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const active = value !== ''
+  const display = active ? (options.find((o) => o.value === value)?.label ?? label) : label
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={`inline-flex items-center gap-1 px-3 py-1 text-xs rounded-full border transition ${
+          active
+            ? 'bg-brand-50 text-brand-700 border-brand-300 font-semibold dark:bg-brand-500/10 dark:text-brand-300'
+            : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300'
+        }`}
+      >
+        {display}
+        <svg viewBox="0 0 16 16" className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" aria-hidden>
+          <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          aria-label={label}
+          className="absolute top-[calc(100%+4px)] left-0 z-50 min-w-[140px] max-h-[260px] overflow-y-auto bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 shadow-lg py-1"
+        >
+          <li>
+            <button
+              type="button"
+              role="option"
+              aria-selected={value === ''}
+              onClick={() => { onChange(''); setOpen(false) }}
+              className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
+                value === ''
+                  ? 'bg-brand-50 text-brand-700 font-medium dark:bg-brand-500/10 dark:text-brand-300'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+              }`}
+            >
+              전체
+            </button>
+          </li>
+          {options.map((opt) => {
+            const selected = value === opt.value
+            return (
+              <li key={opt.value}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  onClick={() => { onChange(opt.value); setOpen(false) }}
+                  className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
+                    selected
+                      ? 'bg-brand-50 text-brand-700 font-medium dark:bg-brand-500/10 dark:text-brand-300'
+                      : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
 
 type Align = 'left' | 'right' | 'center'
 

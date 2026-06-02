@@ -183,7 +183,7 @@ ob_start();
 
         
         <?php } ?>
-        <?php if ($i == 0) echo "<li class=\"empty_list\">사주문 추천 상담사가 없습니다.</li>"; ?>
+        <?php if ($i == 0) echo "<li class=\"empty_list\">사주플랜 추천 상담사가 없습니다.</li>"; ?>
     </ul>
 
 

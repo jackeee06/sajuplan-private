@@ -284,7 +284,7 @@
 
 ### 15) `member_xls/member_xls_upload_csv.php` (csv 신규등록)
 
-- **역할:** EUC-KR 인코딩 csv를 UTF-8로 변환 후 회원 일괄 등록 (사주문에서 실사용).
+- **역할:** EUC-KR 인코딩 csv를 UTF-8로 변환 후 회원 일괄 등록 (사주플랜에서 실사용).
 - **읽는 테이블:** `g5_member`
 - **쓰는 테이블:**
   - `g5_member` insert

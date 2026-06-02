@@ -1,0 +1,20 @@
+"""안전 배포 결과 prod 직접 검증."""
+import os, sys
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+import paramiko
+c = paramiko.SSHClient()
+c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+c.connect("104.64.128.103", 22, "root", os.environ["SSHPASS"], allow_agent=False, look_for_keys=False, timeout=15)
+print("=== mng/index.html 시점 ===")
+_, o, _ = c.exec_command("ls -la /data/wwwroot/sajumoon.co.kr/mng/index.html", get_pty=False)
+print(o.read().decode("utf-8", errors="replace"))
+print("=== index.html.bak (배포 성공 시 삭제됨, 실패 시 잔존) ===")
+_, o, _ = c.exec_command("ls -la /data/wwwroot/sajumoon.co.kr/mng/index.html.bak 2>&1", get_pty=False)
+print(o.read().decode("utf-8", errors="replace"))
+print("=== SAJUMOON_CONFIG (치환 확인) ===")
+_, o, _ = c.exec_command("curl -s https://sajuplan.com/mng/ | grep SAJUMOON_CONFIG", get_pty=False)
+print(o.read().decode("utf-8", errors="replace"))
+print("=== mng 응답 ===")
+_, o, _ = c.exec_command('curl -s -o /dev/null -w "%{http_code}" https://sajuplan.com/mng/', get_pty=False)
+print(o.read().decode("utf-8", errors="replace"))
+c.close()

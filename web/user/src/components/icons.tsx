@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 인라인 SVG 아이콘 모음 — Figma 스타일과 매칭 (1.4 stroke #1E2939 기본)
  * 외부 패키지(lucide 등) 의존을 줄이고 디자인 정밀도를 올리기 위해 직접 그림.
  */
@@ -106,15 +106,15 @@ export function PartyIcon({ className = 'w-12 h-12' }: IconProps) {
     <svg viewBox="0 0 48 48" fill="none" className={className} aria-hidden>
       <path
         d="M14 34L18 14L34 30L14 34Z"
-        stroke="#8259F5"
+        stroke="#ec4899"
         strokeWidth="2"
         strokeLinejoin="round"
-        fill="#e3dafe"
+        fill="#fce7f3"
       />
-      <circle cx="36" cy="14" r="1.5" fill="#8259F5" />
-      <circle cx="40" cy="22" r="1.2" fill="#8259F5" />
-      <circle cx="32" cy="10" r="1" fill="#8259F5" />
-      <path d="M36 18L38 16M28 8L30 6M40 28L42 26" stroke="#8259F5" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="36" cy="14" r="1.5" fill="#ec4899" />
+      <circle cx="40" cy="22" r="1.2" fill="#ec4899" />
+      <circle cx="32" cy="10" r="1" fill="#ec4899" />
+      <path d="M36 18L38 16M28 8L30 6M40 28L42 26" stroke="#ec4899" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   )
 }
@@ -123,10 +123,10 @@ export function PartyIcon({ className = 'w-12 h-12' }: IconProps) {
 export function CheckCircleIcon({ className = 'w-12 h-12' }: IconProps) {
   return (
     <svg viewBox="0 0 48 48" fill="none" className={className} aria-hidden>
-      <circle cx="24" cy="24" r="18" stroke="#8259F5" strokeWidth="2.4" />
+      <circle cx="24" cy="24" r="18" stroke="#ec4899" strokeWidth="2.4" />
       <path
         d="M16 24L22 30L33 18"
-        stroke="#8259F5"
+        stroke="#ec4899"
         strokeWidth="2.4"
         strokeLinecap="round"
         strokeLinejoin="round"

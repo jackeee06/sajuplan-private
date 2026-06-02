@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import CounselorCard, { type Counselor } from '../components/CounselorCard'
-import FilterDropdown from '../components/FilterDropdown'
 import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
 import { ApiError, counselorsApi, type PublicCounselor } from '../lib/api'
@@ -11,7 +10,15 @@ import { mapPublicCounselorToCard } from '../lib/counselor-mapper'
 type Category = '전체' | '사주' | '타로' | '신점'
 const CATEGORIES: Category[] = ['전체', '사주', '타로', '신점']
 
-// 분야 옵션은 DB 의 실제 hashtag 분포에서 동적으로 가져옴 (counselorsApi.filterOptions)
+// 분야 칩에서 제외할 hashtag — 상위 카테고리(사주/타로/신점) 와 중복(CounselorList 와 동일 정책).
+const EXCLUDED_FIELDS = new Set<string>(['사주', '타로', '신점'])
+
+// 강조 줄(첫 줄)에 항상 노출할 PINNED 분야 칩.
+// 단골 페이지엔 ⭐이벤트 칩이 없으므로(이미 좋아요한 사람이라 이벤트 필터 의미 약함)
+// 재회 💕만 강조 줄을 차지한다.
+type PinnedField = { name: string; emoji: string }
+const PINNED_FIELDS: PinnedField[] = [{ name: '재회', emoji: '💕' }]
+const PINNED_NAMES = new Set(PINNED_FIELDS.map((p) => p.name))
 
 const PAGE_SIZE = 10
 
@@ -33,13 +40,8 @@ export default function Favorites() {
   const [availableOnly, setAvailableOnly] = useState(false)
   const [page, setPage] = useState(1)
   const [counselors, setCounselors] = useState<PublicCounselor[]>([])
-  const [fieldOptions, setFieldOptions] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    counselorsApi.filterOptions().then((r) => setFieldOptions(r.fields)).catch(() => {})
-  }, [])
 
   // 카테고리 변경 시 백엔드 재조회
   useEffect(() => {
@@ -78,6 +80,32 @@ export default function Favorites() {
       setCounselors((list) => list.filter((c) => c.id !== id))
     }
   }
+
+  // 일반 분야 칩(2번째 줄~) — 본인 단골 상담사들의 실제 hashtag 만.
+  // 큰 카테고리(사주/타로/신점) 와 PINNED 는 제외.
+  // 단골 1명이면 분야 칩 1-2개만 노출되어 적당. 전체 상담사 hashtag 노출 X.
+  const regularFields = useMemo(() => {
+    const fromCounselors = new Set<string>()
+    counselors.forEach((c) => {
+      if (c.hashtag1) fromCounselors.add(c.hashtag1)
+      if (c.hashtag2) fromCounselors.add(c.hashtag2)
+    })
+    EXCLUDED_FIELDS.forEach((b) => fromCounselors.delete(b))
+    PINNED_NAMES.forEach((b) => fromCounselors.delete(b))
+    return Array.from(fromCounselors).sort((a, b) => a.localeCompare(b, 'ko'))
+  }, [counselors])
+
+  // 현재 칩 라벨 집합 (PINNED + regular). 카테고리 전환 후 사라진 분야 자동 해제용.
+  const allFieldNames = useMemo(
+    () => new Set<string>([...PINNED_FIELDS.map((p) => p.name), ...regularFields]),
+    [regularFields],
+  )
+
+  useEffect(() => {
+    if (field && !allFieldNames.has(field)) {
+      setField(null)
+    }
+  }, [field, allFieldNames])
 
   // 클라이언트 필터 (분야 = 해시태그 부분일치, 상담가능만)
   const filtered = useMemo(
@@ -142,7 +170,7 @@ export default function Favorites() {
                   resetPage()
                 }}
                 className={`text-[20px] leading-[120%] font-semibold transition ${
-                  active ? 'text-[#8259F5]' : 'text-[#6A7282]'
+                  active ? 'text-[#ec4899]' : 'text-[#6A7282]'
                 }`}
               >
                 {c}
@@ -151,28 +179,72 @@ export default function Favorites() {
           })}
         </section>
 
-        <section className="px-4 pt-1 pb-3 flex gap-1 items-center">
-          <FilterDropdown
-            label="분야"
-            options={fieldOptions}
-            value={field}
-            onChange={(v) => {
-              setField(v)
-              resetPage()
-            }}
-          />
-          <button
-            type="button"
-            aria-label="필터 초기화"
-            onClick={() => {
-              setField(null)
-              resetPage()
-            }}
-            className="w-9 h-9 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] flex items-center justify-center shrink-0"
-          >
-            <img src="/img/ic_reset.svg" alt="" className="w-5 h-5" />
-          </button>
+        {/* 강조 칩 줄 — PINNED 분야(재회) 만. 단골 페이지엔 이벤트 칩 없음(이미 좋아요한 사람). */}
+        <section className="px-4 pt-2 pb-1.5 flex flex-wrap items-center gap-1.5">
+          {PINNED_FIELDS.map((p) => {
+            const active = field === p.name
+            return (
+              <button
+                key={p.name}
+                type="button"
+                onClick={() => {
+                  setField(active ? null : p.name)
+                  resetPage()
+                }}
+                className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-full text-[13px] leading-[1.2] font-medium transition ${
+                  active
+                    ? 'bg-[#fdf2f8] text-[#ec4899] border border-[#f472b6]'
+                    : 'bg-[#F9FAFB] text-[#6A7282] border border-[#E5E7EB]'
+                }`}
+              >
+                <span aria-hidden>{p.emoji}</span>
+                <span>{p.name}</span>
+              </button>
+            )
+          })}
         </section>
+
+        {/* 구분선 */}
+        <div className="mx-4 border-t border-[#F3F4F6]" />
+
+        {/* 일반 분야 칩 — 본인 단골 hashtag 만, 가나다순 */}
+        {regularFields.length > 0 && (
+          <section className="px-4 pt-1.5 pb-2 flex flex-wrap items-center gap-1.5">
+            {regularFields.map((opt) => {
+              const active = field === opt
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => {
+                    setField(active ? null : opt)
+                    resetPage()
+                  }}
+                  className={`h-8 px-2.5 rounded-full text-[13px] leading-[1.2] font-medium transition ${
+                    active
+                      ? 'bg-[#fdf2f8] text-[#ec4899] border border-[#f472b6]'
+                      : 'bg-[#F9FAFB] text-[#6A7282] border border-[#E5E7EB]'
+                  }`}
+                >
+                  {opt}
+                </button>
+              )
+            })}
+            {field !== null && (
+              <button
+                type="button"
+                aria-label="필터 초기화"
+                onClick={() => {
+                  setField(null)
+                  resetPage()
+                }}
+                className="w-8 h-8 rounded-full bg-[#F9FAFB] border border-[#E5E7EB] flex items-center justify-center shrink-0"
+              >
+                <img src="/img/ic_reset.svg" alt="" className="w-4 h-4" />
+              </button>
+            )}
+          </section>
+        )}
 
         <section className="px-4 py-3 flex items-center justify-between border-b border-[#F3F4F6]">
           <label className="flex items-center gap-1 cursor-pointer select-none">
@@ -188,7 +260,7 @@ export default function Favorites() {
             <span className="text-[15px] leading-[120%] text-[#364153]">상담가능만 보기</span>
           </label>
           <p className="text-[14px] text-[#6A7282]">
-            <span className="font-semibold text-[#8259F5]">{filtered.length}</span>명
+            <span className="font-semibold text-[#ec4899]">{filtered.length}</span>명
           </p>
         </section>
 

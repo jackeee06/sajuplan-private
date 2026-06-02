@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FilterDropdown from '../components/FilterDropdown'
@@ -14,16 +14,16 @@ const CATEGORY_OPTIONS = ['사주', '타로', '신점'] as const
 type Badge = '신규' | '사주' | '타로' | '신점'
 
 const BADGE_BG: Record<Badge, string> = {
-  신규: '#F3EEFE',
+  신규: '#fdf2f8',
   사주: '#FFE2E2',
   타로: '#EDE9FE',
   신점: '#CCFBF1',
 }
 
 const BADGE_TEXT: Record<Badge, string> = {
-  신규: '#8259F5',
+  신규: '#ec4899',
   사주: '#FF6467',
-  타로: '#8259F5',
+  타로: '#ec4899',
   신점: '#00BBA7',
 }
 
@@ -147,8 +147,8 @@ export default function NewCounselors() {
           </section>
         ) : isEmpty ? (
           <section className="pt-[64px] flex flex-col items-center px-6">
-            <div className="w-[80px] h-[80px] rounded-full bg-[#F3EEFE] flex items-center justify-center">
-              <img src="/img/ic_message_p.svg" alt="" className="w-9 h-9" />
+            <div className="w-[80px] h-[80px] rounded-full bg-[#fdf2f8] flex items-center justify-center">
+              <img src="/img/ic_message_p.svg?v=v2" alt="" className="w-9 h-9" />
             </div>
             <p className="mt-4 text-[18px] leading-[140%] font-bold text-[#030712]">
               신규상담사가 없습니다.
@@ -160,7 +160,7 @@ export default function NewCounselors() {
         ) : (
           <>
             <p className="px-4 text-[15px] leading-[140%] font-semibold text-[#030712] mb-3">
-              신규 선생님을 <span className="text-[#8259F5]">{filtered.length}명</span>을 소개합니다!
+              신규 선생님을 <span className="text-[#ec4899]">{filtered.length}명</span>을 소개합니다!
             </p>
 
             <ul className="px-4 grid grid-cols-2 gap-3">

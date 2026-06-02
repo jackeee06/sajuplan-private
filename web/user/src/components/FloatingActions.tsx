@@ -1,4 +1,4 @@
-/**
+﻿/**
  * FloatingActions — go_top + kakao_btn 우측 하단 클러스터
  * Figma 84:6771 / 163:16669 / 84:6798 (Frame 1410129515)
  *
@@ -77,7 +77,7 @@ export default function FloatingActions({ bottomOffset = 100, kakaoUrl, showKaka
           type="button"
           onClick={() => openExternalUrl(resolvedUrl)}
           aria-label="카카오톡 문의"
-          className="w-[50px] h-[50px] rounded-full bg-[#8259F5] flex items-center justify-center"
+          className="w-[50px] h-[50px] rounded-full bg-[#ec4899] flex items-center justify-center"
           style={{
             boxShadow:
               '0px 4px 6px -2px rgba(130, 89, 245, 0.1), 0px 10px 15px -3px rgba(130, 89, 245, 0.15)',

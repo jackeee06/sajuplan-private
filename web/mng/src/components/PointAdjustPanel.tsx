@@ -27,7 +27,7 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
   const [historyLoading, setHistoryLoading] = useState(false)
   const [delta, setDelta] = useState('')
   const [reason, setReason] = useState('')
-  const [isPaid, setIsPaid] = useState(false)
+  const [kind, setKind] = useState<'free' | 'paid' | 'earning'>('free')
   const [expireDate, setExpireDate] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -79,19 +79,20 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
         balanceAfter: number
         freeBalance: number
         paidBalance: number
+        earningBalance?: number
       }>(`/admin/members/customers/${memberId}/point-adjust`, {
         method: 'POST',
         body: JSON.stringify({
           delta: Number(delta),
           reason: reason.trim(),
-          isPaid,
+          kind,
           expireDate: expireDate || undefined,
         }),
       })
       onAdjusted(res.balanceAfter)
       setDelta('')
       setReason('')
-      setIsPaid(false)
+      setKind('free')
       setExpireDate('')
       await loadHistory()
     } catch (e) {
@@ -189,27 +190,46 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
               <div className="flex gap-1">
                 <button
                   type="button"
-                  onClick={() => setIsPaid(false)}
+                  onClick={() => setKind('free')}
+                  title="회원 표면 잔액 — 이벤트/혜택으로 적립한 무료 코인"
                   className={`px-3 py-2 text-sm rounded-md border ${
-                    !isPaid
+                    kind === 'free'
                       ? 'bg-brand-600 text-white border-brand-600'
                       : 'border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
                 >
-                  무료
+                  소비(무료)
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsPaid(true)}
+                  onClick={() => setKind('paid')}
+                  title="회원 표면 잔액 — 회원이 결제로 산 코인"
                   className={`px-3 py-2 text-sm rounded-md border ${
-                    isPaid
+                    kind === 'paid'
                       ? 'bg-brand-600 text-white border-brand-600'
                       : 'border-gray-200 text-gray-700 dark:border-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800'
                   }`}
                 >
-                  유료
+                  소비(결제)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setKind('earning')}
+                  title="상담사 적립금 (매월 1일 정산 대상) — 분쟁/보너스/사고 보정용"
+                  className={`px-3 py-2 text-sm rounded-md border ${
+                    kind === 'earning'
+                      ? 'bg-amber-600 text-white border-amber-600'
+                      : 'border-gray-200 text-amber-700 dark:border-gray-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+                  }`}
+                >
+                  수익포인트
                 </button>
               </div>
+              {kind === 'earning' && (
+                <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
+                  ⚠️ 수익포인트는 상담사 적립금. 회원 표면 잔액 무관.
+                </p>
+              )}
             </div>
 
             <button

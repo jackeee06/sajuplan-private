@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -18,7 +18,7 @@ import { ApiError, historyApi, type ConsultHistoryItem } from '../lib/api'
 const PAGE_SIZE = 10
 
 const BADGE_BG: Record<ConsultHistoryItem['counselor_badge'], string> = {
-  타로: '#8259F5',
+  타로: '#ec4899',
   신점: '#00BBA7',
   사주: '#FF6467',
   기타: '#6A7282',
@@ -50,6 +50,9 @@ export default function MyHistory() {
   }
   const [items, setItems] = useState<ConsultHistoryItem[]>([])
   const [total, setTotal] = useState(0)
+  // [2026-05-24] 동시 역할자(회원+상담사) 안내용 — 반대 시점에서 데이터가 있는 건수.
+  // total === 0 + 이 값 > 0 일 때만 안내 노출 (일반 사용자에겐 안 보임).
+  const [otherRoleCount, setOtherRoleCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -63,6 +66,7 @@ export default function MyHistory() {
         if (!mounted) return
         setItems(r.items)
         setTotal(r.total)
+        setOtherRoleCount((r as { other_role_count?: number }).other_role_count ?? 0)
       })
       .catch((e) => {
         if (!mounted) return
@@ -108,11 +112,11 @@ export default function MyHistory() {
               type="button"
               onClick={() => setFilter(t)}
               className={`relative h-[44px] flex items-center justify-center text-[15px] ${
-                on ? 'text-[#8259F5] font-bold' : 'text-[#99A1AF] font-medium'
+                on ? 'text-[#ec4899] font-bold' : 'text-[#99A1AF] font-medium'
               }`}
             >
               {label}
-              {on && <span className="absolute left-0 right-0 -bottom-px h-[2px] bg-[#8259F5]" />}
+              {on && <span className="absolute left-0 right-0 -bottom-px h-[2px] bg-[#ec4899]" />}
             </button>
           )
         })}
@@ -120,9 +124,20 @@ export default function MyHistory() {
 
       <div className="px-4 py-3 border-b border-[#F3F4F6]">
         <span className="text-[14px] text-[#4A5565]">
-          전체 <span className="text-[#8259F5] font-medium">{total.toLocaleString()}</span>건
+          전체 <span className="text-[#ec4899] font-medium">{total.toLocaleString()}</span>건
         </span>
       </div>
+
+      {/* [2026-05-24] 동시 역할자(other_role_count > 0)에게만 항상 노출.
+          데이터 있든 없든 상관없이 보임 — 본인 시점이 회원/상담사 어느 쪽인지 헷갈리는 경우 가이드.
+          일반 회원은 other_role_count = 0 이라 절대 안 보임 (상담사 브랜드 신뢰 보호). */}
+      {otherRoleCount > 0 && (
+        <div className="px-4 py-2.5 bg-[#FFF7FA] border-b border-[#fce7f3]">
+          <p className="text-[12.5px] leading-[160%] text-[#9d174d]">
+            ※ 회원·상담사 두 역할을 모두 사용하신다면 마이페이지 상단의 <span className="font-medium">[회원 ⇄ 상담사]</span> 모드 전환을 확인해 주세요.
+          </p>
+        </div>
+      )}
 
       <main className="flex-1 px-4">
         {loading && (
@@ -168,12 +183,12 @@ export default function MyHistory() {
                     {it.counselor_name}
                   </span>
                   {it.counselor_code && (
-                    <span className="text-[13px] font-medium text-[#8259F5] shrink-0">
+                    <span className="text-[13px] font-medium text-[#ec4899] shrink-0">
                       {it.counselor_code}
                     </span>
                   )}
                   {it.is_active_chat && (
-                    <span className="px-2 h-[20px] inline-flex items-center text-[11px] font-semibold text-[#8259F5] bg-[#F3EEFE] rounded-full shrink-0">
+                    <span className="px-2 h-[20px] inline-flex items-center text-[11px] font-semibold text-[#ec4899] bg-[#fdf2f8] rounded-full shrink-0">
                       상담중
                     </span>
                   )}
@@ -200,7 +215,7 @@ export default function MyHistory() {
                 ((it.chat_status === 'STAY' || it.chat_status === 'CNCH') && it.chat_room_id)) ? (
                 <Link
                   to={`/chat/${it.chat_room_id}`}
-                  className="h-9 px-4 inline-flex items-center gap-1 rounded-full bg-[#9B7AF7] text-[13px] font-medium text-white"
+                  className="h-9 px-4 inline-flex items-center gap-1 rounded-full bg-[#f472b6] text-[13px] font-medium text-white"
                 >
                   채팅방 재입장하기
                   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" aria-hidden>
@@ -217,10 +232,15 @@ export default function MyHistory() {
                     <path d="M6 3.5L10.5 8L6 12.5" stroke="#6A7282" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </Link>
+              ) : (Number(it.usetm_seconds) || 0) < 300 ? (
+                // [2026-05-27 후기 5분 정책] 백엔드 가드와 동기화 — 버튼 대신 안내 텍스트
+                <span className="h-9 px-3 inline-flex items-center text-[12px] text-[#99A1AF]">
+                  5분 이상 상담 후 후기 작성 가능
+                </span>
               ) : (
                 <Link
                   to={`/mypage/my-reviews/new?consultation_id=${it.id}&counselor_id=${it.counselor_id ?? ''}`}
-                  className="h-9 px-4 inline-flex items-center gap-1 rounded-full bg-[#9B7AF7] text-[13px] font-medium text-white"
+                  className="h-9 px-4 inline-flex items-center gap-1 rounded-full bg-[#f472b6] text-[13px] font-medium text-white"
                 >
                   후기 작성하기
                   <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" aria-hidden>

@@ -22,7 +22,7 @@ interface ApiOptions extends RequestInit {
   json?: unknown
 }
 
-async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
+async function rawRequest<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const { json, headers, ...rest } = options
   const init: RequestInit = {
     credentials: 'include',
@@ -53,6 +53,50 @@ async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
   return body as T
 }
 
+// 429 ThrottlerException 자동 재시도 — 짧은 시간 폭주(빠른 BottomNav 클릭 등) 직후 한 번 실패한
+// 요청을 사용자 모르게 한 번만 더 시도해 시간 분산. 그래도 429 면 ApiError 가 전파된다.
+async function request<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  try {
+    return await rawRequest<T>(path, options)
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 429) {
+      await new Promise((resolve) => setTimeout(resolve, 1_000))
+      return rawRequest<T>(path, options)
+    }
+    throw err
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// GET 전용 — in-flight dedupe + 짧은 메모리 캐시.
+//
+// 사용자가 BottomNav 를 빠르게 여러 번 누르거나 같은 화면이 여러 번 마운트되어도
+// 동일 path 의 GET 요청은 한 번만 네트워크에 나간다.
+//   - dedupe: 진행 중인 promise 를 공유
+//   - cache : 성공 응답을 GET_CACHE_TTL_MS 동안 메모리에 보관
+//   - 실패는 캐시 안 함 (즉시 재시도 가능)
+//
+// POST/PUT/DELETE 는 사용자 액션이므로 dedupe/캐시 적용하지 않는다.
+// ─────────────────────────────────────────────────────────────
+const GET_CACHE_TTL_MS = 2_000
+type GetEntry<T> = { expireAt: number; promise: Promise<T> }
+const getInflightCache = new Map<string, GetEntry<unknown>>()
+
+function getDeduped<T>(path: string): Promise<T> {
+  const now = Date.now()
+  const hit = getInflightCache.get(path) as GetEntry<T> | undefined
+  if (hit && hit.expireAt > now) {
+    return hit.promise
+  }
+  const promise = request<T>(path, { method: 'GET' }).catch((err) => {
+    // 실패는 캐시에서 즉시 제거해 재시도가 가능하도록.
+    getInflightCache.delete(path)
+    throw err
+  })
+  getInflightCache.set(path, { expireAt: now + GET_CACHE_TTL_MS, promise })
+  return promise
+}
+
 function extractMessage(body: unknown): string | null {
   if (!body || typeof body !== 'object') return null
   const obj = body as Record<string, unknown>
@@ -64,7 +108,7 @@ function extractMessage(body: unknown): string | null {
 }
 
 export const api = {
-  get: <T,>(path: string) => request<T>(path, { method: 'GET' }),
+  get: <T,>(path: string) => getDeduped<T>(path),
   post: <T,>(path: string, json?: unknown) => request<T>(path, { method: 'POST', json }),
   put: <T,>(path: string, json?: unknown) => request<T>(path, { method: 'PUT', json }),
   patch: <T,>(path: string, json?: unknown) => request<T>(path, { method: 'PATCH', json }),
@@ -178,7 +222,7 @@ export const authApi = {
   // me() 는 라우트 변경마다 호출되므로 cache-buster query 로 모바일 webview/CDN 캐시 우회.
   me: () => api.get<UserMember>(`/user/auth/me?_t=${Date.now()}`),
   /**
-   * 사주문 측 보유 포인트를 m2net 측 잔액으로 강제 동기화 (overwrite).
+   * 사주플랜 측 보유 포인트를 m2net 측 잔액으로 강제 동기화 (overwrite).
    * - 일반 회원(role='user')만 대상. 상담사는 ok=false 반환.
    * - 호출 시점: 로그인 직후, 메인페이지 진입 시.
    */
@@ -362,8 +406,24 @@ export const consultApi = {
    * 채팅상담 시작 — chat_room 생성/재입장 + m2net 토큰 발급.
    *  성공 시 클라이언트가 /chat/{chat_room_id} 로 이동, useChatSocket 이 wss 접속.
    */
-  chat: (counselor_id: number | string) =>
-    api.post<ChatConsultResult>(`/user/consult/chat`, { counselor_id }),
+  chat: (counselor_id: number | string, charge_minutes?: number) =>
+    api.post<ChatConsultResult>(`/user/consult/chat`, { counselor_id, charge_minutes }),
+
+  /**
+   * [2026-05-23] 상담사 글로벌 polling — 들어온 채팅 요청 목록.
+   * 상담사 토큰만 응답 받음. 5초마다 호출하여 새 STAY 방 감지.
+   */
+  incoming: () =>
+    api.get<{
+      items: Array<{
+        chat_room_id: number
+        member_id: number
+        member_nickname: string | null
+        member_name: string | null
+        started_at: string
+        waited_seconds: number
+      }>
+    }>(`/user/consult/incoming`),
 
   /** 상담 메모 조회 (상담사 전용) */
   getMemo: (consultationId: number) =>
@@ -478,6 +538,10 @@ export interface ChatMessage {
   message_type: number
   created_at: string
   is_mine?: boolean
+  /** [2026-05-23] 이전 대화 누적 표시 — 다른 chat_room 메시지 구분용 */
+  chat_room_id?: number
+  /** [2026-05-23] 상대가 읽은 시각. NULL = 안 읽음 → 본인 메시지 옆 "1" */
+  read_at?: string | null
 }
 
 export const chatApi = {
@@ -526,6 +590,9 @@ export const chatApi = {
     api.post<{ ok: true; mode: 'soft' | 'close' }>(`/user/chat/rooms/${id}/leave`, { mode }),
   rejoin: (id: number) =>
     api.post<{ ok: true }>(`/user/chat/rooms/${id}/rejoin`, {}),
+  /** [2026-05-23] 안 읽음 마킹 — 본인이 방을 보고 있을 때 호출 */
+  markRead: (id: number) =>
+    api.post<{ updated: number }>(`/user/chat/rooms/${id}/mark-read`, {}),
   /**
    * wss 측 room_in_noti / room_out_noti 수신 시 backend 동기화 트리거.
    * actor 의 try_out 마킹 + 시스템 메시지 INSERT + leave 시 30초 자동 종료 평가.
@@ -755,6 +822,82 @@ export const counselorGradeApi = {
 }
 
 // ─────────────────────────────────────────────
+// 상담사 마이페이지 — 선지급 (Phase 1~2, 2026-05-21)
+// ─────────────────────────────────────────────
+
+export interface MyPayoutInfo {
+  available_amount: number
+  estimated_settlement: number
+  already_paid_this_month: number
+  carry_over_negative: number
+
+  fee_rate: number
+  withholding_rate: number
+  available_ratio: number
+  min_amount: number
+
+  grade: CounselorGrade
+  grade_label: string
+  is_blocked: boolean
+  block_reason: string | null
+  has_pending_request: boolean
+  bank_locked_until: string | null
+  bank_locked: boolean
+
+  has_bank_info: boolean
+  bank_name: string | null
+  bank_holder: string | null
+  bank_account_masked: string | null
+}
+
+export type PayoutStatus = 'pending' | 'paid' | 'rejected' | 'cancelled'
+
+export interface PayoutHistoryItem {
+  id: number
+  requested_amount: number
+  fee_amount: number
+  withholding_amount: number
+  actual_payout: number
+  status: PayoutStatus
+  request_memo: string | null
+  reject_reason: string | null
+  bank_name_snapshot: string
+  bank_account_masked: string
+  requested_at: string
+  paid_at: string | null
+  decided_at: string | null
+}
+
+export interface CreatePayoutResult {
+  ok: true
+  id: number
+  requested_amount: number
+  fee_amount: number
+  withholding_amount: number
+  actual_payout: number
+}
+
+export const counselorPayoutApi = {
+  /** 가용 한도 + 등급/계좌/제한 상태 */
+  available: () => api.get<MyPayoutInfo>('/user/counselor-mypage/payout/available'),
+  /** 본인 신청 이력 (최신순) */
+  history: (limit = 30) =>
+    api.get<PayoutHistoryItem[]>(`/user/counselor-mypage/payout/history?limit=${limit}`),
+  /** 신청 — amount 원 단위 */
+  request: (amount: number, memo?: string) =>
+    api.post<CreatePayoutResult>('/user/counselor-mypage/payout/request', { amount, memo }),
+  /** 본인 취소 (pending 만) */
+  cancel: (id: number) =>
+    api.post<{ ok: true }>(`/user/counselor-mypage/payout/${id}/cancel`, {}),
+  /** 계좌 등록/변경 — 변경 시 3일 잠금 */
+  updateBank: (bank_name: string, bank_holder: string, bank_account: string) =>
+    api.post<{ ok: true; bank_locked_until: string | null }>(
+      '/user/counselor-mypage/payout/bank',
+      { bank_name, bank_holder, bank_account },
+    ),
+}
+
+// ─────────────────────────────────────────────
 // 상담사 마이페이지 — 후기 관리
 // ─────────────────────────────────────────────
 
@@ -910,6 +1053,8 @@ export interface PublicCounselor {
   category: '사주' | '타로' | '신점' | '기타'
   /** 요청자가 단골 등록했는지 (비로그인이면 false) */
   is_liked: boolean
+  /** 24h 내 "상담요청하기" 신청 여부 (2026-05-22 신설) — 부재 카드 버튼 분기. */
+  is_requested?: boolean
   /** 신규 상담사 — 가입 후 90일 이내 (2026-05-15 신설). NEW 뱃지 노출용. */
   is_new: boolean
   /** 후기 평균 별점 (1~5, 후기 없거나 별점 미부여면 0) */
@@ -994,6 +1139,22 @@ export const counselorsApi = {
       `/user/counselors/favorites${q ? `?${q}` : ''}`,
     )
   },
+  /**
+   * 단골 상담사 중 현재 접속중인 사람만 (홈 배너용, 경량).
+   *  - online: 접속중 단골 최대 5명 (정보 최소)
+   *  - totalFavorites: 회원의 총 단골 등록 수 (0이면 "단골 등록 유도" 배너로 전환)
+   */
+  favoritesOnline: () =>
+    api.get<{
+      online: Array<{
+        id: number
+        name: string
+        nickname: string
+        code: string | null
+        profile_image: string | null
+      }>
+      totalFavorites: number
+    }>('/user/counselors/favorites/online'),
   /** 특정 상담사의 후기 목록 — 상담사 상세 후기 탭. */
   reviews: (id: number | string, params?: { limit?: number; offset?: number }) => {
     const qs = new URLSearchParams()
@@ -1029,6 +1190,16 @@ export const counselorsApi = {
   /** 단골 해제 */
   removeLike: (id: number | string) =>
     api.delete<{ is_liked: false; fan_count: number }>(`/user/counselors/${id}/like`),
+  /**
+   * 부재중 상담사에게 "상담요청하기" — 알림톡 + 푸시 발송 (2026-05-22).
+   *  - 401: 로그인 필요
+   *  - 400: 본인 본인 요청
+   *  - 200: { ok:true, already?: boolean, notified: { alimtalk, push } }
+   */
+  requestConsult: (id: number | string) =>
+    api.post<{ ok: true; already?: boolean; notified: { alimtalk: boolean; push: boolean } }>(
+      `/user/counselors/${id}/request-consult`,
+    ),
 }
 
 export interface PublicCounselorReview {
@@ -1645,7 +1816,7 @@ export const pointsApi = {
  * 포인트 충전 (https://sajumoon.kr/mypage/charge)
  *  - sample 정책 1:1 마이그레이션 (sample/coin/coin_fill*.php / coin_pay_ok_v2.php)
  *  - 일반결제: prepare → form submit → PG → returnurl 콜백 → /charge/complete?oid=...
- *  - 사주문페이(BillKey): autopay-register → DB + 엠투넷 PUT → autopay-charge로 즉시 결제
+ *  - 사주플랜페이(BillKey): autopay-register → DB + 엠투넷 PUT → autopay-charge로 즉시 결제
  *  - 자동충전: auto-config로 엠투넷 PUT → 엠투넷이 자율 트리거 → autopay-push 콜백
  * ───────────────────────────────────────────── */
 

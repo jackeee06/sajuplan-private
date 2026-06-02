@@ -110,7 +110,7 @@ function dexc_coin(price){
 
 <style>
 .top_nav_04 { border-color: #465bf0 !important; color: #465bf0; font-weight: 600;}
-/*20250721 eun 사주문페이 설명 모달창 css 작업 시작*/
+/*20250721 eun 사주플랜페이 설명 모달창 css 작업 시작*/
 /* 컨테이너를 기준으로 툴팁을 배치 */
 .review_guide {
     position: relative;
@@ -177,7 +177,7 @@ function dexc_coin(price){
     /* box-sizing: border-box; 는 기존 그대로 유지 */
     box-sizing: border-box;
 }
-/*20250721 eun 사주문페이 설명 모달창 css 작업 마감*/
+/*20250721 eun 사주플랜페이 설명 모달창 css 작업 마감*/
 </style>
 
 <?php include_once("../include/point_navi.php"); ?>
@@ -353,8 +353,8 @@ function dexc_coin(price){
                 <li style="padding-bottom:20px;">
                     <div>
                         <input type="radio" id="chk1" name="echk" value="1" style="margin-right: 5px; margin-bottom: 3px;" checked />
-                        <label for="chk1"><span><img src="../img/common/pay.png" style=" display:inline-block; height: 24px; vertical-align: -5px; margin-right: 6px;" /></span>사주문페이</label>
-                        <!--20250722 eun 자동 충전 부분 사주문페이 모달 작업 시작-->
+                        <label for="chk1"><span><img src="../img/common/pay.png" style=" display:inline-block; height: 24px; vertical-align: -5px; margin-right: 6px;" /></span>사주플랜페이</label>
+                        <!--20250722 eun 자동 충전 부분 사주플랜페이 모달 작업 시작-->
                         <!-- review_guide: 인라인 블록, position:relative -->
                         <span class="review_guide">
                               <i id="payHelpBtn" class="xi-help-o" style="cursor:pointer;"></i>
@@ -362,7 +362,7 @@ function dexc_coin(price){
                               <div id="payHelpModal" class="tooltip">
                                 <div class="tooltip-content">
                                   <span id="payHelpClose" class="tooltip-close">&times;</span>
-                                  <h2>사주문페이(Pay)란?</h2>
+                                  <h2>사주플랜페이(Pay)란?</h2>
                                   <p>
                                     카드 한 번만 등록하면 결제는 더 쉽고 빠르게!<br/>
                                     개인정보는 안전하게 암호화되어 보호됩니다.
@@ -370,7 +370,7 @@ function dexc_coin(price){
                                 </div>
                               </div>
                             </span>
-                        <!--20250722 eun 사주문페이 설명 모달창 작업 마감-->
+                        <!--20250722 eun 사주플랜페이 설명 모달창 작업 마감-->
                     </div>
                     <div class="sear check01">
                     	<div class="the_pay_wrap">
@@ -383,7 +383,7 @@ function dexc_coin(price){
         	                           <img src="../img/common/pay.png" />
             	                       <i class="xi-plus"></i>
                 	               </span>
-                    	           <span class="the_pay_text">사주문페이를 추가하고 빠르게 결제하세요!</span>
+                    	           <span class="the_pay_text">사주플랜페이를 추가하고 빠르게 결제하세요!</span>
                             	</div>
                         	</button>
 							<?}else{?>
@@ -391,7 +391,7 @@ function dexc_coin(price){
                             <!-- 등록 후 -->
                         	<div class="the_pay complete">
 	                            <div class="the_pay_btn">
-    	                             <span class="the_pay_name">사주문페이</span>
+    	                             <span class="the_pay_name">사주플랜페이</span>
                                       <span class="the_pay_del" onclick="call_confirm()"><i class="xi-close-thin"></i></span>
                                      <span class="the_pay_card"><?=$auto_card_data["card_nm"]?></span>
                                      <span class="the_pay_num"><?=$auto_card_data["card_no"]?></span>
@@ -402,7 +402,7 @@ function dexc_coin(price){
 
 									function call_confirm(){
 										
-										if(confirm("등록된 결제수단을 삭제하시겠습니까?\n\n결제수단을 삭제하면\n1. 사주문페이에 등록된 카드 삭제 처리\n2. 자동결제 서비스 이용 불가\n\n삭제 후 새로운 결제 수단을 등록해주셔야 사주문PAY 및 자동결제 서비스를 이용하실 수 있습니다.")){
+										if(confirm("등록된 결제수단을 삭제하시겠습니까?\n\n결제수단을 삭제하면\n1. 사주플랜페이에 등록된 카드 삭제 처리\n2. 자동결제 서비스 이용 불가\n\n삭제 후 새로운 결제 수단을 등록해주셔야 사주플랜PAY 및 자동결제 서비스를 이용하실 수 있습니다.")){
 											
 											var membid = "<?=$membid?>";											
 											location.href='/coin/coin_fill_auto_card_del.php?membid='+membid;
@@ -435,7 +435,7 @@ function dexc_coin(price){
 
 <div class="con_section con_section_b_bot page_noti gray_bg" style=" padding-top:20px; padding-bottom: 80px;">
 	<ul class="page_noti_item">
-    충전 불편사항이나 직접 충전 신청은 "어플 내 고객문의게시판" 혹은 카카오톡 플러스친구 "사주문고객센터"로 연락주세요.
+    충전 불편사항이나 직접 충전 신청은 "어플 내 고객문의게시판" 혹은 카카오톡 플러스친구 "사주플랜고객센터"로 연락주세요.
     </ul>
     
     <ul class="page_noti_item">
@@ -532,7 +532,7 @@ window.onclick = function(event) {
 };
 	
 </script>
-    <!--20250722 eun 사주문페이 설명 모달창 작업 마감-->
+    <!--20250722 eun 사주플랜페이 설명 모달창 작업 마감-->
     <script>
         const helpBtn  = document.getElementById('payHelpBtn');
         const modal    = document.getElementById('payHelpModal');
@@ -556,7 +556,7 @@ window.onclick = function(event) {
 
     </script>
 
-    <!--20250722 eun 사주문페이 설명 모달창 작업 마감-->
+    <!--20250722 eun 사주플랜페이 설명 모달창 작업 마감-->
 <?php
 include_once(G5_THEME_MOBILE_PATH.'/tail.php');
 include_once(G5_THEME_MOBILE_PATH.'/tail.sub.php');

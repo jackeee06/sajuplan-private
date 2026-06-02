@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -17,7 +18,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'node:path';
 import { mkdirSync, unlink } from 'node:fs';
-import { AdminAuthGuard } from '../auth/admin-auth.guard';
+import { AdminAuthGuard, type AuthedRequest } from '../auth/admin-auth.guard';
 import { MembersService } from './members.service';
 import type { CounselorInput, CustomerInput, ListFilter } from './members.service';
 import { convertImageToWebp } from '../../shared/common/image-to-webp';
@@ -55,17 +56,23 @@ const FILE_KIND_LIMITS: Record<string, { exts: string[]; mimes: string[]; maxByt
 export class MembersController {
   constructor(private readonly membersService: MembersService) {}
 
-  /** 기존 호환 유지: GET /admin/members?role=user */
+  /**
+   * GET /admin/members
+   *  - role=user|counselor : 특정 role 만
+   *  - q=검색어 : name/nickname/mb_id LIKE 검색 (role 무관 전체 — 상담사 포함)
+   *  - 2026-05-28: q 검색 추가 — 푸시 발송 폼의 회원 검색용 (상담사도 회원이므로 같이 검색됨)
+   */
   @Get()
   async findAll(
     @Query('role') role?: string,
+    @Query('q') q?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
     const limitNum = limit ? Number(limit) : undefined;
     const offsetNum = offset ? Number(offset) : undefined;
     const [items, total] = await Promise.all([
-      this.membersService.findAll({ role, limit: limitNum, offset: offsetNum }),
+      this.membersService.findAll({ role, q, limit: limitNum, offset: offsetNum }),
       this.membersService.count(role),
     ]);
     return { items, total };
@@ -79,14 +86,18 @@ export class MembersController {
 
   /** 고객 리스트: GET /admin/members/customers */
   @Get('customers')
-  customers(@Query() q: Record<string, string>) {
-    return this.membersService.findCustomers(parseFilter(q));
+  customers(@Query() q: Record<string, string>, @Req() req: AuthedRequest) {
+    return this.membersService.findCustomers(parseFilter(q), canShowPhone(req, q));
   }
 
   /** 고객 단건: GET /admin/members/customers/:id */
   @Get('customers/:id')
-  customerDetail(@Param('id', ParseIntPipe) id: number) {
-    return this.membersService.getCustomerDetail(id);
+  customerDetail(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() q: Record<string, string>,
+    @Req() req: AuthedRequest,
+  ) {
+    return this.membersService.getCustomerDetail(id, canShowPhone(req, q));
   }
 
   /** 고객 생성: POST /admin/members/customers */
@@ -106,14 +117,18 @@ export class MembersController {
 
   /** 상담사 리스트: GET /admin/members/counselors */
   @Get('counselors')
-  counselors(@Query() q: Record<string, string>) {
-    return this.membersService.findCounselors(parseFilter(q));
+  counselors(@Query() q: Record<string, string>, @Req() req: AuthedRequest) {
+    return this.membersService.findCounselors(parseFilter(q), canShowPhone(req, q));
   }
 
   /** 상담사 단건 조회: GET /admin/members/counselors/:id */
   @Get('counselors/:id')
-  counselorDetail(@Param('id', ParseIntPipe) id: number) {
-    return this.membersService.getCounselorDetail(id);
+  counselorDetail(
+    @Param('id', ParseIntPipe) id: number,
+    @Query() q: Record<string, string>,
+    @Req() req: AuthedRequest,
+  ) {
+    return this.membersService.getCounselorDetail(id, canShowPhone(req, q));
   }
 
   /** 상담사 생성 + m2net 연동: POST /admin/members/counselors */
@@ -209,6 +224,16 @@ export class MembersController {
   }
 }
 
+/**
+ * [PII 보호] 전화번호 평문 노출 조건.
+ *   - 슈퍼관리자 (is_super=true) 이고
+ *   - 요청에 show_phone=1 (헤더 토글 ON) 일 때만
+ * 일반 관리자는 어떤 경우에도 마스킹된 phone/telno 만 받음.
+ */
+function canShowPhone(req: AuthedRequest, q: Record<string, string>): boolean {
+  return !!req.admin?.is_super && q.show_phone === '1';
+}
+
 function parseFilter(q: Record<string, string>): ListFilter {
   return {
     q: q.q || undefined,
@@ -217,6 +242,10 @@ function parseFilter(q: Record<string, string>): ListFilter {
     status: (q.status as ListFilter['status']) || undefined,
     state: q.state || undefined,
     category: q.category || undefined,
+    segment: (q.segment as ListFilter['segment']) || undefined,
+    channel: (q.channel as ListFilter['channel']) || undefined,
+    social: q.social || undefined,
+    gender: (q.gender as ListFilter['gender']) || undefined,
     page: q.page ? Number(q.page) : undefined,
     limit: q.limit ? Number(q.limit) : undefined,
   };

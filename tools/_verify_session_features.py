@@ -28,7 +28,7 @@ for _s in (sys.stdout, sys.stderr):
 
 TARGETS = [
     ("test", "https://api.sajumoon.kr"),
-    ("prod", "https://api.sajumoon.co.kr"),
+    ("prod", "https://api.sajuplan.com"),
 ]
 
 

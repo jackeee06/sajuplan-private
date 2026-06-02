@@ -31,7 +31,7 @@ export default function LoginPage() {
         <div className="bg-white rounded-[20px] px-[24px] pt-[34px] pb-[40px] flex flex-col items-center">
           {/* Logo */}
           <div className="w-[136px] h-[50px] mb-[30px]">
-            <img src={imgLogo21} alt="사주문" className="w-full h-full object-cover" />
+            <img src={imgLogo21} alt="사주플랜" className="w-full h-full object-cover" />
           </div>
 
           {/* Inputs */}

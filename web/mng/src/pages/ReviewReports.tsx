@@ -1,5 +1,19 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../lib/api'
+import {
+  Th,
+  Td,
+  Tr,
+  IdCell,
+  TableShell,
+  THead,
+  TBody,
+  EmptyRow,
+  Chip,
+  Badge,
+  BadgeColor,
+  PaginationBar,
+} from '../components/table'
 
 /**
  * 어드민 — 후기 신고 관리 (2026-05-15 신설).
@@ -31,11 +45,19 @@ interface ReportDetail extends ReportListItem {
   review_member_mb_id: string | null
 }
 
-const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
-  pending: { label: '대기', cls: 'bg-amber-100 text-amber-700' },
-  reviewed: { label: '검토 완료', cls: 'bg-blue-100 text-blue-700' },
-  hidden: { label: '숨김', cls: 'bg-rose-100 text-rose-700' },
-  dismissed: { label: '반려', cls: 'bg-gray-200 text-gray-600' },
+const STATUS_LABELS: Record<string, { label: string; color: BadgeColor }> = {
+  pending: { label: '대기', color: 'amber' },
+  reviewed: { label: '검토 완료', color: 'blue' },
+  hidden: { label: '숨김', color: 'rose' },
+  dismissed: { label: '반려', color: 'gray' },
+}
+
+const FILTER_DOT: Record<string, BadgeColor | undefined> = {
+  pending: 'amber',
+  all: undefined,
+  reviewed: 'blue',
+  hidden: 'rose',
+  dismissed: 'gray',
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -77,102 +99,85 @@ export default function ReviewReports() {
     load()
   }, [statusFilter, page])
 
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / 30)) : 1
+
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">후기 신고 관리</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">사용자가 신고한 후기 목록 — 검토 후 처리 (숨김/반려).</p>
-        </div>
+    <div className="space-y-3 max-w-[1100px]">
+      {/* 타이틀 */}
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">후기 신고 관리</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">사용자가 신고한 후기 목록 — 검토 후 처리 (숨김/반려)</p>
       </div>
 
-      {/* 필터 */}
-      <div className="flex gap-1 flex-wrap">
+      {/* 필터 칩 */}
+      <div className="flex flex-wrap gap-2">
         {STATUS_FILTERS.map((f) => (
-          <button
+          <Chip
             key={f.value}
-            type="button"
+            label={f.label}
+            dotColor={FILTER_DOT[f.value]}
+            active={statusFilter === f.value}
             onClick={() => {
               setStatusFilter(f.value)
               setPage(1)
             }}
-            className={`px-3 py-1.5 rounded-full text-sm border ${
-              statusFilter === f.value
-                ? 'bg-brand-500 text-white border-brand-500'
-                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
-            }`}
-          >
-            {f.label}
-          </button>
+          />
         ))}
       </div>
 
       {/* 테이블 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium">ID</th>
-                <th className="px-3 py-2 text-left font-medium">신고일</th>
-                <th className="px-3 py-2 text-left font-medium">사유</th>
-                <th className="px-3 py-2 text-left font-medium">후기 제목</th>
-                <th className="px-3 py-2 text-left font-medium">신고자</th>
-                <th className="px-3 py-2 text-center font-medium">상태</th>
-                <th className="px-3 py-2 text-right font-medium">관리</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {loading && !data ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">로딩...</td></tr>
-              ) : error ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-rose-500">{error}</td></tr>
-              ) : !data || data.items.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">신고 내역이 없습니다.</td></tr>
-              ) : (
-                data.items.map((r) => {
-                  const st = STATUS_LABELS[r.status] ?? { label: r.status, cls: 'bg-gray-100 text-gray-600' }
-                  return (
-                    <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                      <td className="px-3 py-2 text-gray-500">{r.id}</td>
-                      <td className="px-3 py-2 whitespace-nowrap text-gray-600">{new Date(r.created_at).toLocaleString('ko-KR')}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">{CATEGORY_LABELS[r.reason_category] ?? r.reason_category}</td>
-                      <td className="px-3 py-2 max-w-[400px] truncate">{r.review_title ?? <span className="text-gray-400">(삭제됨)</span>}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {r.reporter_nickname || r.reporter_mb_id || `#${r.reporter_member_id}`}
-                      </td>
-                      <td className="px-3 py-2 text-center">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${st.cls}`}>{st.label}</span>
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedId(r.id)}
-                          className="text-xs text-brand-600 hover:underline"
-                        >
-                          상세
-                        </button>
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+      <TableShell>
+        <THead>
+          <Th align="right">ID</Th>
+          <Th align="left">신고일</Th>
+          <Th align="left">사유</Th>
+          <Th align="left">후기 제목</Th>
+          <Th align="left">신고자</Th>
+          <Th align="center">상태</Th>
+        </THead>
+        <TBody>
+          {loading && !data ? (
+            <EmptyRow colSpan={6} loading />
+          ) : error ? (
+            <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-rose-500">{error}</td></tr>
+          ) : !data || data.items.length === 0 ? (
+            <EmptyRow colSpan={6} />
+          ) : (
+            data.items.map((r) => {
+              const st = STATUS_LABELS[r.status] ?? { label: r.status, color: 'gray' as BadgeColor }
+              return (
+                <Tr key={r.id} onClick={() => setSelectedId(r.id)}>
+                  <IdCell id={r.id} />
+                  <Td align="left" className="text-xs text-gray-600 tabular-nums">
+                    {new Date(r.created_at).toLocaleString('ko-KR')}
+                  </Td>
+                  <Td align="left" className="text-gray-700">{CATEGORY_LABELS[r.reason_category] ?? r.reason_category}</Td>
+                  <Td align="left" className="max-w-[400px] truncate">
+                    {r.review_title ?? <span className="text-gray-400">(삭제됨)</span>}
+                  </Td>
+                  <Td align="left" className="text-gray-700">
+                    {r.reporter_nickname || r.reporter_mb_id || `#${r.reporter_member_id}`}
+                  </Td>
+                  <Td align="center">
+                    <Badge color={st.color}>{st.label}</Badge>
+                  </Td>
+                </Tr>
+              )
+            })
+          )}
+        </TBody>
+      </TableShell>
 
-        {/* 페이지네이션 */}
-        {data && data.total > 30 && (
-          <div className="px-4 py-3 flex items-center justify-between border-t border-gray-100 dark:border-gray-800 text-sm">
-            <span className="text-gray-500">전체 {data.total}건</span>
-            <div className="flex gap-1">
-              <button type="button" disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40">이전</button>
-              <span className="px-3 py-1">{page} / {Math.ceil(data.total / 30)}</span>
-              <button type="button" disabled={page * 30 >= data.total} onClick={() => setPage((p) => p + 1)} className="px-3 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-40">다음</button>
-            </div>
-          </div>
-        )}
-      </div>
+      {data && (
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          total={data.total}
+          pageSize={30}
+          onChange={setPage}
+          unit="건"
+        />
+      )}
 
       {/* 상세 모달 */}
       {selectedId !== null && (

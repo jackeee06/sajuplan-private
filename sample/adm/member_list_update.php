@@ -14,7 +14,7 @@ check_admin_token();
 
 $mb_datas = array();
 $msg = '';
-// 20250711 eun 사주문 추천 20명 리스트 순서 적용 작업 시작
+// 20250711 eun 사주플랜 추천 20명 리스트 순서 적용 작업 시작
 
 
 if ($_POST['act_button'] == "선택수정" || $_POST['act_button'] == "일괄저장") {
@@ -90,7 +90,7 @@ if ($_POST['act_button'] == "선택수정" || $_POST['act_button'] == "일괄저
         }
         // echo $sql;
     }
-// 20250711 eun 사주문 추천 20명 리스트 순서 적용 작업 마감
+// 20250711 eun 사주플랜 추천 20명 리스트 순서 적용 작업 마감
 
 //} else if ($_POST['act_button'] == "선택삭제") {
 } else if ($_POST['act_button'] == "선택삭제" || $_POST['act_button'] == "완전삭제") {

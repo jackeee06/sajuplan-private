@@ -3,13 +3,26 @@ import * as bcrypt from 'bcrypt';
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { M2netService } from '../../shared/m2net/m2net.service';
 
-// [Audit E-C3] 휴대폰 마스킹 — list 응답용 (단건 조회는 평문 유지).
+// [Audit E-C3] 휴대폰 마스킹.
 //   01012345678 / 010-1234-5678 모두 처리 → 010-****-5678 형식 반환.
 function maskPhone(phone: string | null | undefined): string | null {
   if (!phone) return null;
   const digits = String(phone).replace(/\D/g, '');
   if (digits.length < 7) return phone;
   return `${digits.slice(0, 3)}-****-${digits.slice(-4)}`;
+}
+
+// [PII 보호] 슈퍼관리자 + show_phone 토글 ON 일 때만 평문 노출.
+//   일반 관리자는 list/detail 모두 마스킹. 슈퍼관리자 본인도 기본 마스킹 (토글 OFF 시).
+function applyPhoneMask<T extends { phone?: string | null; telno?: string | null }>(
+  row: T,
+  showPhone: boolean,
+): T {
+  if (showPhone) return row;
+  const out: T = { ...row };
+  if ('phone' in out) out.phone = maskPhone(out.phone);
+  if ('telno' in out) out.telno = maskPhone(out.telno);
+  return out;
 }
 
 // [role/level 이중 진실원천] role 기반 level 매핑 — 향후 role 변경 API 추가 시 강제 동기화용.
@@ -133,6 +146,16 @@ export interface ListFilter {
   status?: 'all' | 'active' | 'left' | 'blocked';
   state?: string;      // 상담사 상태(IDLE/CONN/...)
   category?: string;   // 상담사 분야(타로/신점/사주/심리)
+  // ─ 고객 운영 세그먼트 (user 전용)
+  // new7d=가입7일 / no_pay=결제이력없음 / vip=누적10만+ / dormant_balance=잔액1만+ 30일무로그인
+  // churn_risk=누적5만+ 14일무로그인
+  segment?: 'new7d' | 'no_pay' | 'vip' | 'dormant_balance' | 'churn_risk';
+  // ─ 사용 채널 (user 전용): chat=채팅만 / phone070=070있음 / phone060=060있음 / mixed=채팅+전화
+  channel?: 'chat' | 'phone070' | 'phone060' | 'mixed';
+  // ─ 유입 채널 (소셜): 'none'=일반가입(social_provider NULL), 그 외 'kakao'|'naver'|...
+  social?: string;
+  // ─ 성별: 'M' | 'F' | 'none'(=미입력)
+  gender?: 'M' | 'F' | 'none';
   page?: number;
   limit?: number;
 }
@@ -254,14 +277,36 @@ export class MembersService {
   // ─────────────────────────────────────────────
   // 기본 조회 (기존 호환)
   // ─────────────────────────────────────────────
-  async findAll(opts: { limit?: number; offset?: number; role?: string } = {}): Promise<MemberRow[]> {
+  async findAll(opts: { limit?: number; offset?: number; role?: string; q?: string } = {}): Promise<MemberRow[]> {
     const limit = Math.min(opts.limit ?? 50, 200);
     const offset = opts.offset ?? 0;
+    // q 검색: name / nickname / mb_id LIKE %q% (대소문자 무시). role 무관, 전체 회원 (상담사 포함) 대상.
+    //   2026-05-28: 푸시 발송 폼의 회원 검색용 — 사장님 (상담사) 본인이 검색돼야 함.
+    const qLike = opts.q && opts.q.trim() ? `%${opts.q.trim()}%` : null;
+    if (opts.role && qLike) {
+      return this.sql<MemberRow[]>`
+        SELECT id, mb_id, name, nickname, email, phone, role, level, point, state, created_at, last_login_at
+        FROM member
+        WHERE role = ${opts.role}
+          AND (name ILIKE ${qLike} OR nickname ILIKE ${qLike} OR mb_id ILIKE ${qLike})
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    }
     if (opts.role) {
       return this.sql<MemberRow[]>`
         SELECT id, mb_id, name, nickname, email, phone, role, level, point, state, created_at, last_login_at
         FROM member
         WHERE role = ${opts.role}
+        ORDER BY created_at DESC
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+    }
+    if (qLike) {
+      return this.sql<MemberRow[]>`
+        SELECT id, mb_id, name, nickname, email, phone, role, level, point, state, created_at, last_login_at
+        FROM member
+        WHERE (name ILIKE ${qLike} OR nickname ILIKE ${qLike} OR mb_id ILIKE ${qLike})
         ORDER BY created_at DESC
         LIMIT ${limit} OFFSET ${offset}
       `;
@@ -310,6 +355,39 @@ export class MembersService {
     if (f.status === 'blocked') conds.push(this.sql`m.intercept_until IS NOT NULL AND m.intercept_until >= now()`);
     if (f.state) conds.push(this.sql`m.state = ${f.state}`);
     if (f.category) conds.push(this.sql`m.counselor_category = ${f.category}`);
+
+    // 공통 — 성별 / 소셜 (member 컬럼 직접)
+    if (f.gender === 'M' || f.gender === 'F') conds.push(this.sql`m.gender = ${f.gender}`);
+    else if (f.gender === 'none') conds.push(this.sql`m.gender IS NULL`);
+    if (f.social === 'none') conds.push(this.sql`m.social_provider IS NULL`);
+    else if (f.social) conds.push(this.sql`m.social_provider = ${f.social}`);
+
+    // user 전용 운영 세그먼트
+    if (role === 'user') {
+      if (f.segment === 'new7d') {
+        conds.push(this.sql`m.created_at >= now() - interval '7 days'`);
+      } else if (f.segment === 'no_pay') {
+        conds.push(this.sql`NOT EXISTS (SELECT 1 FROM payment p WHERE p.member_id = m.id AND p.status = 'completed')`);
+      } else if (f.segment === 'vip') {
+        conds.push(this.sql`(SELECT COALESCE(SUM(p.amount),0) FROM payment p WHERE p.member_id = m.id AND p.status = 'completed') >= 100000`);
+      } else if (f.segment === 'dormant_balance') {
+        conds.push(this.sql`m.point >= 10000 AND (m.last_login_at IS NULL OR m.last_login_at < now() - interval '30 days')`);
+      } else if (f.segment === 'churn_risk') {
+        conds.push(this.sql`(SELECT COALESCE(SUM(p.amount),0) FROM payment p WHERE p.member_id = m.id AND p.status = 'completed') >= 50000 AND (m.last_login_at IS NULL OR m.last_login_at < now() - interval '14 days')`);
+      }
+
+      // 사용 채널 — consultation roomid NULL=전화, NOT NULL=채팅
+      if (f.channel === 'chat') {
+        conds.push(this.sql`EXISTS (SELECT 1 FROM consultation c WHERE c.member_id = m.id AND c.roomid IS NOT NULL) AND NOT EXISTS (SELECT 1 FROM consultation c WHERE c.member_id = m.id AND c.roomid IS NULL)`);
+      } else if (f.channel === 'phone070') {
+        conds.push(this.sql`EXISTS (SELECT 1 FROM consultation c WHERE c.member_id = m.id AND c.preflag = 'Y' AND c.roomid IS NULL)`);
+      } else if (f.channel === 'phone060') {
+        conds.push(this.sql`EXISTS (SELECT 1 FROM consultation c WHERE c.member_id = m.id AND (c.preflag IS NULL OR c.preflag <> 'Y') AND c.roomid IS NULL)`);
+      } else if (f.channel === 'mixed') {
+        conds.push(this.sql`EXISTS (SELECT 1 FROM consultation c WHERE c.member_id = m.id AND c.roomid IS NOT NULL) AND EXISTS (SELECT 1 FROM consultation c WHERE c.member_id = m.id AND c.roomid IS NULL)`);
+      }
+    }
+
     return conds;
   }
 
@@ -321,7 +399,7 @@ export class MembersService {
   // ─────────────────────────────────────────────
   // 고객 리스트
   // ─────────────────────────────────────────────
-  async findCustomers(f: ListFilter): Promise<{ items: CustomerRow[]; total: number; summary: { total: number; active: number; left: number; blocked: number } }> {
+  async findCustomers(f: ListFilter, showPhone = false): Promise<{ items: CustomerRow[]; total: number; summary: { total: number; active: number; left: number; blocked: number } }> {
     const limit = Math.min(f.limit ?? 30, 200);
     const page = Math.max(1, f.page ?? 1);
     const offset = (page - 1) * limit;
@@ -374,13 +452,8 @@ export class MembersService {
       FROM member WHERE role = 'user'
     `;
 
-    // [Audit E-C3] list 응답은 phone 마스킹 — 대량 노출/CSV 유출 방지.
-    //   단건 조회 (getCustomerDetail) 는 평문 유지 (편집/연락 업무용).
-    //   UI 검토 완료: web/mng CustomerList 는 표시만 (tel: 링크 없음).
-    const maskedItems = items.map((it) => ({
-      ...it,
-      phone: maskPhone(it.phone),
-    }));
+    // [PII 보호] 슈퍼관리자 + 토글 ON 일 때만 평문. 그 외 마스킹.
+    const maskedItems = items.map((it) => applyPhoneMask(it, showPhone));
 
     return {
       items: maskedItems,
@@ -397,7 +470,7 @@ export class MembersService {
   // ─────────────────────────────────────────────
   // 상담사 리스트
   // ─────────────────────────────────────────────
-  async findCounselors(f: ListFilter): Promise<{
+  async findCounselors(f: ListFilter, showPhone = false): Promise<{
     items: CounselorRow[];
     total: number;
     summary: { total: number; idle: number; busy: number; absent: number };
@@ -439,16 +512,37 @@ export class MembersService {
         m.call_070_unit_cost, m.call_060_unit_cost, m.chat_unit_cost,
         m.paid_royalty_pct,
         m.level, m.point, m.state, m.is_rising, m.created_at,
+        m.updated_at, m.last_login_at, m.use_phone, m.use_chat,
+        COALESCE(p.earning_balance, 0) AS earning_balance,
         COALESCE(tc.cnt, 0)        AS total_consult,
         COALESCE(tc.total_sec, 0)  AS total_usetm,
         COALESCE(tm.amt_070, 0)    AS this_month_070,
         COALESCE(tm.amt_060, 0)    AS this_month_060,
         COALESCE(lm.amt_070, 0)    AS last_month_070,
-        COALESCE(lm.amt_060, 0)    AS last_month_060
+        COALESCE(lm.amt_060, 0)    AS last_month_060,
+        -- 2026-05-25: 빠른 필터 (데이터 미완성 / 이벤트 / 환불) 용 보조 필드
+        (pc.id IS NOT NULL) AS has_profile,
+        (COALESCE(pc.hashtag1,'') <> '' OR COALESCE(pc.hashtag2,'') <> '') AS has_hashtag,
+        EXISTS (
+          SELECT 1 FROM member_file mf
+           WHERE mf.member_id = m.id AND mf.kind = 'profile'
+           LIMIT 1
+        ) AS has_profile_image,
+        (pc.event_starts_at IS NOT NULL
+           AND pc.event_starts_at <= now()
+           AND (pc.event_ends_at IS NULL OR pc.event_ends_at > now())
+        ) AS event_active,
+        (SELECT COUNT(*) FROM refund_request rr
+          WHERE rr.counselor_id = m.id
+            AND rr.status = 'approved'
+            AND rr.created_at >= now() - interval '30 days'
+        )::int AS refund_30d_count
       FROM member m
-      LEFT JOIN total_c tc ON tc.counselor_id = m.id
-      LEFT JOIN this_m  tm ON tm.counselor_id = m.id
-      LEFT JOIN last_m  lm ON lm.counselor_id = m.id
+      LEFT JOIN point          p  ON p.member_id  = m.id
+      LEFT JOIN total_c        tc ON tc.counselor_id = m.id
+      LEFT JOIN this_m         tm ON tm.counselor_id = m.id
+      LEFT JOIN last_m         lm ON lm.counselor_id = m.id
+      LEFT JOIN post_counselor pc ON pc.member_id  = m.id
       ${where}
       ORDER BY COALESCE(m.counselor_priority, 9999) ASC, m.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -482,11 +576,8 @@ export class MembersService {
       by_category[k] = Number(r.cnt);
     }
 
-    // [Audit E-C3] 상담사 list 도 phone 마스킹 (단건 조회는 평문 유지).
-    const maskedItems = items.map((it) => ({
-      ...it,
-      phone: maskPhone(it.phone),
-    }));
+    // [PII 보호] 슈퍼관리자 + 토글 ON 일 때만 평문. 상담사는 phone + telno 둘 다 보호.
+    const maskedItems = items.map((it) => applyPhoneMask(it, showPhone));
 
     return {
       items: maskedItems,
@@ -504,7 +595,7 @@ export class MembersService {
   // ─────────────────────────────────────────────
   // 고객 단건 조회 / 생성 / 수정
   // ─────────────────────────────────────────────
-  async getCustomerDetail(id: number): Promise<CustomerRow> {
+  async getCustomerDetail(id: number, showPhone = false): Promise<CustomerRow> {
     const rows = await this.sql<CustomerRow[]>`
       SELECT m.id, m.mb_id, m.name, m.nickname, m.email, m.phone, m.gender, m.birth_date,
              m.level, m.point, m.acquisition_source, m.social_provider,
@@ -516,7 +607,7 @@ export class MembersService {
        WHERE m.id = ${id} AND m.role = 'user'
     `;
     if (rows.length === 0) throw new NotFoundException('고객을 찾을 수 없습니다.');
-    return rows[0];
+    return applyPhoneMask(rows[0], showPhone);
   }
 
   async createCustomer(input: CustomerInput): Promise<{ id: number }> {
@@ -585,7 +676,7 @@ export class MembersService {
   // ─────────────────────────────────────────────
   // 상담사 단건 조회 (상세/수정용 — 모든 컬럼)
   // ─────────────────────────────────────────────
-  async getCounselorDetail(id: number): Promise<CounselorRow> {
+  async getCounselorDetail(id: number, showPhone = false): Promise<CounselorRow> {
     const rows = await this.sql<CounselorRow[]>`
       SELECT m.id, m.mb_id, m.name, m.nickname, m.email, m.phone, m.gender,
              m.csrid, m.dtmfno, m.telno,
@@ -627,7 +718,7 @@ export class MembersService {
        WHERE m.id = ${id} AND m.role = 'counselor'
     `;
     if (rows.length === 0) throw new NotFoundException('상담사를 찾을 수 없습니다.');
-    return rows[0];
+    return applyPhoneMask(rows[0], showPhone);
   }
 
   // ─────────────────────────────────────────────
@@ -654,8 +745,22 @@ export class MembersService {
     if (existing.length > 0) throw new ConflictException('이미 사용 중인 아이디입니다.');
 
     const dtmfnoFinal = await this.nextAvailableDtmfno();
-    const stateValue = 'IDLE';
+    // 신규 상담사는 양쪽 대기 상태로 시작 — use_phone+use_chat 둘 다 true 로 INSERT 되므로
+    // state 도 RDVC(Ready Voice+Chat)여야 사용자 카드에 "통화가능/채팅가능" 으로 정상 표시.
+    // IDLE 로 두면 mapper 가 "둘 다 활성인데 RDVC 아님" → 'busy'("상담중")로 잘못 표시함.
+    // (2026-05-21 사장님 결정 — 신규 상담사 첫 진입 UX 정정)
+    const stateValue = 'RDVC';
     const telnoFinal = input.telno ? input.telno.replace(/[^0-9]/g, '') : null;
+
+    // 신규 상담사 기본 단가 (2026-05-22 사장님 결정):
+    //   가입 즉시 0원 노출 = 회원 혼란 → 자동 기본값 박기.
+    //   setting.grade.default_new_unit_cost (기본 1000원, 어드민 변경 가능).
+    //   상담사 본인이 마이페이지에서 등급별 옵션 중 다른 값으로 변경 가능.
+    const defaultCostRow = await this.sql<{ value: string }[]>`
+      SELECT value FROM setting
+       WHERE namespace='grade' AND key='default_new_unit_cost' LIMIT 1
+    `;
+    const defaultUnitCost = Number(defaultCostRow[0]?.value) || 1000;
 
     const inserted = await this.sql<{ id: number }[]>`
       INSERT INTO member (
@@ -670,8 +775,8 @@ export class MembersService {
         ${input.email}, ${input.phone}, NULL,
         'counselor', 5, ${stateValue}, ${input.counselor_category},
         ${dtmfnoFinal}, ${telnoFinal}, 1,
-        30, 0, 0,
-        30, 0, 'P',
+        30, ${defaultUnitCost}, ${defaultUnitCost},
+        30, ${defaultUnitCost}, 'P',
         true, true, false
       )
       RETURNING id
@@ -686,6 +791,70 @@ export class MembersService {
     });
 
     return memberId;
+  }
+
+  /**
+   * 회원 → 상담사 승격 (2026-05-22 ID 통합 작업).
+   * 기존 일반회원(role='user') row 의 role 을 'counselor' 로 바꾸고
+   * 상담사로서의 운영 컬럼(dtmfno, telno, state, 단가, level) 을 채운다.
+   * 회원으로서의 정보(name, mb_id, password, phone, email, m2net_membid) 는 그대로 유지.
+   */
+  async promoteToCounselor(input: {
+    memberId: number;
+    nickname: string;
+    counselor_category: string | null;
+    profile_intro: string | null;
+    profile_specialty: string[] | null;
+  }): Promise<number> {
+    const rows = await this.sql<{ id: number; role: string; phone: string | null }[]>`
+      SELECT id, role, phone FROM member WHERE id = ${input.memberId} LIMIT 1
+    `;
+    const cur = rows[0];
+    if (!cur) throw new BadRequestException('회원을 찾을 수 없습니다.');
+    if (cur.role === 'counselor') {
+      throw new ConflictException('이미 상담사로 등록된 회원입니다.');
+    }
+    if (cur.role !== 'user') {
+      throw new ConflictException(`승격할 수 없는 role: ${cur.role}`);
+    }
+
+    const dtmfnoFinal = await this.nextAvailableDtmfno();
+    const telnoFinal = (cur.phone ?? '').replace(/[^0-9]/g, '') || null;
+    const defaultCostRow = await this.sql<{ value: string }[]>`
+      SELECT value FROM setting
+       WHERE namespace='grade' AND key='default_new_unit_cost' LIMIT 1
+    `;
+    const defaultUnitCost = Number(defaultCostRow[0]?.value) || 1000;
+
+    await this.sql`
+      UPDATE member SET
+        role = 'counselor',
+        level = 5,
+        state = 'RDVC',
+        nickname = ${input.nickname},
+        counselor_category = ${input.counselor_category},
+        dtmfno = ${dtmfnoFinal},
+        telno = ${telnoFinal},
+        counselor_priority = COALESCE(counselor_priority, 1),
+        call_unit_seconds = COALESCE(call_unit_seconds, 30),
+        call_070_unit_cost = COALESCE(call_070_unit_cost, ${defaultUnitCost}),
+        call_060_unit_cost = COALESCE(call_060_unit_cost, ${defaultUnitCost}),
+        chat_unit_seconds = COALESCE(chat_unit_seconds, 30),
+        chat_unit_cost = COALESCE(chat_unit_cost, ${defaultUnitCost}),
+        preflag = COALESCE(preflag, 'P'),
+        use_phone = true,
+        use_chat = true,
+        updated_at = now()
+       WHERE id = ${input.memberId}
+    `;
+
+    await this.upsertCounselorProfile(input.memberId, {
+      profile_intro: input.profile_intro ?? undefined,
+      profile_specialty: input.profile_specialty ?? undefined,
+      nickname: input.nickname,
+    });
+
+    return input.memberId;
   }
 
   // ─────────────────────────────────────────────
@@ -1177,7 +1346,7 @@ export class MembersService {
       role: string; csrid: string | null; point: number; created_at: Date;
     };
     point: {
-      free_balance: number; paid_balance: number; total: number;
+      free_balance: number; paid_balance: number; earning_balance: number; total: number;
       total_earned: number; total_used: number;
       matches_member_point: boolean;
     } | null;
@@ -1217,14 +1386,17 @@ export class MembersService {
     const member = memberRows[0];
 
     const ptRows = await this.sql<{
-      free_balance: number; paid_balance: number; total_earned: string; total_used: string;
+      free_balance: number; paid_balance: number; earning_balance: number;
+      total_earned: string; total_used: string;
     }[]>`
-      SELECT free_balance, paid_balance, total_earned::text, total_used::text
+      SELECT free_balance, paid_balance, earning_balance,
+             total_earned::text, total_used::text
         FROM point WHERE member_id = ${member.id}
     `;
     const point = ptRows.length === 0 ? null : {
       free_balance: Number(ptRows[0].free_balance) || 0,
       paid_balance: Number(ptRows[0].paid_balance) || 0,
+      earning_balance: Number(ptRows[0].earning_balance) || 0,
       total: (Number(ptRows[0].free_balance) || 0) + (Number(ptRows[0].paid_balance) || 0),
       total_earned: Number(ptRows[0].total_earned) || 0,
       total_used: Number(ptRows[0].total_used) || 0,

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import { COUNSELOR_MY_QNA_CATEGORIES } from '../data/counselorMyPage'
 
 /**
@@ -26,7 +27,7 @@ export default function CounselorMyQnaNew() {
   }
 
   return (
-    <div className="mobile-frame flex flex-col pb-6">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -79,7 +80,7 @@ export default function CounselorMyQnaNew() {
               <button
                 type="button"
                 onClick={handleAddPhoto}
-                className="w-[80px] h-[80px] rounded-[12px] border border-dashed border-[#9B7AF7] bg-white flex flex-col items-center justify-center gap-1"
+                className="w-[80px] h-[80px] rounded-[12px] border border-dashed border-[#8259F5] bg-white flex flex-col items-center justify-center gap-1"
               >
                 <img src="/img/ic_upload.svg" alt="" className="w-5 h-5" />
                 <span className="text-[12px] leading-none text-[#8259F5]">사진 등록</span>
@@ -107,12 +108,13 @@ export default function CounselorMyQnaNew() {
         <button
           type="button"
           onClick={() => navigate('/counselor/mypage/qnas')}
-          className="mt-4 w-full h-[52px] rounded-full bg-[#9B7AF7] text-white text-[16px] font-semibold"
+          className="mt-4 w-full h-[52px] rounded-full bg-[#8259F5] text-white text-[16px] font-semibold"
         >
           작성완료
         </button>
       </main>
-    </div>
+      <BottomNav myHref="/counselor/mypage" />
+      </div>
   )
 }
 
@@ -203,7 +205,7 @@ function SimpleSelect({
                     setOpen(false)
                   }}
                   className={`w-full px-4 py-2.5 text-left text-[15px] leading-5 ${
-                    selected ? 'text-[#8259F5] font-medium bg-[#F3EEFE]' : 'text-[#1E2939] hover:bg-[#F9FAFB]'
+                    selected ? 'text-[#8259F5] font-medium bg-[#f3f0ff]' : 'text-[#1E2939] hover:bg-[#F9FAFB]'
                   }`}
                 >
                   {opt}

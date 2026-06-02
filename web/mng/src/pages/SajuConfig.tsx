@@ -61,7 +61,7 @@ export default function SajuConfig() {
   if (loading) return <div className="p-6 text-sm text-gray-500">로딩...</div>
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-[1100px]">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">사주메인관리</h1>

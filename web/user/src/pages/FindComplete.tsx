@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from 'react-router-dom'
+﻿import { useLocation, useNavigate } from 'react-router-dom'
 import PrimaryButton from '../components/PrimaryButton'
 import { CheckCircleIcon, CloseIcon, InfoIcon } from '../components/icons'
 
@@ -34,7 +34,7 @@ export default function FindComplete() {
       </header>
 
       <main className="flex-1 px-6 flex flex-col items-center justify-center">
-        <div className="w-20 h-20 rounded-full bg-[#f1ecfe] flex items-center justify-center mb-7">
+        <div className="w-20 h-20 rounded-full bg-[#fdf2f8] flex items-center justify-center mb-7">
           <CheckCircleIcon className="w-10 h-10" />
         </div>
         <h1 className="text-[20px] font-bold text-[#1E2939]">아이디/비밀번호 찾기 완료</h1>

@@ -171,7 +171,7 @@ if (window.SajumoonBridge?.isNative) {
 
 ## 7. 알려진 함정 (한글 프로젝트 경로)
 
-이 프로젝트는 경로에 한글(`사주문1/`)이 포함되어 있어 두 가지 함정이 있다.
+이 프로젝트는 경로에 한글(`사주플랜1/`)이 포함되어 있어 두 가지 함정이 있다.
 
 ### 7-1. D8 dexer 가 NFD/NFC 차이로 깨짐
 
@@ -190,7 +190,7 @@ if (window.SajumoonBridge?.isNative) {
 
 - [ ] 앱 아이콘 (`android/app/src/main/res/mipmap-*` / `ios/Sajumoon/Images.xcassets/AppIcon.appiconset/`)
 - [ ] 스플래시 화면 (`react-native-splash-screen` 추후 추가 예정)
-- [ ] 푸시 알림 (FCM/APNs — 사주문1 PUSH_TOPIC 정책에 따라 차후 연결)
+- [ ] 푸시 알림 (FCM/APNs — 사주플랜1 PUSH_TOPIC 정책에 따라 차후 연결)
 - [ ] iOS 번들 ID 정식값으로 변경
 - [ ] 화면 회전 정책 (현재 default — 모바일 온리 정책에 맞춰 portrait 잠금 검토)
 - [ ] 빌드 환경 분리 (.env.production / .env.staging)

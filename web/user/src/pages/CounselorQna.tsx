@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import CounselorDetailLayout from '../components/CounselorDetailLayout'
 import type { Badge, CounselorDetailData } from '../data/counselorDetails'
@@ -153,7 +153,7 @@ export default function CounselorQna() {
         {/* 문의 작성하기 — outline-primary */}
         <Link
           to={`/counselors/${id}/qna/new`}
-          className="h-10 rounded-full bg-white border border-[#9B7AF7] text-[#8259F5] text-[14px] font-medium flex items-center justify-center gap-1 transition hover:bg-[#F3EEFE]"
+          className="h-10 rounded-full bg-white border border-[#f472b6] text-[#ec4899] text-[14px] font-medium flex items-center justify-center gap-1 transition hover:bg-[#fdf2f8]"
         >
           <PencilLineIcon />
           문의 작성하기
@@ -163,7 +163,7 @@ export default function CounselorQna() {
       {/* 카운터 */}
       <div className="px-0 pb-3 flex items-center border-b border-[#F3F4F6]">
         <p className="text-[15px] leading-[130%] text-[#4A5565]">
-          전체 <span className="font-medium text-[#8259F5]">{data.qnaTotal}</span>건
+          전체 <span className="font-medium text-[#ec4899]">{data.qnaTotal}</span>건
         </p>
       </div>
 
@@ -196,7 +196,7 @@ function QnaCard({ qna, counselorId }: { qna: PublicCounselorQnaItem; counselorI
         <div className="flex-1 flex items-center gap-1.5 min-w-0">
           <span
             className={`inline-flex items-center px-2 py-[3px] rounded-full text-[12px] leading-[110%] font-medium shrink-0 ${
-              statusActive ? 'bg-[#F3EEFE] text-[#8259F5]' : 'bg-[#F3F4F6] text-[#6A7282]'
+              statusActive ? 'bg-[#fdf2f8] text-[#ec4899]' : 'bg-[#F3F4F6] text-[#6A7282]'
             }`}
           >
             {status}
@@ -235,8 +235,8 @@ function LockIcon() {
 function PencilLineIcon() {
   return (
     <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
-      <path d="M11.5 2.5l2 2-7 7H4.5v-2l7-7z" stroke="#8259F5" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M2.5 14h11" stroke="#8259F5" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M11.5 2.5l2 2-7 7H4.5v-2l7-7z" stroke="#ec4899" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M2.5 14h11" stroke="#ec4899" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   )
 }

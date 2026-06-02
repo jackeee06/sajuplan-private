@@ -1,0 +1,18 @@
+import os, sys
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+import paramiko
+c = paramiko.SSHClient()
+c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+c.connect("104.64.128.103", 22, "root", os.environ["SSHPASS"], allow_agent=False, look_for_keys=False, timeout=15)
+print("=== SSL 인증서 만료일 (api.sajuplan.com) ===")
+_, o, _ = c.exec_command("echo | openssl s_client -servername api.sajuplan.com -connect api.sajuplan.com:443 2>/dev/null | openssl x509 -noout -dates", get_pty=False)
+print(o.read().decode("utf-8", errors="replace"))
+print()
+print("=== API CORS 헤더 (admin 도메인) ===")
+_, o, _ = c.exec_command("curl -s -I -H 'Origin: https://sajuplan.com' https://api.sajuplan.com/api/health | grep -iE 'access-control|http/'", get_pty=False)
+print(o.read().decode("utf-8", errors="replace"))
+print()
+print("=== /api/admin/auth/login POST 응답 ===")
+_, o, _ = c.exec_command("curl -s -X POST -H 'Content-Type: application/json' -H 'Origin: https://sajuplan.com' -d '{\"mb_id\":\"test\",\"password\":\"test\"}' -w '\\n[HTTP %{http_code}]' https://api.sajuplan.com/api/admin/auth/login", get_pty=False)
+print(o.read().decode("utf-8", errors="replace"))
+c.close()

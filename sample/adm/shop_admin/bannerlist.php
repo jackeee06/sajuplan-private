@@ -10,7 +10,7 @@ auth_check_menu($auth, $sub_menu, "r");
 
 
 
-$bn_position = (isset($_GET['bn_position']) && in_array($_GET['bn_position'], array('회원가입완료','메인-비주얼','메인-상단띠배너','메인-중앙배너','로그인-상단띠배너','마이페이지','일반-상담후기','일반-이용안내','일반-상담사신청','상담사-코인내역','상담사-공지사항','이벤트1','이벤트2','이벤트3','오늘의운세','소원다락방-상단','소원다락방-하단','사주문의길'))) ? $_GET['bn_position'] : '';
+$bn_position = (isset($_GET['bn_position']) && in_array($_GET['bn_position'], array('회원가입완료','메인-비주얼','메인-상단띠배너','메인-중앙배너','로그인-상단띠배너','마이페이지','일반-상담후기','일반-이용안내','일반-상담사신청','상담사-코인내역','상담사-공지사항','이벤트1','이벤트2','이벤트3','오늘의운세','소원다락방-상단','소원다락방-하단','사주플랜의길'))) ? $_GET['bn_position'] : '';
 
 $bn_device = (isset($_GET['bn_device']) && in_array($_GET['bn_device'], array('pc', 'mobile'))) ? $_GET['bn_device'] : 'both';
 

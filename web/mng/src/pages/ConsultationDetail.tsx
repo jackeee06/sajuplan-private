@@ -134,7 +134,7 @@ export default function ConsultationDetail() {
   const snapshotGrade = d.grade_at_session
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-[1400px]">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">상담 상세 #{d.id}</h1>

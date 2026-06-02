@@ -1,4 +1,5 @@
-import { useNavigate, useParams } from 'react-router-dom'
+﻿import { useNavigate, useParams } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import { MOCK_COUNSELOR_TIPS } from '../data/counselorMyPage'
 
@@ -14,7 +15,7 @@ export default function CounselorMyTipDetail() {
   const tip = MOCK_COUNSELOR_TIPS.find((t) => t.id === Number(id)) ?? MOCK_COUNSELOR_TIPS[0]
 
   return (
-    <div className="mobile-frame flex flex-col pb-6">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -39,7 +40,7 @@ export default function CounselorMyTipDetail() {
           <button
             type="button"
             onClick={() => navigate('/counselor/mypage/tips')}
-            className="h-10 px-6 rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]"
+            className="h-10 px-6 rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]"
           >
             목록으로
           </button>
@@ -47,6 +48,7 @@ export default function CounselorMyTipDetail() {
       </main>
 
       <FloatingActions bottomOffset={24} />
-    </div>
+      <BottomNav myHref="/counselor/mypage" />
+      </div>
   )
 }

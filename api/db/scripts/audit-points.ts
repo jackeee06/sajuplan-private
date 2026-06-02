@@ -214,7 +214,7 @@ async function main() {
           const diff = Number(m.point) - m2.amt;
           console.log(`m2net: membid=${m.csrid} amt=${m2.amt}  →  sajumoon(${m.point}) - m2net(${m2.amt}) = ${diff}`);
           if (diff !== 0) {
-            console.log(`  ⚠ 사주문 ↔ m2net 잔액 불일치  차이=${diff}`);
+            console.log(`  ⚠ 사주플랜 ↔ m2net 잔액 불일치  차이=${diff}`);
           }
         } else {
           console.log(`m2net: 조회 실패 — ${m2.error}`);

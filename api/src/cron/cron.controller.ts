@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ResetService } from './reset.service';
 import { SettlementCronService } from './settlement-cron.service';
 import { GradeCronService } from './grade-cron.service';
@@ -52,6 +52,18 @@ export class CronController {
       await this.opsAlert.send('daily-summary cron 실패', msg);
       throw e;
     }
+  }
+
+  // [2026-06-02] 임의 OpsAlert 발송 — 배포 스크립트 등 외부 도구가 알림 보낼 때 사용.
+  //   POST /api/cron/manual-alert  (X-Cron-Token 필요)
+  //   body: { category: string, detail: string }
+  //   예: curl -X POST -H 'X-Cron-Token: ...' -H 'Content-Type: application/json'
+  //         -d '{"category":"배포 실패","detail":"..."}' .../api/cron/manual-alert
+  @Post('manual-alert')
+  async manualAlert(@Body() body: { category?: string; detail?: string }) {
+    const category = (body.category ?? '').trim().slice(0, 100) || '알 수 없는 알림';
+    const detail = (body.detail ?? '').trim().slice(0, 800) || '(detail 없음)';
+    return await this.opsAlert.send(category, detail);
   }
 
   // [Phase G] DB 일관성 health-check — 18개 invariant 자동 점검 + Critical 위반 시 OpsAlert.

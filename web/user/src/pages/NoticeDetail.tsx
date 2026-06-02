@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -74,7 +74,7 @@ export default function NoticeDetail() {
             <button
               type="button"
               onClick={() => navigate('/mypage/notices')}
-              className="h-[44px] px-7 rounded-full border border-[#9B7AF7] text-[15px] font-medium text-[#8259F5]"
+              className="h-[44px] px-7 rounded-full border border-[#f472b6] text-[15px] font-medium text-[#ec4899]"
             >
               목록으로
             </button>
@@ -83,7 +83,7 @@ export default function NoticeDetail() {
           <>
             <div className="flex items-center gap-2 flex-wrap">
               {notice.is_pinned && (
-                <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#9B7AF7] text-[12px] leading-none font-medium text-[#8259F5]">
+                <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#f472b6] text-[12px] leading-none font-medium text-[#ec4899]">
                   공지
                 </span>
               )}
@@ -117,7 +117,7 @@ export default function NoticeDetail() {
               <button
                 type="button"
                 onClick={() => navigate('/mypage/notices')}
-                className="h-[44px] px-7 rounded-full border border-[#9B7AF7] text-[15px] font-medium text-[#8259F5]"
+                className="h-[44px] px-7 rounded-full border border-[#f472b6] text-[15px] font-medium text-[#ec4899]"
               >
                 목록으로
               </button>

@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { MembersService } from '../members/members.service';
+import { OpsAlertService } from '../../shared/ops-alert/ops-alert.service';
 
 /**
  * 관리자 — 상담사 신청 (post_apply 테이블) 조회/관리.
@@ -73,6 +74,7 @@ export class AdminCounselorApplyService {
   constructor(
     @Inject(SQL) private readonly sql: Sql,
     private readonly members: MembersService,
+    private readonly opsAlert: OpsAlertService,
   ) {}
 
   async list(params: {
@@ -377,31 +379,63 @@ export class AdminCounselorApplyService {
     if (!penName) throw new BadRequestException('예명이 비어있습니다 — 신청서를 확인해주세요.');
     if (!realName) throw new BadRequestException('실명이 비어있습니다 — 신청서를 확인해주세요.');
     if (!mbId) throw new BadRequestException('신청서에 아이디 정보가 없습니다.');
-    if (!passwordHash) throw new BadRequestException('신청서에 비밀번호 정보가 없습니다.');
+    // passwordHash 검증은 비회원 신규 생성 분기에서만 수행 (회원 승격은 password 무관).
+    // SNS 가입 회원(member.password 빈값)이 상담사 신청해도 승급될 수 있도록 분기 이동 (2026-05-22).
 
-    // mb_id 가 이미 사용 중이면 차단. (신청 단계에서 체크했지만 race condition 대비)
-    const dupMbId = await this.sql<{ id: number }[]>`
-      SELECT id FROM member WHERE mb_id = ${mbId} LIMIT 1
+    // 한 사람 한 mb_id 정책 (2026-05-22) — 같은 휴대폰에 일반회원이 이미 있으면 그 회원을 상담사로 승격.
+    // 신청서의 mb_id 와 회원의 mb_id 가 다르면 충돌이므로 차단 (한 사람 두 계정 방지).
+    const existingByPhone = await this.sql<{ id: number; mb_id: string; role: string }[]>`
+      SELECT id, mb_id, role FROM member
+       WHERE phone = ${phone} AND left_at IS NULL
+       LIMIT 1
     `;
-    if (dupMbId.length > 0) {
-      throw new ConflictException(`아이디 "${mbId}" 가 이미 사용 중입니다.`);
+    let memberId: number;
+    if (existingByPhone.length > 0) {
+      const ex = existingByPhone[0];
+      if (ex.role === 'counselor') {
+        throw new ConflictException('이미 같은 휴대폰으로 상담사 가입되어 있습니다.');
+      }
+      if (ex.mb_id !== mbId) {
+        throw new ConflictException(
+          `같은 휴대폰으로 다른 아이디(${ex.mb_id}) 의 회원이 있습니다. 회원 아이디와 동일하게 신청해주세요.`,
+        );
+      }
+      // 같은 mb_id 회원 → 상담사로 승격 (role / dtmfno / telno / counselor_category 채움)
+      memberId = await this.members.promoteToCounselor({
+        memberId: ex.id,
+        nickname: penName,
+        counselor_category: (extras.field as string | undefined) ?? null,
+        profile_intro: (extras.intro as string | undefined) ?? null,
+        profile_specialty: Array.isArray(extras.specialties)
+          ? (extras.specialties as string[])
+          : null,
+      });
+    } else {
+      // 비회원 신청 — mb_id 중복 검사 후 새 상담사 회원 생성 (회원 단계 거치지 않음, 1회 생성)
+      if (!passwordHash) {
+        throw new BadRequestException('비회원 신청서에 비밀번호 정보가 없습니다.');
+      }
+      const dupMbId = await this.sql<{ id: number }[]>`
+        SELECT id FROM member WHERE mb_id = ${mbId} LIMIT 1
+      `;
+      if (dupMbId.length > 0) {
+        throw new ConflictException(`아이디 "${mbId}" 가 이미 사용 중입니다.`);
+      }
+      memberId = await this.members.createCounselorWithHash({
+        mb_id: mbId,
+        password_hash: passwordHash,
+        name: realName,
+        nickname: penName,
+        email: r.applicant_email ?? null,
+        phone,
+        telno: phone,
+        counselor_category: (extras.field as string | undefined) ?? null,
+        profile_intro: (extras.intro as string | undefined) ?? null,
+        profile_specialty: Array.isArray(extras.specialties)
+          ? (extras.specialties as string[])
+          : null,
+      });
     }
-
-    const memberId = await this.members.createCounselorWithHash({
-      mb_id: mbId,
-      password_hash: passwordHash,
-      name: realName,
-      nickname: penName,
-      email: r.applicant_email ?? null,
-      phone,
-      // 실 연결 전화번호 = 신청자가 휴대폰 인증한 번호. m2net 콜백 연결에 사용됨.
-      telno: phone,
-      counselor_category: (extras.field as string | undefined) ?? null,
-      profile_intro: (extras.intro as string | undefined) ?? null,
-      profile_specialty: Array.isArray(extras.specialties)
-        ? (extras.specialties as string[])
-        : null,
-    });
 
     // m2net 연동 — 별도 호출. 실패해도 승인은 그대로 완료.
     const m2netResult = await this.members
@@ -411,6 +445,20 @@ export class AdminCounselorApplyService {
         csrid: null as string | null,
         error: e instanceof Error ? e.message : '엠투넷 연동 실패',
       }));
+
+    // 엠투넷 연동 실패 시 운영자 알림 — 어드민이 멤버 상세에서 "재연동" 버튼으로 수동 복구해야 함.
+    // 이전엔 .catch 로 흡수만 되어 운영자가 csrid 누락을 알아채지 못하고
+    // 통화/채팅 라우팅 실패 후 사용자 컴플레인으로 발견되는 패턴이 있었다 (2026-05-22 핸드오버).
+    if (!m2netResult.ok) {
+      void this.opsAlert.send(
+        '상담사 엠투넷 연동 실패',
+        `신청서: id=${id} mb_id=${mbId}\n` +
+          `회원 id=${memberId}, 별명=${penName}\n` +
+          `사유: ${m2netResult.error ?? '알 수 없음'}\n\n` +
+          `→ 어드민 → 상담사 → 해당 상담사 상세 → "엠투넷 재연동" 버튼으로 복구.\n` +
+          `csrid 가 비어있으면 통화/채팅이 라우팅되지 않습니다.`,
+      );
+    }
 
     // 신청서 첨부파일을 member 폴더로 복사 + member_file insert
     await this.transferFilesToMember(memberId, extras);

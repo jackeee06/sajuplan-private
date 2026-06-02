@@ -2,7 +2,7 @@
 
 > 합의일: 2026-05-19
 > 목적: 1920×1080 한 화면에 핵심 정보 압축, 위→아래 의사결정 순. 좌측 정렬 + 조밀.
-> 확인 URL: https://sajumoon.co.kr/mng/dashboard
+> 확인 URL: https://sajuplan.com/mng/dashboard
 
 ---
 

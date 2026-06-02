@@ -1,7 +1,7 @@
 """[Audit E-C1] 콜백 발신 IP 수집/분석 — v3.
 
 데이터 소스 확정:
-  - prod 의 /data/wwwroot/api.sajumoon.co.kr/logs/m2net-push.log (2.8MB+)
+  - prod 의 /data/wwwroot/api.sajuplan.com/logs/m2net-push.log (2.8MB+)
   - 카페24 호스팅 — Apache/nginx 어느 쪽이 frontend 인지 자동 탐지
 
 req.ip 가 nginx 뒷단이면 127.0.0.1 일 수 있어 trust proxy 설정 함께 확인.
@@ -22,7 +22,7 @@ import paramiko
 
 TARGETS = [
     ("test", "172.235.211.75", "api.sajumoon.kr"),
-    ("prod", "104.64.128.103", "api.sajumoon.co.kr"),
+    ("prod", "104.64.128.103", "api.sajuplan.com"),
 ]
 
 

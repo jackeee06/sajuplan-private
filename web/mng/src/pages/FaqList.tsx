@@ -144,13 +144,13 @@ export default function FaqList() {
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-[900px]">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">FAQ 관리</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">FAQ 관리</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">자주하시는 질문 카테고리 + 상세 항목</p>
         </div>
-        <button onClick={() => setCatModal({ title: '', display_order: 0, is_active: true })} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white">
+        <button onClick={() => setCatModal({ title: '', display_order: 0, is_active: true })} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium">
           <Plus className="w-4 h-4" /> FAQ 카테고리 추가
         </button>
       </div>
@@ -168,19 +168,19 @@ export default function FaqList() {
         <div className="space-y-3">
           {cats.map((c) => (
             <div key={c.id} className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-              <div className="px-4 py-3 flex items-center justify-between bg-brand-600 text-white">
+              <div className="px-4 py-2.5 flex items-center justify-between bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
                 <button onClick={() => toggleCat(c.id)} className="flex items-center gap-2 flex-1 text-left">
-                  {openCat[c.id] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  <span className="font-semibold text-sm">{c.title}</span>
-                  <span className="text-xs opacity-80">({c.faq_count}건)</span>
-                  {!c.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/20">비노출</span>}
+                  {openCat[c.id] ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+                  <span className="font-semibold text-sm text-gray-900 dark:text-gray-100">{c.title}</span>
+                  <span className="text-xs text-gray-500">({c.faq_count}건)</span>
+                  {!c.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">비노출</span>}
                 </button>
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => setFaqModal({ categoryId: c.id, question: '', answer: '', display_order: 0, is_active: true })} className="text-xs px-2 py-1 rounded bg-white/15 hover:bg-white/25">
+                  <button onClick={() => setFaqModal({ categoryId: c.id, question: '', answer: '', display_order: 0, is_active: true })} className="text-xs px-2 py-1 rounded-md border border-brand-200 text-brand-700 hover:bg-brand-50 font-medium">
                     + 항목
                   </button>
-                  <button onClick={() => setCatModal(c)} className="text-xs px-2 py-1 rounded bg-white/15 hover:bg-white/25">수정</button>
-                  <button onClick={() => onDeleteCat(c)} className="text-xs px-2 py-1 rounded bg-rose-500/80 hover:bg-rose-500">삭제</button>
+                  <button onClick={() => setCatModal(c)} className="text-xs px-2 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50">수정</button>
+                  <button onClick={() => onDeleteCat(c)} className="text-xs px-2 py-1 rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50">삭제</button>
                 </div>
               </div>
               {openCat[c.id] && (
@@ -200,23 +200,28 @@ export default function FaqList() {
                         <tr><td colSpan={5} className="px-4 py-6 text-center text-xs text-gray-400">자료가 없습니다.</td></tr>
                       ) : (
                         faqsByCat[c.id].map((f, i) => (
-                          <tr key={f.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                            <td className="px-4 py-2 text-xs text-gray-500">{i + 1}</td>
-                            <td className="px-4 py-2 max-w-[600px] truncate">{f.question}</td>
-                            <td className="px-4 py-2 text-xs text-gray-500">{f.display_order}</td>
+                          <tr
+                            key={f.id}
+                            onClick={() => setFaqModal({ categoryId: c.id, ...f })}
+                            className="cursor-pointer hover:bg-brand-50 hover:shadow-[inset_3px_0_0_0_theme(colors.brand.500)] dark:hover:bg-brand-500/10 transition-all"
+                          >
+                            <td className="px-4 py-2 text-xs text-gray-400 tabular-nums">{i + 1}</td>
+                            <td className="px-4 py-2 max-w-[600px] truncate font-medium">{f.question}</td>
+                            <td className="px-4 py-2 text-xs text-gray-500 tabular-nums">{f.display_order}</td>
                             <td className="px-4 py-2">
                               {f.is_active ? (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700">노출</span>
+                                <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">노출</span>
                               ) : (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500">비노출</span>
+                                <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full bg-gray-50 text-gray-600 border border-gray-200">비노출</span>
                               )}
                             </td>
                             <td className="px-4 py-2 text-right whitespace-nowrap">
-                              <button onClick={() => setFaqModal({ categoryId: c.id, ...f })} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-gray-200 hover:bg-gray-50 mr-1">
-                                <Pencil className="w-3.5 h-3.5" /> 수정
-                              </button>
-                              <button onClick={() => onDeleteFaq(f)} className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded border border-rose-200 text-rose-700 hover:bg-rose-50">
-                                <Trash2 className="w-3.5 h-3.5" /> 삭제
+                              <button
+                                onClick={(e) => { e.stopPropagation(); void onDeleteFaq(f) }}
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-md text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors"
+                                title="삭제"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </td>
                           </tr>

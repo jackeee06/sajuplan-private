@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -97,7 +97,7 @@ function CallCard({ log, onMemo }: { log: ConsultLog; onMemo: () => void }) {
       {reviewDone && (
         <button
           type="button"
-          className="mt-3 w-full h-[44px] rounded-full bg-[#9B7AF7] text-white text-[14px] font-semibold"
+          className="mt-3 w-full h-[44px] rounded-full bg-[#8259F5] text-white text-[14px] font-semibold"
         >
           후기 답변 작성하기
         </button>

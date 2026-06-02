@@ -394,7 +394,7 @@ $mcount = get_now_conn_con();
             <div class="flex align-items-center justify-content-between">
                 <div class="flex align-items-center">
                     <img src="../../../img/main/star_icon.png" style="width:20px; margin-bottom:4px">
-                    <p>사주문 추천</p>
+                    <p>사주플랜 추천</p>
                 </div>
                 <a href="/bbs/recommend_list.php">더보기 <img src="../../../img/main/right_g_ar.svg"></a>
             </div>
@@ -713,7 +713,7 @@ $mcount = get_now_conn_con();
             </div>
         </details>
 
-        <div class="main_footer_copy">Copyrightⓒ 사주문. All Rights Reserved.</div>
+        <div class="main_footer_copy">Copyrightⓒ 사주플랜. All Rights Reserved.</div>
     </div>
 
 

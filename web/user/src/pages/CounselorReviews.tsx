@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import CounselorDetailLayout from '../components/CounselorDetailLayout'
 import ReviewReportModal from '../components/ReviewReportModal'
 import type { Badge, CounselorDetailData } from '../data/counselorDetails'
@@ -142,7 +143,7 @@ export default function CounselorReviews() {
         {/* 안내 카드 — Figma Frame 544 */}
         <article className="bg-[#F9FAFB] rounded-[12px] p-4 flex flex-col gap-2">
           <img src="/img/review_visual_img.png" alt="" className="w-[46px] h-auto" />
-          <h2 className="text-[18px] leading-[130%] font-semibold text-[#8259F5]">
+          <h2 className="text-[18px] leading-[130%] font-semibold text-[#ec4899]">
             후기 작성 시 포인트 지급!
           </h2>
           <p className="text-[14px] leading-[130%] text-[#4A5565]">
@@ -164,7 +165,7 @@ export default function CounselorReviews() {
         {canWriteReview && (
           <Link
             to={`/mypage/my-reviews/new?counselor_id=${id}`}
-            className="h-10 rounded-full bg-white border border-[#9B7AF7] text-[#8259F5] text-[14px] font-medium flex items-center justify-center gap-1 transition hover:bg-[#F3EEFE]"
+            className="h-10 rounded-full bg-white border border-[#f472b6] text-[#ec4899] text-[14px] font-medium flex items-center justify-center gap-1 transition hover:bg-[#fdf2f8]"
           >
             <PencilLineIcon />
             후기 작성하기
@@ -226,13 +227,14 @@ function CounterRow({ total }: { total: string }) {
   return (
     <div className="px-0 pb-3 flex items-center justify-between border-b border-[#F3F4F6]">
       <p className="text-[15px] leading-[130%] text-[#4A5565]">
-        전체 <span className="font-medium text-[#8259F5]">{total}</span>건
+        전체 <span className="font-medium text-[#ec4899]">{total}</span>건
       </p>
       <label className="flex items-center gap-1 cursor-pointer select-none">
         <input type="checkbox" className="w-[22px] h-[22px]" />
         <span className="text-[15px] leading-[120%] text-[#364153]">사진 후기만 보기</span>
       </label>
-    </div>
+      <BottomNav />
+      </div>
   )
 }
 
@@ -314,8 +316,8 @@ function LockIcon() {
 function PencilLineIcon() {
   return (
     <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
-      <path d="M11.5 2.5l2 2-7 7H4.5v-2l7-7z" stroke="#8259F5" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M2.5 14h11" stroke="#8259F5" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M11.5 2.5l2 2-7 7H4.5v-2l7-7z" stroke="#ec4899" strokeWidth="1.4" strokeLinejoin="round" />
+      <path d="M2.5 14h11" stroke="#ec4899" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   )
 }

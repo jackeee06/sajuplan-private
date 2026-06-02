@@ -9,5 +9,6 @@ import { SmsModule } from '../sms/sms.module';
   imports: [AuthModule, M2netModule, SmsModule],
   controllers: [UserConsultController],
   providers: [UserConsultService],
+  exports: [UserConsultService],  // [2026-05-23] CronModule 이 autoCancelStaleChats 호출
 })
 export class UserConsultModule {}

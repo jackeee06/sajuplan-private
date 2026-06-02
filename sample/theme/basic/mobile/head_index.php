@@ -154,7 +154,7 @@ function mv_notlogin(){
             -->
 
             <a href="<?php echo G5_URL ?>" style="display:inline-flex; align-items:center;">
-                <img src="<?php echo G5_IMG_URL ?>/common/logo2.png" alt="사주문 로고" style=" height:40px; width: auto; margin-top:-6px;"/>
+                <img src="<?php echo G5_IMG_URL ?>/common/logo2.png" alt="사주플랜 로고" style=" height:40px; width: auto; margin-top:-6px;"/>
                 <span style="margin:0 0 0 6px; line-height:1;"></span>
             </a>
             

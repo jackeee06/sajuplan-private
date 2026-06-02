@@ -164,7 +164,7 @@ set_con_account_v2($mb_id)   ◄─── 라이브의 진짜 정산 함수
 
 ## 3. 포인트 적립 흐름 (상담 → 상담사 포인트)
 
-상담 종료 webhook 수신 진입점 = **`sample/mtonet/mtonet_rcv.php`** (M2NET/AG9 → 사주문 서버 push).
+상담 종료 webhook 수신 진입점 = **`sample/mtonet/mtonet_rcv.php`** (M2NET/AG9 → 사주플랜 서버 push).
 
 ### 3-1. platform_consulting INSERT (line 269-273)
 
@@ -508,22 +508,22 @@ async runMonthlySettlement() {
 
 | 항목 | 파일 | 핵심 라인 |
 |---|---|---|
-| v1 정의 | /Users/jin-yubi/dwork/AI/사주문1/sample/lib/common.lib.php | 4997-5164 (SQL 버그 5019) |
-| v2 정의 | /Users/jin-yubi/dwork/AI/사주문1/sample/lib/common.lib.php | 4611-4848 |
-| v3 정의 | /Users/jin-yubi/dwork/AI/사주문1/sample/lib/common.lib.php | 4860-4991 |
-| month_pay_execute | /Users/jin-yubi/dwork/AI/사주문1/sample/lib/common.lib.php | 5702-5724 |
-| month_pay_execute 호출 | /Users/jin-yubi/dwork/AI/사주문1/sample/common.php | 991 |
-| insert_point | /Users/jin-yubi/dwork/AI/사주문1/sample/lib/common.lib.php | 982-1088 |
-| get_point_sum (cutoff) | /Users/jin-yubi/dwork/AI/사주문1/sample/lib/common.lib.php | 1271-1286 |
-| cron v2 | /Users/jin-yubi/dwork/AI/사주문1/sample/cron/month_pay_end.php | 26-34 |
-| cron v3 (사후) | /Users/jin-yubi/dwork/AI/사주문1/sample/cron/month_pay_end_test.php | 27-33 |
-| cron v1 (dead) | /Users/jin-yubi/dwork/AI/사주문1/sample/cron/account_pay_end.php | 7-29 (전체 주석) |
-| 상담 종료 webhook | /Users/jin-yubi/dwork/AI/사주문1/sample/mtonet/mtonet_rcv.php | 269-273 (consult INSERT), 317-332 (회원 차감), 339-346 (상담사 적립) |
-| 관리자 수동 v1 | /Users/jin-yubi/dwork/AI/사주문1/sample/adm/pay_month.php | 18 |
-| 사용자 수동 v1 | /Users/jin-yubi/dwork/AI/사주문1/sample/my/account_pay_end.php | 16 |
-| 사용자 화면 비활성 | /Users/jin-yubi/dwork/AI/사주문1/sample/mobile/shop/mypage.php | 694 (주석), 696 (대체 링크) |
-| settlement_list (메뉴 노출) | /Users/jin-yubi/dwork/AI/사주문1/sample/adm/settlement_list.php | 165 (form action), 226-236 (출력 컬럼) |
-| settlement_list_v2 (미완성) | /Users/jin-yubi/dwork/AI/사주문1/sample/adm/settlement_list_v2.php | 228-236 (빈 td) |
-| settlement_list_delete (버그) | /Users/jin-yubi/dwork/AI/사주문1/sample/adm/settlement_list_delete.php | 17-19 ($no Array bug) |
-| 메뉴 등록 | /Users/jin-yubi/dwork/AI/사주문1/sample/adm/admin.menu350.php | 26, 39 |
-| g5_point_end 스키마 | /Users/jin-yubi/dwork/AI/사주문1/sajumoon_db_2026-04-24.sql | 4608-4625 |
+| v1 정의 | /Users/jin-yubi/dwork/AI/사주플랜1/sample/lib/common.lib.php | 4997-5164 (SQL 버그 5019) |
+| v2 정의 | /Users/jin-yubi/dwork/AI/사주플랜1/sample/lib/common.lib.php | 4611-4848 |
+| v3 정의 | /Users/jin-yubi/dwork/AI/사주플랜1/sample/lib/common.lib.php | 4860-4991 |
+| month_pay_execute | /Users/jin-yubi/dwork/AI/사주플랜1/sample/lib/common.lib.php | 5702-5724 |
+| month_pay_execute 호출 | /Users/jin-yubi/dwork/AI/사주플랜1/sample/common.php | 991 |
+| insert_point | /Users/jin-yubi/dwork/AI/사주플랜1/sample/lib/common.lib.php | 982-1088 |
+| get_point_sum (cutoff) | /Users/jin-yubi/dwork/AI/사주플랜1/sample/lib/common.lib.php | 1271-1286 |
+| cron v2 | /Users/jin-yubi/dwork/AI/사주플랜1/sample/cron/month_pay_end.php | 26-34 |
+| cron v3 (사후) | /Users/jin-yubi/dwork/AI/사주플랜1/sample/cron/month_pay_end_test.php | 27-33 |
+| cron v1 (dead) | /Users/jin-yubi/dwork/AI/사주플랜1/sample/cron/account_pay_end.php | 7-29 (전체 주석) |
+| 상담 종료 webhook | /Users/jin-yubi/dwork/AI/사주플랜1/sample/mtonet/mtonet_rcv.php | 269-273 (consult INSERT), 317-332 (회원 차감), 339-346 (상담사 적립) |
+| 관리자 수동 v1 | /Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/pay_month.php | 18 |
+| 사용자 수동 v1 | /Users/jin-yubi/dwork/AI/사주플랜1/sample/my/account_pay_end.php | 16 |
+| 사용자 화면 비활성 | /Users/jin-yubi/dwork/AI/사주플랜1/sample/mobile/shop/mypage.php | 694 (주석), 696 (대체 링크) |
+| settlement_list (메뉴 노출) | /Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/settlement_list.php | 165 (form action), 226-236 (출력 컬럼) |
+| settlement_list_v2 (미완성) | /Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/settlement_list_v2.php | 228-236 (빈 td) |
+| settlement_list_delete (버그) | /Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/settlement_list_delete.php | 17-19 ($no Array bug) |
+| 메뉴 등록 | /Users/jin-yubi/dwork/AI/사주플랜1/sample/adm/admin.menu350.php | 26, 39 |
+| g5_point_end 스키마 | /Users/jin-yubi/dwork/AI/사주플랜1/sajumoon_db_2026-04-24.sql | 4608-4625 |

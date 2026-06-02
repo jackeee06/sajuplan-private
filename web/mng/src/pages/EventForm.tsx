@@ -142,7 +142,7 @@ export default function EventForm() {
   if (loading) return <div className="p-6 text-sm text-gray-500">로딩…</div>
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-[1100px]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/events')} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">

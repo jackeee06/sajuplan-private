@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import { pointsApi, type PointBalance, type PointHistoryItem } from '../lib/api'
 
@@ -64,7 +65,7 @@ export default function Points() {
   const hasMore = items.length < total
 
   return (
-    <div className="mobile-frame flex flex-col pb-[40px]">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -74,14 +75,14 @@ export default function Points() {
         >
           <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
         </button>
-        <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">포인트 내역</h1>
+        <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">코인 내역</h1>
       </header>
 
       <section className="px-4 pt-1">
         <div className="rounded-[16px] bg-[#F9FAFB] px-5 pt-5 pb-1">
-          <p className="text-[14px] text-[#99A1AF] leading-[140%]">보유 포인트</p>
+          <p className="text-[14px] text-[#99A1AF] leading-[140%]">보유 코인</p>
           <div className="mt-1 flex items-center gap-2">
-            <span className="text-[28px] font-bold text-[#8259F5] leading-[120%]">
+            <span className="text-[28px] font-bold text-[#ec4899] leading-[120%]">
               {(balance?.total ?? 0).toLocaleString()}
             </span>
             <img src="/img/ic_point.svg" alt="" className="w-6 h-6" />
@@ -92,7 +93,7 @@ export default function Points() {
             className="mt-4 w-full h-[44px] flex items-center justify-center gap-2 border-t border-[#E5E7EB] text-[15px] font-medium text-[#1E2939]"
           >
             <img src="/img/ic_my_card.svg" alt="" className="w-5 h-5" />
-            포인트충전
+            코인 충전
           </button>
         </div>
       </section>
@@ -100,10 +101,10 @@ export default function Points() {
       <main className="flex-1 px-4 pt-6 flex flex-col gap-5">
         {loading ? (
           <div className="py-12 flex justify-center">
-            <div className="w-6 h-6 border-2 border-[#E5E7EB] border-t-[#8259F5] rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#E5E7EB] border-t-[#ec4899] rounded-full animate-spin" />
           </div>
         ) : items.length === 0 ? (
-          <div className="py-20 text-center text-[14px] text-[#99A1AF]">포인트 내역이 없습니다.</div>
+          <div className="py-20 text-center text-[14px] text-[#99A1AF]">코인 내역이 없습니다.</div>
         ) : (
           <>
             {items.map((log) => {
@@ -115,7 +116,7 @@ export default function Points() {
                       {isIn ? (
                         <path
                           d="M4 10H16M16 10L11 5M16 10L11 15"
-                          stroke="#8259F5"
+                          stroke="#ec4899"
                           strokeWidth="1.8"
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -132,7 +133,7 @@ export default function Points() {
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[16px] text-[#1E2939] leading-[140%] break-keep">{log.title}</p>
+                    <p className="text-[16px] text-[#1E2939] leading-[140%] break-keep">{shortPointTitle(log.title)}</p>
                     <p className="mt-1 text-[13px] text-[#99A1AF] leading-[140%]">
                       {formatOccurredAt(log.occurred_at)}
                     </p>
@@ -140,14 +141,14 @@ export default function Points() {
                   <div className="text-right shrink-0">
                     <p
                       className={`text-[16px] font-bold leading-[140%] ${
-                        isIn ? 'text-[#8259F5]' : 'text-[#1E2939]'
+                        isIn ? 'text-[#ec4899]' : 'text-[#1E2939]'
                       }`}
                     >
                       {isIn ? '+' : '-'}
-                      {log.amount.toLocaleString()}P
+                      {log.amount.toLocaleString()} 코인
                     </p>
                     <p className="mt-1 text-[13px] text-[#99A1AF] leading-[140%]">
-                      {log.balance_after.toLocaleString()}P
+                      {log.balance_after.toLocaleString()} 코인
                     </p>
                   </div>
                 </article>
@@ -175,8 +176,15 @@ export default function Points() {
       </main>
 
       <FloatingActions bottomOffset={24} />
-    </div>
+      <BottomNav />
+      </div>
   )
+}
+
+/** [2026-05-28] 회원 코인 내역 표시 — backend content 의 "상담코인 차감" 을 "코인차감" 으로 단축. */
+function shortPointTitle(s: string | null | undefined): string {
+  if (!s) return ''
+  return s.replace('상담코인 차감', '코인차감').replace('상담코인 증가', '코인증가')
 }
 
 /**

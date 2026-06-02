@@ -36,7 +36,7 @@ if (!defined('_GNUBOARD_')) exit; // 개별 페이지 접근 불가
                     	안녕하세요,  
                         <b style=" color:#f15c22; font-weight:800;"><?php echo $mb_name ?></b> 회원님.
                     </p>
-                    사주문 회원으로 가입해 주셔서 감사합니다.
+                    사주플랜 회원으로 가입해 주셔서 감사합니다.
                     <br>
                     회원님의 정보는 철저한 보안 아래 안전하게 유지됩니다.
                     <br>

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 
 /**
  * 후기 수정 페이지 — 2026-05-15 운영 정책 변경으로 **수정 기능 제거**.
@@ -23,6 +24,7 @@ export default function MyReviewEdit() {
         <p className="text-[14px] text-[#1E2939] font-medium">후기 수정 기능이 종료되었습니다.</p>
         <p className="mt-1 text-[12px] text-[#6A7282]">잠시 후 후기 목록으로 이동합니다…</p>
       </div>
-    </div>
+      <BottomNav />
+      </div>
   )
 }

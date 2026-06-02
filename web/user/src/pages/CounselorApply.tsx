@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
@@ -15,7 +15,7 @@ const STATUS_LABEL: Record<string, string> = {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  pending: 'border-[#9B7AF7] text-[#8259F5]',
+  pending: 'border-[#f472b6] text-[#ec4899]',
   accepted: 'border-[#16A34A] text-[#16A34A]',
   rejected: 'border-[#FB2C36] text-[#FB2C36]',
   cancelled: 'border-[#9CA3AF] text-[#6A7282]',
@@ -130,7 +130,7 @@ export default function CounselorApply() {
             <div className="flex items-center gap-3">
               <img src="/img/ic_my_phone.svg" alt="" className="w-9 h-9" />
               <div className="flex flex-col">
-                <span className="text-[15px] leading-[140%] font-bold text-[#8259F5]">
+                <span className="text-[15px] leading-[140%] font-bold text-[#ec4899]">
                   고객센터 <span className="text-[#030712]">010-8702-9996</span>
                 </span>
                 <span className="text-[12px] leading-[140%] text-[#4A5565]">
@@ -145,7 +145,7 @@ export default function CounselorApply() {
               <button
                 type="button"
                 onClick={handleKakaoInquiry}
-                className="flex-[0.45] h-[40px] rounded-full border border-[#9B7AF7] bg-white flex items-center justify-center gap-1 text-[14px] font-medium text-[#8259F5]"
+                className="flex-[0.45] h-[40px] rounded-full border border-[#f472b6] bg-white flex items-center justify-center gap-1 text-[14px] font-medium text-[#ec4899]"
               >
                 <img src="/img/ic_write_p.svg" alt="" className="w-4 h-4" />
                 1:1 문의
@@ -153,7 +153,7 @@ export default function CounselorApply() {
               <button
                 type="button"
                 onClick={() => navigate('/mypage/counselor-apply/new')}
-                className="flex-[0.55] h-[40px] rounded-full bg-[#9B7AF7] text-[14px] font-medium text-white"
+                className="flex-[0.55] h-[40px] rounded-full bg-[#f472b6] text-[14px] font-medium text-white"
               >
                 상담사 신청 작성
               </button>
@@ -163,8 +163,8 @@ export default function CounselorApply() {
 
         <section className="px-4 pt-4 pb-2">
           <p className="text-[13px] leading-[140%] text-[#6A7282]">
-            전체 <span className="text-[#8259F5] font-medium">{total.toLocaleString()}</span>건{' '}
-            <span className="text-[#8259F5] font-medium">{page}</span>페이지
+            전체 <span className="text-[#ec4899] font-medium">{total.toLocaleString()}</span>건{' '}
+            <span className="text-[#ec4899] font-medium">{page}</span>페이지
           </p>
         </section>
 
@@ -188,7 +188,7 @@ export default function CounselorApply() {
                 key={p.id}
                 className={
                   isNotice
-                    ? 'border-b border-[#F3F4F6] bg-[#F3EEFE]'
+                    ? 'border-b border-[#F3F4F6] bg-[#fdf2f8]'
                     : 'border-b border-[#F3F4F6] bg-white'
                 }
               >
@@ -209,7 +209,7 @@ export default function CounselorApply() {
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     {isNotice ? (
-                      <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#9B7AF7] text-[12px] leading-none font-medium text-[#8259F5]">
+                      <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#f472b6] text-[12px] leading-none font-medium text-[#ec4899]">
                         공지
                       </span>
                     ) : (

@@ -6,7 +6,7 @@ export interface SettlementSummary {
   this_month: number;
   /** 전달 누적 — 동일 정의 */
   prev_month: number;
-  /** 누적 잔여 (현재 보유 포인트) — member.point */
+  /** 누적 잔여 (현재 수익포인트) — point.earning_balance (매월 1일 정산 대상) */
   balance: number;
   /**
    * 정산 예정 금액 — sample set_con_account_v2 동등 공식.
@@ -106,18 +106,24 @@ export class UserSettlementsService {
       other_minus: string | null;
     }[]>`
       SELECT
+        -- [2026-05-28 강한 분리 정책] 상담사 누적 수익금 = 상담 적립 row 만.
+        --   후기 적립/추천인 보상 등 회원 영역 적립은 제외 (rel_table='consultation' + content 필터).
         (SELECT COALESCE(SUM(earn_point), 0) FROM point_history
           WHERE member_id = ${memberId}
             AND earn_point > 0
+            AND rel_table = 'consultation'
+            AND content LIKE '%상담코인 증가%'
             AND to_char(created_at, 'YYYY-MM') = ${targetMonth}
         )::text AS this_month,
         (SELECT COALESCE(SUM(earn_point), 0) FROM point_history
           WHERE member_id = ${memberId}
             AND earn_point > 0
+            AND rel_table = 'consultation'
+            AND content LIKE '%상담코인 증가%'
             AND to_char(created_at, 'YYYY-MM') =
                 to_char(to_date(${targetMonth}, 'YYYY-MM') - interval '1 month', 'YYYY-MM')
         )::text AS prev_month,
-        (SELECT point FROM member WHERE id = ${memberId}) AS balance,
+        (SELECT COALESCE(earning_balance, 0) FROM point WHERE member_id = ${memberId}) AS balance,
         -- 선택 월의 consultation 누적 (END_CHAT/DISCONNECT 만).
         -- 핵심 가드: point_history 에 실제 적립된 row 만 합산 (sample 의 EXISTS g5_point 가드 동등).
         -- 두 테이블이 어긋나는 과거 데이터(ON CONFLICT 실패로 point_history INSERT 누락 등)는
@@ -267,6 +273,10 @@ export class UserSettlementsService {
         LEFT JOIN member cm ON cm.id = c.member_id
        WHERE ph.member_id = ${params.memberId}
          AND ph.rel_table = 'consultation'
+         -- [2026-05-28 강한 분리 정책] 상담사 수익금 페이지엔 상담사 적립 row 만 노출.
+         --   본인이 회원으로 결제한 차감 row (상담코인 차감) 는 회원 영역(코인 사용내역)에서만 노출.
+         AND ph.earn_point > 0
+         AND ph.content LIKE '%상담코인 증가%'
          ${dateFilter}
          ${mdFilter}
        ORDER BY ph.created_at DESC, ph.id DESC

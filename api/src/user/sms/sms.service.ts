@@ -155,6 +155,29 @@ export class SmsService {
    *
    * 사용처: 결제완료/입금확인 등 — sample 의 alimtalk_outbox + cron 패턴을 직접 발송으로 대체.
    */
+  /**
+   * [2026-05-30] 채팅중 알림 차단 정책 — `_BACKLOG_APK_DEEP_LINK.md` 참조.
+   * 받는 사람이 활성 채팅 (STAY/CNCH) 중이면 알림톡 drop.
+   * 통과 화이트리스트: chat_request_to_counselor (다른 회원의 새 채팅 요청 — 긴급)
+   * 그 외는 채팅 끝나고 인앱(Home 알림/마이페이지) 에서 확인 가능 → 정보 손실 없음.
+   */
+  private static readonly IN_CHAT_PASS_THROUGH = new Set<string>([
+    'chat_request_to_counselor',
+  ]);
+
+  private async isPhoneInActiveChat(phone: string): Promise<boolean> {
+    if (!phone) return false;
+    const rows = await this.sql<{ id: number }[]>`
+      SELECT cr.id
+        FROM chat_room cr
+        JOIN member m ON (m.id = cr.member_id OR m.id = cr.counselor_id)
+       WHERE m.phone = ${phone}
+         AND cr.status IN ('STAY', 'CNCH')
+       LIMIT 1
+    `;
+    return rows.length > 0;
+  }
+
   async sendAlimtalkByCode(
     templateCode: string,
     rawPhone: string,
@@ -165,6 +188,16 @@ export class SmsService {
     if (!phone) {
       void this.logToAlimtalkLog(templateCode, rawPhone, vars, false, null, null, 'phone_invalid', null);
       return { ok: false, reason: 'phone_invalid' };
+    }
+
+    // 채팅중 차단 — 화이트리스트 외 모든 알림톡 drop.
+    if (!SmsService.IN_CHAT_PASS_THROUGH.has(templateCode)) {
+      const inChat = await this.isPhoneInActiveChat(phone).catch(() => false);
+      if (inChat) {
+        this.logger.log(`[ALIMTALK skip:in_chat] tpl=${templateCode} phone=${phone}`);
+        void this.logToAlimtalkLog(templateCode, phone, vars, false, null, null, 'recipient_in_chat', null);
+        return { ok: false, reason: 'recipient_in_chat' };
+      }
     }
 
     const rows = await this.sql<{

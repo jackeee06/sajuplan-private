@@ -512,7 +512,7 @@ If($req_result == "0000"){ //		'//오류가 아닐때..
     }//		'//중복 주문정보 확인
 
 }else{ //	'//결제 오류 일때..
-    alert("사주문 ".$resultmsg, '/coin/coin_fill.php');
+    alert("사주플랜 ".$resultmsg, '/coin/coin_fill.php');
     exit;
 }
 ?>

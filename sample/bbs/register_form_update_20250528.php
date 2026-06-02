@@ -344,7 +344,7 @@ if ($w == '') {
 		$regId = array();
 		/////
 		include_once($_SERVER["DOCUMENT_ROOT"].'/android_push/send_fcm.php');
-		$title = "안녕하세요. ".$mb_name."(".$mb_id.") 사주문 회원이 되신 것을 진심으로 환영합니다..";
+		$title = "안녕하세요. ".$mb_name."(".$mb_id.") 사주플랜 회원이 되신 것을 진심으로 환영합니다..";
 		$message = $title;
 		$link = "https://sajumoon.co.kr";
 		

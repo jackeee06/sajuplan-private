@@ -41,18 +41,18 @@ export function Td({
   return <td className={`px-3 py-1.5 whitespace-nowrap ${alignCls} ${className ?? ''}`}>{children}</td>
 }
 
-export function THead({ children }: { children: ReactNode }) {
+export function THead({ children, sticky }: { children: ReactNode; sticky?: boolean }) {
   return (
-    <thead className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+    <thead className={`bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 ${sticky ? 'sticky top-0 z-10' : ''}`}>
       <tr>{children}</tr>
     </thead>
   )
 }
 
-export function TableShell({ children, minWidth }: { children: ReactNode; minWidth?: string }) {
+export function TableShell({ children, minWidth, maxHeight }: { children: ReactNode; minWidth?: string; maxHeight?: string }) {
   return (
     <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
-      <div className="overflow-x-auto">
+      <div className={`overflow-x-auto ${maxHeight ?? ''}`}>
         <table className={`text-sm w-auto ${minWidth ?? ''}`}>{children}</table>
       </div>
     </div>
@@ -317,19 +317,17 @@ export function PaginationBar({
   unit?: string
 }) {
   return (
-    <div className="flex items-center justify-between pt-1">
+    <div className="flex items-center justify-start gap-6 flex-wrap pt-1">
       <p className="text-xs text-gray-400">
         페이지 <span className="text-gray-600 font-medium">{page}</span> / {totalPages}
       </p>
-      {total > pageSize ? (
-        <Pagination page={page} totalPages={totalPages} onChange={onChange} />
-      ) : (
-        <div />
-      )}
       <p className="text-xs text-gray-400">
         총 <span className="text-gray-700 font-medium">{num(total)}</span>
         {unit}
       </p>
+      {total > pageSize ? (
+        <Pagination page={page} totalPages={totalPages} onChange={onChange} />
+      ) : null}
     </div>
   )
 }
@@ -337,7 +335,7 @@ export function PaginationBar({
 /** 결과 카운트(상단) — "전체 N건" 형태, 강조숫자는 brand */
 export function ResultCount({ total, unit = '건' }: { total: number; unit?: string }) {
   return (
-    <div className="flex items-center justify-between px-1">
+    <div className="flex items-center justify-start px-1">
       <p className="text-xs text-gray-500">
         전체 <span className="text-brand-600 font-semibold">{num(total)}</span>
         {unit}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { chargeApi, type ChargeStatusResult } from '../lib/api'
 
@@ -37,7 +37,7 @@ export default function ChargeVbankInfo() {
         <button
           type="button"
           onClick={() => navigate('/mypage/charge', { replace: true })}
-          className="mt-4 h-11 px-6 rounded-full bg-[#9B7AF7] text-white text-[14px] font-semibold"
+          className="mt-4 h-11 px-6 rounded-full bg-[#f472b6] text-white text-[14px] font-semibold"
         >
           충전 페이지로
         </button>
@@ -70,20 +70,20 @@ export default function ChargeVbankInfo() {
 
       <section className="px-4 pt-4">
         <div className="text-center mb-4">
-          <div className="w-14 h-14 mx-auto rounded-full bg-[#F3EEFE] flex items-center justify-center">
+          <div className="w-14 h-14 mx-auto rounded-full bg-[#fdf2f8] flex items-center justify-center">
             <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <path d="M7 14L12 19L21 9" stroke="#9B7AF7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M7 14L12 19L21 9" stroke="#f472b6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <p className="mt-3 text-[16px] font-bold text-[#1E2939]">아래 계좌로 입금해주세요</p>
-          <p className="mt-1 text-[13px] text-[#6A7282]">입금이 확인되면 자동으로 포인트가 충전됩니다.</p>
+          <p className="mt-1 text-[13px] text-[#6A7282]">입금이 확인되면 자동으로 코인이 충전됩니다.</p>
         </div>
 
         <div className="rounded-[16px] bg-[#F9FAFB] px-5 py-5">
           <Row label="입금은행" value={v?.bankName ?? '-'} />
           <Row label="계좌번호" value={v?.account ?? '-'} highlight />
           <Row label="결제 금액" value={`${data.amount.toLocaleString()}원`} />
-          <Row label="충전 포인트" value={`${data.coinAmount.toLocaleString()}P`} />
+          <Row label="충전 코인" value={`${data.coinAmount.toLocaleString()} 코인`} />
           <p className="mt-4 text-[12px] text-[#6A7282] leading-[150%]">
             · 발급일로부터 <strong className="text-[#1E2939]">24시간 이내</strong>에 입금해주세요.<br />
             · 입금자명은 회원 본인 명의로 부탁드립니다.<br />
@@ -96,7 +96,7 @@ export default function ChargeVbankInfo() {
         <button
           type="button"
           onClick={() => navigate('/mypage/payments', { replace: true })}
-          className="w-full h-[52px] rounded-[16px] bg-[#9B7AF7] text-white text-[16px] font-semibold"
+          className="w-full h-[52px] rounded-[16px] bg-[#f472b6] text-white text-[16px] font-semibold"
         >
           결제내역으로
         </button>
@@ -117,7 +117,7 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
     <div className="flex items-center justify-between py-2">
       <span className="text-[13px] text-[#6A7282]">{label}</span>
       <span
-        className={`text-[15px] font-semibold ${highlight ? 'text-[#8259F5]' : 'text-[#1E2939]'}`}
+        className={`text-[15px] font-semibold ${highlight ? 'text-[#ec4899]' : 'text-[#1E2939]'}`}
       >
         {value}
       </span>

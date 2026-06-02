@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SQL, type Sql, type TxSql } from '../shared/db/db.module';
 import { M2netService } from '../shared/m2net/m2net.service';
 import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
+import { AlertsService } from '../shared/alerts/alerts.service';
 
 /**
  * 엠투넷(M2NET) Push 콜백 처리.
@@ -48,7 +49,169 @@ export class M2netPushService {
     @Inject(SQL) private readonly sql: Sql,
     private readonly m2net: M2netService,
     private readonly opsAlert: OpsAlertService,
+    private readonly alerts: AlertsService,
   ) {}
+
+  /**
+   * [2026-05-27] 전화 통화 5분 잔여 알림 setTimeout 등록.
+   * CONNECT_CSR 콜백 시 1회 호출. 회원 코인 + 상담사 단가/단위시간 기반으로 종료 예상 시각 계산.
+   * 발화 시점에 alerts 큐에 push (회원/상담사 양쪽). 클라이언트 polling 으로 수신.
+   * pm2 reload 시 setTimeout 손실하지만 5분 알림은 짧은 수명이라 영향 미미.
+   *
+   * [엄격검증 2차 fix 2026-05-27]
+   *  - callid 인자 추가 — alerts dedup key (consult_id) + setTimeout idempotency key.
+   *  - 같은 callid 로 두 번 호출되면 두 번째 setTimeout 등록 안 함 (m2net retry 콜백 방어).
+   *  - alerts payload data 에 consult_id 추가 — 연속 통화 시 두 번째 알림 dedup 으로 누락 방지.
+   */
+  private readonly phoneAlertTimers = new Map<string, NodeJS.Timeout>();
+
+  async schedulePhoneFiveMinAlert(
+    memberId: number,
+    counselorId: number | null,
+    callid: string,
+  ): Promise<void> {
+    try {
+      if (!callid) return;
+      // idempotency — 같은 callid 에 대해 이미 등록된 setTimeout 있으면 skip
+      if (this.phoneAlertTimers.has(callid)) return;
+
+      const rows = await this.sql<{
+        member_point: number;
+        unit_sec: number;
+        unit_cost: number;
+      }[]>`
+        SELECT
+          (SELECT point FROM member WHERE id = ${memberId}) AS member_point,
+          (SELECT COALESCE(call_unit_seconds, 30) FROM member WHERE id = ${counselorId ?? 0}) AS unit_sec,
+          (SELECT COALESCE(call_070_unit_cost, 0) FROM member WHERE id = ${counselorId ?? 0}) AS unit_cost
+      `;
+      const r = rows[0];
+      if (!r || !r.member_point || !r.unit_sec || !r.unit_cost) return;
+      const remainSec = Math.floor((Number(r.member_point) * Number(r.unit_sec)) / Number(r.unit_cost));
+      const FIVE_MIN = 300;
+      // 5분 전 시점까지 남은 ms
+      const delayMs = Math.max(0, (remainSec - FIVE_MIN) * 1000);
+      // 0 또는 음수면 이미 5분 미만 — 즉시 발화. 너무 멀면 (예: 24시간+) 등록 안 함.
+      if (delayMs > 24 * 60 * 60 * 1000) return;
+
+      const t = setTimeout(() => {
+        this.phoneAlertTimers.delete(callid);
+        // [엄격검증 6차 fix 2026-05-27] consultation.five_min_alert_sent_at first-write-wins.
+        //   cron + setTimeout 양쪽이 같은 callid 에 발화 시도해도 한 번만 발화.
+        void this.firePhoneFiveMinAlert(callid, memberId, counselorId).catch((e) => {
+          this.logger.warn(`[phoneAlert.setTimeout] firePhoneFiveMinAlert 실패 callid=${callid}: ${e instanceof Error ? e.message : String(e)}`);
+        });
+      }, delayMs);
+      this.phoneAlertTimers.set(callid, t);
+    } catch (e) {
+      this.logger.warn(
+        `[schedulePhoneFiveMinAlert] memberId=${memberId} callid=${callid} 실패: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  /**
+   * 통화 종료/실패 시 예약된 5분 알림 setTimeout 취소.
+   * DISCONNECT/END_CHAT/NO_ANSWER_CSR 등에서 호출.
+   */
+  cancelPhoneFiveMinAlert(callid: string): void {
+    if (!callid) return;
+    const t = this.phoneAlertTimers.get(callid);
+    if (t) {
+      clearTimeout(t);
+      this.phoneAlertTimers.delete(callid);
+    }
+  }
+
+  /**
+   * [엄격검증 6차 fix 2026-05-27] 전화 5분 알림 실제 발화.
+   *  - consultation.five_min_alert_sent_at first-write-wins 멱등성.
+   *  - cron + setTimeout 양쪽이 호출해도 한 번만 발화 (UPDATE...RETURNING 가드).
+   */
+  private async firePhoneFiveMinAlert(
+    callid: string,
+    memberId: number,
+    counselorId: number | null,
+  ): Promise<boolean> {
+    if (!callid) return false;
+    const won = await this.sql<{ id: number }[]>`
+      UPDATE consultation
+         SET five_min_alert_sent_at = now()
+       WHERE callid = ${callid}
+         AND five_min_alert_sent_at IS NULL
+       RETURNING id
+    `;
+    if (won.length === 0) return false; // 다른 경로가 이미 발화함
+    this.alerts.enqueue(memberId, {
+      type: 'consult_5min_warning' as const,
+      title: '⏰ 5분 남았어요',
+      body: '충전하시면 끊김 없이 계속 통화 가능합니다',
+      link: '/mypage/charge',
+      data: { consult_id: callid, consult_type: 'phone', audience: 'member' },
+    });
+    if (counselorId) {
+      this.alerts.enqueue(counselorId, {
+        type: 'consult_5min_warning' as const,
+        title: '⏰ 회원 5분 남았어요',
+        body: '마무리 멘트 안내 부탁드립니다',
+        link: '/counselor/mypage',
+        data: { consult_id: callid, consult_type: 'phone', audience: 'counselor' },
+      });
+    }
+    return true;
+  }
+
+  /**
+   * [엄격검증 6차 fix 2026-05-27] 전화 5분 알림 안전망 cron.
+   *
+   * setTimeout 만으론 pm2 reload 시 손실 위험. cron 이 매분 active 통화 검사.
+   * 잔여시각 = (회원 코인 × 단위시간) ÷ 단가 - 통화 경과시간
+   *
+   * 좀비 row (m2net DISCONNECT 누락) 방어:
+   *  - started_at 이 60분 내 (장시간 통화는 사주플랜 정책 외)
+   *  - reason 이 종료 키워드 아닌 경우만 (CONNECT_CSR 등)
+   */
+  async scanPhoneFiveMinAlerts(): Promise<{ fired: number; calls: string[] }> {
+    const candidates = await this.sql<{
+      callid: string;
+      member_id: number | null;
+      counselor_id: number | null;
+      member_point: number;
+      unit_sec: number;
+      unit_cost: number;
+      started_at: Date;
+    }[]>`
+      SELECT c.callid, c.member_id, c.counselor_id, c.started_at,
+             COALESCE(m.point, 0) AS member_point,
+             COALESCE(s.call_unit_seconds, 30) AS unit_sec,
+             COALESCE(s.call_070_unit_cost, 0) AS unit_cost
+        FROM consultation c
+        LEFT JOIN member m ON m.id = c.member_id
+        LEFT JOIN member s ON s.id = c.counselor_id
+       WHERE c.roomid IS NULL
+         AND c.started_at IS NOT NULL
+         AND c.ended_at IS NULL
+         AND c.five_min_alert_sent_at IS NULL
+         AND c.started_at > now() - interval '60 minutes'
+         AND c.callid IS NOT NULL
+         AND c.callid <> ''
+    `;
+    const fired: string[] = [];
+    const FIVE_MIN = 300;
+    for (const r of candidates) {
+      if (!r.member_id || !r.member_point || !r.unit_sec || !r.unit_cost) continue;
+      const elapsedSec = Math.floor((Date.now() - new Date(r.started_at).getTime()) / 1000);
+      const totalSec = Math.floor((Number(r.member_point) * Number(r.unit_sec)) / Number(r.unit_cost));
+      const remainSec = totalSec - elapsedSec;
+      if (remainSec <= 0 || remainSec > FIVE_MIN) continue;
+      const ok = await this.firePhoneFiveMinAlert(r.callid, r.member_id, r.counselor_id);
+      if (ok) fired.push(r.callid);
+    }
+    if (fired.length > 0) {
+      this.logger.log(`[scanPhoneFiveMinAlerts] 발화 ${fired.length}건: [${fired.join(',')}]`);
+    }
+    return { fired: fired.length, calls: fired };
+  }
 
   // ─────────────────────────────────────────────
   // Push 통지 (mtonet_rcv.php)
@@ -109,8 +272,9 @@ export class M2netPushService {
     let memberId: number | null = null;
     let memberMbId = '';
     if (membid) {
+      // 2026-05-22 ID 단일화: 회원의 m2net 측 membid 는 m2net_membid 컬럼 (csrid 는 상담사 전용)
       const r = await this.sql<{ id: number; mb_id: string | null }[]>`
-        SELECT id, mb_id FROM member WHERE csrid = ${membid} LIMIT 1
+        SELECT id, mb_id FROM member WHERE m2net_membid = ${membid} LIMIT 1
       `;
       if (r[0]) {
         memberId = r[0].id;
@@ -122,17 +286,40 @@ export class M2netPushService {
     let amt = rawAmt;
     if (reason === 'INSUFFICIENT_CONN') amt = 0;
 
+    // 5-b) [2026-05-29 F 정책] 채팅 선결제(charge_minutes NOT NULL) 모드면 m2net 종량제 amt 무시.
+    //   상담사 입장(START_CHAT) 시점에 사주플랜이 이미 chargeMinutes × 단가 전액을 차감했으므로,
+    //   m2net 의 추가 종량제 차감 push 는 사주플랜 측에서 무시한다 (이중 차감 방지).
+    //   _PREPAID_CHAT_POLICY.md §2 / §6 참조.
+    let prepaidChatRoomChargeMinutes: number | null = null;
+    if (isChat && roomid) {
+      const cr = await this.sql<{ charge_minutes: number | null }[]>`
+        SELECT charge_minutes FROM chat_room WHERE roomid = ${roomid} LIMIT 1
+      `;
+      if (cr[0]?.charge_minutes != null && Number(cr[0].charge_minutes) > 0) {
+        prepaidChatRoomChargeMinutes = Number(cr[0].charge_minutes);
+        amt = 0;
+      }
+    }
+
     // 6) 종료 이벤트 판정
     const endsHere = (isCall && reason === 'DISCONNECT') || (isChat && reason === 'END_CHAT');
 
     // 정책 (2026-05-13): "m2net 이 반환한 값으로만 차감한다."
     //   - push 의 amt / m2net 잔액 조회 결과 = single source of truth
-    //   - 사주문 측 자체 계산(use_seconds × unit_cost)은 부정확의 원인이므로 사용하지 않음
+    //   - 사주플랜 측 자체 계산(use_seconds × unit_cost)은 부정확의 원인이므로 사용하지 않음
     //   - 따라서 채팅 amt 자체 보정 블록 제거. push amt 가 0 이면 그대로 0, diff 조회만 신뢰.
     const chatUsetm = usetm;
 
     // 7) 환불 대상 (콜이고 원본금액이 임계값 이하)
     const refundEligible = isCall && rawAmt > 0 && rawAmt <= this.CSR_THRESHOLD_DEFAULT;
+
+    // 7-b) 단기 통화 자동 환불 (2026-05-21 사장님 정책)
+    //   30초 미만 + 1단위 단가 이하 통화는 회원 차감 skip.
+    //   사용자가 잘못 누르거나 상담사가 즉시 끊은 케이스 — UX 보호.
+    //   m2net 측은 이미 차감했으므로 트랜잭션 외부에서 addMemberCoin 으로 잔액 복구.
+    //   단가 비교는 snapUnitCost 계산 후 진행 (handleCallPush 의 차감 분기에서).
+    //   short_call_refund_seconds=30 (하드코딩, 향후 setting 으로 이전 가능).
+    const SHORT_CALL_SEC = 30;
 
     // 8) 후불 판정 — 전화 only. 채팅은 항상 선불 (후불 개념 없음).
     //    sample 의 is_postpaid 도 to=5000878 비교라 채팅 push 엔 자연스럽게 false 가 되지만,
@@ -148,6 +335,11 @@ export class M2netPushService {
     // ─── 상담사/채팅방 상태 업데이트 (sample 의 두 분기) ───────
     if (reason === 'CONNECT_CSR' && csrid) {
       await this.sql`UPDATE member SET state = 'CONN' WHERE csrid = ${csrid}`;
+      // [2026-05-27] 전화 통화 시작 시점 — 5분 잔여 알림 setTimeout 등록 (회원+상담사 양쪽)
+      // [엄격검증 2차 fix 2026-05-27] callid 전달 — idempotency + dedup key
+      if (memberId && callid) {
+        void this.schedulePhoneFiveMinAlert(memberId, counselorId, callid);
+      }
     } else if (reason === 'START_CHAT' && roomid) {
       // 상담사가 실제 채팅방에 입장한 시점 — 채팅방 + 상담사 양쪽 동기 'CNCH' 전환.
       // (회원의 startChat 단계에서는 status='STAY'/state=ready 그대로 둔다.)
@@ -167,6 +359,62 @@ export class M2netPushService {
         // (insertActorSystemMessage 와 같은 규약 — `[닉네임]상담사 님이 ...` 포맷)
         // 중복 INSERT 는 chat_room 당 같은 본문이 이미 있으면 skip (NOT EXISTS).
         const chatRoomId = transitioned[0].id;
+
+        // ★ [2026-05-29 F 정책] 채팅 선결제 차감 — 상담사 입장 (STAY→CNCH 전환) 시점에 1회.
+        //   chargeMinutes 가 있는 chat_room 만 대상. 멱등성은 STAY→CNCH RETURNING 으로 보장.
+        //   실패해도 채팅 자체는 진행 (OpsAlert 알림 + 사장님 수동 정리).
+        try {
+          const chargeRows = await this.sql<{
+            charge_minutes: number | null;
+            member_id: number;
+            unit_seconds: number;
+            unit_cost: number;
+          }[]>`
+            SELECT charge_minutes, member_id, unit_seconds, unit_cost
+              FROM chat_room WHERE id = ${chatRoomId} LIMIT 1
+          `;
+          const cr = chargeRows[0];
+          if (cr?.charge_minutes && Number(cr.charge_minutes) > 0) {
+            const cm = Number(cr.charge_minutes);
+            const us = Number(cr.unit_seconds) > 0 ? Number(cr.unit_seconds) : 30;
+            const uc = Number(cr.unit_cost) > 0 ? Number(cr.unit_cost) : 0;
+            const requiredCost = Math.ceil((cm * 60) / us) * uc;
+            if (requiredCost > 0) {
+              await this.sql.begin(async (tx) => {
+                const m = await tx<{ point: number }[]>`
+                  SELECT point FROM member WHERE id = ${cr.member_id} FOR UPDATE
+                `;
+                if (!m[0]) throw new Error(`member ${cr.member_id} 없음`);
+                if (Number(m[0].point) < requiredCost) {
+                  throw new Error(
+                    `회원 잔액 부족 member=${cr.member_id} point=${m[0].point} < required=${requiredCost}`,
+                  );
+                }
+                const newPoint = Number(m[0].point) - requiredCost;
+                await tx`UPDATE member SET point = ${newPoint}, updated_at = now() WHERE id = ${cr.member_id}`;
+                await tx`
+                  INSERT INTO point_history (
+                    member_id, content, earn_point, use_point, balance_after,
+                    rel_table, rel_id, rel_action, is_paid, actor_type
+                  ) VALUES (
+                    ${cr.member_id}, ${`채팅 선결제 (${cm}분)`}, 0, ${requiredCost}, ${newPoint},
+                    'chat_room', ${String(chatRoomId)},
+                    ${`chat_room@${chatRoomId}@prepaid_${cm}min`},
+                    true, 'system'
+                  )
+                `;
+              });
+              this.logger.log(
+                `[START_CHAT prepaid] chatRoomId=${chatRoomId} member=${cr.member_id} -${requiredCost} (charge_minutes=${cm})`,
+              );
+            }
+          }
+        } catch (e) {
+          this.logger.error(
+            `[START_CHAT prepaid] 차감 실패 chatRoomId=${chatRoomId}: ${e instanceof Error ? e.message : String(e)}`,
+          );
+          // OpsAlert 통합은 별도 작업 — 현재는 logger.error 만 (사장님이 prod 로그 모니터링).
+        }
         const csrRows = await this.sql<{ name: string | null; nickname: string | null }[]>`
           SELECT m.name, m.nickname
             FROM chat_room cr
@@ -195,6 +443,10 @@ export class M2netPushService {
     } else if (
       reason === 'DISCONNECT' || reason === 'END_CHAT' || reason === 'NO_ANSWER_CSR'
     ) {
+      // [엄격검증 2차 fix 2026-05-27] 통화 종료/실패 시 예약된 5분 알림 setTimeout 취소.
+      //   통화가 5분 안 종료되거나 NO_ANSWER 처리 시 잘못된 알림 발화 방지.
+      if (callid) this.cancelPhoneFiveMinAlert(callid);
+
       if (csrid) {
         const readyState = computeReadyState(counselorUsePhone, counselorUseChat);
         await this.sql`UPDATE member SET state = ${readyState} WHERE csrid = ${csrid}`;
@@ -231,6 +483,142 @@ export class M2netPushService {
                                ELSE roomid || '__c_' || id END
            WHERE roomid = ${roomid} AND status <> 'DISCONNECT'
         `;
+
+        // ★ [2026-05-29 G 정책] 5초 이내 자동 환불 (선결제 모드)
+        //   상담사 입장 후 5초 안에 비정상 종료 시 회원에게 전액 자동 환불.
+        //   abuse 제한: 회원당 일 2회 / 주 4회. 초과 시 환불 skip (어드민 수동).
+        //   m2net 첫 30초 1,000원은 사주플랜 측 손해 감수 (사장님 명시).
+        //   _PREPAID_CHAT_POLICY.md §5.2 참조.
+        if (prepaidChatRoomChargeMinutes != null) {
+          try {
+            const crInfo = await this.sql<{
+              id: number;
+              member_id: number;
+              unit_seconds: number;
+              unit_cost: number;
+              charge_minutes: number;
+            }[]>`
+              SELECT id, member_id, unit_seconds, unit_cost, charge_minutes
+                FROM chat_room WHERE roomid = ${roomid} LIMIT 1
+            `;
+            const rr = crInfo[0];
+            if (rr) {
+              const elapsed = Number(chatUsetm ?? 0);
+              if (elapsed >= 0 && elapsed < 5) {
+                // 환불 제한 카운트 — 일 2회 / 주 4회
+                const limitRows = await this.sql<{ day_cnt: string; week_cnt: string }[]>`
+                  SELECT
+                    COUNT(*) FILTER (WHERE created_at >= now() - INTERVAL '1 day') AS day_cnt,
+                    COUNT(*) FILTER (WHERE created_at >= now() - INTERVAL '7 days') AS week_cnt
+                  FROM member_chat_quick_refund_log WHERE member_id = ${rr.member_id}
+                `;
+                const dayCnt = Number(limitRows[0]?.day_cnt ?? 0);
+                const weekCnt = Number(limitRows[0]?.week_cnt ?? 0);
+                if (dayCnt < 2 && weekCnt < 4) {
+                  const refundAmount = Math.ceil(
+                    (Number(rr.charge_minutes) * 60) / Number(rr.unit_seconds),
+                  ) * Number(rr.unit_cost);
+                  if (refundAmount > 0) {
+                    await this.sql.begin(async (tx) => {
+                      const m = await tx<{ point: number }[]>`
+                        SELECT point FROM member WHERE id = ${rr.member_id} FOR UPDATE
+                      `;
+                      if (!m[0]) throw new Error(`member ${rr.member_id} 없음`);
+                      const newPoint = Number(m[0].point) + refundAmount;
+                      await tx`
+                        UPDATE member SET point = ${newPoint}, updated_at = now()
+                         WHERE id = ${rr.member_id}
+                      `;
+                      await tx`
+                        INSERT INTO point_history (
+                          member_id, content, earn_point, use_point, balance_after,
+                          rel_table, rel_id, rel_action, is_paid, actor_type
+                        ) VALUES (
+                          ${rr.member_id},
+                          ${`채팅 선결제 자동 환불 (${rr.charge_minutes}분, 5초 이내 종료)`},
+                          ${refundAmount}, 0, ${newPoint},
+                          'chat_room', ${String(rr.id)},
+                          ${`chat_room@${rr.id}@quick_refund`},
+                          false, 'system'
+                        )
+                      `;
+                      await tx`
+                        INSERT INTO member_chat_quick_refund_log (
+                          member_id, chat_room_id, refund_amount, use_seconds, reason
+                        ) VALUES (
+                          ${rr.member_id}, ${rr.id}, ${refundAmount}, ${elapsed}, ${reason}
+                        )
+                      `;
+                    });
+                    this.logger.log(
+                      `[END_CHAT quick_refund] chatRoomId=${rr.id} member=${rr.member_id} +${refundAmount} (use_seconds=${elapsed})`,
+                    );
+                  }
+                } else {
+                  this.logger.warn(
+                    `[END_CHAT quick_refund] 제한 초과 — 환불 skip member=${rr.member_id} day=${dayCnt} week=${weekCnt}`,
+                  );
+                }
+              }
+            }
+          } catch (e) {
+            this.logger.error(
+              `[END_CHAT quick_refund] 자동 환불 실패 roomid=${roomid}: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
+        }
+
+        // ★ [2026-05-29 정책 §6 D-2] 채팅 종료 시 m2net 강제 동기화 (선결제 모드)
+        //   사주플랜 측 잔액(선결제 차감 + 환불 적용 후) → m2net 측 잔액으로 덮어쓰기.
+        //   이 호출이 없으면 m2net 측에 더 많은 잔액이 남아 다음 통화 시 음수 사고 가능.
+        //   syncM2netBalanceForMember 와 동일 로직을 inline (모듈 의존성 추가 없이).
+        if (prepaidChatRoomChargeMinutes != null && memberId != null) {
+          try {
+            const mm = await this.sql<{ point: number; m2net_membid: string | null }[]>`
+              SELECT point, m2net_membid FROM member WHERE id = ${memberId} LIMIT 1
+            `;
+            const target = Number(mm[0]?.point ?? 0);
+            const membid = mm[0]?.m2net_membid;
+            if (membid && this.m2net.isEnabled()) {
+              const fetched = await this.m2net.getMemberByMembid(membid);
+              if (fetched.ok && typeof fetched.amt === 'number') {
+                const delta = target - fetched.amt;
+                if (delta !== 0) {
+                  // 1차: fill(delta). 실패 시 2차: updateMember(amt=target) 로 덮어쓰기.
+                  const fillRes = await this.m2net.addMemberCoin(membid, delta);
+                  if (!fillRes.ok) {
+                    const ov = await this.m2net.updateMember(membid, { amt: target });
+                    if (!ov.ok) {
+                      this.logger.warn(
+                        `[END_CHAT m2net_sync] overwrite 실패 member=${memberId} target=${target}: ${ov.error}`,
+                      );
+                    } else {
+                      this.logger.log(
+                        `[END_CHAT m2net_sync overwrite] member=${memberId} m2net=${fetched.amt} → ${target} (delta=${delta})`,
+                      );
+                    }
+                  } else {
+                    this.logger.log(
+                      `[END_CHAT m2net_sync] member=${memberId} m2net=${fetched.amt} → ${target} (delta=${delta})`,
+                    );
+                  }
+                }
+              } else {
+                // 조회 실패 — 폴백으로 그냥 덮어쓰기
+                const ov = await this.m2net.updateMember(membid, { amt: target });
+                if (!ov.ok) {
+                  this.logger.warn(
+                    `[END_CHAT m2net_sync] 폴백 overwrite 실패 member=${memberId}: ${ov.error}`,
+                  );
+                }
+              }
+            }
+          } catch (e) {
+            this.logger.error(
+              `[END_CHAT m2net_sync] 동기화 실패 roomid=${roomid}: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
+        }
       }
     }
 
@@ -303,9 +691,9 @@ export class M2netPushService {
     // [Audit B-#3] DB 레벨 중복 INSERT 차단 — UNIQUE 제약 (uq_consultation_call_callid,
     // uq_consultation_chat_roomid) 위반 시 ON CONFLICT DO NOTHING 으로 graceful skip.
     const svcType = isCall ? '[전화]' : '[채팅]';
-    let txResult: { dup: boolean; consultationId?: number };
+    let txResult: { dup: boolean; consultationId?: number; shortCallRefund?: boolean };
     try {
-      txResult = await this.sql.begin(async (tx): Promise<{ dup: boolean; consultationId?: number }> => {
+      txResult = await this.sql.begin(async (tx): Promise<{ dup: boolean; consultationId?: number; shortCallRefund?: boolean }> => {
         const inserted = await tx<{ id: number }[]>`
           INSERT INTO consultation (
             member_id, mb_id, counselor_id, csrid, cpid, dtmfno,
@@ -336,16 +724,25 @@ export class M2netPushService {
 
         // ─── 포인트 정산 ───
         //   정책 (2026-05-13): m2net push 의 amt 그대로 사용.
-        //   - 회원 차감: amt>0 && !refund_eligible && !is_postpaid
-        //   - 상담사 적립: amt>0 (후불 포함)
+        //   - 회원 차감: amt>0 && !refund_eligible && !short_call_refund && !is_postpaid
+        //   - 상담사 적립: amt>0 (후불·단기통화환불 포함 — 단기는 회사 부담으로 적립 보존)
         //   - m2net 은 자체 차감 완료 → fill 호출 X (이중 차감 방지)
+        //
+        // 단기통화환불 (2026-05-21 신규, 2026-05-22 정정):
+        //   30초 미만 + amt<=단가스냅샷 인 콜 = 자동 환불.
+        //   회원 차감 skip + m2net 잔액 복구는 트랜잭션 외부 + **상담사 적립은 정상 발생**.
+        //   사장님 정책: 사용자 UX 보호 + 상담사 보호 + 회사가 m2net 손실 부담.
+        const shortCallRefund =
+          isCall && endsHere && usetm < SHORT_CALL_SEC
+          && amt > 0 && !!snapUnitCost && amt <= snapUnitCost;
+
         if (endsHere && amt > 0) {
           this.logger.log(
-            `[handleCallPush] 차감 svc=${svcType} memberId=${memberId} counselorId=${counselorId} membid=${membid} pushAmt=${amt} reason=${reason} refundEligible=${refundEligible} isPostpaid=${isPostpaid}`,
+            `[handleCallPush] 차감 svc=${svcType} memberId=${memberId} counselorId=${counselorId} membid=${membid} pushAmt=${amt} reason=${reason} usetm=${usetm} refundEligible=${refundEligible} shortCallRefund=${shortCallRefund} isPostpaid=${isPostpaid}`,
           );
 
           // 회원 차감 — 트랜잭션 내부 호출. 실패 시 throw → 전체 롤백.
-          if (!refundEligible && !isPostpaid && memberId !== null) {
+          if (!refundEligible && !shortCallRefund && !isPostpaid && memberId !== null) {
             await this.deductMemberPointInTx(
               tx,
               memberId, amt, amtFree, amtPro,
@@ -357,6 +754,9 @@ export class M2netPushService {
           }
 
           // 상담사 적립 — 동일 트랜잭션. 실패 시 회원 차감/consultation 모두 롤백.
+          //   단기통화환불 시에도 상담사 적립은 **정상 발생** (사장님 정책 2026-05-22 재확인).
+          //   회원 차감/m2net 잔액은 복구하되 상담사 보호 — 손실은 회사(사주플랜)가 부담.
+          //   settlement-cron 의 단기통화 NOT 제외 조건도 함께 제거됨.
           if (counselorId !== null) {
             await this.creditCounselorPointInTx(
               tx,
@@ -367,9 +767,22 @@ export class M2netPushService {
               isPaid,
             );
           }
+
+          // 단기통화환불 메타 기록 — 회계/m2net 정산 추적용 (2026-05-22 추가).
+          //   사주플랜이 m2net 측에 추가 prepaid 한 손해 금액(=amt)을 영구적으로 기록.
+          //   어드민 대시보드의 월별 단기환불 합계 카드 + 향후 m2net 청구서 대조용.
+          //   refund_status='short_call_refund' 는 어드민 수동 환불 화면에서 차단됨.
+          if (shortCallRefund && consultationId > 0) {
+            await tx`
+              UPDATE consultation
+                 SET refund_status = 'short_call_refund',
+                     refunded_amount = ${amt}
+               WHERE id = ${consultationId}
+            `;
+          }
         }
 
-        return { dup: false, consultationId };
+        return { dup: false, consultationId, shortCallRefund };
       });
     } catch (e) {
       // [Audit #4] 트랜잭션 전체 실패 — consultation/deduct/credit 모두 롤백된 상태.
@@ -392,6 +805,37 @@ export class M2netPushService {
         `[handleCallPush] consultation 중복 INSERT 차단 — callid=${callid} roomid=${roomid} counselorId=${counselorId} memberId=${memberId}`,
       );
       return { ok: true, idempotent: true };
+    }
+
+    // ─── 단기통화 자동 환불 — m2net 측 잔액 복구 (트랜잭션 외부) ───
+    //   사주플랜은 회원 차감 skip 했으므로 양쪽 잔액 정합을 위해 m2net 측에도 +amt 복구.
+    //   m2net 의 비즈니스 구조(회선료 정책)에 따라 사주플랜이 약간 손해를 볼 수 있으나
+    //   사장님 결정 — 사용자 UX 우선. 손실 추적은 OpsAlert 로 매번 알림.
+    //   실패해도 본 처리는 영향 X (consultation 은 이미 INSERT 됨).
+    if (txResult.shortCallRefund && membid && amt > 0) {
+      const refundAmt = amt;  // 차감 안 한 금액만큼 m2net 측도 +복구
+      void this.m2net
+        .addMemberCoin(membid, refundAmt)
+        .then((sync) => {
+          if (sync.ok) {
+            this.logger.log(
+              `[short-call-refund] m2net 복구 성공 membid=${membid} amt=${refundAmt} callid=${callid} usetm=${usetm}`,
+            );
+          } else {
+            this.logger.error(
+              `[short-call-refund] m2net 복구 실패 — 양쪽 잔액 불일치 위험. membid=${membid} amt=${refundAmt} error=${sync.error ?? 'unknown'}`,
+            );
+            void this.opsAlert.send(
+              '단기통화 환불 m2net 복구 실패',
+              `callid=${callid} membid=${membid} amt=${refundAmt}\nerror: ${sync.error ?? 'unknown'}\n\nm2net 잔액이 사주플랜보다 ${refundAmt} 적은 상태. 수동 보정 필요.`,
+            );
+          }
+        })
+        .catch((e) => {
+          this.logger.error(
+            `[short-call-refund] m2net 복구 예외 callid=${callid} membid=${membid}: ${(e as Error).message}`,
+          );
+        });
     }
 
     // 사용 안 함 (TS unused 경고 회피, 추후 알림톡 트리거에 사용 예정)
@@ -431,6 +875,22 @@ export class M2netPushService {
       return { ok: true, settled: false };
     }
 
+    // [2026-05-30] 사용 0초 채팅은 정산 대상 아님 — m2net 측에도 등록 안 됨 (상담사 입장 전 종료).
+    //   m2net.getMemberByMembid 호출 시 "응답 없음" 으로 실패 → settle_status='m2net_failed' → retry 5회 → 영구 실패 OpsAlert 까지 도달했던 사고 (chat_room.id=38, 48).
+    //   첫 줄에서 즉시 skipped 마킹하여 retry-cron 대상에서 제외.
+    if (Number(room.use_seconds) <= 0) {
+      await this.sql`
+        UPDATE chat_room
+           SET settle_status = 'skipped',
+               settle_failure_reason = 'no_use_seconds (상담사 입장 전 종료 또는 자동 취소)'
+         WHERE id = ${chatRoomId}
+      `;
+      this.logger.log(
+        `[settleChatRoomLocal] use_seconds=0 → skipped chatRoomId=${chatRoomId}`,
+      );
+      return { ok: true, settled: false };
+    }
+
     // 멱등 — 같은 chat_room 에 대해 이미 정산 row 가 있으면 skip.
     // ⚠️ roomid 만으로 가드하면 안 된다: tickRoom/markLeave 가 `__c_<id>` suffix 를 매번 다르게
     // 붙일 수 있어 우회되고 차감이 중복으로 들어가는 버그가 있었음.
@@ -466,33 +926,34 @@ export class M2netPushService {
     }
 
     // 정책 (2026-05-13): "m2net 이 반환한 값으로만 차감".
-    //   사주문 측 use_seconds × unit_cost 자체 계산은 사용하지 않는다.
+    //   사주플랜 측 use_seconds × unit_cost 자체 계산은 사용하지 않는다.
     //   m2net 잔액 조회 결과만 신뢰: sajumoon DB 잔액 - m2net 잔액 = 차감되어야 할 금액.
     //   조회 실패 / diff <= 0 이면 차감 skip (END_CHAT push 도착 후 그쪽에서 정합).
-    const memberRows = await this.sql<{ csrid: string | null; sajumoon_balance: number }[]>`
-      SELECT csrid, point AS sajumoon_balance
+    // 2026-05-22 ID 단일화: 회원 m2net id 는 m2net_membid 컬럼 (csrid 는 상담사 전용)
+    const memberRows = await this.sql<{ m2net_membid: string | null; sajumoon_balance: number }[]>`
+      SELECT m2net_membid, point AS sajumoon_balance
         FROM member WHERE id = ${room.member_id} LIMIT 1
     `;
-    const csrid = memberRows[0]?.csrid ?? null;
+    const membid = memberRows[0]?.m2net_membid ?? null;
     const sajumoonBalance = Number(memberRows[0]?.sajumoon_balance ?? 0);
 
     const secs = Number(room.use_seconds) || 0;
     let amt = 0;
-    if (!csrid) {
+    if (!membid) {
       this.logger.warn(
-        `[settleChatRoomLocal] csrid 없음 → m2net 조회 불가, skip chatRoomId=${chatRoomId}`,
+        `[settleChatRoomLocal] m2net_membid 없음 → m2net 조회 불가, skip chatRoomId=${chatRoomId}`,
       );
       return { ok: true, settled: false };
     }
     try {
-      const r = await this.m2net.getMemberByMembid(csrid);
+      const r = await this.m2net.getMemberByMembid(membid);
       if (r.ok && typeof r.amt === 'number') {
         const m2netBalance = Math.max(0, Math.floor(Number(r.amt)));
         const diff = sajumoonBalance - m2netBalance;
         if (diff > 0) {
           amt = diff;
           this.logger.log(
-            `[settleChatRoomLocal] m2net-diff 적용 chatRoomId=${chatRoomId} csrid=${csrid} sajumoon=${sajumoonBalance} m2net=${m2netBalance} → amt=${amt}`,
+            `[settleChatRoomLocal] m2net-diff 적용 chatRoomId=${chatRoomId} membid=${membid} sajumoon=${sajumoonBalance} m2net=${m2netBalance} → amt=${amt}`,
           );
         } else {
           this.logger.log(
@@ -504,7 +965,7 @@ export class M2netPushService {
         // [Audit C-#9] M2NET 잔액 조회 실패 — chat_room.settle_status 마킹 + retry cron 재시도
         const reason = r.error ?? 'unknown';
         this.logger.warn(
-          `[settleChatRoomLocal] m2net 잔액 조회 실패 csrid=${csrid} error=${reason} → m2net_failed 마킹`,
+          `[settleChatRoomLocal] m2net 잔액 조회 실패 membid=${membid} error=${reason} → m2net_failed 마킹`,
         );
         await this.markChatRoomSettleFailed(chatRoomId, `m2net_get_balance_failed: ${reason}`);
         return { ok: true, settled: false, marked_for_retry: true };
@@ -513,7 +974,7 @@ export class M2netPushService {
       // [Audit C-#9] 예외 발생 — 같은 처리
       const reason = e instanceof Error ? e.message : String(e);
       this.logger.warn(
-        `[settleChatRoomLocal] m2net 잔액 조회 예외 csrid=${csrid}: ${reason} → m2net_failed 마킹`,
+        `[settleChatRoomLocal] m2net 잔액 조회 예외 membid=${membid}: ${reason} → m2net_failed 마킹`,
       );
       await this.markChatRoomSettleFailed(chatRoomId, `m2net_exception: ${reason}`);
       return { ok: true, settled: false, marked_for_retry: true };
@@ -659,13 +1120,13 @@ export class M2netPushService {
   }
 
   // ─────────────────────────────────────────────
-  // m2net ↔ 사주문 잔액 정합 (reconcile) — m2net = single source of truth.
+  // m2net ↔ 사주플랜 잔액 정합 (reconcile) — m2net = single source of truth.
   //
   // 통화/채팅 진행 중 m2net 은 내부적으로 1분/1만원 단위 차감하지만 그 중간 차감을
-  // 사주문에 push 해 주지 않는다. 종료 push 1회만 도착하므로, 그 사이 시점에 사주문
+  // 사주플랜에 push 해 주지 않는다. 종료 push 1회만 도착하므로, 그 사이 시점에 사주플랜
   // DB 잔액은 m2net 실제 잔액보다 큰 상태로 남아 회원에게 노출된다.
   //
-  // 이 함수는 m2net 측 amt(=잔액)를 fetch 해 사주문 DB(point.free/paid + member.point)에
+  // 이 함수는 m2net 측 amt(=잔액)를 fetch 해 사주플랜 DB(point.free/paid + member.point)에
   // 그대로 overwrite 한다. diff 만큼 보정 point_history row 를 남겨 감사 가능.
   // ─────────────────────────────────────────────
   async reconcileMemberBalanceFromM2net(memberId: number, options?: {
@@ -678,19 +1139,19 @@ export class M2netPushService {
     diff?: number;
     error?: string;
   }> {
-    // 회원 csrid 조회
-    const memberRows = await this.sql<{ csrid: string | null }[]>`
-      SELECT csrid FROM member WHERE id = ${memberId} LIMIT 1
+    // 2026-05-22 ID 단일화: 회원 m2net id 는 m2net_membid 컬럼
+    const memberRows = await this.sql<{ m2net_membid: string | null }[]>`
+      SELECT m2net_membid FROM member WHERE id = ${memberId} LIMIT 1
     `;
-    const csrid = memberRows[0]?.csrid ?? null;
-    if (!csrid) {
-      return { ok: false, error: 'csrid 없음 — m2net 등록 안 된 회원' };
+    const membid = memberRows[0]?.m2net_membid ?? null;
+    if (!membid) {
+      return { ok: false, error: 'm2net_membid 없음 — m2net 등록 안 된 회원' };
     }
 
     // m2net 잔액 조회
     let m2netBalance: number;
     try {
-      const r = await this.m2net.getMemberByMembid(csrid);
+      const r = await this.m2net.getMemberByMembid(membid);
       if (!r.ok || typeof r.amt !== 'number') {
         return { ok: false, error: r.error ?? 'm2net amt 없음' };
       }
@@ -722,7 +1183,7 @@ export class M2netPushService {
       const freeBefore = Number(pt[0].free_balance);
       const paidBefore = Number(pt[0].paid_balance);
       const sajumoonBefore = freeBefore + paidBefore;
-      const diff = sajumoonBefore - m2netBalance; // > 0 이면 사주문이 더 큼 = 미반영 차감분
+      const diff = sajumoonBefore - m2netBalance; // > 0 이면 사주플랜이 더 큼 = 미반영 차감분
 
       // 잔액 동일하면 skip (멱등 + 노이즈 방지)
       if (diff === 0) {
@@ -730,9 +1191,9 @@ export class M2netPushService {
       }
 
       // free 우선 차감/증가 정책으로 m2net 잔액에 맞춤.
-      //   - 사주문이 더 크면 (diff>0): free 부터 차감 후 paid 차감
-      //   - 사주문이 더 작으면 (diff<0): m2net 이 충전된 상태 — paid_balance 에 증가 반영
-      //     (충전은 보통 사주문→m2net 흐름이므로 역방향은 드물지만 안전하게 처리)
+      //   - 사주플랜이 더 크면 (diff>0): free 부터 차감 후 paid 차감
+      //   - 사주플랜이 더 작으면 (diff<0): m2net 이 충전된 상태 — paid_balance 에 증가 반영
+      //     (충전은 보통 사주플랜→m2net 흐름이므로 역방향은 드물지만 안전하게 처리)
       let newFree = freeBefore;
       let newPaid = paidBefore;
       if (diff > 0) {
@@ -960,11 +1421,11 @@ export class M2netPushService {
                amt_pro = ${actualPro}
          WHERE id = ${consultationId}
       `;
-      // m2net 측 잔액에도 반영하기 위해 회원의 membid(=member.csrid) 조회
-      const r = await tx<{ csrid: string | null }[]>`
-        SELECT csrid FROM member WHERE id = ${memberId} LIMIT 1
+      // 2026-05-22 ID 단일화: 회원 m2net id 는 m2net_membid 컬럼
+      const r = await tx<{ m2net_membid: string | null }[]>`
+        SELECT m2net_membid FROM member WHERE id = ${memberId} LIMIT 1
       `;
-      return { applied: true, membid: r[0]?.csrid ?? null };
+      return { applied: true, membid: r[0]?.m2net_membid ?? null };
   }
 
   /**
@@ -1010,8 +1471,12 @@ export class M2netPushService {
   }
 
   /**
-   * 상담사 포인트 적립 — paid_balance 누적 (정산 대상).
+   * 상담사 포인트 적립 — earning_balance(수익포인트) 누적 (매월 1일 정산 대상).
    * (rel_table='consultation', rel_action) 멱등.
+   *
+   * 수익포인트는 회원 표면 잔액(member.point = free+paid)과 별개로 관리되므로
+   * member.point 는 갱신하지 않는다. point_history.balance_after 는 적립 직후
+   * earning_balance 값(수익포인트 잔액)을 기록.
    */
   /**
    * [Audit #4] 상담사 적립 (DB 부분만, 트랜잭션 인자 받음).
@@ -1028,22 +1493,21 @@ export class M2netPushService {
     relAction: string,
     isPaid: boolean,
   ): Promise<{ applied: boolean; csrMembid: string | null }> {
-    let pt = await tx<{ free_balance: number; paid_balance: number }[]>`
-        SELECT free_balance, paid_balance FROM point WHERE member_id = ${counselorId} FOR UPDATE
+    let pt = await tx<{ earning_balance: number }[]>`
+        SELECT earning_balance FROM point WHERE member_id = ${counselorId} FOR UPDATE
       `;
       if (pt.length === 0) {
         await tx`
-          INSERT INTO point (member_id, free_balance, paid_balance, total_earned, total_used)
-          VALUES (${counselorId}, 0, 0, 0, 0)
+          INSERT INTO point (member_id, free_balance, paid_balance, earning_balance, total_earned, total_used)
+          VALUES (${counselorId}, 0, 0, 0, 0, 0)
           ON CONFLICT (member_id) DO NOTHING
         `;
-        pt = await tx<{ free_balance: number; paid_balance: number }[]>`
-          SELECT free_balance, paid_balance FROM point WHERE member_id = ${counselorId} FOR UPDATE
+        pt = await tx<{ earning_balance: number }[]>`
+          SELECT earning_balance FROM point WHERE member_id = ${counselorId} FOR UPDATE
         `;
       }
-      const free = Number(pt[0].free_balance);
-      const paid = Number(pt[0].paid_balance);
-      const balanceAfter = free + paid + amt;
+      const earningBefore = Number(pt[0].earning_balance);
+      const balanceAfter = earningBefore + amt;
 
       const ins = await tx<{ id: number }[]>`
         INSERT INTO point_history (
@@ -1063,17 +1527,14 @@ export class M2netPushService {
       `;
       if (ins.length === 0) return { applied: false, csrMembid: null as string | null };
 
-      // 상담사는 paid_balance(정산 대상) 으로 적립
+      // 상담사는 earning_balance(수익포인트, 정산 대상) 으로 적립
+      // member.point(=free+paid 회원 표면 잔액) 는 갱신하지 않음
       await tx`
         UPDATE point SET
-          paid_balance = paid_balance + ${amt},
-          total_earned = total_earned + ${amt},
-          updated_at = now()
+          earning_balance = earning_balance + ${amt},
+          total_earned    = total_earned + ${amt},
+          updated_at      = now()
          WHERE member_id = ${counselorId}
-      `;
-      await tx`
-        UPDATE member SET point = point + ${amt}, updated_at = now()
-         WHERE id = ${counselorId}
       `;
       // m2net 측 상담사 회원 잔액 동기화용 — 상담사도 사용자처럼 회원으로 등록된 경우 csrid 사용
       const r = await tx<{ csrid: string | null }[]>`

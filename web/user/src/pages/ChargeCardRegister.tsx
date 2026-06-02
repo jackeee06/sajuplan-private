@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent } from 'react'
+﻿import { useEffect, useState, type FormEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import { chargeApi, type ChargePackageDto } from '../lib/api'
 
 // webview에서 hard navigation으로 진입한 경우 location.state가 비어 있어 sessionStorage 폴백
@@ -14,7 +15,7 @@ function getInitialPackageId(stateValue?: number | null): number | null {
 }
 
 /**
- * 사주문페이(자동결제) 카드 등록 페이지.
+ * 사주플랜페이(자동결제) 카드 등록 페이지.
  * sample/coin/coin_fill_auto_card.php 동등.
  *
  * 입력 5필드: 카드번호 / 만료(MM/YY) / 생년월일(YYMMDD) / 카드 비번(앞 2자리) / 자동결제 패키지.
@@ -101,7 +102,7 @@ export default function ChargeCardRegister() {
   }
 
   return (
-    <div className="mobile-frame flex flex-col pb-6">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -112,7 +113,7 @@ export default function ChargeCardRegister() {
           <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
         </button>
         <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">
-          사주문페이 카드 등록
+          사주플랜페이 카드 등록
         </h1>
       </header>
 
@@ -126,7 +127,7 @@ export default function ChargeCardRegister() {
             onChange={(e) => setCardno(formatCardno(e.target.value))}
             autoComplete="off"
             name="sjm-cardno"
-            className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#9B7AF7] outline-none text-[15px]"
+            className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#f472b6] outline-none text-[15px]"
           />
         </Field>
 
@@ -141,7 +142,7 @@ export default function ChargeCardRegister() {
               onChange={(e) => setExpMonth(e.target.value.replace(/\D/g, '').slice(0, 2))}
               autoComplete="off"
               name="sjm-exp-month"
-              className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#9B7AF7] outline-none text-[15px]"
+              className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#f472b6] outline-none text-[15px]"
             />
           </Field>
           <Field label="만료년(YY)" className="flex-1">
@@ -154,7 +155,7 @@ export default function ChargeCardRegister() {
               onChange={(e) => setExpYear(e.target.value.replace(/\D/g, '').slice(0, 2))}
               autoComplete="off"
               name="sjm-exp-year"
-              className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#9B7AF7] outline-none text-[15px]"
+              className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#f472b6] outline-none text-[15px]"
             />
           </Field>
         </div>
@@ -169,7 +170,7 @@ export default function ChargeCardRegister() {
             onChange={(e) => setSocno(e.target.value.replace(/\D/g, '').slice(0, 6))}
             autoComplete="off"
             name="sjm-socno"
-            className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#9B7AF7] outline-none text-[15px]"
+            className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#f472b6] outline-none text-[15px]"
           />
         </Field>
 
@@ -183,7 +184,7 @@ export default function ChargeCardRegister() {
             onChange={(e) => setPass(e.target.value.replace(/\D/g, '').slice(0, 2))}
             autoComplete="new-password"
             name="sjm-pass"
-            className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#9B7AF7] outline-none text-[15px]"
+            className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#f472b6] outline-none text-[15px]"
           />
         </Field>
 
@@ -191,12 +192,12 @@ export default function ChargeCardRegister() {
           <select
             value={packageId ?? ''}
             onChange={(e) => setPackageId(Number(e.target.value) || null)}
-            className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#9B7AF7] outline-none text-[15px] bg-white"
+            className="w-full h-12 px-4 rounded-[12px] border border-[#E5E7EB] focus:border-[#f472b6] outline-none text-[15px] bg-white"
           >
             <option value="">패키지 선택</option>
             {packages.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.totalPoint.toLocaleString()}P / {p.payAmount.toLocaleString()}원
+                {p.totalPoint.toLocaleString()} 코인 / {p.payAmount.toLocaleString()}원
               </option>
             ))}
           </select>
@@ -214,14 +215,15 @@ export default function ChargeCardRegister() {
             type="submit"
             disabled={submitting}
             className={`w-full h-[52px] rounded-[16px] text-[16px] font-semibold ${
-              submitting ? 'bg-[#D1D5DB] text-white' : 'bg-[#9B7AF7] text-white'
+              submitting ? 'bg-[#D1D5DB] text-white' : 'bg-[#f472b6] text-white'
             }`}
           >
             {submitting ? '등록 중...' : '카드 등록하기'}
           </button>
         </div>
       </form>
-    </div>
+      <BottomNav />
+      </div>
   )
 }
 

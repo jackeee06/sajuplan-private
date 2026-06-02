@@ -87,13 +87,13 @@ export class AuthController {
       body.password,
     );
     await this.issueLoginCookie(res, member, body.keep_login);
-    // 로그인 직후 m2net 잔액을 사주문 측 값으로 동기화 — 응답 지연 없도록 비동기 fire-and-forget.
+    // 로그인 직후 m2net 잔액을 사주플랜 측 값으로 동기화 — 응답 지연 없도록 비동기 fire-and-forget.
     void this.authService.syncM2netBalanceForMember(member.id);
     return { ok: true, member };
   }
 
   /**
-   * 사주문 측 잔액(point) 을 m2net 측 amt 로 강제 동기화.
+   * 사주플랜 측 잔액(point) 을 m2net 측 amt 로 강제 동기화.
    * - 메인페이지 진입 시 1회 호출 (앱 켤 때마다 갱신).
    * - 일반 회원만 대상. 상담사 호출 시 ok=false 반환.
    */
@@ -141,11 +141,9 @@ export class AuthController {
   @UseGuards(UserAuthGuard)
   async updateMeProfile(
     @Req() req: UserAuthedRequest,
-    @Body() body: UpdateMeBody & { captcha_token?: string; captcha_input?: string },
+    @Body() body: UpdateMeBody,
   ) {
-    if (body.captcha_token || body.captcha_input) {
-      await this.captcha.verify(body.captcha_token ?? '', body.captcha_input ?? '');
-    }
+    // 캡차는 2026-05-21 제거 — 회원정보 수정은 이미 로그인 인증 통과한 요청이라 추가 봇 차단 불필요
     return this.authService.updateMeProfile(req.user.sub, body);
   }
 
@@ -942,11 +940,7 @@ export class AuthController {
         throw new BadRequestException('이미 가입된 소셜 계정입니다.');
       }
 
-      // 소셜 가입도 휴대폰 SMS 인증 + 캡차 필수 (sample 정책: 모든 가입 경로 통일)
-      await this.captcha.verify(
-        body.captcha_token ?? '',
-        body.captcha_input ?? '',
-      );
+      // 소셜 가입: 휴대폰 SMS 인증으로 봇 차단 (캡차는 2026-05-21 제거 — UX 우선)
       if (!body.phone) {
         throw new BadRequestException('휴대폰번호를 입력해주세요.');
       }
@@ -1014,11 +1008,7 @@ export class AuthController {
       throw new BadRequestException('휴대폰번호를 입력해주세요.');
     }
 
-    // (1) 자동등록방지(캡차) 검증 — sample 의 chk_captcha() 동등
-    await this.captcha.verify(
-      body.captcha_token ?? '',
-      body.captcha_input ?? '',
-    );
+    // (캡차는 2026-05-21 제거 — 휴대폰 SMS 인증으로 봇 차단 충분, UX 우선)
 
     // [Audit E-W8] 휴대폰 인증 상태 재검증 — 30분 윈도우.
     //   1단계 verify (3분 코드 만료) 후 30분 안에 가입 완료해야 함.

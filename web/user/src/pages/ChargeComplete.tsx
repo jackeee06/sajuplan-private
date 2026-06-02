@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { chargeApi, type ChargeStatusResult } from '../lib/api'
 
@@ -132,13 +132,13 @@ function Pending({ elapsed }: { elapsed: number }) {
   // 10초 이상 폴링되면 백키 옵션 노출 (사용자가 무한처럼 느끼지 않도록)
   return (
     <div className="flex flex-col items-center">
-      <div className="w-16 h-16 rounded-full border-4 border-[#9B7AF7] border-t-transparent animate-spin" />
+      <div className="w-16 h-16 rounded-full border-4 border-[#f472b6] border-t-transparent animate-spin" />
       <p className="mt-6 text-[16px] font-semibold text-[#1E2939]">결제 결과를 확인 중입니다</p>
       <p className="mt-2 text-[13px] text-[#6A7282]">잠시만 기다려주세요... ({elapsed}s)</p>
       {elapsed >= 10 && (
         <a
           href="/mypage/charge"
-          className="mt-6 text-[13px] text-[#8259F5] underline"
+          className="mt-6 text-[13px] text-[#ec4899] underline"
         >
           충전 페이지로 돌아가기
         </a>
@@ -156,32 +156,93 @@ function Success({
   onHome: () => void
   onPoints: () => void
 }) {
+  const navigate = useNavigate()
+  // [2026-05-27] 5분 알림 → 충전 → 결제 완료 흐름. sessionStorage 에 chatReturnRoomId 가
+  // 있으면 채팅 복귀 우선 표시 + 3초 후 자동 redirect.
+  const [chatReturnRoomId, setChatReturnRoomId] = useState<string | null>(null)
+  // [엄격검증 4차 fix 2026-05-27 Q-3] 30분 TTL — stale chatReturnRoomId 잘못된 redirect 방지
+  useEffect(() => {
+    try {
+      const v = sessionStorage.getItem('chatReturnRoomId')
+      const ts = sessionStorage.getItem('chatReturnRoomIdAt')
+      if (v && ts) {
+        const ageMs = Date.now() - Number(ts)
+        if (Number.isFinite(ageMs) && ageMs >= 0 && ageMs < 30 * 60_000) {
+          setChatReturnRoomId(v)
+        } else {
+          // 30분 이상 stale — 무시하고 정리
+          sessionStorage.removeItem('chatReturnRoomId')
+          sessionStorage.removeItem('chatReturnRoomIdAt')
+        }
+      }
+    } catch { /* storage unsupported */ }
+  }, [])
+  useEffect(() => {
+    if (!chatReturnRoomId) return
+    const t = window.setTimeout(() => {
+      try { sessionStorage.removeItem('chatReturnRoomId') } catch { /* ignore */ }
+      navigate(`/chat/${chatReturnRoomId}`, { replace: true })
+    }, 3000)
+    return () => window.clearTimeout(t)
+  }, [chatReturnRoomId, navigate])
+
+  const handleReturnToChat = () => {
+    try { sessionStorage.removeItem('chatReturnRoomId') } catch { /* ignore */ }
+    navigate(`/chat/${chatReturnRoomId}`, { replace: true })
+  }
+
   return (
     <div className="w-full max-w-[400px]">
-      <div className="w-16 h-16 mx-auto rounded-full bg-[#F3EEFE] flex items-center justify-center">
+      <div className="w-16 h-16 mx-auto rounded-full bg-[#fdf2f8] flex items-center justify-center">
         <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-          <path d="M8 16L14 22L24 10" stroke="#9B7AF7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M8 16L14 22L24 10" stroke="#f472b6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </div>
       <p className="mt-6 text-[20px] font-bold text-[#1E2939]">결제 완료</p>
       <p className="mt-2 text-[14px] text-[#6A7282]">
-        {data.coinAmount.toLocaleString()}P가 적립되었습니다.
+        {data.coinAmount.toLocaleString()} 코인이 적립되었습니다.
       </p>
+      {chatReturnRoomId && (
+        <p className="mt-2 text-[13px] text-[#ec4899] font-medium">
+          ⏰ 3초 후 채팅으로 자동 이동합니다
+        </p>
+      )}
       <div className="mt-8 flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={onPoints}
-          className="w-full h-[52px] rounded-[16px] bg-[#9B7AF7] text-white text-[16px] font-semibold"
-        >
-          포인트 내역 보기
-        </button>
-        <button
-          type="button"
-          onClick={onHome}
-          className="w-full h-[52px] rounded-[16px] border border-[#E5E7EB] text-[16px] text-[#4A5565]"
-        >
-          홈으로
-        </button>
+        {chatReturnRoomId ? (
+          <>
+            <button
+              type="button"
+              onClick={handleReturnToChat}
+              className="w-full h-[52px] rounded-[16px] bg-[#f472b6] text-white text-[16px] font-bold"
+            >
+              💬 채팅으로 돌아가기
+            </button>
+            <button
+              type="button"
+              onClick={onPoints}
+              className="w-full h-[52px] rounded-[16px] border border-[#E5E7EB] text-[14px] text-[#4A5565]"
+            >
+              코인 내역 보기
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onPoints}
+              className="w-full h-[52px] rounded-[16px] bg-[#f472b6] text-white text-[16px] font-semibold"
+            >
+              코인 내역 보기
+            </button>
+            <button
+              type="button"
+              onClick={onHome}
+              className="w-full h-[52px] rounded-[16px] border border-[#E5E7EB] text-[16px] text-[#4A5565]"
+            >
+              홈으로
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
@@ -205,7 +266,7 @@ function Timeout({ onBack, onPayments }: { onBack: () => void; onPayments: () =>
         <button
           type="button"
           onClick={onPayments}
-          className="w-full h-[52px] rounded-[16px] bg-[#9B7AF7] text-white text-[16px] font-semibold"
+          className="w-full h-[52px] rounded-[16px] bg-[#f472b6] text-white text-[16px] font-semibold"
         >
           결제 내역 확인
         </button>
@@ -239,7 +300,7 @@ function Cancelled({ onBack }: { onBack: () => void }) {
         <button
           type="button"
           onClick={onBack}
-          className="w-full h-[52px] rounded-[16px] bg-[#9B7AF7] text-white text-[16px] font-semibold"
+          className="w-full h-[52px] rounded-[16px] bg-[#f472b6] text-white text-[16px] font-semibold"
         >
           충전 페이지로
         </button>
@@ -262,7 +323,7 @@ function Failure({ message, onBack }: { message: string; onBack: () => void }) {
         <button
           type="button"
           onClick={onBack}
-          className="w-full h-[52px] rounded-[16px] bg-[#9B7AF7] text-white text-[16px] font-semibold"
+          className="w-full h-[52px] rounded-[16px] bg-[#f472b6] text-white text-[16px] font-semibold"
         >
           다시 시도
         </button>

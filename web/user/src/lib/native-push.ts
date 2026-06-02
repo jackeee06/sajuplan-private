@@ -14,13 +14,26 @@
 import { authApi } from './api'
 import type { UserMember } from './api'
 
-const ALL_AUTH_TOPICS = ['chl_2', 'chl_5', 'chl_all']
+// [2026-05-28 사장님 결정] chl_all 은 ALL_AUTH_TOPICS 에서 제외 — 로그아웃해도 보존.
+//   비로그인 첫 부팅 시 chl_all 구독은 mobile/src/fcm.ts initFcm() 에 별도 작업 (다음 APK).
+const ALL_AUTH_TOPICS = ['chl_2', 'chl_5']
 
-/** role/level 에 맞는 구독 대상 토픽 목록. sample push_update.php 매핑과 동일. */
+/**
+ * role/level 에 맞는 구독 대상 토픽 목록.
+ *
+ * [2026-05-28 사장님 결정] chl_2 / chl_5 상호배타 폐기 (fcm.md 8.2 변경).
+ *   사주플랜 비즈니스 본질: 상담사도 충전해서 다른 상담사한테 상담 받을 수 있는 일반회원.
+ *   → 상담사 = 회원의 상위 집합. chl_2 도 받아야 함.
+ *
+ * 새 정책:
+ *   - 일반회원   → chl_all + chl_2
+ *   - 상담사     → chl_all + chl_2 + chl_5  ⭐ chl_2 추가
+ *
+ * 부수효과: 모드 전환 (회원 ↔ 상담사) 시 토픽 갱신 불필요 (어느 모드든 동일).
+ */
 function topicsForMember(m: UserMember): string[] {
-  const out: string[] = ['chl_all']
+  const out: string[] = ['chl_all', 'chl_2']
   if (m.role === 'counselor') out.push('chl_5')
-  else out.push('chl_2')
   return out
 }
 

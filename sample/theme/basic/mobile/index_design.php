@@ -285,7 +285,7 @@ function RollingNum(id, number, type) {
 		<div class="flex align-items-center justify-content-between">
 			<div class="flex align-items-center">
 				<img src="../../../img/main/star_icon.png" style="width:20px; margin-bottom:4px">
-				<p>사주문 추천</p>
+				<p>사주플랜 추천</p>
 			</div>
 			<a href="">더보기 <img src="../../../img/main/right_g_ar.svg"></a>
 		</div>
@@ -523,7 +523,7 @@ function RollingNum(id, number, type) {
 
 <div class="counselor_list_wrap" >
         	
-  <h2 style=" width:100%; float:left; font-size:20px; font-weight:600; padding:20px 20px 0;">사주문 AI 상담사 추천!</h2>
+  <h2 style=" width:100%; float:left; font-size:20px; font-weight:600; padding:20px 20px 0;">사주플랜 AI 상담사 추천!</h2>
 
 	<div class="counselor_list bo_none" >
        <?php
@@ -585,7 +585,7 @@ function RollingNum(id, number, type) {
 	    </div>
   	</details>
     
-    <div class="main_footer_copy">Copyrightⓒ 사주문. All Rights Reserved.</div>
+    <div class="main_footer_copy">Copyrightⓒ 사주플랜. All Rights Reserved.</div>
 </div>
 
 

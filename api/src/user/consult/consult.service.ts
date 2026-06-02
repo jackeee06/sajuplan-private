@@ -201,10 +201,12 @@ export class UserConsultService {
       throw new BadRequestException('본인에게 상담을 요청할 수 없습니다.');
     }
     // chargeMinutes 화이트리스트 검증
+    // [2026-05-30] 1분 테스트 옵션 추가 — _PREPAID_CHAT_POLICY.md §1
+    //   운영 시작 후 1분 제거 시 allowed = [15, 30, 45, 60] 으로 복귀.
     if (params.chargeMinutes != null) {
-      const allowed = [15, 30, 45, 60];
+      const allowed = [1, 15, 30, 45, 60];
       if (!allowed.includes(params.chargeMinutes)) {
-        throw new BadRequestException('상담 시간은 15/30/45/60분 중 하나여야 합니다.');
+        throw new BadRequestException('상담 시간은 1/15/30/45/60분 중 하나여야 합니다.');
       }
     }
 
@@ -414,12 +416,14 @@ export class UserConsultService {
               member_id, counselor_id, csrid, roomid, status, started_at,
               unit_seconds, unit_cost,
               alloc_seconds_member, alloc_seconds_counselor,
-              snapshot_member_point
+              snapshot_member_point,
+              charge_minutes
             ) VALUES (
               ${params.memberId}, ${params.counselorId}, ${csr.csrid ?? ''}, ${m2netRoomid}, 'STAY', now(),
               ${unitSec}, ${unitCost},
               ${allocSeconds}, ${allocSeconds},
-              ${memberPoint}
+              ${memberPoint},
+              ${params.chargeMinutes ?? null}
             )
             RETURNING id
           `;

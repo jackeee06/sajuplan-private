@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FilterDropdown from '../components/FilterDropdown'
@@ -13,7 +13,7 @@ const PAGE_SIZE = 10
  * 공지사항 리스트 — 백엔드 연동.
  *
  *  - 상단: filter_select(전체/공지/이벤트/업데이트) + 검색 인풋
- *  - 카운터: "전체 N건 P페이지" (숫자 강조: #8259F5)
+ *  - 카운터: "전체 N건 P페이지" (숫자 강조: #ec4899)
  *  - 고정 공지(is_pinned): 연보라 배경 + "공지" 칩(보라 outline)
  *  - 신규(is_new = 7일 이내): "New" 빨간 뱃지
  *  - 페이지네이션
@@ -127,8 +127,8 @@ export default function Notices() {
 
         <section className="px-4 pb-2">
           <p className="text-[13px] leading-[140%] text-[#6A7282]">
-            전체 <span className="text-[#8259F5] font-medium">{total.toLocaleString()}</span>건{' '}
-            <span className="text-[#8259F5] font-medium">{page}</span>페이지
+            전체 <span className="text-[#ec4899] font-medium">{total.toLocaleString()}</span>건{' '}
+            <span className="text-[#ec4899] font-medium">{page}</span>페이지
           </p>
         </section>
 
@@ -154,7 +154,7 @@ export default function Notices() {
                 key={n.id}
                 className={
                   n.is_pinned
-                    ? 'border-b border-[#F3F4F6] bg-[#F3EEFE]'
+                    ? 'border-b border-[#F3F4F6] bg-[#fdf2f8]'
                     : 'border-b border-[#F3F4F6] bg-white'
                 }
               >
@@ -171,7 +171,7 @@ export default function Notices() {
                   </div>
                   <div className="mt-1 flex items-center gap-2">
                     {n.is_pinned && (
-                      <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#9B7AF7] text-[12px] leading-none font-medium text-[#8259F5]">
+                      <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-white border border-[#f472b6] text-[12px] leading-none font-medium text-[#ec4899]">
                         공지
                       </span>
                     )}

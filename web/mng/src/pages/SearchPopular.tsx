@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Chip, NumCell } from '../components/table'
 
-interface Item { word: string; total_count: number; last_date: string }
+interface Item {
+  word: string
+  total_count: number
+  last_date: string
+}
+
+const PERIODS = [
+  { days: 1, label: '오늘' },
+  { days: 7, label: '최근 7일' },
+  { days: 30, label: '최근 30일' },
+  { days: 90, label: '최근 90일' },
+]
 
 export default function SearchPopular() {
   const [days, setDays] = useState(7)
@@ -10,51 +22,56 @@ export default function SearchPopular() {
 
   useEffect(() => {
     setLoading(true)
-    api<{ items: Item[] }>(`/admin/board-ops/popular-ranking?days=${days}`).then((r) => setItems(r.items)).finally(() => setLoading(false))
+    api<{ items: Item[] }>(`/admin/board-ops/popular-ranking?days=${days}`)
+      .then((r) => setItems(r.items))
+      .finally(() => setLoading(false))
   }, [days])
 
   return (
-    <div className="space-y-3">
-      <h1 className="text-xl font-semibold">인기검색어 순위</h1>
-
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs text-gray-500">집계 기간</span>
-          {[1, 7, 30, 90].map((d) => (
-            <button key={d} onClick={() => setDays(d)}
-              className={`px-3 py-1.5 rounded text-xs ${days === d ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-              {d === 1 ? '오늘' : `최근 ${d}일`}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-3 max-w-[1100px]">
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">인기검색어 순위</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">집계 기간별 검색어 랭킹</p>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-brand-600 dark:bg-brand-700 text-[11px] text-white">
-            <tr>
-              <th className="px-3 py-2 text-left font-medium w-16">순위</th>
-              <th className="px-3 py-2 text-left font-medium">검색어</th>
-              <th className="px-3 py-2 text-right font-medium">검색수</th>
-              <th className="px-3 py-2 text-left font-medium">최근 날짜</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {loading ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-500">로딩...</td></tr>
-            ) : items.length === 0 ? (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">자료가 없습니다.</td></tr>
-            ) : items.map((i, idx) => (
-              <tr key={i.word} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                <td className="px-3 py-2 font-bold text-brand-600">#{idx + 1}</td>
-                <td className="px-3 py-2 font-medium">{i.word}</td>
-                <td className="px-3 py-2 text-right">{i.total_count.toLocaleString()}회</td>
-                <td className="px-3 py-2 text-xs text-gray-500">{i.last_date}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {/* 기간 칩 */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <span className="text-xs text-gray-500 mr-1">집계 기간</span>
+        {PERIODS.map((p) => (
+          <Chip key={p.days} label={p.label} active={days === p.days} onClick={() => setDays(p.days)} />
+        ))}
       </div>
+
+      <TableShell>
+        <THead>
+          <Th align="center">순위</Th>
+          <Th align="left">검색어</Th>
+          <Th align="right">검색수</Th>
+          <Th align="left">최근 날짜</Th>
+        </THead>
+        <TBody>
+          {loading ? (
+            <EmptyRow colSpan={4} loading />
+          ) : items.length === 0 ? (
+            <EmptyRow colSpan={4} />
+          ) : (
+            items.map((i, idx) => (
+              <Tr key={i.word}>
+                <Td align="center">
+                  {idx + 1 <= 3 ? (
+                    <span className="font-bold text-amber-600">#{idx + 1}</span>
+                  ) : (
+                    <span className="text-gray-400">#{idx + 1}</span>
+                  )}
+                </Td>
+                <Td align="left" className="font-medium">{i.word}</Td>
+                <Td align="right"><NumCell value={i.total_count} bold /></Td>
+                <Td align="left" className="text-xs text-gray-500 tabular-nums">{i.last_date}</Td>
+              </Tr>
+            ))
+          )}
+        </TBody>
+      </TableShell>
     </div>
   )
 }

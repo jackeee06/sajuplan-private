@@ -10,6 +10,7 @@ interface AdminMemberRow {
   nickname: string;
   role: string;
   level: number;
+  is_super: boolean | null;
 }
 
 export interface AdminLoginResult {
@@ -19,6 +20,7 @@ export interface AdminLoginResult {
   nickname: string;
   role: 'admin';
   level: number;
+  is_super: boolean;
 }
 
 @Injectable()
@@ -27,7 +29,7 @@ export class AdminAuthService {
 
   async login(mbId: string, password: string): Promise<AdminLoginResult> {
     const rows = await this.sql<AdminMemberRow[]>`
-      SELECT id, mb_id, password, name, nickname, role, level
+      SELECT id, mb_id, password, name, nickname, role, level, is_super
         FROM member
        WHERE mb_id = ${mbId}
          AND role = 'admin'
@@ -57,6 +59,7 @@ export class AdminAuthService {
       nickname: admin.nickname,
       role: 'admin',
       level: admin.level,
+      is_super: !!admin.is_super,
     };
   }
 

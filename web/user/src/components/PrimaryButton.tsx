@@ -1,4 +1,4 @@
-import { ButtonHTMLAttributes, ReactNode } from 'react'
+﻿import { ButtonHTMLAttributes, ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -7,7 +7,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /**
- * 사주문 1차 버튼 — Figma: w-full h48 pill #8259F5 / disabled #cabbfd
+ * 사주플랜 1차 버튼 — Figma: w-full h48 pill #ec4899 / disabled #cabbfd
  * 로딩 중이면 좌측에 스피너 + disabled 처리
  */
 export default function PrimaryButton({
@@ -21,7 +21,7 @@ export default function PrimaryButton({
   return (
     <button
       disabled={isDisabled}
-      className={`h-12 w-full flex items-center justify-center gap-1 rounded-full bg-[#8259F5] hover:bg-brand-500 active:bg-brand-600 text-white text-[16px] font-medium transition disabled:bg-[#cabbfd] disabled:cursor-not-allowed ${className}`}
+      className={`h-12 w-full flex items-center justify-center gap-1 rounded-full bg-[#ec4899] hover:bg-brand-500 active:bg-brand-600 text-white text-[16px] font-medium transition disabled:bg-[#cabbfd] disabled:cursor-not-allowed ${className}`}
       {...rest}
     >
       {loading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -43,7 +43,7 @@ export function OutlineButton({
   return (
     <button
       disabled={disabled}
-      className={`h-10 px-4 rounded-full border border-[#8259F5] bg-white text-[14px] font-medium text-[#8259F5] hover:bg-[#f8f5ff] active:bg-[#f1ecfe] transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${className}`}
+      className={`h-10 px-4 rounded-full border border-[#ec4899] bg-white text-[14px] font-medium text-[#ec4899] hover:bg-[#f8f5ff] active:bg-[#fdf2f8] transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap ${className}`}
       {...rest}
     >
       {children}

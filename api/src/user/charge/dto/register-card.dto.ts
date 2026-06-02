@@ -1,7 +1,7 @@
 import { IsInt, IsString, Length, Matches, Min } from 'class-validator';
 
 /**
- * 사주문페이(자동결제) 카드 등록 입력.
+ * 사주플랜페이(자동결제) 카드 등록 입력.
  *
  * sample/coin/coin_fill_auto_card.php 폼 5필드:
  *   - 카드번호 16자리 (대시 허용 → 서버에서 제거)

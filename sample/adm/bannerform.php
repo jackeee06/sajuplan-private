@@ -92,7 +92,7 @@ include_once (G5_ADMIN_PATH.'/admin.head.php');
 			· 오늘의운세: 1000*520px
 			· 소원다락방-상단: 1000*520px
 			· 소원다락방-하단: 1000*XXXpx
-			· 사주문의길: 1000*1100px
+			· 사주플랜의길: 1000*1100px
 			"); ?>
         </td>
         <!--            20250805 eun 매인 배너 이벤트 영역 크기 변경 마감-->
@@ -133,7 +133,7 @@ include_once (G5_ADMIN_PATH.'/admin.head.php');
 		        <option value="오늘의운세"<?php echo get_selected($bn['bn_position'], '오늘의운세'); ?>>오늘의운세</option>
         		<option value="소원다락방-상단"<?php echo get_selected($bn['bn_position'], '소원다락방-상단'); ?>>소원다락방-상단</option>
 		        <option value="소원다락방-하단"<?php echo get_selected($bn['bn_position'], '소원다락방-하단'); ?>>소원다락방-하단</option>
-                <option value="사주문의길"<?php echo get_selected($bn['bn_position'], '사주문의길'); ?>>사주문의길</option>
+                <option value="사주플랜의길"<?php echo get_selected($bn['bn_position'], '사주플랜의길'); ?>>사주플랜의길</option>
         	</select>
         </td>
     </tr>

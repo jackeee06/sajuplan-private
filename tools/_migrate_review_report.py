@@ -29,7 +29,7 @@ TARGETS = [
     {
         "label": "prod",
         "host": "104.64.128.103",
-        "env_file": "/data/wwwroot/api.sajumoon.co.kr/.env",
+        "env_file": "/data/wwwroot/api.sajuplan.com/.env",
     },
 ]
 

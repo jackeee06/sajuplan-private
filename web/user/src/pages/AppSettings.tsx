@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import { authApi } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 
@@ -86,7 +87,8 @@ export default function AppSettings() {
           <p className="mt-3 text-[13px] text-[#FF6467]">{error}</p>
         )}
       </main>
-    </div>
+      <BottomNav />
+      </div>
   )
 }
 
@@ -107,7 +109,7 @@ function PushToggle({
       disabled={disabled}
       onClick={onToggle}
       className="relative w-[52px] h-[30px] rounded-full transition-colors disabled:opacity-60"
-      style={{ background: on ? '#9B7AF7' : '#E5E7EB' }}
+      style={{ background: on ? '#f472b6' : '#E5E7EB' }}
     >
       <span
         className="absolute top-[3px] w-6 h-6 rounded-full bg-white flex items-center justify-center transition-all shadow-sm"

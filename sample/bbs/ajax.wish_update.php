@@ -47,7 +47,7 @@ if($wr_id){
 		$rtn=sql_query($usql);
 		
 		if($rtn){
-			echo $wish_ing."일차 기도가 진행중입니다.(".$point."원 누적 적립)\n사주문가 함께 기도합니다!";
+			echo $wish_ing."일차 기도가 진행중입니다.(".$point."원 누적 적립)\n사주플랜가 함께 기도합니다!";
 			exit;
 		}
 	}

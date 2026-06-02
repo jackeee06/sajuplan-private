@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { M2netService } from '../../shared/m2net/m2net.service';
 import { M2netPushService } from '../../pg-callbacks/m2net-push.service';
+import { AlertsService } from '../../shared/alerts/alerts.service';
 
 /**
  * 사용자/상담사용 채팅 데이터 접근.
@@ -66,6 +67,10 @@ export interface ChatMessageRow {
   created_at: string;
   /** 본인 메시지 여부 — controller 가 me 와 비교 후 채움 */
   is_mine?: boolean;
+  /** [2026-05-23] 이전 대화 누적 표시 — 같은 페어의 다른 방 메시지 구분용 */
+  chat_room_id?: number;
+  /** [2026-05-23] 안 읽음 표시 — read_at IS NULL 이면 상대가 아직 안 봄 */
+  read_at?: string | null;
 }
 
 @Injectable()
@@ -94,6 +99,7 @@ export class UserChatService {
     private readonly m2net: M2netService,
     private readonly config: ConfigService,
     private readonly m2netPush: M2netPushService,
+    private readonly alerts: AlertsService,
   ) {}
 
   /**
@@ -111,7 +117,7 @@ export class UserChatService {
   }
 
   /**
-   * 채팅 종료 시 상담사 사주문 + m2net 상태를 ready state 로 복귀.
+   * 채팅 종료 시 상담사 사주플랜 + m2net 상태를 ready state 로 복귀.
    *  fire-and-forget 호출 패턴 — 종료 흐름의 응답 지연 방지.
    */
   private async restoreCounselorReady(counselorId: number): Promise<void> {
@@ -214,7 +220,7 @@ export class UserChatService {
         r.id, r.roomid, r.status, r.member_id, r.counselor_id, r.started_at, r.ended_at,
         r.unit_seconds, r.unit_cost, r.snapshot_member_point,
         m.name AS member_name, m.nickname AS member_nickname,
-        m.csrid AS member_csrid,
+        m.m2net_membid AS member_csrid,
         c.name AS counselor_name, c.nickname AS counselor_nickname,
         c.csrid AS counselor_csrid,
         (SELECT mf.stored_name FROM member_file mf
@@ -239,13 +245,25 @@ export class UserChatService {
       room.member_profile_image = `/uploads/member/${room.member_profile_image}`;
     }
 
+    // [2026-05-23] 이전 대화 누적 표시는 사용자 요청으로 비활성 — 현재 방의 메시지만.
+    //   read_at IS NULL = 상대가 아직 안 봄 → 본인 메시지 옆에 "1" 표시.
     const messages = await this.sql<ChatMessageRow[]>`
-      SELECT id, sender_id, message, message_type, created_at
-      FROM chat_message
-      WHERE chat_room_id = ${params.chatRoomId}
-      ORDER BY created_at ASC, id ASC
+      SELECT id, sender_id, message, message_type, created_at,
+             chat_room_id, read_at
+        FROM chat_message
+       WHERE chat_room_id = ${params.chatRoomId}
+       ORDER BY created_at ASC, id ASC
     `;
     for (const msg of messages) msg.is_mine = msg.sender_id === params.me;
+
+    // 본인이 방에 입장한 시점 — 현재 방의 상대 메시지 중 안 읽은 것을 read_at = NOW() 마킹.
+    void this.sql`
+      UPDATE chat_message
+         SET read_at = NOW()
+       WHERE chat_room_id = ${params.chatRoomId}
+         AND sender_id <> ${params.me}
+         AND read_at IS NULL
+    `.catch(() => { /* swallow — UI 표시에 영향 없음 */ });
 
     // 활성 방이면 본인 역할에 맞는 wss 토큰 발급.
     //
@@ -397,14 +415,14 @@ export class UserChatService {
 
     const messages = params.since
       ? await this.sql<ChatMessageRow[]>`
-          SELECT id, sender_id, message, message_type, created_at
+          SELECT id, sender_id, message, message_type, created_at, chat_room_id, read_at
             FROM chat_message
            WHERE chat_room_id = ${params.chatRoomId}
              AND created_at > ${params.since}::timestamptz
            ORDER BY created_at ASC, id ASC
         `
       : await this.sql<ChatMessageRow[]>`
-          SELECT id, sender_id, message, message_type, created_at
+          SELECT id, sender_id, message, message_type, created_at, chat_room_id, read_at
             FROM chat_message
            WHERE chat_room_id = ${params.chatRoomId}
            ORDER BY created_at ASC, id ASC
@@ -414,8 +432,33 @@ export class UserChatService {
   }
 
   /**
+   * [2026-05-23] 안 읽음 마킹 — 상대 메시지를 본 시점에 호출.
+   *   chat_room_id 의 본인이 아닌 메시지(=상대 메시지) 중 read_at IS NULL 인 모든 row 를
+   *   read_at = NOW() 로 마킹. 본인 화면의 "1" 표시는 영향 없음 (본인 메시지는 그대로).
+   */
+  async markRead(params: { me: number; chatRoomId: number }): Promise<{ updated: number }> {
+    const owner = await this.sql<{ member_id: number; counselor_id: number }[]>`
+      SELECT member_id, counselor_id FROM chat_room
+       WHERE id = ${params.chatRoomId}
+         AND (member_id = ${params.me} OR counselor_id = ${params.me})
+       LIMIT 1
+    `;
+    if (owner.length === 0) throw new NotFoundException('채팅방을 찾을 수 없습니다.');
+    // 현재 방의 상대 메시지만 마킹 (누적 표시 비활성).
+    const result = await this.sql<{ id: number }[]>`
+      UPDATE chat_message
+         SET read_at = NOW()
+       WHERE chat_room_id = ${params.chatRoomId}
+         AND sender_id <> ${params.me}
+         AND read_at IS NULL
+      RETURNING id
+    `;
+    return { updated: result.length };
+  }
+
+  /**
    * 메시지 백업 INSERT — wss `conv_msg` 가 m2net 측에서 저장되지만,
-   * 사주문 자체 화면(관리자 chat-history, 회원 다시보기)에 활용하기 위해
+   * 사주플랜 자체 화면(관리자 chat-history, 회원 다시보기)에 활용하기 위해
    * React 가 wss `conv_msg` 수신/송신 양쪽 모두 한 번씩 호출한다.
    *
    * 멱등성은 보장 안 함(시간 + 보낸이 + 본문이 동일해도 별도 row). React 측에서
@@ -901,12 +944,15 @@ export class UserChatService {
       const extraUnits = Math.floor(totalPts / unitCost);
       const extraSec = extraUnits * unitSec;
       const residue = totalPts - extraUnits * unitCost;
+      // [엄격검증 5차 fix 2026-05-27] 충전으로 alloc 증가 시 five_min_alert_sent_at NULL reset.
+      //   → 다음 5분 진입 시점에 알림 재발화 가능. 사용자가 충전했으니 두 번째 알림 받아야 함.
       await tx`
         UPDATE chat_room SET
           alloc_seconds_member = alloc_seconds_member + ${extraSec},
           alloc_seconds_counselor = alloc_seconds_counselor + ${extraSec},
           point_residue = ${residue},
-          snapshot_member_point = snapshot_member_point + ${deltaPts}
+          snapshot_member_point = snapshot_member_point + ${deltaPts},
+          five_min_alert_sent_at = NULL
          WHERE id = ${chatRoomId}
       `;
     });
@@ -977,6 +1023,93 @@ export class UserChatService {
   }
 
   /**
+   * [엄격검증 5차 fix 2026-05-27] 채팅 5분 알림 안전망 cron.
+   *
+   * 회원이 ChatRoom 페이지를 떠나면 tickRoom 호출이 멈춰 5분 진입 감지가 안 됨.
+   * 이 cron 이 매분 active chat_room 검사 → 잔여 ≤ 5분 진입 감지 → alerts 발화.
+   *
+   *  - five_min_alert_sent_at IS NULL 인 방만 대상 (멱등성)
+   *  - 잔여 = alloc_seconds_member - use_seconds, 0 < 잔여 ≤ 300 인 경우 발화
+   *  - tickRoom 과 race 없음 — UPDATE...RETURNING 으로 first-write-wins
+   */
+  async scanFiveMinAlerts(): Promise<{ fired: number; rooms: number[] }> {
+    const candidates = await this.sql<{
+      id: number;
+      member_id: number | null;
+      counselor_id: number | null;
+      alloc_seconds_member: number;
+    }[]>`
+      UPDATE chat_room
+         SET five_min_alert_sent_at = now()
+       WHERE id IN (
+         SELECT id FROM chat_room
+          WHERE status = 'CNCH'
+            AND ended_at IS NULL
+            AND five_min_alert_sent_at IS NULL
+            AND alloc_seconds_member - use_seconds > 0
+            AND (
+              -- 짧은 alloc (1분 등): 30초 이하 임계
+              (alloc_seconds_member < 300 AND alloc_seconds_member - use_seconds <= 30)
+              -- 일반 alloc (5분 이상): 5분 이하 임계
+              OR (alloc_seconds_member >= 300 AND alloc_seconds_member - use_seconds <= 300)
+            )
+       )
+      RETURNING id, member_id, counselor_id, alloc_seconds_member
+    `;
+    const fired: number[] = [];
+    for (const r of candidates) {
+      try {
+        // [2026-05-30] 짧은 alloc(1분 등) 대응 — 본문도 동적
+        const alertMsg = Number(r.alloc_seconds_member) < 300
+          ? '[ALERT_5MIN]잔여 시간 30초 안내'
+          : '[ALERT_5MIN]잔여 시간 5분 안내';
+        await this.sql`
+          INSERT INTO chat_message (chat_room_id, sender_id, message, message_type)
+          VALUES (${r.id}, NULL, ${alertMsg}, 3)
+        `;
+      } catch (e) {
+        this.logger.warn(
+          `[scanFiveMinAlerts] chat_message INSERT 실패 chat_room_id=${r.id}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+      const dedupKey = `${r.id}-${Date.now()}`;
+      if (r.member_id) {
+        this.alerts.enqueue(r.member_id, {
+          type: 'consult_5min_warning' as const,
+          title: '⏰ 5분 남았어요',
+          body: '충전하시면 끊김 없이 계속 상담 가능합니다',
+          link: `/chat/${r.id}`,
+          data: {
+            consult_id: dedupKey,
+            consult_type: 'chat',
+            audience: 'member',
+            chat_room_id: String(r.id),
+          },
+        });
+      }
+      if (r.counselor_id) {
+        this.alerts.enqueue(r.counselor_id, {
+          type: 'consult_5min_warning' as const,
+          title: '⏰ 회원 5분 남았어요',
+          body: '마무리 멘트 안내 부탁드립니다',
+          link: `/chat/${r.id}`,
+          data: {
+            consult_id: dedupKey,
+            consult_type: 'chat',
+            audience: 'counselor',
+            chat_room_id: String(r.id),
+          },
+        });
+      }
+      fired.push(r.id);
+    }
+    if (fired.length > 0) {
+      this.logger.log(`[scanFiveMinAlerts] 발화 ${fired.length}건: [${fired.join(',')}]`);
+    }
+    return { fired: fired.length, rooms: fired };
+  }
+
+  /**
    * 사용시간 +10초 — sample updateTime 동등. 잔여<10 이면 status='DISCONNECT'.
    * 클라이언트가 10초 간격으로 호출.
    */
@@ -995,6 +1128,10 @@ export class UserChatService {
     `;
     if (owner.length === 0) throw new NotFoundException('채팅방을 찾을 수 없습니다.');
 
+    // [엄격검증 3차 fix 2026-05-27 T-2] tx 안에서 데이터만 채취, alerts.enqueue 는 commit 후
+    let pendingFiveMinMemberId: number | null = null;
+    let pendingFiveMinCounselorId: number | null = null;
+
     return this.sql.begin(async (tx) => {
       const rows = await tx<{
         status: string;
@@ -1011,6 +1148,13 @@ export class UserChatService {
       if (r.status === 'DISCONNECT') {
         return { success: false, used: 0, remain: 0, reason: 'disconnected' };
       }
+      // [2026-05-24] 상담사 미입장(STAY) 상태에서는 차감 금지 — 회원이 결제한 시간 보호.
+      // 상담사 입장 시 m2net START_CHAT push 가 도착해 status='CNCH' 로 전환되면 누적 시작.
+      // 3분 자동 취소 cron 이 STAY 무한 대기도 별도 처리.
+      if (r.status === 'STAY') {
+        const remain = Number(r.alloc_seconds_member) - Number(r.use_seconds);
+        return { success: false, used: 0, remain: Math.max(0, remain), reason: 'awaiting_counselor' };
+      }
       // 회원이 채팅방 이탈 상태(soft leave) 면 use_seconds 누적 거부 — 차감 발생 안 함.
       // 재입장 시 markRejoin 이 try_out 해제하면 다시 누적 시작.
       if (r.member_try_out) {
@@ -1020,7 +1164,49 @@ export class UserChatService {
       const remain = Number(r.alloc_seconds_member) - Number(r.use_seconds);
       if (remain >= 10) {
         await tx`UPDATE chat_room SET use_seconds = use_seconds + 10 WHERE id = ${params.chatRoomId}`;
-        return { success: true, used: 10, remain: remain - 10 };
+
+        // [2026-05-27] 5분 잔여 진입 시 시스템 메시지 INSERT + 전역 alerts 큐 push.
+        //
+        // [엄격검증 5차 fix 2026-05-27] chat_room.five_min_alert_sent_at 컬럼으로 발화 멱등성.
+        //   - tickRoom (회원 ChatRoom 안) + chat-alert-cron (회원 이탈 시 안전망) 양쪽 동작.
+        //   - 충전으로 alloc 증가 시 NULL reset (markRejoin / consult extendChat 등) → 재발화.
+        //   - tickRoom 이 빠르므로 즉시성 우선, cron 은 회원 떠난 채팅방 안전망.
+        const newRemain = remain - 10;
+        const FIVE_MIN = 300;
+        // [2026-05-29] 짧은 alloc (1분 테스트 옵션 등) 대응 — alloc 자체가 5분 미만이면 30초 임계.
+        //   _PREPAID_CHAT_POLICY.md §7.2 참조. 운영에서 1분 옵션 제거 후 자동으로 5분 임계 복귀.
+        const allocSec = Number(r.alloc_seconds_member);
+        const alertThreshold = allocSec < FIVE_MIN ? 30 : FIVE_MIN;
+        // 임계 진입 또는 이미 임계 미만 + 아직 알림 안 보낸 경우 모두 발화 (tick 미세 race 방어)
+        if (newRemain > 0 && newRemain <= alertThreshold) {
+          const sentCheck = await tx<{ already: boolean; member_id: number | null; counselor_id: number | null }[]>`
+            UPDATE chat_room
+               SET five_min_alert_sent_at = now()
+             WHERE id = ${params.chatRoomId}
+               AND five_min_alert_sent_at IS NULL
+             RETURNING (false) AS already, member_id, counselor_id
+          `;
+          if (sentCheck.length > 0) {
+            // 본 트랜잭션이 이 채팅방의 첫 5분 알림 발화 권한 획득
+            // [2026-05-30] 짧은 alloc (1분 등) 대응 — 메시지 본문도 임계에 맞게 동적.
+            const alertMsg =
+              alertThreshold === 30
+                ? '[ALERT_5MIN]잔여 시간 30초 안내'
+                : '[ALERT_5MIN]잔여 시간 5분 안내';
+            await tx`
+              INSERT INTO chat_message (chat_room_id, sender_id, message, message_type)
+              VALUES (${params.chatRoomId}, NULL, ${alertMsg}, 3)
+            `.catch((e) => {
+              this.logger.warn(
+                `[ALERT_5MIN] INSERT 실패 chatRoomId=${params.chatRoomId}: ${e instanceof Error ? e.message : String(e)}`,
+              );
+            });
+            pendingFiveMinMemberId = sentCheck[0].member_id ?? null;
+            pendingFiveMinCounselorId = sentCheck[0].counselor_id ?? null;
+          }
+        }
+
+        return { success: true, used: 10, remain: newRemain };
       }
       // 잔여 부족 → 즉시 종료. roomid 에 suffix 붙여 다음 채팅 시 충돌 방지.
       await tx`
@@ -1041,6 +1227,40 @@ export class UserChatService {
       }
       return { success: false, used: 0, remain: 0, reason: 'no_remain' as const };
     }).then(async (res) => {
+      // [엄격검증 3차 fix 2026-05-27 T-2] tx commit 성공 후에만 alerts 큐 push.
+      // tx rollback (DB 예외) 시엔 pending 변수 무시 — 정합성 보장.
+      // 충전 후 두 번째 5분 진입 시 alerts dedup 충돌 회피 위해 consult_id 에 timestamp suffix.
+      if (pendingFiveMinMemberId || pendingFiveMinCounselorId) {
+        const dedupKey = `${params.chatRoomId}-${Date.now()}`;
+        if (pendingFiveMinMemberId) {
+          this.alerts.enqueue(pendingFiveMinMemberId, {
+            type: 'consult_5min_warning' as const,
+            title: '⏰ 5분 남았어요',
+            body: '충전하시면 끊김 없이 계속 상담 가능합니다',
+            link: `/chat/${params.chatRoomId}`,
+            data: {
+              consult_id: dedupKey,
+              consult_type: 'chat',
+              audience: 'member',
+              chat_room_id: String(params.chatRoomId),
+            },
+          });
+        }
+        if (pendingFiveMinCounselorId) {
+          this.alerts.enqueue(pendingFiveMinCounselorId, {
+            type: 'consult_5min_warning' as const,
+            title: '⏰ 회원 5분 남았어요',
+            body: '마무리 멘트 안내 부탁드립니다',
+            link: `/chat/${params.chatRoomId}`,
+            data: {
+              consult_id: dedupKey,
+              consult_type: 'chat',
+              audience: 'counselor',
+              chat_room_id: String(params.chatRoomId),
+            },
+          });
+        }
+      }
       // 자동 종료(잔여 부족) 시점에 m2net END_CHAT push 가 안 올 수 있으니 자체 정산 트리거.
       // settleChatRoomLocal 은 consultation.roomid + reason 멱등 가드가 있어 중복 안전.
       if (!res.success && res.reason === 'no_remain') {

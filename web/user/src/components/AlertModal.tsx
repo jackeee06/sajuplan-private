@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+﻿import { useEffect } from 'react'
 import { useDismissOnBack } from '../lib/use-dismiss-on-back'
 
 interface Props {
@@ -62,7 +62,7 @@ export default function AlertModal({
         <button
           type="button"
           onClick={onClose}
-          className="w-full h-12 rounded-full bg-[#8259F5] text-white text-[15px] font-medium hover:opacity-90 transition"
+          className="w-full h-12 rounded-full bg-[#ec4899] text-white text-[15px] font-medium hover:opacity-90 transition"
         >
           {confirmLabel}
         </button>

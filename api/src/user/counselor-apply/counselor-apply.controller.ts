@@ -19,7 +19,6 @@ import { extname, join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { OptionalUserGuard, type OptionalUserRequest } from '../auth/optional-user.guard';
 import { UserAuthGuard, type UserAuthedRequest } from '../auth/user-auth.guard';
-import { CaptchaService } from '../captcha/captcha.service';
 import { SmsService } from '../sms/sms.service';
 import { UserCounselorApplyService } from './counselor-apply.service';
 import { convertImageToWebp } from '../../shared/common/image-to-webp';
@@ -68,7 +67,6 @@ const fileInterceptor = (field: string) =>
 export class UserCounselorApplyController {
   constructor(
     private readonly svc: UserCounselorApplyService,
-    private readonly captcha: CaptchaService,
     private readonly sms: SmsService,
   ) {}
 
@@ -183,22 +181,21 @@ export class UserCounselorApplyController {
       applicant_email?: string;
       is_secret?: boolean;
       extras?: Record<string, unknown>;
-      captcha_token?: string;
-      captcha_input?: string;
       /** 상담사 가입 ID — application 에서만 사용 */
       mb_id?: string;
       /** 상담사 가입 PW (평문) — application 에서만 사용. 백엔드에서 즉시 bcrypt 해시. */
       password?: string;
     },
   ) {
-    // 1) 자동등록방지(캡차) 검증
-    await this.captcha.verify(body.captcha_token ?? '', body.captcha_input ?? '');
-
-    // 2) 휴대폰 인증 검증 — 모든 종류 공통 (스팸/봇 차단)
+    // 봇 차단: 휴대폰 SMS 인증 검증
+    // 비회원(JWT 없음) 만 검증 — 회원은 이미 가입 시 인증을 거쳐 JWT 발급된 본인이므로 재인증 불필요.
+    // (캡차는 2026-05-21 제거 — SMS 인증이 봇 차단 충분, UX 우선)
     const phone = (body.applicant_phone ?? '').replace(/[^0-9]/g, '');
-    if (!phone) throw new BadRequestException('휴대폰 인증을 완료해주세요.');
-    const verified = await this.sms.isVerifiedRecently(phone);
-    if (!verified) throw new BadRequestException('휴대폰 인증을 완료해주세요.');
+    if (!req.user?.sub) {
+      if (!phone) throw new BadRequestException('휴대폰 인증을 완료해주세요.');
+      const verified = await this.sms.isVerifiedRecently(phone);
+      if (!verified) throw new BadRequestException('휴대폰 인증을 완료해주세요.');
+    }
 
     return this.svc.create({
       memberId: req.user?.sub ?? null,

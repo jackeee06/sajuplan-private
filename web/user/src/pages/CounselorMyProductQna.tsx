@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+﻿import { useParams } from 'react-router-dom'
 import CounselorMyProductDetailLayout from '../components/CounselorMyProductDetailLayout'
 import { MOCK_PRODUCT_QNAS, MOCK_SERVICE_PRODUCTS } from '../data/counselorMyPage'
 
@@ -27,7 +27,7 @@ export default function CounselorMyProductQna() {
 
       <button
         type="button"
-        className="mt-3 w-full h-[44px] rounded-full border border-[#9B7AF7] flex items-center justify-center gap-1 text-[14px] font-medium text-[#8259F5]"
+        className="mt-3 w-full h-[44px] rounded-full border border-[#8259F5] flex items-center justify-center gap-1 text-[14px] font-medium text-[#8259F5]"
       >
         <PencilIcon />
         문의 작성하기
@@ -46,7 +46,7 @@ export default function CounselorMyProductQna() {
               <span
                 className={`inline-flex items-center h-[22px] px-2 rounded-full text-[12px] leading-none font-medium ${
                   q.status === '답변완료'
-                    ? 'bg-[#F3EEFE] text-[#8259F5]'
+                    ? 'bg-[#f3f0ff] text-[#8259F5]'
                     : 'bg-[#F3F4F6] text-[#6A7282]'
                 }`}
               >

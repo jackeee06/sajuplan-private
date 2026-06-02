@@ -375,7 +375,7 @@ $formatted = $dt->format('Y년 n월 j일') . ' ' . $weekdays[(int)$dt->format('w
         <?php } ?>
         <?php if ($member['mb_level'] != 5) { ?>
             <div class="recommend-slide">
-                <p style="margin-bottom: 2.5px; text-align: center"><strong>다음번엔 사주문 추천 상담사와 상담 어떠신가요?</strong></p>
+                <p style="margin-bottom: 2.5px; text-align: center"><strong>다음번엔 사주플랜 추천 상담사와 상담 어떠신가요?</strong></p>
                 <ul>
                     <?php
                     // 상담한 상담사 ID 목록을 반환하는 함수
@@ -415,7 +415,7 @@ $formatted = $dt->format('Y년 n월 j일') . ' ' . $weekdays[(int)$dt->format('w
 
                     // ────────────────────────────────────────────────────────────
                     // 3. 추천 상담사 쿼리
-                    //    • mb_sort 1~20위      (사주문 추천 순위)
+                    //    • mb_sort 1~20위      (사주플랜 추천 순위)
                     //    • state = 'IDLE'      (상담 가능)
                     //    • 상담한 사람 제외
                     //    • 랜덤 2명 추출

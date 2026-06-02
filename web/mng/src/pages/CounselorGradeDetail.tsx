@@ -145,7 +145,7 @@ export default function CounselorGradeDetail() {
   if (!detail) return null
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-[1400px]">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
@@ -183,6 +183,11 @@ export default function CounselorGradeDetail() {
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
           <div className="text-xs text-gray-500">현재 단가 (30초)</div>
           <div className="text-2xl font-bold mt-1 tabular-nums">{detail.current_unit_cost.toLocaleString()}원</div>
+          {detail.current_unit_cost === 1000 && (
+            <div className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+              💡 가입 시 기본값일 수 있음
+            </div>
+          )}
           <button
             onClick={() => setUnitModal(true)}
             className="mt-2 text-xs text-brand-600 hover:underline"

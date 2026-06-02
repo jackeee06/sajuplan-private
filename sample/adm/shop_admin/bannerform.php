@@ -205,7 +205,7 @@ include_once (G5_ADMIN_PATH.'/admin.head.php');
 
 			· 소원다락방-하단: 1000*XXXpx
 
-			· 사주문의길: 1000*1100px
+			· 사주플랜의길: 1000*1100px
 
 			"); ?>
                         <!--            20250805 eun 매인 배너 이벤트 영역 크기 270 -> 170 변경 시작-->
@@ -286,7 +286,7 @@ include_once (G5_ADMIN_PATH.'/admin.head.php');
 
                             <option value="소원다락방-하단"<?php echo get_selected($bn['bn_position'], '소원다락방-하단'); ?>>소원다락방-하단</option>
 
-                            <option value="사주문의길"<?php echo get_selected($bn['bn_position'], '사주문의길'); ?>>사주문의길</option>
+                            <option value="사주플랜의길"<?php echo get_selected($bn['bn_position'], '사주플랜의길'); ?>>사주플랜의길</option>
 
                         </select>
 

@@ -1,10 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Link2, KeyRound, User, Headphones, BadgeCheck, Megaphone, CreditCard, Paperclip } from 'lucide-react'
 import { api } from '../lib/api'
 import HtmlEditor, { type HtmlEditorHandle } from '../components/HtmlEditor'
 import UploadedImage from '../components/UploadedImage'
+import CounselorOpsCompact from '../components/CounselorOpsCompact'
 import { API_BASE, FILE_BASE as FILE_ORIGIN } from '../lib/runtime-env'
+
+// 한국 주요 은행 — 사용자 측 PayoutBankModal.tsx 와 동일 리스트
+// (오타 방지 + 데이터 일관성을 위해 자유 입력 → select)
+const KOREAN_BANKS = [
+  '국민', '신한', '우리', '하나', '농협', 'IBK기업', 'SC제일', '씨티', 'KDB산업',
+  '카카오뱅크', '케이뱅크', '토스뱅크',
+  '부산', '대구', '경남', '광주', '전북', '제주',
+  '새마을금고', '신협', '우체국', '수협',
+] as const
 
 interface CounselorPayload {
   // 계정
@@ -367,7 +377,7 @@ export default function CounselorForm() {
   const wideBgUrl = wideFile ? FILE_BASE + (wideFile.stored_name_webp ?? wideFile.stored_name) : null
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 max-w-[1400px]">
       {/* 페이지 헤더 — 신규: 단순 타이틀 / 수정: 상담사 카드 (사진·이름·뱃지) */}
       {isNew ? (
         <div className="flex items-center justify-between">
@@ -462,6 +472,11 @@ export default function CounselorForm() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* 운영 현황 — 사진 카드 직후 조밀 패널 (자주 변하는 정보 우선 노출). 신규 모드는 데이터 없으니 표시 안 함. */}
+      {!isNew && Number.isFinite(Number(id)) && Number(id) > 0 && (
+        <CounselorOpsCompact memberId={Number(id)} />
       )}
 
       {/* 등급/단가 상세 진입 링크 — 수정 모드 한정 (Phase 8) */}
@@ -570,7 +585,16 @@ export default function CounselorForm() {
             <input type="text" value={data.bank_holder} onChange={(e) => set('bank_holder', e.target.value)} className={inputW.md} />
           </FieldPair>
           <FieldPair label="은행명">
-            <input type="text" value={data.bank_name} onChange={(e) => set('bank_name', e.target.value)} className={inputW.md} />
+            <select
+              value={data.bank_name}
+              onChange={(e) => set('bank_name', e.target.value)}
+              className={inputW.md + ' bg-white dark:bg-gray-800'}
+            >
+              <option value="">은행 선택</option>
+              {KOREAN_BANKS.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
           </FieldPair>
           <FieldPair label="계좌번호">
             <input
@@ -745,16 +769,27 @@ export default function CounselorForm() {
         </Row>
         {/* 단가 그룹 — 070 / 060 / 채팅 한 줄 */}
         <Row label="단가 (원)" hint="단위시간당 차감 금액">
-          <div className="flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-              070 <NumInput value={data.call_070_unit_cost} onChange={(v) => set('call_070_unit_cost', v)} className={inputW.sm} thousand />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-              060 <NumInput value={data.call_060_unit_cost} onChange={(v) => set('call_060_unit_cost', v)} className={inputW.sm} thousand />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-              채팅 <NumInput value={data.chat_unit_cost} onChange={(v) => set('chat_unit_cost', v)} className={inputW.sm} thousand />
-            </label>
+          <div className="flex flex-col gap-2">
+            {/* 신규 가입자 기본단가 안내 (2026-05-22) — 가입 후 30일 이내 + 1000원 기본값일 때 노출.
+                조건이 맞으면 운영자가 "이건 자동 박힌 기본값이구나" 인지 가능. */}
+            {Number(data.call_070_unit_cost) === 1000
+              && Number(data.chat_unit_cost) === 1000 && (
+              <div className="px-2.5 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[11px] text-amber-800 dark:text-amber-300">
+                💡 가입 시 자동 설정된 <strong>기본값(1,000원)</strong>일 수 있습니다.
+                필요 시 단가를 수정해주세요.
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-4">
+              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                070 <NumInput value={data.call_070_unit_cost} onChange={(v) => set('call_070_unit_cost', v)} className={inputW.sm} thousand />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                060 <NumInput value={data.call_060_unit_cost} onChange={(v) => set('call_060_unit_cost', v)} className={inputW.sm} thousand />
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                채팅 <NumInput value={data.chat_unit_cost} onChange={(v) => set('chat_unit_cost', v)} className={inputW.sm} thousand />
+              </label>
+            </div>
           </div>
         </Row>
         {/* 로열티 그룹 — 유료 / 무료 한 줄 */}
@@ -928,7 +963,7 @@ export default function CounselorForm() {
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
                   <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-b from-transparent to-black/70" />
-                  <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-[#9B7AF7] text-white text-[10px] font-semibold leading-none">
+                  <div className="absolute top-3 left-3 px-2 py-0.5 rounded-full bg-[#f472b6] text-white text-[10px] font-semibold leading-none">
                     이벤트 상담사
                   </div>
                   <p className="absolute left-3 right-3 top-1/2 -translate-y-1/2 text-white text-[18px] font-bold leading-tight drop-shadow line-clamp-1">

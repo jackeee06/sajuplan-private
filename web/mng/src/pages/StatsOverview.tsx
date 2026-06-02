@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Chip, NumCell } from '../components/table'
 
 interface Overview {
   member_total: number
@@ -11,9 +12,22 @@ interface Overview {
   month_payment_amt: number
 }
 
-interface DailyVisit { date: string; count: number }
-interface DailyRevenue { date: string; consultation_amt: number; payment_amt: number }
-interface MonthlyRevenue { month: string; consultation_amt: number; payment_amt: number }
+interface DailyVisit {
+  date: string
+  count: number
+}
+interface DailyRevenue {
+  date: string
+  consultation_amt: number
+  payment_amt: number
+}
+interface MonthlyRevenue {
+  month: string
+  consultation_amt: number
+  payment_amt: number
+}
+
+const PERIODS = [7, 30, 90, 180]
 
 export default function StatsOverview() {
   const [ov, setOv] = useState<Overview | null>(null)
@@ -34,11 +48,14 @@ export default function StatsOverview() {
 
   return (
     <div className="space-y-3 max-w-[1100px]">
-      <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">통계</h1>
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">통계</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">회원·방문·매출 통합 통계</p>
+      </div>
 
-      {/* KPI */}
+      {/* KPI — 콘텐츠 기반 폭 */}
       {ov && (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+        <div className="flex flex-wrap gap-2 [&>div]:min-w-[140px]">
           <Kpi label="회원" value={ov.member_total.toLocaleString()} unit="명" />
           <Kpi label="상담사" value={ov.counselor_total.toLocaleString()} unit="명" />
           <Kpi label="오늘 방문" value={ov.today_visits.toLocaleString()} unit="건" />
@@ -48,93 +65,93 @@ export default function StatsOverview() {
         </div>
       )}
 
-      {/* 기간 선택 */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-gray-500">일별 추이 기간</span>
-        {[7, 30, 90, 180].map((d) => (
-          <button key={d} onClick={() => setDays(d)} className={`px-3 py-1.5 rounded text-xs ${days === d ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-            최근 {d}일
-          </button>
+      {/* 기간 칩 */}
+      <div className="flex flex-wrap gap-2 items-center">
+        <span className="text-xs text-gray-500 mr-1">일별 추이 기간</span>
+        {PERIODS.map((d) => (
+          <Chip key={d} label={`최근 ${d}일`} active={days === d} onClick={() => setDays(d)} />
         ))}
       </div>
 
-      {/* 일별 방문/매출 테이블 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-          <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200">일별 방문자</div>
-          <div className="max-h-[400px] overflow-y-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-500">
-                <tr><th className="px-3 py-2 text-left">날짜</th><th className="px-3 py-2 text-right">방문수</th></tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {visits.length === 0 ? <tr><td colSpan={2} className="px-3 py-6 text-center text-gray-400">자료 없음</td></tr>
-                  : [...visits].reverse().map((v) => (
-                    <tr key={v.date} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                      <td className="px-3 py-1.5 text-gray-600">{v.date}</td>
-                      <td className="px-3 py-1.5 text-right font-medium">{v.count.toLocaleString()}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-          <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200">일별 매출</div>
-          <div className="max-h-[400px] overflow-y-auto">
-            <table className="w-full text-xs">
-              <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-500">
-                <tr>
-                  <th className="px-3 py-2 text-left">날짜</th>
-                  <th className="px-3 py-2 text-right">상담</th>
-                  <th className="px-3 py-2 text-right">결제</th>
-                  <th className="px-3 py-2 text-right">합계</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {revenues.length === 0 ? <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">자료 없음</td></tr>
-                  : [...revenues].reverse().map((v) => (
-                    <tr key={v.date} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                      <td className="px-3 py-1.5 text-gray-600">{v.date}</td>
-                      <td className="px-3 py-1.5 text-right">{v.consultation_amt.toLocaleString()}</td>
-                      <td className="px-3 py-1.5 text-right">{v.payment_amt.toLocaleString()}</td>
-                      <td className="px-3 py-1.5 text-right font-medium">{(v.consultation_amt + v.payment_amt).toLocaleString()}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+      {/* 일별 통합 (방문 + 매출) — 세로 스크롤 + sticky 헤더로 페이지 컴팩트 */}
+      <div>
+        <div className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">일별 방문 + 매출</div>
+        <TableShell maxHeight="max-h-[400px] overflow-y-auto">
+          <THead sticky>
+            <Th align="left">날짜</Th>
+            <Th align="right">방문</Th>
+            <Th align="right">상담 매출</Th>
+            <Th align="right">결제 매출</Th>
+            <Th align="right">매출 합계</Th>
+          </THead>
+          <TBody>
+            {visits.length === 0 && revenues.length === 0 ? (
+              <EmptyRow colSpan={5} />
+            ) : (
+              [...mergeDaily(visits, revenues)].reverse().map((d) => (
+                <Tr key={d.date}>
+                  <Td align="left" className="text-xs text-gray-600 tabular-nums">{d.date}</Td>
+                  <Td align="right"><NumCell value={d.visits} bold /></Td>
+                  <Td align="right"><NumCell value={d.consultation_amt} /></Td>
+                  <Td align="right"><NumCell value={d.payment_amt} /></Td>
+                  <Td align="right"><NumCell value={d.consultation_amt + d.payment_amt} bold /></Td>
+                </Tr>
+              ))
+            )}
+          </TBody>
+        </TableShell>
       </div>
 
       {/* 월별 매출 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-        <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-700 dark:text-gray-200">월별 매출 (최근 12개월)</div>
-        <table className="w-full text-xs">
-          <thead className="bg-gray-50 dark:bg-gray-800/50 text-gray-500">
-            <tr>
-              <th className="px-3 py-2 text-left">월</th>
-              <th className="px-3 py-2 text-right">상담 매출</th>
-              <th className="px-3 py-2 text-right">결제 매출</th>
-              <th className="px-3 py-2 text-right">합계</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {monthly.length === 0 ? <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-400">자료 없음</td></tr>
-              : monthly.map((m) => (
-                <tr key={m.month} className="hover:bg-gray-50 dark:hover:bg-gray-800/40">
-                  <td className="px-3 py-1.5 font-medium">{m.month}</td>
-                  <td className="px-3 py-1.5 text-right">{m.consultation_amt.toLocaleString()}</td>
-                  <td className="px-3 py-1.5 text-right">{m.payment_amt.toLocaleString()}</td>
-                  <td className="px-3 py-1.5 text-right font-bold text-brand-700 dark:text-brand-300">{(m.consultation_amt + m.payment_amt).toLocaleString()}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+      <div>
+        <div className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">월별 매출 (최근 12개월)</div>
+        <TableShell>
+          <THead>
+            <Th align="left">월</Th>
+            <Th align="right">상담 매출</Th>
+            <Th align="right">결제 매출</Th>
+            <Th align="right">합계</Th>
+          </THead>
+          <TBody>
+            {monthly.length === 0 ? (
+              <EmptyRow colSpan={4} />
+            ) : (
+              monthly.map((m) => (
+                <Tr key={m.month}>
+                  <Td align="left" className="font-medium tabular-nums">{m.month}</Td>
+                  <Td align="right"><NumCell value={m.consultation_amt} /></Td>
+                  <Td align="right"><NumCell value={m.payment_amt} /></Td>
+                  <Td align="right" className="font-bold text-brand-700 dark:text-brand-300 tabular-nums">
+                    {(m.consultation_amt + m.payment_amt).toLocaleString()}
+                  </Td>
+                </Tr>
+              ))
+            )}
+          </TBody>
+        </TableShell>
       </div>
     </div>
   )
+}
+
+function mergeDaily(
+  visits: DailyVisit[],
+  revenues: DailyRevenue[],
+): Array<{ date: string; visits: number; consultation_amt: number; payment_amt: number }> {
+  const map = new Map<string, { date: string; visits: number; consultation_amt: number; payment_amt: number }>()
+  for (const v of visits) {
+    map.set(v.date, { date: v.date, visits: v.count, consultation_amt: 0, payment_amt: 0 })
+  }
+  for (const r of revenues) {
+    const existing = map.get(r.date)
+    if (existing) {
+      existing.consultation_amt = r.consultation_amt
+      existing.payment_amt = r.payment_amt
+    } else {
+      map.set(r.date, { date: r.date, visits: 0, consultation_amt: r.consultation_amt, payment_amt: r.payment_amt })
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))
 }
 
 function Kpi({ label, value, unit, sub, highlight }: { label: string; value: string; unit: string; sub?: string; highlight?: boolean }) {
@@ -144,7 +161,7 @@ function Kpi({ label, value, unit, sub, highlight }: { label: string; value: str
   return (
     <div className={`px-3 py-2 rounded-lg border ${cls}`}>
       <div className="text-[11px] text-gray-500">{label}</div>
-      <div className="text-lg font-bold mt-0.5 tabular-nums text-gray-800 dark:text-gray-100 leading-tight">
+      <div className="text-lg font-bold mt-0.5 tabular-nums text-gray-900 dark:text-gray-100 leading-tight">
         {value}<span className="text-[10px] font-normal text-gray-500 ml-1">{unit}</span>
       </div>
       {sub && <div className="text-[10px] text-gray-400 mt-0.5">{sub}</div>}

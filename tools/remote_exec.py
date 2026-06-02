@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""사주문 원격 셸 명령 실행 — sshpass/ssh 비밀번호 자동화의 paramiko 대체."""
+"""사주플랜 원격 셸 명령 실행 — sshpass/ssh 비밀번호 자동화의 paramiko 대체."""
 
 from __future__ import annotations
 

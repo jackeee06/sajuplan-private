@@ -18,7 +18,7 @@ $auto_card_data = member_auto_pay_card($member['mb_id']);
 $amount = $_GET["amount"]; //충전 금액
 $order_id = $_GET["order_id"];
 $autopayflag = $auto_card_data["autopayflag"]; //자동 충전 사용하는지 여부
-//$billkey = $_REQUEST["billkey"];  //사주문페이 결제 정보
+//$billkey = $_REQUEST["billkey"];  //사주플랜페이 결제 정보
 
 /// 20250723 eun 10만원 이상 충전 고객 자동 충전 팝업 작업 마감
 

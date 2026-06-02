@@ -86,8 +86,9 @@ export class AdminRefundsService {
         amt_free: number;
         amt_pro: number;
         refunded_amount: number;
+        refund_status: string | null;
       }[]>`
-        SELECT id, member_id, counselor_id, amt, amt_free, amt_pro, refunded_amount
+        SELECT id, member_id, counselor_id, amt, amt_free, amt_pro, refunded_amount, refund_status
           FROM consultation
          WHERE id = ${consultationId}
          FOR UPDATE
@@ -97,6 +98,14 @@ export class AdminRefundsService {
 
       if (!cs.member_id) {
         throw new BadRequestException('회원 ID 없는 상담은 환불 불가 (전화 매칭 누락 건).');
+      }
+
+      // 단기통화 자동환불(2026-05-22 정책)된 건은 수동 환불 불가 — 이미 회원 잔액 복구 완료.
+      // m2net 측에도 +복구되어 있어 재환불 시 이중 환불 사고 발생.
+      if (cs.refund_status === 'short_call_refund') {
+        throw new BadRequestException(
+          '이미 단기통화 자동환불 처리된 상담입니다. 회원 잔액·m2net 잔액 모두 복구 완료 상태로, 수동 환불 불가.',
+        );
       }
 
       // [Audit A-#7] amt 정합성 검증 — amt_free + amt_pro = amt 가 성립해야 함.

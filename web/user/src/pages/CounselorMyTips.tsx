@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FilterDropdown from '../components/FilterDropdown'
@@ -12,7 +12,7 @@ const PAGE_SIZE = 10
  * 08마이페이지_상담사_알짜 정보
  * Figma node-id: 153:10223
  *
- * 카드형 리스트: 풀폭 배너 이미지 + 제목 + "사주문 · 날짜"
+ * 카드형 리스트: 풀폭 배너 이미지 + 제목 + "사주플랜 · 날짜"
  * 상단: 전체 셀렉트 + 검색바 / 카운터 / 페이지네이션
  */
 export default function CounselorMyTips() {

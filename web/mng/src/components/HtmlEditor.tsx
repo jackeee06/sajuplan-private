@@ -21,6 +21,8 @@ interface Props {
    *  생략 시 /admin/events/upload 사용 (event 폼 기본값).
    */
   uploadEndpoint?: string
+  /** 본문 변경 시 호출 — 자동 저장에 사용. 호출 빈도 높으므로 호출자가 디바운스 처리. */
+  onChange?: (html: string) => void
 }
 
 /**
@@ -32,7 +34,7 @@ interface Props {
  * - 외부에서 ref.getHTML() 로 저장 시 본문 HTML 만 추출 (마크다운 모드여도 HTML 반환).
  */
 const HtmlEditor = forwardRef<HtmlEditorHandle, Props>(function HtmlEditor(
-  { initialHtml = '', height = '480px', uploadEndpoint = '/admin/events/upload' },
+  { initialHtml = '', height = '480px', uploadEndpoint = '/admin/events/upload', onChange },
   ref,
 ) {
   const editorRef = useRef<Editor>(null)
@@ -61,6 +63,11 @@ const HtmlEditor = forwardRef<HtmlEditorHandle, Props>(function HtmlEditor(
       initialEditType="wysiwyg"
       useCommandShortcut
       hideModeSwitch={true}
+      onChange={() => {
+        if (!onChange) return
+        const html = editorRef.current?.getInstance().getHTML() ?? ''
+        onChange(html)
+      }}
       toolbarItems={[
         ['heading', 'bold', 'italic', 'strike'],
         ['hr', 'quote'],

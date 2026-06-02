@@ -23,6 +23,9 @@ import { UserEventsModule } from './events/events.module';
 import { UserSettlementsModule } from './settlements/settlements.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { UserCounselorMypageGradeModule } from './counselor-mypage-grade/counselor-mypage-grade.module';
+import { UserCounselorMypagePayoutModule } from './counselor-mypage-payout/counselor-mypage-payout.module';
+import { CounselorMypageMemoModule } from './counselor-mypage-memo/counselor-mypage-memo.module';
+import { AppVersionModule } from './app-version/app-version.module';
 
 @Module({
   imports: [
@@ -50,6 +53,9 @@ import { UserCounselorMypageGradeModule } from './counselor-mypage-grade/counsel
     UserSettlementsModule,
     AttendanceModule,
     UserCounselorMypageGradeModule,
+    UserCounselorMypagePayoutModule,
+    CounselorMypageMemoModule,
+    AppVersionModule,
   ],
 })
 export class UserModule {}

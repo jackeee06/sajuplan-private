@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import UploadedImage from '../components/UploadedImage'
 import { useAuth } from '../lib/auth-context'
@@ -143,7 +144,7 @@ export default function CounselorMyCustomerQnaDetail() {
 
   if (authLoading) {
     return (
-      <div className="mobile-frame flex flex-col pb-6 items-center justify-center min-h-[60vh]">
+      <div className="mobile-frame flex flex-col pb-[100px] items-center justify-center min-h-[60vh]">
         <p className="text-[14px] text-[#6A7282]">불러오는 중...</p>
       </div>
     )
@@ -159,7 +160,7 @@ export default function CounselorMyCustomerQnaDetail() {
 
   if (loading) {
     return (
-      <div className="mobile-frame flex flex-col pb-6 items-center justify-center min-h-[60vh]">
+      <div className="mobile-frame flex flex-col pb-[100px] items-center justify-center min-h-[60vh]">
         <p className="text-[14px] text-[#6A7282]">불러오는 중...</p>
       </div>
     )
@@ -167,7 +168,7 @@ export default function CounselorMyCustomerQnaDetail() {
 
   if (error || !qna) {
     return (
-      <div className="mobile-frame flex flex-col pb-6">
+      <div className="mobile-frame flex flex-col pb-[100px]">
         <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
           <button
             type="button"
@@ -191,7 +192,7 @@ export default function CounselorMyCustomerQnaDetail() {
   const replyImgWebp = qna.reply?.counselor_profile_image_webp ?? null
 
   return (
-    <div className="mobile-frame flex flex-col pb-6">
+    <div className="mobile-frame flex flex-col pb-[100px]">
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -230,7 +231,7 @@ export default function CounselorMyCustomerQnaDetail() {
                     onChange={(e) => setEditDraft(e.target.value)}
                     rows={3}
                     disabled={editSubmitting}
-                    className="w-full min-h-[88px] px-3 py-2 rounded-[10px] bg-[#F9FAFB] border border-[#9B7AF7] text-[14px] leading-[160%] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none disabled:opacity-50 resize-none"
+                    className="w-full min-h-[88px] px-3 py-2 rounded-[10px] bg-[#F9FAFB] border border-[#8259F5] text-[14px] leading-[160%] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none disabled:opacity-50 resize-none"
                     placeholder="답변을 입력해주세요."
                   />
                   {editError && <p className="text-[13px] text-[#E84263]">{editError}</p>}
@@ -247,7 +248,7 @@ export default function CounselorMyCustomerQnaDetail() {
                       type="button"
                       onClick={onSaveEdit}
                       disabled={editSubmitting || !editDraft.trim()}
-                      className="h-9 px-4 rounded-full bg-[#9B7AF7] text-[13px] font-medium text-white disabled:opacity-50"
+                      className="h-9 px-4 rounded-full bg-[#8259F5] text-[13px] font-medium text-white disabled:opacity-50"
                     >
                       {editSubmitting ? '저장 중...' : '저장'}
                     </button>
@@ -283,7 +284,7 @@ export default function CounselorMyCustomerQnaDetail() {
                               type="button"
                               role="menuitem"
                               onClick={startEdit}
-                              className="w-full px-3 py-2 text-left text-[13px] text-[#1E2939] hover:bg-[#F3EEFE] hover:text-[#8259F5]"
+                              className="w-full px-3 py-2 text-left text-[13px] text-[#1E2939] hover:bg-[#f3f0ff] hover:text-[#8259F5]"
                             >
                               수정
                             </button>
@@ -323,7 +324,7 @@ export default function CounselorMyCustomerQnaDetail() {
           </ul>
         ) : (
           <div className="py-12 flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-[#F3EEFE] flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-[#f3f0ff] flex items-center justify-center">
               <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" aria-hidden>
                 <path
                   d="M21 11.5C21 16.7467 16.9706 21 12 21C10.4 21 8.9 20.55 7.6 19.85L3 21L4.18 16.5C3.42 15.05 3 13.32 3 11.5C3 6.25 7.03 2 12 2C16.97 2 21 6.25 21 11.5Z"
@@ -354,7 +355,7 @@ export default function CounselorMyCustomerQnaDetail() {
                 }}
                 placeholder="답변을 입력해주세요."
                 disabled={submitting}
-                className="w-full h-[44px] pl-4 pr-14 rounded-full bg-[#F9FAFB] border border-[#9B7AF7] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none disabled:opacity-50"
+                className="w-full h-[44px] pl-4 pr-14 rounded-full bg-[#F9FAFB] border border-[#8259F5] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none disabled:opacity-50"
               />
               {draft.trim() && (
                 <button
@@ -362,7 +363,7 @@ export default function CounselorMyCustomerQnaDetail() {
                   onClick={onSubmit}
                   disabled={submitting}
                   aria-label="보내기"
-                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#9B7AF7] flex items-center justify-center disabled:opacity-50"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#8259F5] flex items-center justify-center disabled:opacity-50"
                 >
                   <img src="/img/ic_send.svg" alt="" className="w-4 h-4" />
                 </button>
@@ -378,7 +379,7 @@ export default function CounselorMyCustomerQnaDetail() {
           <button
             type="button"
             onClick={() => navigate('/counselor/mypage/customer-qnas')}
-            className="h-10 px-6 rounded-full border border-[#9B7AF7] text-[14px] font-medium text-[#8259F5]"
+            className="h-10 px-6 rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]"
           >
             목록으로
           </button>
@@ -386,6 +387,7 @@ export default function CounselorMyCustomerQnaDetail() {
       </main>
 
       <FloatingActions bottomOffset={24} />
-    </div>
+      <BottomNav myHref="/counselor/mypage" />
+      </div>
   )
 }

@@ -1,7 +1,7 @@
 <?php 
 include_once('../common.php'); 
 // 페이지 제목 
-$g5['title'] = "사주문의 길";  
+$g5['title'] = "사주플랜의 길";  
 include_once(G5_THEME_MOBILE_PATH.'/head.php');
 //include_once('../sub/sub_tap_css.php'); 
  
@@ -11,7 +11,7 @@ include_once(G5_THEME_MOBILE_PATH.'/head.php');
 
 
 
-<div><?php echo display_banner('사주문의길', 'mainbanner.10.skin.php'); ?></div>
+<div><?php echo display_banner('사주플랜의길', 'mainbanner.10.skin.php'); ?></div>
 
 <div class="counselor_list_wrap" >
         

@@ -40,6 +40,14 @@ export interface AdjustInput {
   delta: number;
   reason: string;
   isPaid?: boolean;
+  /**
+   * 어떤 잔액 컬럼을 조정할지:
+   *  - 'free'    : 소비포인트 무료분 (free_balance)
+   *  - 'paid'    : 소비포인트 결제분 (paid_balance)   ← isPaid=true 와 동등
+   *  - 'earning' : 수익포인트 (earning_balance)  ← 상담사 적립 조정 (분쟁/보너스/사고 처리)
+   * 미지정 시 isPaid 플래그로 free/paid 결정.
+   */
+  kind?: 'free' | 'paid' | 'earning';
   expireDate?: string | null;
 }
 
@@ -49,6 +57,7 @@ export interface AdjustByMbIdInput {
   point: number;
   expireDays?: number;
   isPaid?: boolean;
+  kind?: 'free' | 'paid' | 'earning';
 }
 
 export interface ActorInfo {
@@ -137,7 +146,8 @@ export class PointsService {
     if (reason.length > 500) {
       throw new BadRequestException('사유는 500자 이하로 입력해주세요.');
     }
-    const isPaid = !!input.isPaid;
+    const kind: 'free' | 'paid' | 'earning' = input.kind ?? (input.isPaid ? 'paid' : 'free');
+    const isPaid = kind === 'paid';
 
     // 만료일 계산 (sample insert_point 동등)
     let expireDate: string | null = input.expireDate || null;
@@ -166,49 +176,72 @@ export class PointsService {
         throw new NotFoundException('해당 회원을 찾을 수 없습니다.');
       }
 
-      let ptRows = await tx<{ free_balance: number; paid_balance: number }[]>`
-        SELECT free_balance, paid_balance
+      let ptRows = await tx<{ free_balance: number; paid_balance: number; earning_balance: number }[]>`
+        SELECT free_balance, paid_balance, earning_balance
           FROM point
          WHERE member_id = ${memberId}
          FOR UPDATE
       `;
       if (ptRows.length === 0) {
         await tx`
-          INSERT INTO point (member_id, free_balance, paid_balance, total_earned, total_used)
-          VALUES (${memberId}, 0, 0, 0, 0)
+          INSERT INTO point (member_id, free_balance, paid_balance, earning_balance, total_earned, total_used)
+          VALUES (${memberId}, 0, 0, 0, 0, 0)
           ON CONFLICT (member_id) DO NOTHING
         `;
-        ptRows = await tx<{ free_balance: number; paid_balance: number }[]>`
-          SELECT free_balance, paid_balance FROM point WHERE member_id = ${memberId} FOR UPDATE
+        ptRows = await tx<{ free_balance: number; paid_balance: number; earning_balance: number }[]>`
+          SELECT free_balance, paid_balance, earning_balance FROM point WHERE member_id = ${memberId} FOR UPDATE
         `;
       }
       const free = Number(ptRows[0].free_balance);
       const paid = Number(ptRows[0].paid_balance);
+      const earning = Number(ptRows[0].earning_balance);
 
-      const targetSide = isPaid ? paid : free;
+      // 차감 시 해당 잔액 부족 검증
+      const targetSide = kind === 'paid' ? paid : kind === 'earning' ? earning : free;
+      const kindLabel = kind === 'paid' ? '소비(결제분)' : kind === 'earning' ? '수익' : '소비(무료분)';
       if (delta < 0 && targetSide + delta < 0) {
         throw new BadRequestException(
-          `${isPaid ? '유료' : '무료'} 포인트 잔액이 부족합니다. 현재 ${targetSide.toLocaleString()}P, 차감 요청 ${Math.abs(delta).toLocaleString()}P.`,
+          `${kindLabel} 포인트 잔액이 부족합니다. 현재 ${targetSide.toLocaleString()}P, 차감 요청 ${Math.abs(delta).toLocaleString()}P.`,
         );
       }
 
-      const balanceAfter = free + paid + delta;
+      // point_history.balance_after 의 의미:
+      //   - free/paid 조정 : 회원 표면 잔액 (free + paid) + delta
+      //   - earning 조정   : 수익포인트 잔액 (earning) + delta
+      const balanceAfter = kind === 'earning' ? earning + delta : free + paid + delta;
       const earnPoint = delta > 0 ? delta : 0;
       const usePoint = delta < 0 ? -delta : 0;
+      // rel_table 마커: 수익포인트 조정은 '@earning_adjust' 로 분리 (감사/분석 시 식별)
+      const relTable = kind === 'earning' ? '@earning_adjust' : null;
 
       await tx`
         INSERT INTO point_history (
           member_id, content, earn_point, use_point, balance_after,
-          is_paid, is_expired, expire_date, rel_action,
+          is_paid, is_expired, expire_date, rel_table, rel_action,
           actor_admin_id, actor_ip, actor_type
         ) VALUES (
           ${memberId}, ${reason}, ${earnPoint}, ${usePoint}, ${balanceAfter},
-          ${isPaid}, ${isExpired}, ${expireDate}, 'admin_adjust',
+          ${isPaid}, ${isExpired}, ${expireDate}, ${relTable}, 'admin_adjust',
           ${actor.adminId}, ${actor.ip}, 'admin'
         )
       `;
 
-      if (isPaid) {
+      if (kind === 'earning') {
+        // 수익포인트 — member.point 는 갱신하지 않음 (회원 표면 잔액 무관)
+        if (delta > 0) {
+          await tx`UPDATE point SET earning_balance = earning_balance + ${delta}, total_earned = total_earned + ${delta}, updated_at = now() WHERE member_id = ${memberId}`;
+        } else {
+          await tx`UPDATE point SET earning_balance = earning_balance + ${delta}, total_used = total_used + ${-delta}, updated_at = now() WHERE member_id = ${memberId}`;
+        }
+        return {
+          balanceAfter,
+          freeBalance: free,
+          paidBalance: paid,
+          earningBalance: earning + delta,
+        };
+      }
+
+      if (kind === 'paid') {
         if (delta > 0) {
           await tx`UPDATE point SET paid_balance = paid_balance + ${delta}, total_earned = total_earned + ${delta}, updated_at = now() WHERE member_id = ${memberId}`;
         } else {
@@ -226,8 +259,9 @@ export class PointsService {
 
       return {
         balanceAfter,
-        freeBalance: isPaid ? free : free + delta,
-        paidBalance: isPaid ? paid + delta : paid,
+        freeBalance: kind === 'paid' ? free : free + delta,
+        paidBalance: kind === 'paid' ? paid + delta : paid,
+        earningBalance: earning,
       };
     });
   }
@@ -259,7 +293,7 @@ export class PointsService {
 
     return await this.adjust(
       rows[0].id,
-      { delta: point, reason, isPaid: input.isPaid, expireDate },
+      { delta: point, reason, isPaid: input.isPaid, kind: input.kind, expireDate },
       actor,
     );
   }

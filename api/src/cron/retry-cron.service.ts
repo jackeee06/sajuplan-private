@@ -41,10 +41,22 @@ export class RetryCronService {
     failed: number;
     exhausted: number;
   }> {
-    const rows = await this.sql<{ id: number; settle_retry_count: number }[]>`
-      SELECT id, settle_retry_count
+    // [2026-05-30] use_seconds=0 row 는 시작점부터 제외 + 즉시 skipped 마킹.
+    //   상담사 입장 전 종료/자동취소 → m2net 등록 X → 정산 시도 자체가 무의미.
+    //   chat_room.id=38,48 사고 (m2net_failed 5회 → 영구 실패 OpsAlert) 의 근본 fix.
+    await this.sql`
+      UPDATE chat_room
+         SET settle_status = 'skipped',
+             settle_failure_reason = 'no_use_seconds (상담사 입장 전 종료 또는 자동 취소)'
+       WHERE settle_status IN ('m2net_failed', 'permanently_failed')
+         AND use_seconds <= 0
+    `;
+
+    const rows = await this.sql<{ id: number; settle_retry_count: number; use_seconds: number }[]>`
+      SELECT id, settle_retry_count, use_seconds
         FROM chat_room
        WHERE settle_status = 'm2net_failed'
+         AND use_seconds > 0
          AND settle_retry_count < ${this.MAX_RETRY}
          AND (settle_last_retry_at IS NULL
               OR settle_last_retry_at < NOW() - (${this.RETRY_COOLDOWN_MIN} || ' minutes')::interval)
@@ -69,9 +81,23 @@ export class RetryCronService {
           if (cnt >= this.MAX_RETRY) {
             exhausted++;
             await this.sql`UPDATE chat_room SET settle_status = 'permanently_failed' WHERE id = ${r.id}`;
+            // [2026-05-30] 운영자가 즉시 판단 가능하도록 컨텍스트(use_seconds/시간/실패사유) 같이 전송
+            const ctx = await this.sql<{
+              use_seconds: number;
+              started_at: Date | null;
+              ended_at: Date | null;
+              reason: string | null;
+            }[]>`
+              SELECT use_seconds, started_at, ended_at,
+                     LEFT(COALESCE(settle_failure_reason, '-'), 100) AS reason
+                FROM chat_room WHERE id = ${r.id} LIMIT 1
+            `;
+            const x = ctx[0];
+            const startedStr = x?.started_at ? new Date(x.started_at).toISOString().slice(0, 19).replace('T', ' ') : '-';
+            const endedStr = x?.ended_at ? new Date(x.ended_at).toISOString().slice(0, 19).replace('T', ' ') : '-';
             void this.opsAlert.send(
               '채팅 정산 영구 실패',
-              `chat_room.id=${r.id} retry_count=${cnt} — 수동 개입 필요`,
+              `chat_room.id=${r.id} retry=${cnt}\nuse_seconds=${x?.use_seconds ?? '?'}\n시작=${startedStr}\n종료=${endedStr}\n사유: ${x?.reason ?? '-'}\n\n수동 개입 필요 (use_seconds=0 이면 정상 — skipped 마킹).`,
             );
           }
         } else {

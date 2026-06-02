@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+﻿import { FormEvent, useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import CounselorCard from '../components/CounselorCard'
@@ -81,7 +81,7 @@ export default function SearchResult() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="상담사, 상담분야, 해시태그 검색"
-            className="w-full h-10 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] px-4 pr-10 py-1 text-[15px] leading-[150%] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#8259F5] focus:bg-white transition"
+            className="w-full h-10 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] px-4 pr-10 py-1 text-[15px] leading-[150%] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none focus:border-[#ec4899] focus:bg-white transition"
           />
           {q && (
             <button
@@ -109,7 +109,7 @@ export default function SearchResult() {
       <main className="flex-1">
         {loading ? (
           <div className="pt-20 flex justify-center">
-            <div className="w-6 h-6 border-2 border-[#E5E7EB] border-t-[#8259F5] rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-[#E5E7EB] border-t-[#ec4899] rounded-full animate-spin" />
           </div>
         ) : counselors.length === 0 ? (
           <EmptyState />

@@ -5,6 +5,10 @@ import { LikeProvider } from './lib/like-context'
 import { LoginPromptProvider } from './lib/login-prompt-context'
 import NativeBackBridge from './components/NativeBackBridge'
 import AttendanceToast from './components/AttendanceToast'
+import ModeIndicator from './components/ModeIndicator'
+import PullToRefresh from './components/PullToRefresh'
+import GlobalAlerts from './components/GlobalAlerts'
+import CounselorIncomingChatWatcher from './components/CounselorIncomingChatWatcher'
 import ScrollToTop from './components/ScrollToTop'
 import MyPageEntry from './pages/MyPageEntry'
 import Login from './pages/Login'
@@ -49,6 +53,8 @@ import ChargeCardRegister from './pages/ChargeCardRegister'
 import ChargeComplete from './pages/ChargeComplete'
 import ChargeVbankInfo from './pages/ChargeVbankInfo'
 import CounselorMyPage from './pages/CounselorMyPage'
+import CounselorMyBank from './pages/CounselorMyBank'
+import CounselorMyPayout from './pages/CounselorMyPayout'
 import CounselorMyTips from './pages/CounselorMyTips'
 import CounselorMyTipDetail from './pages/CounselorMyTipDetail'
 import CounselorMyNotices from './pages/CounselorMyNotices'
@@ -62,6 +68,8 @@ import CounselorMyReviews from './pages/CounselorMyReviews'
 import CounselorMyReviewDetail from './pages/CounselorMyReviewDetail'
 import CounselorMyCalls from './pages/CounselorMyCalls'
 import CounselorMyChats from './pages/CounselorMyChats'
+import CounselorMyMemo from './pages/CounselorMyMemo'
+import CounselorIncomingList from './pages/CounselorIncomingList'
 import CounselorMyConsultMemo from './pages/CounselorMyConsultMemo'
 import CounselorMyConsultStats from './pages/CounselorMyConsultStats'
 import CounselorMyProducts from './pages/CounselorMyProducts'
@@ -90,6 +98,10 @@ export default function App() {
       <ScrollToTop />
       <NativeBackBridge />
       <AttendanceToast />
+      <CounselorIncomingChatWatcher />
+      <ModeIndicator />
+      <PullToRefresh />
+      <GlobalAlerts />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
@@ -119,7 +131,10 @@ export default function App() {
         <Route path="/mypage/calls" element={<MyCalls />} />
         <Route path="/mypage/chats" element={<MyChats />} />
         <Route path="/mypage/history" element={<MyHistory />} />
-        <Route path="/mypage/settlement/history" element={<SettlementHistory />} />
+        {/* [2026-05-25] 정산 내역(SettlementHistory) — 상담사 전용 페이지를 정식 URL 위치(/counselor/mypage/...) 로 이동.
+            옛 URL /mypage/settlement/history 는 외부 북마크 호환 위해 자동 redirect 로 보존. */}
+        <Route path="/counselor/mypage/settlement/history" element={<SettlementHistory />} />
+        <Route path="/mypage/settlement/history" element={<Navigate to="/counselor/mypage/settlement/history" replace />} />
         <Route path="/mypage/my-reviews" element={<MyReviews />} />
         <Route path="/mypage/my-reviews/new" element={<MyReviewNew />} />
         <Route path="/mypage/my-reviews/:id/edit" element={<MyReviewEdit />} />
@@ -134,6 +149,8 @@ export default function App() {
         <Route path="/charge/complete" element={<ChargeComplete />} />
         <Route path="/charge/vbank-info" element={<ChargeVbankInfo />} />
         <Route path="/counselor/mypage" element={<CounselorMyPage />} />
+        <Route path="/counselor/mypage/bank" element={<CounselorMyBank />} />
+        <Route path="/counselor/mypage/payout" element={<CounselorMyPayout />} />
         <Route path="/counselor/mypage/tips" element={<CounselorMyTips />} />
         <Route path="/counselor/mypage/tips/:id" element={<CounselorMyTipDetail />} />
         <Route path="/counselor/mypage/notices" element={<CounselorMyNotices />} />
@@ -147,6 +164,10 @@ export default function App() {
         <Route path="/counselor/mypage/reviews/:id" element={<CounselorMyReviewDetail />} />
         <Route path="/counselor/mypage/calls" element={<CounselorMyCalls />} />
         <Route path="/counselor/mypage/chats" element={<CounselorMyChats />} />
+        {/* [2026-05-30] 상담사 incoming 채팅 요청 리스트 — _PREPAID_CHAT_POLICY.md §15 */}
+        <Route path="/counselor/mypage/incoming" element={<CounselorIncomingList />} />
+        {/* [2026-05-31] 상담사 개인 메모장 — 본인만 보기/쓰기 (admin_memo 테이블 공유) */}
+        <Route path="/counselor/mypage/memo" element={<CounselorMyMemo />} />
         <Route path="/counselor/mypage/:type/:id/memo" element={<CounselorMyConsultMemo />} />
         <Route path="/counselor/mypage/consult-stats" element={<CounselorMyConsultStats />} />
         <Route path="/counselor/mypage/products" element={<CounselorMyProducts />} />

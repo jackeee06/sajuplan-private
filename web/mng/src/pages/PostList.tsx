@@ -89,7 +89,13 @@ export default function PostList() {
   const [replyPost, setReplyPost] = useState<Post | null>(null)
   const [replyContent, setReplyContent] = useState('')
   const [replySubmitting, setReplySubmitting] = useState(false)
+  const [viewPost, setViewPost] = useState<Post | null>(null)
   const isQa = slug === 'qa' || slug === 'qa_counselor'
+
+  const onRowClick = (p: Post) => {
+    if (isQa) openReply(p)
+    else setViewPost(p)
+  }
 
   const openReply = (p: Post) => {
     setReplyPost(p)
@@ -167,7 +173,7 @@ export default function PostList() {
   const colSpan = slug === 'review' ? 11 : 8
 
   return (
-    <div className="space-y-3 max-w-[1400px]">
+    <div className="space-y-3 max-w-[1100px]">
       {/* 타이틀 */}
       <div>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{info.title}</h1>
@@ -254,7 +260,7 @@ export default function PostList() {
             data.items.map((p, idx) => {
               const num = data.total - (filter.page - 1) * PAGE_SIZE - idx
               return (
-                <Tr key={p.id}>
+                <Tr key={p.id} onClick={() => onRowClick(p)}>
                   <Td align="right" className="text-gray-400 tabular-nums">{num}</Td>
                   <Td align="left" className="max-w-[400px] truncate">
                     {p.is_secret && (
@@ -274,6 +280,7 @@ export default function PostList() {
                       {p.counselor_id ? (
                         <Link
                           to={`/members/counselors/${p.counselor_id}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="text-brand-600 hover:underline font-medium"
                         >
                           {p.counselor_name || `#${p.counselor_id}`}
@@ -295,6 +302,7 @@ export default function PostList() {
                       ) : (
                         <Link
                           to="/review-reports"
+                          onClick={(e) => e.stopPropagation()}
                           title={`총 ${p.report_count}건 (미처리 ${p.report_pending_count ?? 0}건)`}
                         >
                           <Badge color={(p.report_pending_count ?? 0) > 0 ? 'rose' : 'gray'}>
@@ -309,6 +317,7 @@ export default function PostList() {
                     {p.member_id && p.mb_id ? (
                       <Link
                         to={`/members/customers/${p.member_id}`}
+                        onClick={(e) => e.stopPropagation()}
                         className="text-brand-600 hover:underline font-medium"
                       >
                         {p.mb_id}
@@ -336,7 +345,7 @@ export default function PostList() {
                     <div className="flex items-center justify-center gap-1">
                       {isQa && (
                         <button
-                          onClick={() => openReply(p)}
+                          onClick={(e) => { e.stopPropagation(); openReply(p) }}
                           className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border font-medium ${
                             p.extras?.admin_reply
                               ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
@@ -347,7 +356,7 @@ export default function PostList() {
                         </button>
                       )}
                       <button
-                        onClick={() => onDelete(p)}
+                        onClick={(e) => { e.stopPropagation(); void onDelete(p) }}
                         className="inline-flex items-center justify-center w-7 h-7 rounded-md text-rose-500 hover:bg-rose-50 hover:text-rose-700 transition-colors"
                         title="삭제"
                       >
@@ -371,6 +380,49 @@ export default function PostList() {
           onChange={(p) => setFilter((f) => ({ ...f, page: p }))}
           unit="건"
         />
+      )}
+
+      {/* 본문 미리보기 모달 (비QA 게시판) */}
+      {viewPost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setViewPost(null)}>
+          <div className="bg-white dark:bg-gray-900 rounded-xl w-full max-w-2xl mx-4 p-5 max-h-[85vh] overflow-y-auto border border-gray-200 dark:border-gray-700 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{viewPost.title}</h3>
+              <button onClick={() => setViewPost(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div className="text-xs text-gray-500 mb-3 flex flex-wrap gap-2">
+              <span>작성자: {viewPost.mb_id || viewPost.member_nickname || viewPost.member_name || '익명'}</span>
+              <span>·</span>
+              <span>{formatDT(viewPost.created_at)}</span>
+              <span>·</span>
+              <span>조회 {viewPost.view_count.toLocaleString()}</span>
+              <span>·</span>
+              <span>👍 {viewPost.like_count} / 👎 {viewPost.dislike_count}</span>
+            </div>
+            {slug === 'review' && viewPost.counselor_name && (
+              <div className="text-xs mb-3 text-gray-600">
+                <span className="font-medium">상담사:</span> {viewPost.counselor_name}
+              </div>
+            )}
+            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 text-sm border border-gray-200 dark:border-gray-700 whitespace-pre-wrap text-gray-700 dark:text-gray-300 max-h-96 overflow-y-auto">
+              {viewPost.content || <span className="text-gray-400">(내용 없음)</span>}
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => {
+                  void onDelete(viewPost)
+                  setViewPost(null)
+                }}
+                className="px-3 py-2 text-sm rounded-md border border-rose-200 text-rose-700 hover:bg-rose-50 font-medium"
+              >
+                삭제
+              </button>
+              <button onClick={() => setViewPost(null)} className="px-4 py-2 text-sm rounded-md border border-gray-200 hover:bg-gray-50">
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* CS 답변 모달 */}

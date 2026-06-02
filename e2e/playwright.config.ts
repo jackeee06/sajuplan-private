@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test'
  *
  * 환경 선택:
  *   TARGET=test  → https://sajumoon.kr (test 서버, 기본값)
- *   TARGET=prod  → https://sajumoon.co.kr (운영 서버)
+ *   TARGET=prod  → https://sajuplan.com (운영 서버, 신규 브랜드)
  *
  * 실행:
  *   npm test                      → test 서버
@@ -16,7 +16,7 @@ import { defineConfig, devices } from '@playwright/test'
 const TARGET = process.env.TARGET ?? 'test'
 const BASE_URLS: Record<string, string> = {
   test: 'https://sajumoon.kr',
-  prod: 'https://sajumoon.co.kr',
+  prod: 'https://sajuplan.com',
 }
 const BASE_URL = BASE_URLS[TARGET] ?? BASE_URLS.test
 
@@ -31,6 +31,7 @@ export default defineConfig({
   reporter: [
     ['list'],
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    ['json', { outputFile: 'last-run.json' }],
   ],
   use: {
     baseURL: BASE_URL,
