@@ -1493,6 +1493,32 @@ export class M2netPushService {
     relAction: string,
     isPaid: boolean,
   ): Promise<{ applied: boolean; csrMembid: string | null }> {
+    // [A안 2026-06-02] revenue_rate 적립 시점 적용 — 상담사가 보는 수익금이 고객 결제액과 같아
+    // "사주플랜 마진 0%" 오해를 유발하던 버그 수정.
+    // 등급별 수익률을 적립 시점에 바로 반영 → earning_balance = 상담사 실제 몫.
+    const gradeRow = await tx<{ grade: string | null; free_royalty_pct: number | null; paid_royalty_pct: number | null }[]>`
+      SELECT grade, free_royalty_pct, paid_royalty_pct FROM member WHERE id = ${counselorId} LIMIT 1
+    `;
+    let revenueRate = 1.0; // fallback — 등급 미설정 시 전액 (운영 정책 미결정 케이스)
+    if (gradeRow.length > 0) {
+      const g = gradeRow[0];
+      if (g.grade) {
+        const rateRow = await tx<{ value: string }[]>`
+          SELECT value FROM setting WHERE namespace='grade' AND key=${`revenue_rate.${g.grade}`} LIMIT 1
+        `;
+        if (rateRow.length > 0) {
+          const rate = Number(rateRow[0].value);
+          if (Number.isFinite(rate) && rate >= 0 && rate <= 1) revenueRate = rate;
+        }
+      } else if (isPaid && g.paid_royalty_pct != null) {
+        revenueRate = Number(g.paid_royalty_pct) / 100;
+      } else if (!isPaid && g.free_royalty_pct != null) {
+        revenueRate = Number(g.free_royalty_pct) / 100;
+      }
+    }
+    // 상담사 실수익 = 고객결제액 × 수익률 (회사 마진 제외)
+    const effectiveAmt = Math.floor(amt * revenueRate);
+
     let pt = await tx<{ earning_balance: number }[]>`
         SELECT earning_balance FROM point WHERE member_id = ${counselorId} FOR UPDATE
       `;
@@ -1507,7 +1533,7 @@ export class M2netPushService {
         `;
       }
       const earningBefore = Number(pt[0].earning_balance);
-      const balanceAfter = earningBefore + amt;
+      const balanceAfter = earningBefore + effectiveAmt;
 
       const ins = await tx<{ id: number }[]>`
         INSERT INTO point_history (
@@ -1516,7 +1542,7 @@ export class M2netPushService {
           is_paid, is_expired, expire_date, actor_type
         ) VALUES (
           ${counselorId}, ${content},
-          ${amt}, 0, ${balanceAfter},
+          ${effectiveAmt}, 0, ${balanceAfter},
           'consultation', ${String(consultationId)}, ${relAction},
           ${isPaid}, false, NULL, 'system'
         )
@@ -1531,8 +1557,8 @@ export class M2netPushService {
       // member.point(=free+paid 회원 표면 잔액) 는 갱신하지 않음
       await tx`
         UPDATE point SET
-          earning_balance = earning_balance + ${amt},
-          total_earned    = total_earned + ${amt},
+          earning_balance = earning_balance + ${effectiveAmt},
+          total_earned    = total_earned + ${effectiveAmt},
           updated_at      = now()
          WHERE member_id = ${counselorId}
       `;

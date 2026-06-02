@@ -124,18 +124,17 @@ export default function SettlementHistory() {
             </div>
           </div>
           {(() => {
-            const thisMonth = Number(headerSummary?.this_month ?? 0)
-            const netExpected = Math.floor(thisMonth * 0.967)
+            const estimatedPayout = Number(headerSummary?.estimated_payout ?? 0)
             return (
               <>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className="text-[13px] text-[#99A1AF]">실수령 예상</span>
                   <span className="text-[15px] font-semibold text-[#8259F5] tabular-nums">
-                    {netExpected.toLocaleString()}원
+                    {estimatedPayout.toLocaleString()}원
                   </span>
                 </div>
                 <p className="mt-2 text-[12px] leading-[150%] text-[#9CA3AF]">
-                  ※ 정산 시 원천징수 3.3% 공제 후 입금됩니다.
+                  ※ 수익금 = 상담료 × 수익률 적용 후 원천징수(3.3%) 공제하여 입금됩니다.
                 </p>
               </>
             )

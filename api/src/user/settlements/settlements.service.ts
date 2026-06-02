@@ -175,23 +175,25 @@ export class UserSettlementsService {
       amt_free: '0', amt_pro: '0', royalty_free_pct: 0, royalty_pro_pct: 0,
       other_plus: '0', other_minus: '0',
     };
-    // sample set_con_account_v2 공식.
-    const amtFree = Number(r.amt_free ?? 0);
-    const amtPro = Number(r.amt_pro ?? 0);
-    const royFreePct = Number(r.royalty_free_pct ?? 0);
-    const royProPct = Number(r.royalty_pro_pct ?? 0);
-    const priceFree = Math.floor((amtFree * royFreePct) / 100);
-    const pricePaid = Math.floor((amtPro * royProPct) / 100);
-    // 기타정산비: sample 처럼 plus 는 royalty_pro 적용, minus 는 그대로 차감.
+    // [A안 2026-06-02] this_month = point_history.earn_point 합계 = 이미 revenue_rate 적용된 상담사 몫.
+    // 따라서 priceTot = this_month (추가 rate 적용 불필요).
+    // 기존 royalty_pct 컬럼은 grade 시스템 도입 후 NULL → 계산 오류 원인이었음.
+    const thisMonthEarning = Number(r.this_month ?? 0);
     const otherPlus = Number(r.other_plus ?? 0);
     const otherMinus = Number(r.other_minus ?? 0);
-    const priceOther = Math.floor((otherPlus * royProPct) / 100) - otherMinus;
-    const priceTot = priceFree + pricePaid + priceOther;
+    // 기타정산비: 수익률 적용 기준이 불명확하므로 그대로 합산
+    const priceOther = otherPlus - otherMinus;
+    const priceTot = thisMonthEarning + priceOther;
     const supplyPrice = Math.floor(priceTot / 1.1);
     const vatAmount = priceTot - supplyPrice;
     const withholdingTax = Math.floor(supplyPrice * 0.033);
     const replyFee = priceTot >= 50000 ? 20000 : 0;
     const estimatedPayout = Math.max(0, supplyPrice - withholdingTax - replyFee);
+    // 하위 호환용 (breakdown UI 표시용 — 실제 정산은 cron 기준)
+    const amtFree = Number(r.amt_free ?? 0);
+    const amtPro = Number(r.amt_pro ?? 0);
+    const royFreePct = Number(r.royalty_free_pct ?? 0);
+    const royProPct = Number(r.royalty_pro_pct ?? 0);
 
     return {
       this_month: Number(r.this_month ?? 0),
@@ -204,8 +206,8 @@ export class UserSettlementsService {
         amt_pro: amtPro,
         royalty_free_pct: royFreePct,
         royalty_pro_pct: royProPct,
-        price_free: priceFree,
-        price_paid: pricePaid,
+        price_free: 0,
+        price_paid: priceTot,
         price_other: priceOther,
         price_tot: priceTot,
         supply_price: supplyPrice,
