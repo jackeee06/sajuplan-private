@@ -342,17 +342,42 @@ export class HealthCheckService {
     const warning = checks.filter((c) => c.severity === 'warning' && c.violations > 0);
     const totalViolations = critical.reduce((s, c) => s + c.violations, 0) + warning.reduce((s, c) => s + c.violations, 0);
 
+    // 알림 항목별 한국어 행동 지침 매핑
+    const ACTION_GUIDE: Record<string, string> = {
+      'C-1': '관리자 > 코인내역 > 음수 잔액 회원 확인 후 수동 보정',
+      'C-2': '관리자 > 회원 > member.point 음수 회원 확인',
+      'C-3': '관리자 > 상담내역 > 해당 상담 코인 차감 누락 여부 확인',
+      'C-4': '관리자 > 환불 > 환불액이 상담료 초과한 건 즉시 확인',
+      'C-5': '관리자 > 환불 > 환불 합산이 상담료 초과한 건 확인',
+      'C-6': '관리자 > 환불 > free+pro 합계 불일치 건 확인',
+      'C-7': '관리자 > 환불 > 삭제된 상담의 환불 건 확인',
+      'C-8': '(경미) 잔액 스냅샷 오차 — 자동 복구됨, 주기적 확인만 필요',
+      'C-9': '관리자 > 정산 > 같은 달 중복 정산 즉시 확인',
+      'C-12': '관리자 > 등급 설정 > 등급 임계값 순서 확인·수정',
+      'C-13': '관리자 > 등급 설정 > 정산률이 0~100% 범위인지 확인',
+      'C-16': '관리자 > 결제 > M2NET 적립 실패 건 수동 재처리',
+      'C-17': '관리자 > 상담 > 채팅 정산 실패 건 수동 재처리',
+      'C-18': '관리자 > 회원 > role·level 불일치 회원 확인·수정',
+      'C-19': '관리자 > 선지급 > 이달 선지급 합계가 예상 수익 초과 — 즉시 확인',
+      'C-20': '관리자 > 선지급 > 지급 완료인데 정산 미차감 건 확인',
+      'C-21': '관리자 > 선지급 > 30일 이상 방치된 신청 건 처리',
+      'C-22': '관리자 > 상담사 > m2net 미등록 상담사 재등록 필요',
+    };
+
     let alerted = false;
     if (critical.length > 0) {
       const detail = critical
-        .map((c) => `[${c.id}] ${c.name}: ${c.violations}건${c.detail ? ` (${c.detail})` : ''}`)
+        .map((c) => {
+          const guide = ACTION_GUIDE[c.id] ?? '관리자 > 운영 현황 확인';
+          const detailSuffix = c.detail ? ` (${c.detail})` : '';
+          return `• ${c.name}: ${c.violations}건${detailSuffix}\n  → ${guide}`;
+        })
         .join('\n');
-      // 카테고리에 fingerprint 포함 — "동일 증상" 만 6시간 dedup. 다른 invariant 발생 시 즉시 알림.
-      //   예: C-18=1 → 6h 묶임. 그 사이 C-3=2 새 발생 → 다른 카테고리라 즉시 발송.
+      // 카테고리에 fingerprint 포함 — "동일 증상" 만 6시간 dedup. 다른 항목 발생 시 즉시 알림.
       const fingerprint = critical.map((c) => `${c.id}=${c.violations}`).join(',');
       const r = await this.opsAlert.send(
-        `DB 일관성 위반 (${fingerprint})`,
-        `다음 invariant 가 위반됨:\n${detail}\n\n로그 + DB 점검 필요`,
+        `데이터 이상 감지 (${fingerprint})`,
+        `자동 점검에서 이상이 발견됐습니다:\n\n${detail}\n\n사주플랜 관리자(sajuplan.com/mng)에서 확인하세요.`,
         { cooldownSec: 21600 }, // 6시간 — 같은 fingerprint 반복 알림만 차단
       );
       alerted = !r.skipped;
