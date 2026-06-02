@@ -135,7 +135,7 @@ export class UserCounselorApplyService {
     if (!r) throw new NotFoundException('해당 글을 찾을 수 없습니다.');
 
     const isNotice = r.category === 'notice';
-    const isMine = memberId != null && r.member_id === memberId;
+    const isMine = memberId != null && Number(r.member_id) === memberId;
     if (!isNotice && !isMine) {
       throw new ForbiddenException('본인이 작성한 신청글만 열람할 수 있습니다.');
     }
