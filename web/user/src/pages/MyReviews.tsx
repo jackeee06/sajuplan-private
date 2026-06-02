@@ -250,7 +250,17 @@ export default function MyReviews() {
                     role="menu"
                     className="absolute top-full right-0 mt-1 z-30 min-w-[100px] bg-white rounded-[10px] border border-[#E5E7EB] shadow-[0_8px_20px_rgba(16,24,40,0.10)] py-1"
                   >
-                    {/* 수정 기능 제거 (2026-05-15) — 후기는 한 번 작성 후 수정 불가. 변경 필요 시 삭제 후 재작성 */}
+                    {/* 작성 후 5분 이내에만 수정 가능 (백엔드 동일 정책) */}
+                    {Date.now() - new Date(r.created_at).getTime() < 5 * 60 * 1000 && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => { setOpenMenuId(null); navigate(`/mypage/my-reviews/${r.id}/edit`) }}
+                        className="w-full px-4 py-2 text-left text-[14px] text-[#030712] hover:bg-[#F9FAFB]"
+                      >
+                        수정
+                      </button>
+                    )}
                     <button
                       type="button"
                       role="menuitem"

@@ -1321,6 +1321,10 @@ export const myQnaApi = {
   },
   detail: (id: number | string) =>
     api.get<MyQnaDetailDto>(`/user/my-qnas/${id}`),
+  update: (counselorId: number, qnaId: number, body: { title: string; content: string }) =>
+    api.patch<{ ok: true }>(`/user/counselors/${counselorId}/qna/${qnaId}`, body),
+  remove: (counselorId: number, qnaId: number) =>
+    api.delete<{ ok: true }>(`/user/counselors/${counselorId}/qna/${qnaId}`),
 }
 
 // ─────────────────────────────────────────────
