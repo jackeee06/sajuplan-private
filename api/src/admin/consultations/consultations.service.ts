@@ -234,15 +234,16 @@ export class ConsultationsService {
     // 영업이익: 23% 일괄 적용 (관리자 레퍼런스용 근사치 — 고정비 포함 추정)
     const SAJUPLAN_OPERATING_RATE = 0.23;
     const enriched = items.map((row) => {
+      const amt = Number(row.amt);  // BigInt/string 등 안전 변환
       const rate = row.counselor_revenue_rate != null ? Number(row.counselor_revenue_rate) : null;
-      const m2netDeduction = row.amt > 0 ? Math.floor(row.amt * m2netRate) : 0;
-      const earning = rate != null && row.amt > 0 ? Math.floor(row.amt * rate) : null;
-      const sajuplanRev = row.amt > 0 ? Math.floor(row.amt * SAJUPLAN_OPERATING_RATE) : undefined;
+      const m2netDeduction = amt > 0 ? Math.floor(amt * m2netRate) : 0;
+      const earning = rate != null && amt > 0 ? Math.floor(amt * rate) : null;
+      const sajuplanRev = amt > 0 ? Math.floor(amt * SAJUPLAN_OPERATING_RATE) : undefined;
       return {
         ...row,
         counselor_revenue_rate: rate,
         counselor_earning: earning ?? undefined,
-        m2net_deduction: row.amt > 0 ? m2netDeduction : undefined,
+        m2net_deduction: amt > 0 ? m2netDeduction : undefined,
         sajuplan_revenue: sajuplanRev,
       };
     });
