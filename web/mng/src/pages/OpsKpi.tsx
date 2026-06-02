@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
+import { defaultLast7Days } from '../lib/dateRange'
+import { DateRangeChips } from '../components/DateRangeChips'
 import {
   Th,
   Td,
@@ -9,7 +11,6 @@ import {
   THead,
   TBody,
   EmptyRow,
-  Chip,
 } from '../components/table'
 
 /**
@@ -58,14 +59,10 @@ const fmtDuration = (sec: number) => {
   return `${m}분 ${s}초`
 }
 
-const periods = [
-  { label: '최근 7일', days: 7 },
-  { label: '최근 30일', days: 30 },
-  { label: '최근 90일', days: 90 },
-]
-
 export default function OpsKpi() {
-  const [days, setDays] = useState(30)
+  const _init = defaultLast7Days()
+  const [frDate, setFrDate] = useState(_init.from)
+  const [toDate, setToDate] = useState(_init.to)
   const [summary, setSummary] = useState<KpiSummary | null>(null)
   const [ranking, setRanking] = useState<RankRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,9 +71,10 @@ export default function OpsKpi() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    const q = `fr_date=${frDate}&to_date=${toDate}`
     Promise.all([
-      api<KpiSummary>(`/admin/stats/ops-kpi?days=${days}`),
-      api<RankRow[]>(`/admin/stats/counselor-ranking?days=${days}&limit=20`),
+      api<KpiSummary>(`/admin/stats/ops-kpi?${q}`),
+      api<RankRow[]>(`/admin/stats/counselor-ranking?${q}&limit=20`),
     ])
       .then(([s, r]) => {
         if (cancelled) return
@@ -88,28 +86,19 @@ export default function OpsKpi() {
     return () => {
       cancelled = true
     }
-  }, [days])
+  }, [frDate, toDate])
 
   return (
     <div className="space-y-3 max-w-[1100px]">
       {/* 타이틀 + 기간 칩 */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-start justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">운영 KPI</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             환불률·평균 통화·상담사별 매출. 매일 한 번씩 확인 권장.
           </p>
         </div>
-        <div className="flex gap-2">
-          {periods.map((p) => (
-            <Chip
-              key={p.days}
-              label={p.label}
-              active={days === p.days}
-              onClick={() => setDays(p.days)}
-            />
-          ))}
-        </div>
+        <DateRangeChips from={frDate} to={toDate} onPick={(r) => { setFrDate(r.from); setToDate(r.to) }} />
       </div>
 
       {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}

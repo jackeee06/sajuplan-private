@@ -84,6 +84,8 @@ export class AdminCounselorApplyService {
     q?: string;
     page?: number;
     limit?: number;
+    frDate?: string;
+    toDate?: string;
   }): Promise<{
     items: AdminCounselorApplyListItem[];
     total: number;
@@ -122,6 +124,8 @@ export class AdminCounselorApplyService {
         OR a.extras->>'real_name' ILIKE ${like}
       )`);
     }
+    if (params.frDate) filters.push(this.sql`a.created_at >= ${params.frDate + ' 00:00:00'}::timestamptz`);
+    if (params.toDate) filters.push(this.sql`a.created_at <= ${params.toDate + ' 23:59:59'}::timestamptz`);
 
     const where = filters.reduce(
       (acc, c, i) =>

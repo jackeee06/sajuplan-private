@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { api } from '../lib/api'
+import { defaultLast7Days } from '../lib/dateRange'
+import { DateRangeChips } from '../components/DateRangeChips'
 import {
   Th,
   Td,
@@ -92,19 +94,20 @@ const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 20)
 export default function PointHistoryList() {
   const [searchParams] = useSearchParams()
   const presetMember = searchParams.get('member')
+  const _init = defaultLast7Days()
 
   const [filter, setFilter] = useState<Filter>({
     sfl: 'mb_id',
     stx: '',
-    fr_date: '',
-    to_date: '',
+    fr_date: _init.from,
+    to_date: _init.to,
     page: 1,
   })
   const [pending, setPending] = useState<Omit<Filter, 'page'>>({
     sfl: 'mb_id',
     stx: '',
-    fr_date: '',
-    to_date: '',
+    fr_date: _init.from,
+    to_date: _init.to,
   })
   const [data, setData] = useState<Resp | null>(null)
   const [loading, setLoading] = useState(false)
@@ -149,8 +152,9 @@ export default function PointHistoryList() {
 
   const onSearch = () => setFilter((f) => ({ ...f, ...pending, page: 1 }))
   const onReset = () => {
-    setPending({ sfl: 'mb_id', stx: '', fr_date: '', to_date: '' })
-    setFilter({ sfl: 'mb_id', stx: '', fr_date: '', to_date: '', page: 1 })
+    const init = defaultLast7Days()
+    setPending({ sfl: 'mb_id', stx: '', fr_date: init.from, to_date: init.to })
+    setFilter({ sfl: 'mb_id', stx: '', fr_date: init.from, to_date: init.to, page: 1 })
   }
 
   const onAdjustSubmit = async () => {
@@ -281,6 +285,17 @@ export default function PointHistoryList() {
                 <Search className="w-4 h-4" /> 검색
               </button>
             </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+            <DateRangeChips
+              from={pending.fr_date}
+              to={pending.to_date}
+              onPick={(r) => {
+                const next = { ...pending, fr_date: r.from, to_date: r.to }
+                setPending(next)
+                setFilter((f) => ({ ...f, ...next, page: 1 }))
+              }}
+            />
           </div>
         </div>
       )}

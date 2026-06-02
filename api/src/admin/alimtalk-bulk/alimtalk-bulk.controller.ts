@@ -31,6 +31,8 @@ export class AlimtalkBulkController {
     @Query('status') status?: string,
     @Query('template') template?: string,
     @Query('bulk_only') bulkOnly?: string,
+    @Query('fr_date') frDate?: string,
+    @Query('to_date') toDate?: string,
   ) {
     return this.svc.listLogs({
       limit: limit ? Number(limit) : undefined,
@@ -38,6 +40,8 @@ export class AlimtalkBulkController {
       status,
       template,
       bulkOnly: bulkOnly === '1' || bulkOnly === 'true',
+      frDate,
+      toDate,
     });
   }
 

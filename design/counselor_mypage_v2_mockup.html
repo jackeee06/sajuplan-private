@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>상담사 마이페이지 v2 (목업)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+  <style>
+    :root {
+      --pink-50: #fdf2f8;
+      --pink-100: #fce7f3;
+      --pink-300: #f472b6;
+      --pink-500: #ec4899;
+      --pink-600: #db2777;
+      --gray-50: #F9FAFB;
+      --gray-100: #F3F4F6;
+      --gray-200: #E5E7EB;
+      --gray-300: #D1D5DB;
+      --gray-400: #99A1AF;
+      --gray-500: #6A7282;
+      --gray-700: #364153;
+      --gray-900: #030712;
+      --emerald-50: #ecfdf5;
+      --emerald-500: #10b981;
+      --emerald-600: #059669;
+    }
+    html, body { font-family: 'Pretendard Variable', Pretendard, sans-serif; background: #f5f5f5; }
+    .mobile-frame { max-width: 600px; min-width: 320px; margin: 0 auto; background: #fff; min-height: 100vh; }
+    .card { background: #fff; border: 1px solid var(--gray-100); border-radius: 16px; }
+    .accent-card { background: linear-gradient(135deg, #fdf2f8 0%, #fce7f3 100%); border: 1px solid #fbcfe8; border-radius: 16px; }
+    /* 토글 스위치 */
+    .switch { position: relative; display: inline-block; width: 52px; height: 30px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background: var(--gray-300); border-radius: 999px; transition: .2s; }
+    .slider:before { position: absolute; content: ""; height: 24px; width: 24px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    input:checked + .slider { background: var(--emerald-500); }
+    input:checked + .slider:before { transform: translateX(22px); }
+    input:disabled + .slider { opacity: .4; cursor: not-allowed; }
+    .switch--pink input:checked + .slider { background: var(--pink-500); }
+    /* 메뉴 아이콘 */
+    .menu-item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 0; border-radius: 12px; transition: background .15s; cursor: pointer; }
+    .menu-item:hover { background: var(--gray-50); }
+    .menu-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--pink-50); display: flex; align-items: center; justify-content: center; color: var(--pink-500); }
+    /* 알림 dot */
+    .badge-dot { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--pink-500); color: white; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+    /* 펼침 섹션 */
+    .collapse-header { display: flex; align-items: center; justify-content: space-between; padding: 16px; cursor: pointer; }
+    .collapse-header .chev { transition: transform .2s; }
+    .collapse-header.open .chev { transform: rotate(180deg); }
+    .collapse-body { padding: 0 16px 16px; display: none; }
+    .collapse-body.open { display: block; }
+    /* 상태 라벨 */
+    .status-on { background: var(--emerald-50); color: var(--emerald-600); border: 1px solid #a7f3d0; }
+    .status-off { background: var(--gray-50); color: var(--gray-500); border: 1px solid var(--gray-200); }
+  </style>
+</head>
+<body class="text-[15px]">
+
+<div class="mobile-frame">
+
+  <!-- ──────────────── 헤더 ──────────────── -->
+  <header class="px-4 pt-5 pb-3 flex items-center gap-3">
+    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-pink-200 to-pink-400 flex items-center justify-center text-white font-bold text-lg">와</div>
+    <div class="flex-1">
+      <div class="flex items-center gap-2">
+        <div class="text-[16px] font-semibold text-gray-900">와룡선생</div>
+        <span class="text-[11px] px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 font-medium">파트너 1등급</span>
+      </div>
+      <div class="text-[11px] text-gray-400 mt-0.5">상담코드 #779</div>
+    </div>
+    <button class="text-[12px] text-gray-500 inline-flex items-center gap-0.5">
+      <i data-lucide="pencil" class="w-3.5 h-3.5"></i> 정보수정
+    </button>
+  </header>
+
+  <div class="px-4 pb-24 space-y-3">
+
+    <!-- ──────────────── ① 🟢 상담 상태 토글 (최상단 강조) ──────────────── -->
+    <section class="card p-4">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="status-text" class="text-[16px] font-semibold text-emerald-600">지금 상담 가능</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="master-toggle" checked onchange="toggleMaster()">
+          <span class="slider"></span>
+        </label>
+      </div>
+      <div id="channel-row" class="grid grid-cols-2 gap-2">
+        <div class="flex items-center justify-between p-2.5 rounded-lg bg-gray-50">
+          <span class="text-[13px] text-gray-700 inline-flex items-center gap-1.5">
+            <i data-lucide="phone" class="w-4 h-4 text-pink-500"></i> 전화상담
+          </span>
+          <label class="switch switch--pink" style="transform:scale(0.85)">
+            <input type="checkbox" class="ch-toggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+        <div class="flex items-center justify-between p-2.5 rounded-lg bg-gray-50">
+          <span class="text-[13px] text-gray-700 inline-flex items-center gap-1.5">
+            <i data-lucide="message-circle" class="w-4 h-4 text-pink-500"></i> 채팅상담
+          </span>
+          <label class="switch switch--pink" style="transform:scale(0.85)">
+            <input type="checkbox" class="ch-toggle" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+      <p class="text-[11px] text-gray-400 mt-2.5 leading-relaxed">
+        잠시 자리 비울 때는 위 큰 토글로 한 번에 꺼주세요.
+      </p>
+    </section>
+
+    <!-- ──────────────── ② 💰 정산금액 (큰 카드) ──────────────── -->
+    <section class="accent-card p-4">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-[12px] text-pink-700 font-medium inline-flex items-center gap-1">
+          <i data-lucide="wallet" class="w-3.5 h-3.5"></i> 이번달 정산금액
+        </span>
+        <span class="text-[11px] text-gray-500">정산까지 <span class="font-semibold text-pink-600">D-10</span></span>
+      </div>
+      <div class="text-[28px] font-bold text-gray-900 tabular-nums leading-tight">
+        171,790<span class="text-[15px] font-medium text-gray-500 ml-0.5">원</span>
+      </div>
+      <div class="text-[11px] text-gray-500 mt-0.5">3.3% 원천세 공제 전 금액</div>
+      <div class="grid grid-cols-3 gap-2 mt-3">
+        <button class="h-9 rounded-lg bg-white border border-pink-200 text-[12px] text-pink-600 font-medium hover:bg-pink-50">통화 내역</button>
+        <button class="h-9 rounded-lg bg-white border border-pink-200 text-[12px] text-pink-600 font-medium hover:bg-pink-50">채팅 내역</button>
+        <button class="h-9 rounded-lg bg-white border border-pink-200 text-[12px] text-pink-600 font-medium hover:bg-pink-50">정산 이력</button>
+      </div>
+      <!-- 선지급 미니 -->
+      <div class="mt-3 p-2.5 rounded-lg bg-white/70 flex items-center justify-between">
+        <div>
+          <div class="text-[11px] text-gray-500">선지급 가능액</div>
+          <div class="text-[15px] font-semibold text-gray-900 tabular-nums">50,000원</div>
+        </div>
+        <button class="px-3 h-8 rounded-full bg-pink-500 text-white text-[12px] font-medium">신청</button>
+      </div>
+    </section>
+
+    <!-- ──────────────── ③ 🔔 처리 필요 알림 (0건이면 숨김) ──────────────── -->
+    <section class="card p-4 border-amber-200 bg-amber-50/50">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[13px] font-semibold text-amber-900 inline-flex items-center gap-1.5">
+          <i data-lucide="bell" class="w-4 h-4"></i> 처리 필요 <span class="text-amber-600">3건</span>
+        </span>
+        <button class="text-[11px] text-amber-700">모두 보기 →</button>
+      </div>
+      <ul class="space-y-1.5">
+        <li class="flex items-center justify-between text-[13px]">
+          <span class="text-gray-700">새 후기 1건</span>
+          <button class="text-pink-500 text-[12px]">답하러 가기</button>
+        </li>
+        <li class="flex items-center justify-between text-[13px]">
+          <span class="text-gray-700">답변 대기 문의 2건</span>
+          <button class="text-pink-500 text-[12px]">답하러 가기</button>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ──────────────── ④ 📊 이번달 상담 현황 ──────────────── -->
+    <section class="card p-4">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-[13px] font-semibold text-gray-700 inline-flex items-center gap-1.5">
+          <i data-lucide="bar-chart-3" class="w-4 h-4 text-gray-500"></i> 2026년 5월 상담 현황
+        </span>
+        <button class="text-[11px] text-gray-500">자세히 →</button>
+      </div>
+      <div class="grid grid-cols-3 gap-2 mb-3">
+        <div class="text-center p-2.5 bg-gray-50 rounded-lg">
+          <div class="text-[10px] text-gray-500 mb-1">상담</div>
+          <div class="text-[18px] font-bold text-gray-900 tabular-nums">37<span class="text-[11px] font-medium text-gray-500 ml-0.5">건</span></div>
+        </div>
+        <div class="text-center p-2.5 bg-gray-50 rounded-lg">
+          <div class="text-[10px] text-gray-500 mb-1">부재</div>
+          <div class="text-[18px] font-bold text-rose-500 tabular-nums">2<span class="text-[11px] font-medium text-gray-500 ml-0.5">건</span></div>
+        </div>
+        <div class="text-center p-2.5 bg-gray-50 rounded-lg">
+          <div class="text-[10px] text-gray-500 mb-1">시간</div>
+          <div class="text-[14px] font-bold text-gray-900 tabular-nums leading-tight pt-0.5">10h<span class="text-[10px] font-medium text-gray-500 ml-0.5">8m</span></div>
+        </div>
+      </div>
+      <div class="flex items-center justify-between text-[12px] py-2 border-t border-gray-100">
+        <span class="text-gray-500">고객 이용료 (30초당)</span>
+        <span class="font-semibold text-gray-900">1,200원</span>
+      </div>
+      <!-- 차별화: 다음달 등급 예측 -->
+      <div class="mt-2 p-2.5 rounded-lg bg-purple-50">
+        <div class="text-[11px] text-purple-700 inline-flex items-center gap-1">
+          <i data-lucide="trending-up" class="w-3.5 h-3.5"></i>
+          현 추세 유지 시 다음달 <b>파트너 2 승급 예상</b> (남은 4시간 통화 필요)
+        </div>
+      </div>
+    </section>
+
+    <!-- ──────────────── ⑤ 상담사 관리 메뉴 ──────────────── -->
+    <section class="card p-3">
+      <div class="text-[12px] text-gray-500 px-1 mb-2">상담사 관리</div>
+      <div class="grid grid-cols-4 gap-1">
+        <div class="menu-item">
+          <div class="menu-icon relative">
+            <i data-lucide="megaphone" class="w-5 h-5"></i>
+            <span class="badge-dot">1</span>
+          </div>
+          <span class="text-[11px] text-gray-700">공지</span>
+        </div>
+        <div class="menu-item">
+          <div class="menu-icon relative">
+            <i data-lucide="star" class="w-5 h-5"></i>
+            <span class="badge-dot">1</span>
+          </div>
+          <span class="text-[11px] text-gray-700">후기</span>
+        </div>
+        <div class="menu-item">
+          <div class="menu-icon relative">
+            <i data-lucide="help-circle" class="w-5 h-5"></i>
+            <span class="badge-dot">2</span>
+          </div>
+          <span class="text-[11px] text-gray-700">문의</span>
+        </div>
+        <div class="menu-item">
+          <div class="menu-icon"><i data-lucide="package" class="w-5 h-5"></i></div>
+          <span class="text-[11px] text-gray-700">상품</span>
+        </div>
+        <div class="menu-item">
+          <div class="menu-icon"><i data-lucide="banknote" class="w-5 h-5"></i></div>
+          <span class="text-[11px] text-gray-700">선지급</span>
+        </div>
+        <div class="menu-item">
+          <div class="menu-icon"><i data-lucide="award" class="w-5 h-5"></i></div>
+          <span class="text-[11px] text-gray-700">등급</span>
+        </div>
+        <div class="menu-item">
+          <div class="menu-icon"><i data-lucide="users" class="w-5 h-5"></i></div>
+          <span class="text-[11px] text-gray-700">고객</span>
+        </div>
+        <div class="menu-item">
+          <div class="menu-icon"><i data-lucide="notebook-pen" class="w-5 h-5"></i></div>
+          <span class="text-[11px] text-gray-700">메모</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ──────────────── ⑥ 상담 통계 (접힘) ──────────────── -->
+    <section class="card">
+      <div class="collapse-header" onclick="toggleCollapse(this)">
+        <span class="text-[14px] font-medium text-gray-700 inline-flex items-center gap-2">
+          <i data-lucide="line-chart" class="w-4 h-4 text-gray-500"></i>
+          상담 통계 (기간 검색)
+        </span>
+        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 chev"></i>
+      </div>
+      <div class="collapse-body">
+        <div class="flex items-center gap-2 mb-3">
+          <input type="date" value="2026-05-01" class="flex-1 h-9 px-2 rounded-md border border-gray-200 text-[13px]">
+          <span class="text-gray-400">~</span>
+          <input type="date" value="2026-05-21" class="flex-1 h-9 px-2 rounded-md border border-gray-200 text-[13px]">
+          <button class="h-9 px-3 rounded-md bg-pink-500 text-white text-[12px] font-medium">검색</button>
+        </div>
+        <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="p-2 bg-gray-50 rounded-lg">
+            <div class="text-[10px] text-gray-500">상담</div>
+            <div class="text-[15px] font-bold tabular-nums">1건</div>
+          </div>
+          <div class="p-2 bg-gray-50 rounded-lg">
+            <div class="text-[10px] text-gray-500">부재</div>
+            <div class="text-[15px] font-bold tabular-nums">0건</div>
+          </div>
+          <div class="p-2 bg-gray-50 rounded-lg">
+            <div class="text-[10px] text-gray-500">시간</div>
+            <div class="text-[15px] font-bold tabular-nums">31분</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ──────────────── ⑦ 설정/기타 (접힘) ──────────────── -->
+    <section class="card">
+      <div class="collapse-header" onclick="toggleCollapse(this)">
+        <span class="text-[14px] font-medium text-gray-700 inline-flex items-center gap-2">
+          <i data-lucide="settings" class="w-4 h-4 text-gray-500"></i>
+          설정 및 기타
+        </span>
+        <i data-lucide="chevron-down" class="w-4 h-4 text-gray-400 chev"></i>
+      </div>
+      <div class="collapse-body">
+        <ul class="divide-y divide-gray-100 -mt-2">
+          <li class="py-3 flex items-center justify-between text-[14px] cursor-pointer">
+            <span class="text-gray-700">앱 알림 설정</span>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-300"></i>
+          </li>
+          <li class="py-3 flex items-center justify-between text-[14px] cursor-pointer">
+            <span class="text-gray-700">계좌 / 사업자 정보</span>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-300"></i>
+          </li>
+          <li class="py-3 flex items-center justify-between text-[14px] cursor-pointer">
+            <span class="text-gray-700">고객센터 / 1:1 문의</span>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-300"></i>
+          </li>
+          <li class="py-3 flex items-center justify-between text-[14px] cursor-pointer">
+            <span class="text-rose-500">로그아웃</span>
+            <i data-lucide="log-out" class="w-4 h-4 text-rose-300"></i>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ──────────────── 하단 탭바 (참고용) ──────────────── -->
+  <nav class="fixed bottom-0 left-0 right-0 max-w-[600px] mx-auto bg-white border-t border-gray-100 h-[60px] flex items-center justify-around">
+    <button class="flex flex-col items-center gap-0.5 text-gray-400 text-[10px]">
+      <i data-lucide="home" class="w-5 h-5"></i> 홈
+    </button>
+    <button class="flex flex-col items-center gap-0.5 text-gray-400 text-[10px]">
+      <i data-lucide="bookmark" class="w-5 h-5"></i> 단골
+    </button>
+    <button class="flex flex-col items-center gap-0.5 text-gray-400 text-[10px]">
+      <i data-lucide="trending-up" class="w-5 h-5"></i> 인기
+    </button>
+    <button class="flex flex-col items-center gap-0.5 text-pink-500 text-[10px] font-medium">
+      <i data-lucide="user" class="w-5 h-5"></i> 마이메뉴
+    </button>
+    <button class="flex flex-col items-center gap-0.5 text-gray-400 text-[10px]">
+      <i data-lucide="coins" class="w-5 h-5"></i> 코인충전
+    </button>
+  </nav>
+
+</div>
+
+<script>
+  lucide.createIcons();
+
+  function toggleMaster() {
+    const on = document.getElementById('master-toggle').checked;
+    const dot = document.getElementById('status-dot');
+    const txt = document.getElementById('status-text');
+    document.querySelectorAll('.ch-toggle').forEach(el => { el.disabled = !on; if (!on) el.checked = false; });
+    if (on) {
+      dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse';
+      txt.className = 'text-[16px] font-semibold text-emerald-600';
+      txt.textContent = '지금 상담 가능';
+    } else {
+      dot.className = 'w-2.5 h-2.5 rounded-full bg-gray-400';
+      txt.className = 'text-[16px] font-semibold text-gray-500';
+      txt.textContent = '부재중 (자리비움)';
+    }
+  }
+  function toggleCollapse(headerEl) {
+    headerEl.classList.toggle('open');
+    headerEl.nextElementSibling.classList.toggle('open');
+  }
+</script>
+
+</body>
+</html>

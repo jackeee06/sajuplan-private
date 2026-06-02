@@ -114,11 +114,13 @@ export class StatsService {
   }
 
   /**
-   * 운영 KPI — 최근 N일 (Phase 11).
-   *   환불률, 평균 통화시간, 전체 통화 건수, 환불액 합계, call/chat 비율
+   * 운영 KPI — 기간 지정 (fr_date/to_date) 또는 최근 N일 (days 폴백).
    */
-  async opsKpi(days = 30) {
+  async opsKpi(days = 30, frDate?: string, toDate?: string) {
     const safeDays = Math.min(365, Math.max(1, Math.trunc(days)));
+    const dateFilter = frDate && toDate
+      ? this.sql`created_at >= ${frDate + ' 00:00:00'}::timestamptz AND created_at <= ${toDate + ' 23:59:59'}::timestamptz`
+      : this.sql`created_at >= (CURRENT_DATE - (${safeDays}::int || ' days')::interval)`;
     const rows = await this.sql<{
       total_count: string;
       call_count: string;
@@ -137,7 +139,7 @@ export class StatsService {
         COALESCE(SUM(refunded_amount), 0)::text AS total_refunded,
         COUNT(*) FILTER (WHERE refunded_amount > 0)::text AS refunded_count
       FROM consultation
-      WHERE created_at >= (CURRENT_DATE - (${safeDays}::int || ' days')::interval)
+      WHERE ${dateFilter}
         AND reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
     `;
     const r = rows[0];
@@ -160,12 +162,14 @@ export class StatsService {
   }
 
   /**
-   * 상담사 매출 순위 — 최근 N일.
-   *   정산 금액 기준 정렬. 환불 차감 반영.
+   * 상담사 매출 순위 — 기간 지정 또는 최근 N일 폴백.
    */
-  async counselorRanking(days = 30, limit = 10) {
+  async counselorRanking(days = 30, limit = 10, frDate?: string, toDate?: string) {
     const safeDays = Math.min(365, Math.max(1, Math.trunc(days)));
     const safeLimit = Math.min(50, Math.max(1, Math.trunc(limit)));
+    const dateFilter = frDate && toDate
+      ? this.sql`c.created_at >= ${frDate + ' 00:00:00'}::timestamptz AND c.created_at <= ${toDate + ' 23:59:59'}::timestamptz`
+      : this.sql`c.created_at >= (CURRENT_DATE - (${safeDays}::int || ' days')::interval)`;
     return await this.sql<Array<{
       counselor_id: number;
       mb_id: string | null;
@@ -185,7 +189,7 @@ export class StatsService {
         COALESCE(AVG(c.usetm), 0)::text AS avg_duration
       FROM consultation c
       JOIN member m ON m.id = c.counselor_id
-      WHERE c.created_at >= (CURRENT_DATE - (${safeDays}::int || ' days')::interval)
+      WHERE ${dateFilter}
         AND c.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
         AND c.refund_status IS DISTINCT FROM 'full'
       GROUP BY c.counselor_id, m.mb_id, m.nickname, m.grade

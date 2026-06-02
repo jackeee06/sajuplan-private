@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search } from 'lucide-react'
 import { api } from '../lib/api'
+import { defaultLast7Days } from '../lib/dateRange'
+import { DateRangeChips } from '../components/DateRangeChips'
 import {
   Th,
   Td,
@@ -43,8 +45,10 @@ const PAGE_SIZE = 20
 
 export default function ChatHistoryList() {
   const navigate = useNavigate()
-  const [filter, setFilter] = useState({ q: '', fr_date: '', to_date: '', page: 1 })
-  const [pending, setPending] = useState({ q: '', fr_date: '', to_date: '' })
+  // [2026-06-02 v2] 사장님 명시: 기본 활성 = 최근 7일
+  const _init30 = defaultLast7Days()
+  const [filter, setFilter] = useState({ q: '', fr_date: _init30.from, to_date: _init30.to, page: 1 })
+  const [pending, setPending] = useState({ q: '', fr_date: _init30.from, to_date: _init30.to })
   const [data, setData] = useState<Resp | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -119,6 +123,18 @@ export default function ChatHistoryList() {
               <Search className="w-4 h-4" /> 검색
             </button>
           </div>
+        </div>
+        {/* [2026-06-02] 빠른 기간 칩 — 사장님 합의 (오늘/어제/최근7일/이번달/지난달) */}
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+          <DateRangeChips
+            from={pending.fr_date}
+            to={pending.to_date}
+            onPick={(r) => {
+              const next = { ...pending, fr_date: r.from, to_date: r.to }
+              setPending(next)
+              setFilter((f) => ({ ...f, ...next, page: 1 }))
+            }}
+          />
         </div>
       </div>
 

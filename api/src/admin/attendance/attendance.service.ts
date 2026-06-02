@@ -158,10 +158,14 @@ export class AdminAttendanceService {
     q?: string;
     page?: number;
     limit?: number;
+    frDate?: string;
+    toDate?: string;
   }) {
     const page = Math.max(1, params.page ?? 1);
     const limit = Math.min(100, Math.max(1, params.limit ?? 20));
     const offset = (page - 1) * limit;
+    const frCond = params.frDate ? this.sql`AND a.attended_date >= ${params.frDate}::date` : this.sql``;
+    const toCond = params.toDate ? this.sql`AND a.attended_date <= ${params.toDate}::date` : this.sql``;
 
     if (!params.member_id && !params.q) {
       // 전체 최근 출석 이력
@@ -183,6 +187,7 @@ export class AdminAttendanceService {
                COUNT(*) OVER ()::text AS total
           FROM member_attendance a
           JOIN member m ON m.id = a.member_id
+         WHERE 1=1 ${frCond} ${toCond}
          ORDER BY a.attended_date DESC, a.id DESC
          LIMIT ${limit} OFFSET ${offset}
       `;
@@ -217,7 +222,7 @@ export class AdminAttendanceService {
              COUNT(*) OVER ()::text AS total
         FROM member_attendance a
         JOIN member m ON m.id = a.member_id
-       WHERE ${whereMember}
+       WHERE ${whereMember} ${frCond} ${toCond}
        ORDER BY a.attended_date DESC, a.id DESC
        LIMIT ${limit} OFFSET ${offset}
     `;

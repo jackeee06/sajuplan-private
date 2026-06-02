@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico?v=v3" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png?v=v3" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png?v=v3" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=v3" />
+    <link rel="manifest" href="/site.webmanifest?v=v3" />
+    <meta name="theme-color" content="#8259f5" />
+    <title>사주플랜</title>
+
+    <!-- 외부 CDN 사전 연결(DNS+TLS) — 콜드 스타트 시 Pretendard/Kakao 다운로드 더 빠름.
+         transformIndexHtml(cacheBustPlugin)이 외부 URL은 건드리지 않도록 처리해 origin 매칭이 유지된다. -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <link rel="preconnect" href="https://t1.kakaocdn.net" crossorigin />
+    <link rel="dns-prefetch" href="https://api.sajuplan.com" />
+    <link rel="dns-prefetch" href="https://api.sajumoon.co.kr" />
+    <link rel="dns-prefetch" href="https://api.sajumoon.kr" />
+
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
+    />
+    <!-- 런타임 환경 결정: deploy.sh 가 sed 로 __SAJUMOON_ENV__ → test|prod 치환.
+         앱 부팅 전에 실행되어 runtime-env.ts 가 window.__SAJUMOON_CONFIG 를 읽음. -->
+    <script>window.__SAJUMOON_CONFIG = { env: '__SAJUMOON_ENV__' };</script>
+    <!-- Kakao JavaScript SDK — async + onload 로 변경 (2026-05-29).
+         이전엔 동기 <script> 라 메인 페이지 첫 그리기를 막아 콜드 스타트 30초+ 사고의 원인 중 하나.
+         async 로 두면 백그라운드 다운로드, 로드 완료 시 init. 카카오 공유 버튼은 init 후에만 동작하지만
+         사용자가 곧장 공유 누르는 경로는 거의 없어 비차단으로도 충분. -->
+    <script>
+      function __sajumoonKakaoInit() {
+        try {
+          if (window.Kakao && !window.Kakao.isInitialized()) {
+            window.Kakao.init('b0c551897ed6b53e4be2f273d1917e9f');
+          }
+        } catch (e) { /* SDK 로드 실패 — 공유 기능만 영향, 메인 동작 무관 */ }
+      }
+    </script>
+    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js" crossorigin="anonymous" async onload="__sajumoonKakaoInit()"></script>
+
+    <!-- 정적 부트 스켈레톤 스타일 — React 마운트 전(콜드 스타트, JS 다운로드 중) 흰 화면 방지.
+         createRoot 가 #root 내부를 갈아엎으므로 마운트 즉시 자연스럽게 사라진다. -->
+    <style>
+      .sjm-boot {
+        position: fixed; inset: 0;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 20px;
+        background: #ffffff;
+        font-family: Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      }
+      .sjm-boot__logo { height: 44px; width: auto; opacity: 0.92; }
+      .sjm-boot__spin {
+        width: 28px; height: 28px;
+        border: 3px solid #ede9fe;
+        border-top-color: #9b7af7;
+        border-radius: 50%;
+        animation: sjm-spin 0.9s linear infinite;
+      }
+      .sjm-boot__hint {
+        margin-top: 4px;
+        font-size: 12px; color: #9ca3af; letter-spacing: 0.02em;
+      }
+      @keyframes sjm-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    </style>
+    <script type="module" crossorigin src="/assets/index-f9Mav_rI.js?v=v3"></script>
+    <link rel="modulepreload" crossorigin href="/assets/router-CtgIlfd_.js?v=v3">
+    <link rel="modulepreload" crossorigin href="/assets/editor-XAf42yRo.js?v=v3">
+    <link rel="stylesheet" crossorigin href="/assets/index-BQujQOcs.css?v=v3">
+  </head>
+  <body>
+    <div id="root">
+      <!-- 부트 스켈레톤 — JS 다운로드/파싱 동안에도 사용자에게 "사주플랜이 뜨고 있다" 인지시킨다.
+           React 가 마운트되는 순간 통째로 교체됨. -->
+      <div class="sjm-boot">
+        <img class="sjm-boot__logo" src="/img/logo_b.svg" alt="사주플랜" />
+        <div class="sjm-boot__spin" aria-label="로딩 중"></div>
+        <div class="sjm-boot__hint">잠시만 기다려 주세요…</div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>디몬스터 미팅 이력</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Pretendard', -apple-system, sans-serif; padding: 24px; background: #fafafa; color: #1f2937; max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: #374151; font-weight: 600; }
+  .sub { color: #6b7280; font-size: 13px; margin-bottom: 20px; }
+  .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,.06); margin-bottom: 16px; }
+  canvas { max-height: 320px; }
+  .alert { background: #fef2f2; border-left: 4px solid #ef4444; padding: 14px 18px; border-radius: 8px; margin-bottom: 20px; font-size: 14px; line-height: 1.6; }
+  .alert b { color: #991b1b; }
+  table { border-collapse: collapse; font-size: 13px; width: 100%; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid #f3f4f6; }
+  th:first-child, td:first-child { text-align: left; font-weight: 600; }
+  th { background: #f9fafb; font-weight: 600; }
+  .hl { background: #fef3c7; }
+  .hl b { color: #92400e; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; font-size: 12px; }
+  .yr-toggle { padding: 4px 12px; border-radius: 14px; border: 1px solid #e5e7eb; background: white; cursor: pointer; }
+  .yr-toggle.on { background: #9b7af7; color: white; border-color: #9b7af7; }
+  .yr-toggle.recent { border-color: #ef4444; color: #ef4444; }
+  .yr-toggle.recent.on { background: #ef4444; color: white; }
+</style>
+</head>
+<body>
+<h1>디몬스터 미팅 이력 분석</h1>
+<div class="sub">시트: 디몬미팅이력(과거저장용) · 단위: 만원 · 연도 추정: 앵커(2/29 등 결정적 단서) 기반</div>
+
+<div class="alert">
+  <b>핵심 신호:</b> 2026년 5월 미팅 격감 — 평년(2022~2025) 5월 평균 대비 건수 1/6, 금액 1/30 수준.
+</div>
+
+<div class="card">
+  <h2>5월 비교 (가장 중요)</h2>
+  <canvas id="mayChart"></canvas>
+</div>
+
+<div class="card">
+  <h2>6월 비교</h2>
+  <canvas id="junChart"></canvas>
+</div>
+
+<div class="card">
+  <h2>월별 견적 합계 추이 (만원)</h2>
+  <canvas id="amountChart"></canvas>
+</div>
+
+<div class="card">
+  <h2>월별 건수 추이</h2>
+  <canvas id="countChart"></canvas>
+</div>
+
+<div class="card">
+  <h2>전체 매트릭스 — 견적 합계 (만원)</h2>
+  <table id="amountTable"></table>
+</div>
+
+<div class="card">
+  <h2>전체 매트릭스 — 건수</h2>
+  <table id="countTable"></table>
+</div>
+
+<script>
+const data = {"years": [2022, 2023, 2024, 2025, 2026], "months": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], "count": {"2022-1": 46, "2022-2": 22, "2022-3": 28, "2022-4": 33, "2022-5": 44, "2022-6": 41, "2022-7": 56, "2022-8": 55, "2022-9": 54, "2022-10": 56, "2022-11": 128, "2022-12": 102, "2023-1": 46, "2023-2": 55, "2023-3": 82, "2023-4": 59, "2023-5": 76, "2023-6": 65, "2023-7": 55, "2023-8": 73, "2023-9": 72, "2023-10": 65, "2023-11": 63, "2023-12": 61, "2024-1": 74, "2024-2": 70, "2024-3": 66, "2024-4": 66, "2024-5": 75, "2024-6": 80, "2024-7": 93, "2024-8": 66, "2024-9": 76, "2024-10": 76, "2024-11": 83, "2024-12": 47, "2025-1": 58, "2025-2": 70, "2025-3": 74, "2025-4": 74, "2025-5": 58, "2025-6": 61, "2025-7": 68, "2025-8": 60, "2025-9": 71, "2025-10": 39, "2025-11": 57, "2025-12": 60, "2026-1": 62, "2026-2": 37, "2026-3": 31, "2026-4": 37, "2026-5": 21, "2026-6": 0, "2026-7": 0, "2026-8": 0, "2026-9": 0, "2026-10": 0, "2026-11": 0, "2026-12": 0}, "amount": {"2022-1": 126500, "2022-2": 60750, "2022-3": 91450, "2022-4": 98250, "2022-5": 90280, "2022-6": 103650, "2022-7": 147100, "2022-8": 106200, "2022-9": 290400, "2022-10": 169960, "2022-11": 252200, "2022-12": 203400, "2023-1": 126500, "2023-2": 54900, "2023-3": 116350, "2023-4": 74795, "2023-5": 134550, "2023-6": 135000, "2023-7": 79300, "2023-8": 108150, "2023-9": 96430, "2023-10": 111000, "2023-11": 138300, "2023-12": 108690, "2024-1": 80400, "2024-2": 128300, "2024-3": 139700, "2024-4": 165630, "2024-5": 140200, "2024-6": 125020, "2024-7": 105250, "2024-8": 87400, "2024-9": 106480, "2024-10": 137350, "2024-11": 105000, "2024-12": 78400, "2025-1": 92000, "2025-2": 232100, "2025-3": 153150, "2025-4": 71400, "2025-5": 117300, "2025-6": 138550, "2025-7": 80960, "2025-8": 138400, "2025-9": 96350, "2025-10": 55400, "2025-11": 89700, "2025-12": 56600, "2026-1": 51700, "2026-2": 48200, "2026-3": 11500, "2026-4": 34500, "2026-5": 12500, "2026-6": 0, "2026-7": 0, "2026-8": 0, "2026-9": 0, "2026-10": 0, "2026-11": 0, "2026-12": 0}, "current_year": 2026, "current_month": 5};
+const palette = ['#cbd5e1','#94a3b8','#9b7af7','#f472b6','#34d399','#fbbf24','#60a5fa','#a78bfa','#22d3ee','#fb7185'];
+
+function colorFor(yr, i) {
+  // 최신 2년은 강조
+  if (yr === data.years[data.years.length-1]) return '#ef4444';
+  if (yr === data.years[data.years.length-2]) return '#9b7af7';
+  return palette[i % palette.length];
+}
+
+// 5월/6월 막대 ─ 한 화면에 핵심 비교
+function mkBarYear(canvasId, mo) {
+  const yrs = data.years.filter(y => (data.count[y+'-'+mo]||0) > 0 || (data.amount[y+'-'+mo]||0) > 0);
+  new Chart(document.getElementById(canvasId), {
+    type: 'bar',
+    data: {
+      labels: yrs.map(y => y + '년'),
+      datasets: [
+        { label: '건수', data: yrs.map(y => data.count[y+'-'+mo]||0), yAxisID: 'y1', backgroundColor: yrs.map((y,i)=>colorFor(y,i)) },
+        { label: '금액(만원)', data: yrs.map(y => data.amount[y+'-'+mo]||0), yAxisID: 'y2', backgroundColor: yrs.map((y,i)=>colorFor(y,i)+'66'), type:'line', tension:0.3, borderColor:'#374151', pointBackgroundColor: yrs.map((y,i)=>colorFor(y,i)) },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        y1: { beginAtZero: true, position: 'left', title: { display: true, text: '건수' } },
+        y2: { beginAtZero: true, position: 'right', title: { display: true, text: '금액(만원)' }, grid: { drawOnChartArea: false } }
+      }
+    }
+  });
+}
+mkBarYear('mayChart', 5);
+mkBarYear('junChart', 6);
+
+// 연도별 스타일: 색깔 + 점선 패턴을 섞어서 한눈에 구분 가능하게
+// 5년치를 모두 동시에 보여줘도 헷갈리지 않도록
+const yearStyle = {
+  2022: { color: '#94a3b8', dash: [2, 4],   width: 1.5 },  // 회색 점점선
+  2023: { color: '#60a5fa', dash: [8, 4],   width: 1.5 },  // 파랑 긴-점선
+  2024: { color: '#34d399', dash: [4, 4],   width: 1.5 },  // 초록 점선
+  2025: { color: '#9b7af7', dash: [],       width: 2.5 },  // 보라 실선 (작년)
+  2026: { color: '#ef4444', dash: [],       width: 3.5 },  // 빨강 굵은 실선 (올해)
+};
+
+function mkLine(canvasId, key) {
+  const datasets = data.years.map(y => {
+    const style = yearStyle[y] || { color: '#999', dash: [], width: 1.5 };
+    // 2026년은 current_month 이후를 null로 → 선이 끊김
+    const isCurrentYear = (y === data.current_year);
+    const values = data.months.map(m => {
+      if (isCurrentYear && m > data.current_month) return null;
+      return data[key][y + '-' + m] || 0;
+    });
+    return {
+      label: y + '년' + (isCurrentYear ? ' (현재)' : ''),
+      data: values,
+      borderColor: style.color,
+      backgroundColor: style.color + '15',
+      borderDash: style.dash,
+      borderWidth: style.width,
+      tension: 0.3,
+      pointRadius: isCurrentYear ? 5 : 3,
+      pointBackgroundColor: style.color,
+      spanGaps: false,  // null 구간은 끊어서 그리기
+    };
+  });
+  new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: { labels: data.months.map(m => m + '월'), datasets },
+    options: {
+      responsive: true,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { usePointStyle: false, boxWidth: 24, font: { size: 12 } }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.dataset.label + ': ' + (ctx.parsed.y !== null ? ctx.parsed.y.toLocaleString() : '미래')
+          }
+        }
+      },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => v.toLocaleString() } } }
+    }
+  });
+}
+mkLine('amountChart', 'amount');
+mkLine('countChart', 'count');
+
+function fillTable(tableId, key) {
+  const tbl = document.getElementById(tableId);
+  let html = '<thead><tr><th>월</th>';
+  data.years.forEach(y => html += '<th>' + y + '</th>');
+  html += '</tr></thead><tbody>';
+  data.months.forEach(m => {
+    const hl = (m===5||m===6) ? ' class="hl"' : '';
+    html += '<tr' + hl + '><td>' + m + '월</td>';
+    data.years.forEach(y => {
+      const v = data[key][y+'-'+m] || 0;
+      html += '<td>' + (v? v.toLocaleString() : '-') + '</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+fillTable('amountTable', 'amount');
+fillTable('countTable', 'count');
+</script>
+</body>
+</html>

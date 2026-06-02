@@ -27,12 +27,16 @@ export class AdminRefundsController {
     @Query('offset') offset?: string,
     @Query('status') status?: string,
     @Query('member_mb_id') memberMbId?: string,
+    @Query('fr_date') frDate?: string,
+    @Query('to_date') toDate?: string,
   ) {
     return this.svc.list({
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
       status,
       memberMbId,
+      frDate,
+      toDate,
     });
   }
 

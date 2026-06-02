@@ -226,12 +226,18 @@ export class MembersController {
 
 /**
  * [PII 보호] 전화번호 평문 노출 조건.
- *   - 슈퍼관리자 (is_super=true) 이고
- *   - 요청에 show_phone=1 (헤더 토글 ON) 일 때만
- * 일반 관리자는 어떤 경우에도 마스킹된 phone/telno 만 받음.
+ *   - 슈퍼관리자: 평소 항상 평문 (사장님 정책 2026-06-02)
+ *   - 일반관리자: show_phone=1 토글 ON 일 때만 (헤더 슈퍼관리자 설정)
+ *
+ * 사장님 정책 (2026-06-02 명시): "슈퍼관리자는 평소에 전화번호가 다 보여야 한다"
+ *   → 슈퍼관리자는 토글 없이 항상 평문 — 별도 액션 불필요.
+ *   → 일반관리자는 슈퍼가 설정한 시간 제한 토글 활성 시만 평문.
  */
 function canShowPhone(req: AuthedRequest, q: Record<string, string>): boolean {
-  return !!req.admin?.is_super && q.show_phone === '1';
+  // 슈퍼관리자: 평소 항상 평문 (정책)
+  if (req.admin?.is_super) return true;
+  // 일반관리자: 토글 ON 시만 평문
+  return q.show_phone === '1';
 }
 
 function parseFilter(q: Record<string, string>): ListFilter {

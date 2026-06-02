@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { defaultLast7Days } from '../lib/dateRange'
+import { DateRangeChips } from '../components/DateRangeChips'
 import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow } from '../components/table'
 
 /**
@@ -60,9 +62,12 @@ export default function AlimtalkBulk() {
   const [error, setError] = useState<string | null>(null)
 
   // 이력
+  const _init = defaultLast7Days()
   const [jobs, setJobs] = useState<JobRow[]>([])
   const [logs, setLogs] = useState<LogRow[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
+  const [frDate, setFrDate] = useState(_init.from)
+  const [toDate, setToDate] = useState(_init.to)
 
   useEffect(() => {
     api<Template[]>('/admin/alimtalk-bulk/templates').then(setTemplates).catch(() => {})
@@ -71,9 +76,12 @@ export default function AlimtalkBulk() {
   useEffect(() => {
     if (tab !== 'history') return
     setLogsLoading(true)
+    const logParams = new URLSearchParams({ limit: '100' })
+    if (frDate) logParams.set('fr_date', frDate)
+    if (toDate) logParams.set('to_date', toDate)
     Promise.all([
       api<JobRow[]>('/admin/alimtalk-bulk/jobs?limit=20'),
-      api<LogRow[]>('/admin/alimtalk-bulk/logs?limit=100'),
+      api<LogRow[]>(`/admin/alimtalk-bulk/logs?${logParams}`),
     ])
       .then(([j, l]) => {
         setJobs(j)
@@ -81,7 +89,7 @@ export default function AlimtalkBulk() {
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLogsLoading(false))
-  }, [tab, result])
+  }, [tab, result, frDate, toDate])
 
   const selectedTpl = templates.find((t) => t.template_code === tplCode)
 
@@ -279,7 +287,10 @@ export default function AlimtalkBulk() {
 
           {/* 개별 로그 */}
           <section>
-            <h2 className="text-base font-medium mb-3">개별 발송 로그 (최근 100건)</h2>
+            <div className="flex items-center gap-3 mb-3">
+              <h2 className="text-base font-medium">개별 발송 로그</h2>
+              <DateRangeChips from={frDate} to={toDate} onPick={(r) => { setFrDate(r.from); setToDate(r.to) }} />
+            </div>
             {logs.length === 0 ? (
               <div className="p-6 text-sm text-gray-500 text-center bg-white rounded">로그 없음</div>
             ) : (

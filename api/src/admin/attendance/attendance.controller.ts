@@ -44,6 +44,8 @@ export class AdminAttendanceController {
       q: q.q || undefined,
       page: q.page ? Number(q.page) : 1,
       limit: q.limit ? Number(q.limit) : 20,
+      frDate: q.fr_date || undefined,
+      toDate: q.to_date || undefined,
     });
   }
 

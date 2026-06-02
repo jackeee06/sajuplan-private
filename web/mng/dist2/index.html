@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/x-icon" href="/mng/favicon/favicon.ico" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/mng/favicon/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/mng/favicon/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/mng/favicon/apple-touch-icon.png" />
+    <link rel="manifest" href="/mng/favicon/site.webmanifest" />
+    <meta name="theme-color" content="#7c3aed" />
+    <title>사주플랜 Admin</title>
+    <script>
+      if (localStorage.getItem('darkMode') === '1') {
+        document.documentElement.classList.add('dark');
+      }
+    </script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap"
+      rel="stylesheet"
+    />
+    <!-- 런타임 환경 결정: deploy.sh 가 sed 로 __SAJUMOON_ENV__ → test|prod 치환. -->
+    <script>window.__SAJUMOON_CONFIG = { env: '__SAJUMOON_ENV__' };</script>
+    <script type="module" crossorigin src="/mng/assets/index-55PckL9r.js"></script>
+    <link rel="stylesheet" crossorigin href="/mng/assets/index-PUa1-iam.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

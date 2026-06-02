@@ -1,0 +1,843 @@
+{
+  "config": {
+    "configFile": "C:\\claudeworkspace\\sajumoon\\e2e\\playwright.config.ts",
+    "rootDir": "C:/claudeworkspace/sajumoon/e2e/tests",
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "C:\\claudeworkspace\\sajumoon\\e2e\\global-setup.ts",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "C:/claudeworkspace/sajumoon/e2e/test-results",
+        "repeatEach": 1,
+        "retries": 1,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "C:/claudeworkspace/sajumoon/e2e/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "last-run.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.60.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "10-user-coin-terminology.spec.ts",
+      "file": "10-user-coin-terminology.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "코인/수익금 용어 통일 정책 (비로그인 공개 페이지)",
+          "file": "10-user-coin-terminology.spec.ts",
+          "line": 44,
+          "column": 6,
+          "specs": [
+            {
+              "title": "홈 (/) — 옛 \"포인트\" 단어 노출 0",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2525,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:16.365Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8a8d316c63e412867850-cf70efe74cdb5a174bad",
+              "file": "10-user-coin-terminology.spec.ts",
+              "line": 46,
+              "column": 9
+            },
+            {
+              "title": "상담사 리스트 (/counselors) — 옛 \"포인트\" 단어 노출 0",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2195,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:19.047Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8a8d316c63e412867850-0c6c3ab1b9a38d5a2e9e",
+              "file": "10-user-coin-terminology.spec.ts",
+              "line": 46,
+              "column": 9
+            },
+            {
+              "title": "로그인 (/login) — 옛 \"포인트\" 단어 노출 0",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1962,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:21.256Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8a8d316c63e412867850-32e52e2863421c178dde",
+              "file": "10-user-coin-terminology.spec.ts",
+              "line": 46,
+              "column": 9
+            },
+            {
+              "title": "회원가입 (/signup) — 옛 \"포인트\" 단어 노출 0",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1925,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:23.230Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8a8d316c63e412867850-bb8a0934fef28b00cc38",
+              "file": "10-user-coin-terminology.spec.ts",
+              "line": 46,
+              "column": 9
+            },
+            {
+              "title": "아이디·비번 찾기 (/find) — 옛 \"포인트\" 단어 노출 0",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2092,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:25.168Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8a8d316c63e412867850-e79d15f62bc1ddd79143",
+              "file": "10-user-coin-terminology.spec.ts",
+              "line": 46,
+              "column": 9
+            },
+            {
+              "title": "상담사 리스트 — 카드/필터에 \"P\" 단위 표기 없음",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2066,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:27.276Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "8a8d316c63e412867850-058172fb24db4bc6be49",
+              "file": "10-user-coin-terminology.spec.ts",
+              "line": 66,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "11-user-public-pages-deep.spec.ts",
+      "file": "11-user-public-pages-deep.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "공개 페이지 심층 검증 — 핵심 요소 마운트",
+          "file": "11-user-public-pages-deep.spec.ts",
+          "line": 16,
+          "column": 6,
+          "specs": [
+            {
+              "title": "회원가입 — 폼 요소 (아이디/비번/이름 등) 모두 렌더",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1042,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:29.361Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e13b98b8a515964a7003-5e4cb1233c69d3450d6e",
+              "file": "11-user-public-pages-deep.spec.ts",
+              "line": 17,
+              "column": 7
+            },
+            {
+              "title": "아이디·비번 찾기 — 휴대폰/이메일 탭 + 입력 인풋",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1051,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:30.417Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e13b98b8a515964a7003-a1fbbe27c260d9b1d056",
+              "file": "11-user-public-pages-deep.spec.ts",
+              "line": 31,
+              "column": 7
+            },
+            {
+              "title": "검색 페이지 — 검색 인풋 존재",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 930,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:31.478Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e13b98b8a515964a7003-faf700b50538d362ff11",
+              "file": "11-user-public-pages-deep.spec.ts",
+              "line": 47,
+              "column": 7
+            },
+            {
+              "title": "잘못된 URL → 홈 redirect (App.tsx의 catch-all)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1256,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:32.419Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e13b98b8a515964a7003-5fe61e4e9eeedece2bb9",
+              "file": "11-user-public-pages-deep.spec.ts",
+              "line": 57,
+              "column": 7
+            },
+            {
+              "title": "상담사 상세 — id=1 등 임의 ID 페이지 로드 (있으면 OK, 없어도 SPA 마운트는 됨)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1499,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:33.687Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e13b98b8a515964a7003-aec00d1167b3c18c322e",
+              "file": "11-user-public-pages-deep.spec.ts",
+              "line": 66,
+              "column": 7
+            },
+            {
+              "title": "후기 리스트 (/reviews) — 비로그인도 접근 가능 (공개 페이지)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 1107,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:35.197Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "e13b98b8a515964a7003-d87f519ffeaf4877ca55",
+              "file": "11-user-public-pages-deep.spec.ts",
+              "line": 88,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "12-api-healthcheck.spec.ts",
+      "file": "12-api-healthcheck.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "API 헬스체크 (prod / https://api.sajuplan.com)",
+          "file": "12-api-healthcheck.spec.ts",
+          "line": 32,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/health — 200 + status=ok",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 233,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:36.323Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f2b2ccc7091f163661fb-172a34503671d57d9c6d",
+              "file": "12-api-healthcheck.spec.ts",
+              "line": 33,
+              "column": 7
+            },
+            {
+              "title": "GET /api/user/counselors/event — 200 + 응답 JSON",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 59,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:36.566Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f2b2ccc7091f163661fb-1419115e4ad1716fed82",
+              "file": "12-api-healthcheck.spec.ts",
+              "line": 42,
+              "column": 7
+            },
+            {
+              "title": "GET /api/user/counselors/filter-options — 200 + 옵션 객체",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 56,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:36.634Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f2b2ccc7091f163661fb-27d73726b512ddf96529",
+              "file": "12-api-healthcheck.spec.ts",
+              "line": 53,
+              "column": 7
+            },
+            {
+              "title": "GET /api/user/app-version/version — 200 + version 문자열",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 52,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:36.700Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f2b2ccc7091f163661fb-b273d023ea667cb06d55",
+              "file": "12-api-healthcheck.spec.ts",
+              "line": 60,
+              "column": 7
+            },
+            {
+              "title": "GET /api/user/charge/packages — 200 또는 401",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 52,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:36.761Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f2b2ccc7091f163661fb-62e801f7b0a49cbf033f",
+              "file": "12-api-healthcheck.spec.ts",
+              "line": 67,
+              "column": 7
+            },
+            {
+              "title": "CORS — 사용자 프론트 origin 헤더 차단 안 함",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 51,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:36.822Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f2b2ccc7091f163661fb-d57bcf0996f6c89f669c",
+              "file": "12-api-healthcheck.spec.ts",
+              "line": 75,
+              "column": 7
+            },
+            {
+              "title": "OAuth config — kakao/naver 활성화 확인",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 52,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:36.883Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f2b2ccc7091f163661fb-0115516cdc74c65e457c",
+              "file": "12-api-healthcheck.spec.ts",
+              "line": 89,
+              "column": 7
+            },
+            {
+              "title": "OAuth start — kakao 302 redirect → kauth.kakao.com",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 57,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:36.945Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f2b2ccc7091f163661fb-99c956eeceb3b00691e1",
+              "file": "12-api-healthcheck.spec.ts",
+              "line": 101,
+              "column": 7
+            },
+            {
+              "title": "OAuth start — naver 302 redirect → nid.naver.com",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 55,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-05-30T07:00:37.010Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f2b2ccc7091f163661fb-4f85c18e4aaf60a30dec",
+              "file": "12-api-healthcheck.spec.ts",
+              "line": 119,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-05-30T06:59:57.534Z",
+    "duration": 39695.241,
+    "expected": 21,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

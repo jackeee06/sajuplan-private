@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
+import { defaultLast7Days } from '../lib/dateRange'
+import { DateRangeChips } from '../components/DateRangeChips'
 import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow } from '../components/table'
 
 /**
@@ -281,15 +283,20 @@ function StatsPanel({ target, headerLabel }: { target: Target; headerLabel: stri
 
 function HistoryPanel({ filterKind, headerLabel }: { filterKind: Target; headerLabel: string }) {
   const navigate = useNavigate()
+  const _init = defaultLast7Days()
   const [q, setQ] = useState('')
+  const [frDate, setFrDate] = useState(_init.from)
+  const [toDate, setToDate] = useState(_init.to)
   const [data, setData] = useState<{ items: HistoryRow[]; total: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const load = (search: string) => {
+  const load = (search: string, fr: string, to: string) => {
     setLoading(true); setError(null)
     const params = new URLSearchParams()
     if (search) params.set('q', search)
+    if (fr) params.set('fr_date', fr)
+    if (to) params.set('to_date', to)
     params.set('limit', '50')
     api<{ items: HistoryRow[]; total: number }>(`/admin/attendance/history?${params}`)
       .then(setData)
@@ -297,7 +304,7 @@ function HistoryPanel({ filterKind, headerLabel }: { filterKind: Target; headerL
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load('') }, [])
+  useEffect(() => { load('', _init.from, _init.to) }, [])
 
   // 클라이언트 사이드 필터링 — target_kind 기준. 향후 데이터 많아지면 백엔드 ?kind=... 추가 고려.
   const filteredItems = (data?.items ?? []).filter((it) => it.target_kind === filterKind)
@@ -309,22 +316,29 @@ function HistoryPanel({ filterKind, headerLabel }: { filterKind: Target; headerL
         <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{headerLabel} 출석 이력</h3>
         <span className="text-xs text-gray-500">{filteredTotal.toLocaleString()}건</span>
       </div>
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="mb_id / 닉네임 / 이름 검색"
-          onKeyDown={(e) => e.key === 'Enter' && load(q)}
-          className="flex-1 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="mb_id / 닉네임 / 이름 검색"
+            onKeyDown={(e) => e.key === 'Enter' && load(q, frDate, toDate)}
+            className="flex-1 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => load(q, frDate, toDate)}
+            className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white"
+          >
+            검색
+          </button>
+        </div>
+        <DateRangeChips
+          from={frDate}
+          to={toDate}
+          onPick={(r) => { setFrDate(r.from); setToDate(r.to); load(q, r.from, r.to) }}
         />
-        <button
-          type="button"
-          onClick={() => load(q)}
-          className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white"
-        >
-          검색
-        </button>
       </div>
 
       {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}

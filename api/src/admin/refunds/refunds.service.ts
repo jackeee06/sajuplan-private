@@ -235,6 +235,8 @@ export class AdminRefundsService {
     offset?: number;
     status?: string;
     memberMbId?: string;
+    frDate?: string;
+    toDate?: string;
   }) {
     const lim = Math.min(100, Math.max(1, params.limit ?? 30));
     const off = Math.max(0, params.offset ?? 0);
@@ -243,6 +245,12 @@ export class AdminRefundsService {
       : this.sql``;
     const memberFilter = params.memberMbId
       ? this.sql`AND m.mb_id = ${params.memberMbId}`
+      : this.sql``;
+    const frFilter = params.frDate
+      ? this.sql`AND r.created_at >= ${params.frDate + ' 00:00:00'}::timestamptz`
+      : this.sql``;
+    const toFilter = params.toDate
+      ? this.sql`AND r.created_at <= ${params.toDate + ' 23:59:59'}::timestamptz`
       : this.sql``;
 
     const rows = await this.sql<Array<{
@@ -273,6 +281,8 @@ export class AdminRefundsService {
        WHERE 1=1
          ${statusFilter}
          ${memberFilter}
+         ${frFilter}
+         ${toFilter}
        ORDER BY r.id DESC
        LIMIT ${lim} OFFSET ${off}
     `;
@@ -283,6 +293,8 @@ export class AdminRefundsService {
        WHERE 1=1
          ${statusFilter}
          ${memberFilter}
+         ${frFilter}
+         ${toFilter}
     `;
     return {
       items: rows,

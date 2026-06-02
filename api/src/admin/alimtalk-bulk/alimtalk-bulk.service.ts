@@ -143,6 +143,8 @@ export class AlimtalkBulkService {
     status?: string;
     template?: string;
     bulkOnly?: boolean;
+    frDate?: string;
+    toDate?: string;
   }) {
     const lim = Math.min(200, Math.max(1, params.limit ?? 50));
     const off = Math.max(0, params.offset ?? 0);
@@ -154,6 +156,12 @@ export class AlimtalkBulkService {
       : this.sql``;
     const bulkFilter = params.bulkOnly
       ? this.sql`AND bulk_job_id IS NOT NULL`
+      : this.sql``;
+    const frFilter = params.frDate
+      ? this.sql`AND created_at >= ${params.frDate + ' 00:00:00'}::timestamptz`
+      : this.sql``;
+    const toFilter = params.toDate
+      ? this.sql`AND created_at <= ${params.toDate + ' 23:59:59'}::timestamptz`
       : this.sql``;
     return await this.sql<Array<{
       id: number;
@@ -173,6 +181,8 @@ export class AlimtalkBulkService {
          ${statusFilter}
          ${tplFilter}
          ${bulkFilter}
+         ${frFilter}
+         ${toFilter}
        ORDER BY id DESC
        LIMIT ${lim} OFFSET ${off}
     `;

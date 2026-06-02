@@ -28,6 +28,8 @@ export class AdminCounselorApplyController {
       status: q.status || undefined,
       category: q.category || undefined,
       q: q.q || undefined,
+      frDate: q.fr_date || undefined,
+      toDate: q.to_date || undefined,
       page: q.page ? Number(q.page) : undefined,
       limit: q.limit ? Number(q.limit) : undefined,
     });

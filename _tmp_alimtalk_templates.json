@@ -1,0 +1,107 @@
+[
+  {
+    "template_code": "payout_request_rejected",
+    "subject": "선지급 반려 안내",
+    "message": "[사주플랜 선지급 반려 안내]\n\n선지급 신청이 반려되었습니다.\n\n▪ 신청 금액: #{amount}원\n▪ 반려 사유: #{reason}\n\n자세한 사항은 사주플랜 고객센터로 문의해 주세요.\n\n- 사주플랜",
+    "btn_name": null,
+    "btn_url": null
+  },
+  {
+    "template_code": "payout_request_paid",
+    "subject": "선지급 입금 완료",
+    "message": "[사주플랜 선지급 입금 완료]\n\n신청하신 선지급이 입금 완료되었습니다.\n\n▪ 신청금   #{amount}원\n▪ 수수료   -#{fee}원\n▪ 원천세   -#{withholding}원\n▪ 실입금   #{actual}원\n\n해당 금액은 다음달 정산에서 자동 차감됩니다.\n\n- 사주플랜",
+    "btn_name": null,
+    "btn_url": null
+  },
+  {
+    "template_code": "payout_request_received",
+    "subject": "선지급 신청 접수",
+    "message": "[사주플랜 선지급 신청 접수]\n\n선지급 신청이 정상 접수되었습니다.\n\n▪ 신청 금액: #{amount}원\n\n운영팀이 영업시간 내 확인 후 입금 처리해 드립니다.\n처리 결과는 별도 알림톡으로 안내드립니다.",
+    "btn_name": null,
+    "btn_url": null
+  },
+  {
+    "template_code": "review_for_counselor_v2",
+    "subject": "사주플랜 후기알림",
+    "message": "[사주플랜 후기알림]\n#{상담사명}님께 남겨진 새로운 상담 후기가 있습니다.\n확인 후 답변을 남기시면 다른 분들의 선택에 도움이 됩니다.\n▶ 후기 확인하기 : #{url}",
+    "btn_name": "후기 확인하기",
+    "btn_url": "https://sajuplan.com/#{url}"
+  },
+  {
+    "template_code": "ops_admin_alert_v2",
+    "subject": "사주플랜 운영자 알림",
+    "message": "사주플랜 운영 알림]\n유형: #{category}\n시각: #{at}\n#{detail}",
+    "btn_name": null,
+    "btn_url": null
+  },
+  {
+    "template_code": "coupon_req_v2",
+    "subject": "쿠폰 발급 발송",
+    "message": "[사주플랜 쿠폰 발급 안내]\n\n고객님의 사주플랜 서비스 이용에 따른 혜택으로 쿠폰이 발급되었습니다.\n\n✔ 쿠폰명 : #{쿠폰명}\n✔ 쿠폰번호 : #{쿠폰번호}\n✔ 유효기간 : #{유효기간}\n\n※ 본 알림톡은 고객님의 사주플랜 서비스 이용 내역에 따라 발급된 쿠폰 정보를 안내드리는 메시지입니다.\n※ 이 메시지는 거래관계로 인해 지급된 쿠폰 안내 메시지입니다.\n※ 단순 사업자 말풍선으로 제공하는 혜택은 알림톡 발송 대상에 해당되지 않을 수 있습니다.\n※ 쿠폰은 유효기간 이후 자동 소멸될 수 있습니다.",
+    "btn_name": "쿠폰보러가기",
+    "btn_url": "https://sajuplan.com/#{url}"
+  },
+  {
+    "template_code": "review_req_v2",
+    "subject": "후기 작성 요청",
+    "message": "※ 사주플랜 상담 만족도 안내 ※\n\n안녕하세요, #{고객님}님. 사주플랜입니다.\n\n이번 #{상담사명}님과의 상담 경험에 대한 후기를 남겨주세요.\n고객님의 진솔한 한마디는 다른 분들의 선택에 큰 힘이 됩니다.\n\n후기 작성 고객님께는 추가 혜택이 제공됩니다.\n소중한 의견은 보다 나은 서비스 운영을 위해 활용됩니다.\n\n👉 후기를 남겨주세요.",
+    "btn_name": "후기작성하기",
+    "btn_url": "https://sajuplan.com/#{url}"
+  },
+  {
+    "template_code": "qa_ask_v2",
+    "subject": "문의글 등록 알림",
+    "message": "※ 사주플랜 상담 문의 도착 안내 ※\n\n#{상담사명} 선생님, 새로운 상담 문의가 접수되었습니다.\n\n#{고객명}님께서 선생님께 문의글을 등록하셨습니다.\n확인 후 답변을 남겨주시면 고객 상담 진행에 도움이 됩니다.\n\n▶ 사주플랜 문의 내용 확인하기 : #{문의링크}",
+    "btn_name": "문의 내용 확인하기",
+    "btn_url": "https://sajuplan.com/#{url}"
+  },
+  {
+    "template_code": "qa_answer_v2",
+    "subject": "문의글 답변 완료 알림",
+    "message": "※ 사주플랜 문의글 답변 안내 ※\n\n#{고객명}님, #{상담사명} 선생님의 답변이 등록되었습니다.\n기다리셨던 상담 내용을 아래 링크에서 확인해 주세요.\n\n▶ 답변 확인하기 : #{문의링크}",
+    "btn_name": "답변 내용 확인 하기",
+    "btn_url": "https://sajuplan.com/#{url}"
+  },
+  {
+    "template_code": "chat_counseling_v2",
+    "subject": "채팅 상담방 개설",
+    "message": "※ 사주플랜 긴급 상담 참여 요청 ※\n\n#{상담사명}님, 고객이 채팅 상담 입장을 기다리고 있습니다.\n지금 바로 상담에 참여해 주세요.\n\n※ 상담 연결이 늦어지면 고객 연결이 자동 취소될 수 있습니다.",
+    "btn_name": "채팅상담시작",
+    "btn_url": "https://sajuplan.com/#{url}"
+  },
+  {
+    "template_code": "counselor_state_changed_v2",
+    "subject": "상담사 자동 부재중 전환",
+    "message": "※ 사주플랜 상담 부재 안내 ※\n\n#{상담사명}님, 고객 상담 요청 후 전화 연결을 시도했으나 응답이 없어\n현재 상담 상태가 ‘부재중 상담’으로 변경되었습니다.\n\n상담이 가능한 시점에 마이페이지에서 상태를 ‘상담 가능’으로 수정해 주세요.\n\n※ 고객 상담이 원활히 이어질 수 있도록 신속한 확인을 부탁드립니다.",
+    "btn_name": null,
+    "btn_url": null
+  },
+  {
+    "template_code": "order_bankinfo_v2",
+    "subject": "입금계좌 안내",
+    "message": "※ 사주플랜 입금계좌 안내 ※\n\n#{이름}님이 신청하신 부가서비스 정보입니다.\n\n#{상품명}\n입금금액 #{입금액}\n입금계좌 #{입금계좌}\n\n입금이 확인되면 정상적으로 서비스가 진행됩니다.\n세부내용은 마이페이지에서 확인 바랍니다.",
+    "btn_name": null,
+    "btn_url": null
+  },
+  {
+    "template_code": "counselor_v2",
+    "subject": "상담사 접속 알림",
+    "message": "※ 사주플랜 상담 접속안내 ※\n\n고객님이 신청하신 상담 가능 시 알림받기에 따라 안내드립니다.\n#{상담사별명} 상담사님과 현재 상담 가능한 상태입니다.",
+    "btn_name": null,
+    "btn_url": null
+  },
+  {
+    "template_code": "order_payment_ok_v2",
+    "subject": "입금확인",
+    "message": "※ 사주플랜 부가서비스 입금 안내 ※\n\n#{이름}님, 주문해 주셔서 감사합니다.\n부가서비스 신청이 정상적으로 접수되었습니다.\n\n상품명: #{상품명}\n입금금액: #{입금액}\n\n입금 확인 후 이용이 가능합니다.\n자세한 내용은 마이페이지에서 확인해주세요.",
+    "btn_name": null,
+    "btn_url": null
+  },
+  {
+    "template_code": "register_num_v2",
+    "subject": "회원가입 인증",
+    "message": "※ 사주플랜 인증번호 전송 ※\n본인 확인을 위해 인증번호 #{인증번호}를 입력해 주세요.",
+    "btn_name": null,
+    "btn_url": null
+  }
+]

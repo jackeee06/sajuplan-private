@@ -658,7 +658,17 @@ export class MembersService {
       if (input.phone !== null && typeof input.phone !== 'string') {
         throw new BadRequestException('휴대폰 번호는 문자열이어야 합니다.');
       }
-      updates.phone = input.phone ? input.phone.replace(/[^0-9]/g, '') : null;
+      // [PII 마스킹 안전망 2026-06-02] 마스킹 패턴 (별표 포함) 또는 11자리 미만 거부.
+      //   원인: 일반관리자가 마스킹 화면 (010-****-3396) 보고 다른 필드 수정 후 저장 시
+      //         frontend formatPhone 이 별표 제거 → DB phone 7자리로 영구 손실 사고 차단.
+      if (input.phone && input.phone.includes('*')) {
+        throw new BadRequestException('전화번호 마스킹 값입니다. 평문 평소표시 권한이 필요합니다.');
+      }
+      const digits = input.phone ? input.phone.replace(/[^0-9]/g, '') : '';
+      if (input.phone && digits.length > 0 && digits.length < 10) {
+        throw new BadRequestException(`전화번호는 10~11자리여야 합니다 (현재 ${digits.length}자리).`);
+      }
+      updates.phone = input.phone ? digits : null;
     }
     if (input.password !== undefined && input.password !== null) {
       if (typeof input.password !== 'string') {

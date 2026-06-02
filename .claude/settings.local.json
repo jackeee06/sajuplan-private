@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rm WORK_IN_PROGRESS.md)",
+      "Bash(rm \"/c/Users/USER/.claude/projects/c--claudeworkspace-sajumoon/memory/work_in_progress.md\")",
+      "Bash(rm .git/index.lock && echo \"lock removed\")",
+      "Bash(touch /tmp/deploy_api.log)",
+      "Read(//tmp/**)"
+    ],
+    "additionalDirectories": [
+      "C:\\claudeworkspace\\sajumoon\\.git"
+    ]
+  }
+}

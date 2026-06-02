@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Search, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
+import { defaultLast7Days } from '../lib/dateRange'
+import { DateRangeChips } from '../components/DateRangeChips'
 import {
   Th,
   Td,
@@ -80,8 +82,9 @@ export default function PostList() {
   const { slug = 'review' } = useParams<{ slug: string }>()
   const info = SLUG_INFO[slug] ?? { title: '게시판', desc: '' }
 
-  const [filter, setFilter] = useState({ q: '', fr_date: '', to_date: '', page: 1 })
-  const [pending, setPending] = useState({ q: '', fr_date: '', to_date: '' })
+  const _init = defaultLast7Days()
+  const [filter, setFilter] = useState({ q: '', fr_date: _init.from, to_date: _init.to, page: 1 })
+  const [pending, setPending] = useState({ q: '', fr_date: _init.from, to_date: _init.to })
   const [data, setData] = useState<Resp | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -137,8 +140,9 @@ export default function PostList() {
   }
 
   useEffect(() => {
-    setFilter({ q: '', fr_date: '', to_date: '', page: 1 })
-    setPending({ q: '', fr_date: '', to_date: '' })
+    const init = defaultLast7Days()
+    setFilter({ q: '', fr_date: init.from, to_date: init.to, page: 1 })
+    setPending({ q: '', fr_date: init.from, to_date: init.to })
   }, [slug])
 
   const load = () => {
@@ -227,6 +231,17 @@ export default function PostList() {
               <Search className="w-4 h-4" /> 검색
             </button>
           </div>
+        </div>
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+          <DateRangeChips
+            from={pending.fr_date}
+            to={pending.to_date}
+            onPick={(r) => {
+              const next = { ...pending, fr_date: r.from, to_date: r.to }
+              setPending(next)
+              setFilter((f) => ({ ...f, ...next, page: 1 }))
+            }}
+          />
         </div>
       </div>
 

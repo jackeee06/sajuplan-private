@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
+import { defaultLast7Days } from '../lib/dateRange'
+import { DateRangeChips } from '../components/DateRangeChips'
 import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Badge, BadgeColor, inputCls } from '../components/table'
 
 /**
@@ -41,12 +43,15 @@ const STATUS_LABEL: Record<string, { label: string; color: BadgeColor }> = {
 
 export default function RefundList() {
   const navigate = useNavigate()
+  const _init = defaultLast7Days()
   const [data, setData] = useState<Resp | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [memberMbId, setMemberMbId] = useState('')
   const [status, setStatus] = useState('')
+  const [frDate, setFrDate] = useState(_init.from)
+  const [toDate, setToDate] = useState(_init.to)
 
   useEffect(() => {
     let cancelled = false
@@ -57,6 +62,8 @@ export default function RefundList() {
     })
     if (memberMbId) params.set('member_mb_id', memberMbId)
     if (status) params.set('status', status)
+    if (frDate) params.set('fr_date', frDate)
+    if (toDate) params.set('to_date', toDate)
     api<Resp>(`/admin/refunds?${params.toString()}`)
       .then((r) => !cancelled && setData(r))
       .catch((e: Error) => !cancelled && setError(e.message))
@@ -64,7 +71,7 @@ export default function RefundList() {
     return () => {
       cancelled = true
     }
-  }, [page, memberMbId, status])
+  }, [page, memberMbId, status, frDate, toDate])
 
   return (
     <div className="space-y-3 max-w-[1100px]">
@@ -106,11 +113,26 @@ export default function RefundList() {
               <option value="rejected">반려</option>
             </select>
           </div>
+          <div className="w-[150px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 시작</label>
+            <input type="date" value={frDate} onChange={(e) => { setFrDate(e.target.value); setPage(0) }} className={inputCls} />
+          </div>
+          <div className="w-[150px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 종료</label>
+            <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(0) }} className={inputCls} />
+          </div>
           {data && (
             <span className="text-xs text-gray-500 pb-2">
               총 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건
             </span>
           )}
+        </div>
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+          <DateRangeChips
+            from={frDate}
+            to={toDate}
+            onPick={(r) => { setFrDate(r.from); setToDate(r.to); setPage(0) }}
+          />
         </div>
       </div>
 

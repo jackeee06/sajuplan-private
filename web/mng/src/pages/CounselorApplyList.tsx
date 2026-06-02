@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, ImageIcon, FileText } from 'lucide-react'
 import { api } from '../lib/api'
+import { defaultLast7Days } from '../lib/dateRange'
+import { DateRangeChips } from '../components/DateRangeChips'
 import {
   Th,
   Td,
@@ -108,10 +110,13 @@ const PAGE_SIZE = 20
 
 export default function CounselorApplyList() {
   const navigate = useNavigate()
+  const _init = defaultLast7Days()
   const [status, setStatus] = useState<StatusValue>('all')
   const [category, setCategory] = useState<CategoryValue>('all')
   const [q, setQ] = useState('')
   const [pendingQ, setPendingQ] = useState('')
+  const [frDate, setFrDate] = useState(_init.from)
+  const [toDate, setToDate] = useState(_init.to)
   const [page, setPage] = useState(1)
   const [data, setData] = useState<Resp | null>(null)
   const [loading, setLoading] = useState(false)
@@ -122,6 +127,8 @@ export default function CounselorApplyList() {
     if (status && status !== 'all') params.set('status', status)
     if (category && category !== 'all') params.set('category', category)
     if (q) params.set('q', q)
+    if (frDate) params.set('fr_date', frDate)
+    if (toDate) params.set('to_date', toDate)
     params.set('page', String(page))
     params.set('limit', String(PAGE_SIZE))
 
@@ -131,7 +138,7 @@ export default function CounselorApplyList() {
       .then(setData)
       .catch((e) => setError(e instanceof Error ? e.message : '조회 실패'))
       .finally(() => setLoading(false))
-  }, [status, category, q, page])
+  }, [status, category, q, frDate, toDate, page])
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
@@ -141,10 +148,13 @@ export default function CounselorApplyList() {
     setPage(1)
   }
   const onReset = () => {
+    const init = defaultLast7Days()
     setQ('')
     setPendingQ('')
     setStatus('all')
     setCategory('all')
+    setFrDate(init.from)
+    setToDate(init.to)
     setPage(1)
   }
 
@@ -205,6 +215,14 @@ export default function CounselorApplyList() {
               className={inputCls}
             />
           </div>
+          <div className="w-[150px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 시작</label>
+            <input type="date" value={frDate} onChange={(e) => { setFrDate(e.target.value); setPage(1) }} className={inputCls} />
+          </div>
+          <div className="w-[150px]">
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 종료</label>
+            <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1) }} className={inputCls} />
+          </div>
           <div className="flex gap-2 ml-auto">
             <button
               type="submit"
@@ -221,6 +239,13 @@ export default function CounselorApplyList() {
             </button>
           </div>
         </form>
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+          <DateRangeChips
+            from={frDate}
+            to={toDate}
+            onPick={(r) => { setFrDate(r.from); setToDate(r.to); setPage(1) }}
+          />
+        </div>
       </div>
 
       {error && (

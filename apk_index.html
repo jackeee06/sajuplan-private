@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<meta name="theme-color" content="#9b7af7" />
+<title>사주플랜 앱 다운로드</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",sans-serif;background:#fdf2f8;color:#1E2939;line-height:1.5;padding:0}
+  .wrap{max-width:560px;margin:0 auto;padding:24px 20px 60px;background:#fff;min-height:100vh}
+  h1{font-size:22px;font-weight:800;margin:8px 0 4px;color:#030712}
+  .sub{font-size:13px;color:#6A7282;margin:0 0 24px}
+  .logo{margin:16px 0 12px;display:flex;align-items:center;justify-content:flex-start}
+  .logo img{height:48px;width:auto;display:block}
+  .btn-primary{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:56px;border-radius:16px;background:#9b7af7;color:#fff;font-size:17px;font-weight:700;text-decoration:none;box-shadow:0 4px 14px rgba(155,122,247,.35);margin:8px 0 20px}
+  .btn-primary:active{background:#8259F5}
+  .warn{background:#FFF7E0;border:1px solid #F0C300;border-radius:12px;padding:12px 14px;font-size:13px;color:#5B4500;margin:0 0 16px}
+  .warn b{color:#1E2939}
+  .section{background:#F9FAFB;border:1px solid #F3F4F6;border-radius:14px;padding:16px;margin:0 0 14px}
+  .section h2{font-size:15px;font-weight:700;margin:0 0 8px;color:#030712;display:flex;align-items:center;gap:6px}
+  .section ol{margin:0;padding-left:18px;font-size:14px;color:#1E2939}
+  .section ol li{margin:4px 0}
+  .section .tip{font-size:12px;color:#6A7282;margin-top:8px}
+  .badge{display:inline-block;background:#9b7af7;color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;margin-right:4px}
+  .ios{background:#FEE2E2;border:1px solid #F87171;color:#7F1D1D;border-radius:12px;padding:12px 14px;font-size:13px;margin:0 0 16px;display:none}
+  .ios.show{display:block}
+  hr{border:0;border-top:1px solid #F3F4F6;margin:20px 0}
+  footer{font-size:11px;color:#9CA3AF;text-align:center;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo"><img src="https://sajuplan.com/img/logo.svg" alt="사주플랜" /></div>
+  <h1>사주플랜 앱 다운로드</h1>
+  <p class="sub">안드로이드 전용 · 약 52MB</p>
+
+  <div class="ios" id="iosWarn">
+    ⚠️ <b>iPhone 사용자는 설치 불가</b><br/>
+    안드로이드 전용입니다. iOS 정식 출시 대기 중.
+  </div>
+
+  <a class="btn-primary" id="downloadBtn" href="/apk/sajuplan.apk" download>
+    📥 사주플랜 앱 다운로드
+  </a>
+
+  <div class="warn" id="kakaoWarn" style="display:none">
+    💬 <b>카카오톡에서 보고 계신 경우</b><br/>
+    오른쪽 위 <b>⋮ (점 세 개)</b> 메뉴 → <b>「다른 브라우저로 열기」</b> 선택 후 다운로드 받으세요.
+  </div>
+
+  <hr/>
+
+  <h2 style="font-size:16px;font-weight:800;margin:0 0 12px">설치 시 "악성 앱 의심" 메시지가 뜨면</h2>
+
+  <div class="section">
+    <h2><span class="badge">방법 1</span> 다운로드 위치를 바꾸세요 (가장 쉬움)</h2>
+    <ol>
+      <li>다운로드 받은 파일을 <b>「내 파일」</b> 앱(파일 관리자)에서 열기</li>
+      <li>파일 길게 누름 → <b>「이동」</b> 선택</li>
+      <li><b>「내장 저장공간」</b> 의 가장 위(루트)로 이동</li>
+      <li>옮긴 파일을 누르면 <b>그냥 설치됨</b></li>
+    </ol>
+    <p class="tip">💡 다운로드 폴더의 파일은 보안 검사 대상이지만, 루트의 파일은 검사 안 받음</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="badge">방법 2</span> 보안 기능을 잠깐 끄세요</h2>
+    <ol>
+      <li>스마트폰 <b>「설정」</b> 앱 열기</li>
+      <li><b>「보안 및 개인정보 보호」</b> 누르기</li>
+      <li><b>「자동 차단 기능」</b> 또는 <b>「Auto Blocker」</b> 찾기</li>
+      <li>일시적으로 <b>끄기</b> → 앱 설치 → 다시 켜기</li>
+    </ol>
+    <p class="tip">💡 설치 끝나면 다시 켜도 이미 설치된 앱은 영향 없음</p>
+  </div>
+
+  <hr/>
+
+  <h2 style="font-size:14px;font-weight:700;color:#6A7282;margin:0 0 8px">자주 묻는 질문</h2>
+  <div class="section">
+    <h2 style="font-size:14px">Q. 정말 안전한가요?</h2>
+    <p style="font-size:13px;color:#4A5565;margin:0">
+      네, 사주플랜이 직접 만든 정식 앱입니다. Play Store 정식 등록 전이라 일부 보안 기능이 보수적으로 차단할 뿐, 앱 자체는 안전합니다.
+    </p>
+  </div>
+  <div class="section">
+    <h2 style="font-size:14px">Q. iPhone 에서도 받을 수 있나요?</h2>
+    <p style="font-size:13px;color:#4A5565;margin:0">
+      현재는 안드로이드만 지원합니다. iOS 는 App Store 정식 출시 후 이용 가능합니다.
+    </p>
+  </div>
+
+  <footer>
+    사주플랜 · sajuplan.com
+  </footer>
+</div>
+
+<script>
+  // iOS 감지
+  if(/iPhone|iPad|iPod/.test(navigator.userAgent)){
+    document.getElementById('iosWarn').classList.add('show');
+    document.getElementById('downloadBtn').style.opacity='0.5';
+    document.getElementById('downloadBtn').style.pointerEvents='none';
+  }
+  // 카카오톡 인앱 브라우저 감지
+  if(/KAKAOTALK/i.test(navigator.userAgent)){
+    document.getElementById('kakaoWarn').style.display='block';
+  }
+</script>
+</body>
+</html>
