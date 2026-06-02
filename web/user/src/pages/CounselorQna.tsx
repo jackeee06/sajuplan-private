@@ -203,7 +203,7 @@ function QnaCard({ qna, counselorId }: { qna: PublicCounselorQnaItem; counselorI
           </span>
           {is_secret && <LockIcon />}
           <h3 className="text-[16px] leading-[130%] font-medium text-[#1E2939] truncate">
-            {title}
+            {is_secret && !content ? '비밀 문의입니다.' : title}
           </h3>
         </div>
       </div>

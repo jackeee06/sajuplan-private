@@ -92,6 +92,8 @@ FILES = [
     # 상담사 후기 알림톡 (2026-05-17 추가)
     ("api/src/user/reviews/reviews.module.ts", "src/user/reviews/reviews.module.ts"),
     ("api/src/user/reviews/reviews.service.ts", "src/user/reviews/reviews.service.ts"),
+    # 2026-06-02: 문의 알림톡 qa_ask2→qa_ask_v2 fix (5/29 수정이 배포 누락됐던 것)
+    ("api/src/user/qna/qna.service.ts", "src/user/qna/qna.service.ts"),
     # 2026-05-28: 상담사 수익금 페이지 강한 분리 — 회원 적립/차감 row 제외, 상담 적립만
     ("api/src/user/settlements/settlements.service.ts", "src/user/settlements/settlements.service.ts"),
     # 이전 audit 변경분 ↓

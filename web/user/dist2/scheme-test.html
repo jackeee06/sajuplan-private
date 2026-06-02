@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>사주플랜 앱 호출 테스트</title>
+  <link rel="icon" href="/favicon.ico" />
+  <style>
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      padding: 24px 20px 80px;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+                   "Pretendard", "Malgun Gothic", sans-serif;
+      background: #fafafa;
+      color: #1f2937;
+      line-height: 1.5;
+      max-width: 560px;
+      margin-inline: auto;
+    }
+    h1 { font-size: 22px; margin: 0 0 6px; color: #111827; }
+    h2 { font-size: 16px; margin: 24px 0 10px; color: #6b7280; font-weight: 600; }
+    .subtitle { color: #6b7280; font-size: 14px; margin: 0 0 20px; }
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .label {
+      font-size: 12px;
+      color: #9ca3af;
+      letter-spacing: 0.04em;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    .scheme {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px;
+      color: #4338ca;
+      word-break: break-all;
+      margin-bottom: 12px;
+    }
+    a.btn {
+      display: block;
+      text-align: center;
+      padding: 14px 16px;
+      background: #ec4899;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+    }
+    a.btn:active { background: #db2777; }
+    a.btn.outline {
+      background: #fff;
+      color: #ec4899;
+      border: 1.5px solid #ec4899;
+    }
+    a.btn.outline:active { background: #fdf2f8; }
+    .info {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #4b5563;
+      margin-top: 16px;
+    }
+    .info b { color: #111827; }
+    .info code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: #4338ca;
+    }
+    .log {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 16px;
+      min-height: 60px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .log-empty { color: #d1d5db; }
+    .warn {
+      background: #fef3c7;
+      border: 1px solid #fde68a;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: #92400e;
+      margin-top: 16px;
+    }
+    .warn b { color: #78350f; }
+  </style>
+</head>
+<body>
+  <h1>📱 사주플랜 앱 호출 테스트</h1>
+  <p class="subtitle">아래 버튼을 누르면 사주플랜 앱이 열려야 합니다.</p>
+
+  <h2>1. 기본 호출 (경로 없음)</h2>
+  <div class="card">
+    <div class="label">URL</div>
+    <div class="scheme">sajuplan://</div>
+    <a class="btn" href="sajuplan://" onclick="logClick('sajuplan://')">사주플랜 앱 열기</a>
+  </div>
+
+  <h2>2. 경로 포함 (post)</h2>
+  <div class="card">
+    <div class="label">URL</div>
+    <div class="scheme">sajuplan://post/1234</div>
+    <a class="btn outline" href="sajuplan://post/1234" onclick="logClick('sajuplan://post/1234')">사주플랜 앱 열기 (post/1234)</a>
+  </div>
+
+  <h2>3. 경로 포함 (home)</h2>
+  <div class="card">
+    <div class="label">URL</div>
+    <div class="scheme">sajuplan://home</div>
+    <a class="btn outline" href="sajuplan://home" onclick="logClick('sajuplan://home')">사주플랜 앱 열기 (home)</a>
+  </div>
+
+  <div class="warn">
+    <b>⚠️ 동작 안 할 때 체크:</b><br />
+    1. 사주플랜 앱이 설치되어 있나요?<br />
+    2. APK 가 scheme intent filter (<code>sajuplan</code>) 등록된 버전인가요?<br />
+    3. 카카오톡 인앱 브라우저는 scheme 차단될 수 있어요 — 크롬/사파리에서 시도해 주세요.
+  </div>
+
+  <div class="info">
+    <b>📋 환경 정보</b><br />
+    <span id="ua"></span><br />
+    <span id="platform"></span>
+  </div>
+
+  <h2>클릭 로그</h2>
+  <div class="log" id="log">
+    <span class="log-empty">아직 클릭 없음 — 위 버튼을 눌러보세요</span>
+  </div>
+
+  <script>
+    document.getElementById('ua').innerHTML = '<b>UA:</b> ' + navigator.userAgent;
+    var plat = 'Unknown';
+    var ua = navigator.userAgent || '';
+    if (/Android/i.test(ua)) plat = 'Android';
+    else if (/iPhone|iPad|iPod/i.test(ua)) plat = 'iOS';
+    else if (/KAKAOTALK/i.test(ua)) plat = '카카오톡 인앱브라우저';
+    document.getElementById('platform').innerHTML = '<b>플랫폼:</b> ' + plat;
+
+    function logClick(url) {
+      var log = document.getElementById('log');
+      if (log.querySelector('.log-empty')) log.innerHTML = '';
+      var t = new Date();
+      var hh = String(t.getHours()).padStart(2, '0');
+      var mm = String(t.getMinutes()).padStart(2, '0');
+      var ss = String(t.getSeconds()).padStart(2, '0');
+      var line = document.createElement('div');
+      line.textContent = '[' + hh + ':' + mm + ':' + ss + '] ' + url;
+      log.insertBefore(line, log.firstChild);
+    }
+  </script>
+</body>
+</html>

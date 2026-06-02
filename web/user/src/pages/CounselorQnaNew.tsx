@@ -15,7 +15,7 @@ import { ApiError, counselorQnaApi } from '../lib/api'
 export default function CounselorQnaNew() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [secret, setSecret] = useState(false)
+  const [secret, setSecret] = useState(true)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
