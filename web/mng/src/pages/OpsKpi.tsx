@@ -90,16 +90,16 @@ export default function OpsKpi() {
 
   return (
     <div className="space-y-3 max-w-[1100px]">
-      {/* 타이틀 + 기간 칩 */}
-      <div className="flex items-start justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">운영 KPI</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            환불률·평균 통화·상담사별 매출. 매일 한 번씩 확인 권장.
-          </p>
-        </div>
-        <DateRangeChips from={frDate} to={toDate} onPick={(r) => { setFrDate(r.from); setToDate(r.to) }} />
+      {/* 타이틀 */}
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">운영 KPI</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          환불률·평균 통화·상담사별 매출. 매일 한 번씩 확인 권장.
+        </p>
       </div>
+
+      {/* 기간 칩 — KPI 카드 바로 위 */}
+      <DateRangeChips from={frDate} to={toDate} onPick={(r) => { setFrDate(r.from); setToDate(r.to) }} />
 
       {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}
 
