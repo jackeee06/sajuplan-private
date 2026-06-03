@@ -105,6 +105,34 @@ export default function PostReports() {
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">게시글 신고 — 검토 후 처리/반려 · 문의글 숨김/복원</p>
       </div>
 
+      {/* 신고 처리 정책 안내 */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+        <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-2">
+          📋 신고 처리 정책 — 고객 문의 시 참고
+        </p>
+        <table className="w-full text-[12px] border-collapse">
+          <tbody>
+            {[
+              { label: '자동 숨김', value: '동일 글에 신고 3회 이상 누적 시 자동 비공개 처리 (후기·문의 공통)' },
+              { label: '신고 유형', value: '욕설/비하 · 스팸/광고 · 허위 정보 · 음란/성적 · 개인정보 노출 · 기타' },
+              { label: '처리 완료', value: '신고 접수 인정 → 글 숨김 유지. 작성자에게 별도 안내 없음' },
+              { label: '반려', value: '신고 기각 → 글 자동 복원 (숨김 해제). 악의적 신고 반복 시 작성자 제재 검토 가능' },
+              { label: '비밀 문의글', value: '비밀글은 신고 버튼 자체가 비노출 — 신고 접수 불가 (정상 동작)' },
+              { label: '관리자 조치', value: '신고 횟수와 무관하게 관리자가 직접 숨김/복원 가능 (우측 상태 토글)' },
+            ].map((row) => (
+              <tr key={row.label} className="border-t border-amber-100 dark:border-amber-800/50 first:border-t-0">
+                <td className="py-1.5 pr-4 font-medium text-amber-800 dark:text-amber-300 whitespace-nowrap w-[120px] align-top">
+                  {row.label}
+                </td>
+                <td className="py-1.5 text-gray-700 dark:text-gray-300 leading-relaxed">
+                  {row.value}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
       <div className="flex flex-wrap gap-2 items-center">
         <span className="text-xs text-gray-400 font-medium">상태</span>
         <Chip label="전체" active={filter.status === ''} onClick={() => setFilter((f) => ({ ...f, status: '', page: 1 }))} />

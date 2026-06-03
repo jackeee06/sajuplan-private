@@ -76,7 +76,30 @@ const SLUG_INFO: Record<string, { title: string; desc: string }> = {
   wish: { title: '소원다락방', desc: '회원이 등록한 소원' },
   wish_event: { title: '소원다락방 EVENT', desc: '소원다락방 이벤트 게시글' },
   qa: { title: '상담문의', desc: '일반 상담 관련 문의' },
-  qa_counselor: { title: '1:1문의(상담사)', desc: '상담사가 등록한 1:1문의' },
+  qa_counselor: { title: '1:1문의(상담사)', desc: '상담사 1:1 문의게시판' },
+}
+
+/** 슬러그별 운영 정책 (고객 문의 시 참고용). null이면 박스 미노출. */
+const POLICY_INFO: Record<string, { rows: { label: string; value: string }[] } | null> = {
+  review: {
+    rows: [
+      { label: '작성 조건', value: '5분 이상 진행된 상담 · 상담 종료 후 7일 이내 · 1상담 1후기 (중복 불가)' },
+      { label: '비밀글', value: '후기는 항상 공개 — 비밀글 기능 없음' },
+      { label: '수정·삭제', value: '작성 후 5분 이내 + 상담사 답변이 없을 때만 가능. 5분 초과 또는 답변 달리면 불가' },
+      { label: '상담사 답변', value: '1후기 1답변. 답변이 달리는 순간 고객의 수정·삭제 완전 차단됨' },
+      { label: '별점·사진', value: '수정 불가 (최초 작성 시 1회 확정). 제목·내용만 5분 이내 수정 가능' },
+      { label: '신고 처리', value: '동일 후기에 신고 3회 이상 → 자동 숨김. 관리자 복원 가능' },
+    ],
+  },
+  qa_counselor: {
+    rows: [
+      { label: '작성 제한', value: '같은 상담사에게 하루 최대 5개. 다른 상담사에게는 별도 5개 허용' },
+      { label: '비밀글', value: '항상 비공개 — 작성자 본인 + 해당 상담사만 내용 조회 가능 (관리자는 전체 열람)' },
+      { label: '수정·삭제', value: '상담사 답변이 없을 때만 가능 (시간 제한 없음). 답변 달리면 수정·삭제 불가' },
+      { label: '상담사 답변', value: '1문의 1답변. 상담사 앱에서 직접 등록 — 관리자는 답변 입력 불가 (열람·삭제만)' },
+      { label: '신고 처리', value: '공개글에 한해 신고 가능. 3회 이상 누적 시 자동 숨김. 관리자 복원 가능' },
+    ],
+  },
 }
 
 const PAGE_SIZE = 20
@@ -181,6 +204,8 @@ export default function PostList() {
 
   const colSpan = slug === 'review' ? 11 : slug === 'qa_counselor' ? 9 : 8
 
+  const policy = POLICY_INFO[slug] ?? null
+
   return (
     <div className="space-y-3 max-w-[1100px]">
       {/* 타이틀 */}
@@ -188,6 +213,29 @@ export default function PostList() {
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{info.title}</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{info.desc}</p>
       </div>
+
+      {/* 운영 정책 안내 박스 */}
+      {policy && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+          <p className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-1">
+            📋 운영 정책 — 고객 문의 시 참고
+          </p>
+          <table className="w-full text-[12px] border-collapse">
+            <tbody>
+              {policy.rows.map((row) => (
+                <tr key={row.label} className="border-t border-blue-100 dark:border-blue-800/50 first:border-t-0">
+                  <td className="py-1.5 pr-4 font-medium text-blue-800 dark:text-blue-300 whitespace-nowrap w-[120px] align-top">
+                    {row.label}
+                  </td>
+                  <td className="py-1.5 text-gray-700 dark:text-gray-300 leading-relaxed">
+                    {row.value}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* 상단 카운트 */}
       {data && (
