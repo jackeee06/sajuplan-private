@@ -165,4 +165,22 @@ export class BoardOpsService {
     if (r.count === 0) throw new NotFoundException('신고를 찾을 수 없습니다.');
     return { ok: true };
   }
+
+  /** counselor_qna 숨김 ON/OFF */
+  async setQnaHidden(qnaId: number, hidden: boolean) {
+    const r = await this.sql`
+      UPDATE counselor_qna SET is_hidden = ${hidden} WHERE id = ${qnaId}
+    `;
+    if (r.count === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
+    return { ok: true, is_hidden: hidden };
+  }
+
+  /** counselor_qna 숨김 상태 일괄 조회 */
+  async getQnaHiddenStatus(qnaIds: number[]) {
+    if (qnaIds.length === 0) return { items: [] };
+    const rows = await this.sql<{ id: number; is_hidden: boolean }[]>`
+      SELECT id, is_hidden FROM counselor_qna WHERE id = ANY(${qnaIds})
+    `;
+    return { items: rows };
+  }
 }

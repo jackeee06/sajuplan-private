@@ -58,4 +58,17 @@ export class BoardOpsController {
   updateReport(@Param('id', ParseIntPipe) id: number, @Body() body: { status: number }) {
     return this.svc.updateReportStatus(id, body.status);
   }
+
+  /** counselor_qna 숨김 상태 일괄 조회 */
+  @Get('qna-hidden-status')
+  getQnaHiddenStatus(@Query('ids') ids: string) {
+    const qnaIds = (ids ?? '').split(',').map(Number).filter((n) => n > 0 && Number.isFinite(n));
+    return this.svc.getQnaHiddenStatus(qnaIds);
+  }
+
+  /** counselor_qna 숨김/복원 */
+  @Patch('qna/:qnaId/hidden')
+  setQnaHidden(@Param('qnaId', ParseIntPipe) qnaId: number, @Body() body: { hidden: boolean }) {
+    return this.svc.setQnaHidden(qnaId, !!body.hidden);
+  }
 }

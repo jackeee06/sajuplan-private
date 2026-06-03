@@ -192,6 +192,8 @@ export default function CounselorQna() {
 
 /* ───────────── 문의 카드 ───────────── */
 
+const REPORT_REASONS = ['욕설·비하', '스팸·광고', '허위 정보', '음란·성적', '개인정보 노출', '기타']
+
 function QnaCard({ qna, counselorId }: { qna: PublicCounselorQnaItem; counselorId: string }) {
   const { id, status, title, content, is_secret, reviewer_name, created_at } = qna
   const { member } = useAuth()
@@ -199,60 +201,133 @@ function QnaCard({ qna, counselorId }: { qna: PublicCounselorQnaItem; counselorI
   const dateText = formatDate(created_at)
   const bodyText = is_secret ? null : (content || title)
   const [reported, setReported] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [selectedReason, setSelectedReason] = useState('')
+  const [customReason, setCustomReason] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleReport = async (e: React.MouseEvent) => {
+  const openReport = (e: React.MouseEvent) => {
     e.preventDefault()
     if (reported) return
+    setSelectedReason('')
+    setCustomReason('')
+    setReportOpen(true)
+  }
+
+  const submitReport = async () => {
+    const reason = selectedReason === '기타' ? (customReason.trim() || '기타') : selectedReason
+    if (!reason) return
+    setSubmitting(true)
     try {
-      await counselorQnaApi.report(counselorId, id)
+      await counselorQnaApi.report(counselorId, id, reason)
       setReported(true)
+      setReportOpen(false)
     } catch {
-      // 이미 신고했거나 본인 글 — 무시
       setReported(true)
+      setReportOpen(false)
+    } finally {
+      setSubmitting(false)
     }
   }
 
   return (
-    <Link
-      to={`/counselors/${counselorId}/qna/${id}`}
-      className="block px-0 py-4 border-b border-[#F3F4F6] transition"
-    >
-      {/* 작성자 · 날짜 · 신고 */}
-      <div className="flex items-center justify-between mb-1.5">
-        <div className="flex items-center gap-2">
-          <span className="text-[14px] font-medium text-[#364153]">{reviewer_name}</span>
-          <span className="text-[12px] text-[#99A1AF]">{dateText}</span>
+    <>
+      <Link
+        to={`/counselors/${counselorId}/qna/${id}`}
+        className="block px-0 py-4 border-b border-[#F3F4F6] transition"
+      >
+        {/* 작성자 · 날짜 · 신고 */}
+        <div className="flex items-center justify-between mb-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[14px] font-medium text-[#364153]">{reviewer_name}</span>
+            <span className="text-[12px] text-[#99A1AF]">{dateText}</span>
+          </div>
+          {/* 공개글 + 로그인 상태일 때만 신고 버튼 노출 */}
+          {!is_secret && member && (
+            <button
+              type="button"
+              onClick={openReport}
+              className="text-[12px] text-[#99A1AF] shrink-0"
+            >
+              {reported ? '신고됨' : '신고하기'}
+            </button>
+          )}
         </div>
-        {/* 공개글 + 로그인 상태일 때만 신고 버튼 노출 (비밀글은 내용 미확인이므로 신고 불가) */}
-        {!is_secret && member && (
-          <button
-            type="button"
-            onClick={handleReport}
-            className="text-[12px] text-[#99A1AF] shrink-0"
-          >
-            {reported ? '신고됨' : '신고하기'}
-          </button>
+
+        {/* 내용 */}
+        {is_secret ? (
+          <p className="text-[14px] text-[#99A1AF] flex items-center gap-1">
+            비밀글입니다. <LockIcon />
+          </p>
+        ) : (
+          <p className="text-[14px] leading-[150%] text-[#6A7282] line-clamp-2 whitespace-pre-line">
+            {bodyText}
+          </p>
         )}
-      </div>
 
-      {/* 내용 */}
-      {is_secret ? (
-        <p className="text-[14px] text-[#99A1AF] flex items-center gap-1">
-          비밀글입니다. <LockIcon />
-        </p>
-      ) : (
-        <p className="text-[14px] leading-[150%] text-[#6A7282] line-clamp-2 whitespace-pre-line">
-          {bodyText}
-        </p>
-      )}
+        {/* 답변완료 — 핑크 박스 */}
+        {hasReply && (
+          <div className="mt-2 bg-[#fdf2f8] rounded-[8px] px-3 py-2">
+            <p className="text-[13px] text-[#ec4899] font-medium">답변이 달렸습니다.</p>
+          </div>
+        )}
+      </Link>
 
-      {/* 답변완료 — 핑크 박스 */}
-      {hasReply && (
-        <div className="mt-2 bg-[#fdf2f8] rounded-[8px] px-3 py-2">
-          <p className="text-[13px] text-[#ec4899] font-medium">답변이 달렸습니다.</p>
+      {/* 신고 이유 바텀시트 */}
+      {reportOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40"
+          onClick={(e) => { if (e.target === e.currentTarget) setReportOpen(false) }}
+        >
+          <div className="w-full max-w-[600px] bg-white rounded-t-[20px] px-4 pt-5 pb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-[17px] font-semibold text-[#030712]">신고 이유를 선택해주세요</h2>
+              <button type="button" onClick={() => setReportOpen(false)} className="text-[#99A1AF] p-1">
+                <svg viewBox="0 0 20 20" className="w-5 h-5" fill="none">
+                  <path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-2 mb-4">
+              {REPORT_REASONS.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setSelectedReason(r)}
+                  className={`px-3 py-2 rounded-full text-[14px] border transition ${
+                    selectedReason === r
+                      ? 'bg-[#fdf2f8] border-[#f472b6] text-[#ec4899] font-medium'
+                      : 'bg-[#F9FAFB] border-[#F3F4F6] text-[#6A7282]'
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+
+            {selectedReason === '기타' && (
+              <textarea
+                className="w-full px-3 py-2.5 text-[14px] border border-[#D1D5DB] rounded-[10px] bg-[#F9FAFB] focus:outline-none focus:border-[#9b7af7] min-h-[80px] resize-none mb-4"
+                placeholder="신고 이유를 직접 입력해주세요 (선택)"
+                value={customReason}
+                onChange={(e) => setCustomReason(e.target.value)}
+                maxLength={200}
+              />
+            )}
+
+            <button
+              type="button"
+              disabled={!selectedReason || submitting}
+              onClick={submitReport}
+              className="w-full h-[52px] rounded-[14px] bg-[#ec4899] text-white text-[16px] font-semibold disabled:opacity-40"
+            >
+              {submitting ? '신고 중...' : '신고하기'}
+            </button>
+          </div>
         </div>
       )}
-    </Link>
+    </>
   )
 }
 

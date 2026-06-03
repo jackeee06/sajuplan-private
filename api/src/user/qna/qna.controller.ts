@@ -111,10 +111,11 @@ export class UserCounselorQnaController {
     @Req() req: UserAuthedRequest,
     @Body() body: { reason?: string },
   ) {
+    const reason = body.reason ? String(body.reason).slice(0, 200) : '기타';
     return this.svc.reportQna({
       qnaId,
       reporterId: req.user.sub,
-      reason: body.reason ? String(body.reason).slice(0, 500) : null,
+      reason,
     });
   }
 }

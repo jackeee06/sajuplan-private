@@ -8,6 +8,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
+import { PushService } from '../../shared/push/push.service';
 import { SmsService } from '../sms/sms.service';
 
 export interface CounselorQnaListItem {
@@ -112,6 +113,7 @@ export class UserCounselorQnaService {
   constructor(
     @Inject(SQL) private readonly sql: Sql,
     private readonly sms: SmsService,
+    private readonly push: PushService,
   ) {}
 
   /** 특정 상담사의 문의 목록 + 총 건수 */
@@ -146,6 +148,7 @@ export class UserCounselorQnaService {
           LEFT JOIN member m ON m.id = q.member_id
           LEFT JOIN counselor_qna_reply r ON r.qna_id = q.id
          WHERE q.counselor_id = ${params.counselorId}
+           AND q.is_hidden = FALSE
          ORDER BY q.created_at DESC
          LIMIT ${limit} OFFSET ${offset}
       `,
@@ -153,6 +156,7 @@ export class UserCounselorQnaService {
         SELECT COUNT(*)::text AS count
           FROM counselor_qna
          WHERE counselor_id = ${params.counselorId}
+           AND is_hidden = FALSE
       `,
     ]);
 
@@ -793,7 +797,7 @@ export class UserCounselorQnaService {
   async reportQna(params: {
     qnaId: number;
     reporterId: number;
-    reason: string | null;
+    reason: string;
   }): Promise<{ ok: true }> {
     const rows = await this.sql<{ id: number; member_id: number }[]>`
       SELECT id, member_id FROM counselor_qna WHERE id = ${params.qnaId} LIMIT 1
@@ -805,14 +809,44 @@ export class UserCounselorQnaService {
       await this.sql`
         INSERT INTO post_report (board_slug, post_id, reporter_id, reporter_mb_id, target_member_id, target_mb_id, mode, reason, status, created_at)
         VALUES ('counselor_qna', ${params.qnaId}, ${params.reporterId}, '',
-                ${rows[0].member_id}, '', 'report', ${params.reason ?? ''}, 0, NOW())
+                ${rows[0].member_id}, '', 'report', ${params.reason}, 0, NOW())
       `;
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       if (msg.includes('unique') || msg.includes('duplicate')) throw new ConflictException('이미 신고한 문의입니다.');
       throw e;
     }
+
+    // 신고 횟수 집계 — 3회 이상이면 자동 숨김
+    const countRows = await this.sql<{ cnt: string }[]>`
+      SELECT COUNT(*)::text AS cnt FROM post_report
+       WHERE board_slug = 'counselor_qna' AND post_id = ${params.qnaId}
+    `;
+    const reportCount = Number(countRows[0].cnt);
+    if (reportCount >= 3) {
+      await this.sql`UPDATE counselor_qna SET is_hidden = TRUE WHERE id = ${params.qnaId} AND is_hidden = FALSE`;
+    }
+
+    // 작성자에게 FCM 푸시 (fire-and-forget)
+    void this.sendReportPush(rows[0].member_id, params.qnaId).catch((e) =>
+      this.logger.warn(`[reportQna] 푸시 실패: ${e instanceof Error ? e.message : String(e)}`),
+    );
+
     return { ok: true };
+  }
+
+  private async sendReportPush(authorId: number, qnaId: number): Promise<void> {
+    const tokenRows = await this.sql<{ token: string }[]>`
+      SELECT token FROM member_push_token
+       WHERE member_id = ${authorId} AND is_active = TRUE
+    `;
+    const tokens = tokenRows.map((t) => t.token).filter(Boolean);
+    if (tokens.length === 0) return;
+    await this.push.sendToTokens(tokens, {
+      title: '내 문의가 신고됐습니다',
+      body: '게시된 문의에 신고가 접수되었습니다. 내용을 확인해주세요.',
+      data: { type: 'qna_reported', qna_id: String(qnaId), link: '/mypage/my-qnas' },
+    });
   }
 
   /**

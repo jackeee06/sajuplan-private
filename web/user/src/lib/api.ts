@@ -1271,8 +1271,8 @@ export const counselorQnaApi = {
     body: { title: string; content: string; is_secret: boolean },
   ) =>
     api.post<{ id: number }>(`/user/counselors/${counselorId}/qna`, body),
-  report: (counselorId: number | string, qnaId: number | string) =>
-    api.post<{ ok: true }>(`/user/counselors/${counselorId}/qna/${qnaId}/report`, {}),
+  report: (counselorId: number | string, qnaId: number | string, reason: string) =>
+    api.post<{ ok: true }>(`/user/counselors/${counselorId}/qna/${qnaId}/report`, { reason }),
 }
 
 // ─────────────────────────────────────────────

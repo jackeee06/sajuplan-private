@@ -5,9 +5,10 @@ import { UserCounselorCustomerQnaController } from './counselor-qna.controller';
 import { UserCounselorQnaService } from './qna.service';
 import { AuthModule } from '../auth/auth.module';
 import { SmsModule } from '../sms/sms.module';
+import { PushModule } from '../../shared/push/push.module';
 
 @Module({
-  imports: [AuthModule, SmsModule],
+  imports: [AuthModule, SmsModule, PushModule],
   controllers: [
     UserCounselorQnaController,
     UserMyQnaController,
