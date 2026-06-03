@@ -1,8 +1,10 @@
 """
-E2E 전용 consultation 행 생성/삭제 스크립트.
+E2E 전용 DB 조작 스크립트.
 인수:
-  insert <member_id> <counselor_id>   → id 출력
-  delete <consultation_id>            → 삭제
+  insert <member_id> <counselor_id>      → consultation INSERT, id 출력
+  delete <consultation_id>               → consultation 삭제
+  delete-review <review_id>             → 후기 + 답변 DB 직접 삭제 (5분 제한 없음)
+  delete-review-by-title <title_like>   → 제목 패턴 일치 후기 전부 삭제
 """
 import sys
 import paramiko
@@ -40,19 +42,38 @@ def main():
             f" VALUES ({member_id}, {counselor_id}, 600, 0, NOW()) RETURNING id"
         )
         raw = run_sql(client, sql)
-        # psql 이 id 행 + "INSERT 0 1" 같이 출력할 수 있음 — 숫자 행만 추출
         for line in raw.splitlines():
             line = line.strip()
             if line.isdigit():
                 print(line)
                 break
+
     elif action == "delete":
         consult_id = int(sys.argv[2])
         run_sql(client, f"DELETE FROM consultation WHERE id={consult_id}")
         print("deleted")
+
+    elif action == "delete-review":
+        review_id = int(sys.argv[2])
+        run_sql(client, f"DELETE FROM post_review_reply WHERE review_id={review_id}")
+        run_sql(client, f"DELETE FROM post_review WHERE id={review_id}")
+        print("review deleted")
+
+    elif action == "delete-review-by-title":
+        pattern = sys.argv[2].replace("'", "''")
+        run_sql(
+            client,
+            f"DELETE FROM post_review_reply WHERE review_id IN "
+            f"(SELECT id FROM post_review WHERE title LIKE '%{pattern}%')"
+        )
+        run_sql(client, f"DELETE FROM post_review WHERE title LIKE '%{pattern}%'")
+        print("reviews deleted by title pattern")
+
     else:
         print("usage: db_consult.py insert <member_id> <counselor_id>", file=sys.stderr)
         print("       db_consult.py delete <consultation_id>", file=sys.stderr)
+        print("       db_consult.py delete-review <review_id>", file=sys.stderr)
+        print("       db_consult.py delete-review-by-title <title_like>", file=sys.stderr)
         sys.exit(1)
 
     client.close()

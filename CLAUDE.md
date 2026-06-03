@@ -227,6 +227,20 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 - 배포 도구: `tools/_patch_api.py` (API 외과), `tools/deploy_sync.py` (프론트 SFTP).
 - 결과 확인 URL은 항상 prod(`sajuplan.com`)로 안내.
 
+### ⚠️ 배포 경로 함정 (도메인 ≠ 서버 실제 경로)
+
+도메인 이름과 서버의 실제 파일 경로가 다름. 반드시 아래 경로로 배포할 것.
+
+| 대상 | 도메인(노출) | **실제 서버 경로 (SFTP 목적지)** |
+|---|---|---|
+| 프론트엔드 | `sajuplan.com` | `/data/wwwroot/sajumoon.co.kr/` |
+| API | `api.sajuplan.com` | `/data/wwwroot/api.sajumoon.co.kr/` |
+
+- **자주 하는 실수**: 프론트를 `/data/wwwroot/sajuplan.com/`에 올리면 반영 안 됨 (해당 경로를 nginx가 서빙하지 않음)
+- **자주 하는 실수**: API를 `/data/wwwroot/api.sajuplan.com/`에 올리면 반영 안 됨
+- 빌드 후 반드시 `__SAJUMOON_ENV__` → `prod` sed 치환 필요 (index.html)
+- Vite 빌드 시 EBUSY 오류 발생 시 `--outDir dist3` (dist2 대신) 사용
+
 ## 완료 보고 형식
 
 작업 완료 시 반드시 아래 형식으로 보고:
