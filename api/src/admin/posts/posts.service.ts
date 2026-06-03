@@ -30,7 +30,7 @@ const SLUG_MAP: Record<PostSlug, SlugConfig> = {
   wish: { table: 'post_wish' },
   wish_event: { table: 'post_wish_event' },
   qa: { table: 'post_qa' },
-  qa_counselor: { table: 'post_qa', forceCategory: 'counselor' },
+  qa_counselor: { table: 'counselor_qna' }, // 새 테이블 — 별도 쿼리 분기
 };
 
 export interface PostRow {
@@ -60,6 +60,9 @@ export interface PostRow {
   report_count?: number;
   /** 미처리(pending) 신고 — review slug 응답에만 포함 */
   report_pending_count?: number;
+  // qa_counselor 전용
+  is_hidden?: boolean;
+  has_reply?: boolean;
 }
 
 export interface PostFilter {
@@ -82,6 +85,9 @@ export class PostsService {
   }
 
   async findAll(slug: string, filter: PostFilter) {
+    // counselor_qna 는 별도 테이블 구조 — 전용 쿼리
+    if (slug === 'qa_counselor') return this.findAllCounselorQna(filter);
+
     const cfg = this.resolveSlug(slug);
     const page = Math.max(1, Math.trunc(filter.page ?? 1));
     const limit = Math.min(200, Math.max(1, Math.trunc(filter.limit ?? 20)));
@@ -143,6 +149,62 @@ export class PostsService {
       ${whereClause}
     `;
 
+    return { items, total: Number(totalRows[0].cnt), page, limit };
+  }
+
+  /** counselor_qna 전용 목록 — qa_counselor slug */
+  private async findAllCounselorQna(filter: PostFilter) {
+    const page = Math.max(1, Math.trunc(filter.page ?? 1));
+    const limit = Math.min(200, Math.max(1, Math.trunc(filter.limit ?? 20)));
+    const offset = (page - 1) * limit;
+
+    const conds: ReturnType<Sql>[] = [];
+    if (filter.q) {
+      const q = `%${filter.q}%`;
+      conds.push(this.sql`(q.title ILIKE ${q} OR q.content ILIKE ${q} OR m.mb_id ILIKE ${q} OR m.name ILIKE ${q} OR m.nickname ILIKE ${q})`);
+    }
+    if (filter.fr_date) conds.push(this.sql`q.created_at >= ${filter.fr_date + ' 00:00:00'}::timestamptz`);
+    if (filter.to_date) conds.push(this.sql`q.created_at <= ${filter.to_date + ' 23:59:59'}::timestamptz`);
+    const whereClause = conds.length === 0
+      ? this.sql``
+      : conds.reduce((acc, c, i) => (i === 0 ? this.sql`WHERE ${c}` : this.sql`${acc} AND ${c}`), this.sql``);
+
+    const items = await this.sql<PostRow[]>`
+      SELECT q.id,
+             NULL::bigint AS wr_id,
+             q.member_id,
+             m.mb_id,
+             m.name      AS member_name,
+             m.nickname  AS member_nickname,
+             q.title,
+             q.content,
+             'counselor' AS category,
+             0           AS view_count,
+             0           AS like_count,
+             0           AS dislike_count,
+             q.is_secret,
+             q.is_hidden,
+             FALSE       AS has_file,
+             NULL        AS ip,
+             '{}'::jsonb AS extras,
+             q.created_at,
+             q.counselor_id,
+             c.name      AS counselor_name,
+             (SELECT r.id FROM counselor_qna_reply r WHERE r.qna_id = q.id LIMIT 1) IS NOT NULL AS has_reply
+        FROM counselor_qna q
+        LEFT JOIN member m ON m.id = q.member_id
+        LEFT JOIN member c ON c.id = q.counselor_id
+        ${whereClause}
+        ORDER BY q.created_at DESC, q.id DESC
+        LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    const totalRows = await this.sql<{ cnt: string }[]>`
+      SELECT COUNT(*)::text AS cnt
+        FROM counselor_qna q
+        LEFT JOIN member m ON m.id = q.member_id
+        ${whereClause}
+    `;
     return { items, total: Number(totalRows[0].cnt), page, limit };
   }
 

@@ -58,6 +58,9 @@ interface Post {
   report_pending_count?: number
   /** 어드민 답변 (qa / qa_counselor 만) */
   extras?: { admin_reply?: AdminReply }
+  /** counselor_qna 전용 */
+  is_hidden?: boolean
+  has_reply?: boolean
   created_at: string
 }
 
@@ -174,7 +177,7 @@ export default function PostList() {
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
-  const colSpan = slug === 'review' ? 11 : 8
+  const colSpan = slug === 'review' ? 11 : slug === 'qa_counselor' ? 9 : 8
 
   return (
     <div className="space-y-3 max-w-[1100px]">
@@ -253,7 +256,7 @@ export default function PostList() {
         <THead>
           <Th align="right">번호</Th>
           <Th align="left">제목</Th>
-          {slug === 'review' && <Th align="left">상담사</Th>}
+          {(slug === 'review' || slug === 'qa_counselor') && <Th align="left">상담사</Th>}
           {slug === 'review' && (
             <Th align="right">
               평점 <span className="text-[10px] font-normal normal-case tracking-normal">(미사용)</span>
@@ -283,14 +286,17 @@ export default function PostList() {
                         <span title={slug === 'review' ? '구버전 비밀후기' : '비밀글'}>비밀</span>
                       </Badge>
                     )}
+                    {p.is_hidden && (
+                      <span className="ml-1"><Badge color="rose">숨김</Badge></span>
+                    )}
                     {p.has_file && (
                       <span className="ml-1">
                         <Badge color="blue">파일</Badge>
                       </span>
                     )}
-                    <span className={p.is_secret || p.has_file ? 'ml-1.5' : ''}>{p.title}</span>
+                    <span className={p.is_secret || p.has_file || p.is_hidden ? 'ml-1.5' : ''}>{p.title}</span>
                   </Td>
-                  {slug === 'review' && (
+                  {(slug === 'review' || slug === 'qa_counselor') && (
                     <Td align="left">
                       {p.counselor_id ? (
                         <Link
@@ -354,7 +360,13 @@ export default function PostList() {
                     {formatDT(p.created_at)}
                   </Td>
                   <Td align="center" className="text-[11px] text-gray-500">
-                    👍 {p.like_count} / 👎 {p.dislike_count}
+                    {slug === 'qa_counselor' ? (
+                      p.has_reply
+                        ? <Badge color="emerald">답변완료</Badge>
+                        : <Badge color="amber">답변대기</Badge>
+                    ) : (
+                      `👍 ${p.like_count} / 👎 ${p.dislike_count}`
+                    )}
                   </Td>
                   <Td align="center">
                     <div className="flex items-center justify-center gap-1">
