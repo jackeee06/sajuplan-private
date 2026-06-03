@@ -91,6 +91,11 @@ export default function CounselorDetail() {
   const [data, setData] = useState<CounselorDetailData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  // 한 번 방문한 탭은 유지(CSS hidden) — 재방문 시 리패치 없음
+  const [mountedTabs, setMountedTabs] = useState<Set<ActiveTab>>(() => new Set([activeTab]))
+  useEffect(() => {
+    setMountedTabs((prev) => prev.has(activeTab) ? prev : new Set([...prev, activeTab]))
+  }, [activeTab])
 
   useEffect(() => {
     if (!id) {
@@ -183,14 +188,21 @@ export default function CounselorDetail() {
 
   return (
     <CounselorDetailLayout data={data} activeTab={activeTab}>
-      {activeTab === 'intro' && (
-        <div
-          className="counselor-intro text-[14px] leading-[160%] text-[#4A5565]"
-          dangerouslySetInnerHTML={{ __html: data.introText }}
-        />
-      )}
-      {activeTab === 'reviews' && <CounselorReviewsTab counselorId={id!} />}
-      {activeTab === 'qna' && <CounselorQnaTab counselorId={id!} />}
+      {/* 방문한 탭은 unmount 하지 않고 CSS로 show/hide — 재방문 시 데이터 유지 */}
+      <div className={activeTab !== 'intro' ? 'hidden' : ''}>
+        {mountedTabs.has('intro') && (
+          <div
+            className="counselor-intro text-[14px] leading-[160%] text-[#4A5565]"
+            dangerouslySetInnerHTML={{ __html: data.introText }}
+          />
+        )}
+      </div>
+      <div className={activeTab !== 'reviews' ? 'hidden' : ''}>
+        {mountedTabs.has('reviews') && <CounselorReviewsTab counselorId={id!} />}
+      </div>
+      <div className={activeTab !== 'qna' ? 'hidden' : ''}>
+        {mountedTabs.has('qna') && <CounselorQnaTab counselorId={id!} />}
+      </div>
     </CounselorDetailLayout>
   )
 }
