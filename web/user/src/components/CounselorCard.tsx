@@ -208,7 +208,7 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
             </div>
             <p className="text-[15px] leading-[140%] text-[#6A7282] line-clamp-1">{tagline}</p>
           </div>
-          {/* Frame 433 — 가격 (row gap 4, items center) */}
+          {/* Frame 433 — 가격 */}
           <div className="flex items-baseline gap-1">
             <span className="text-[14px] leading-[110%] text-[#99A1AF]">30초당</span>
             <span className="text-[16px] leading-[110%] font-semibold text-[#ec4899]">
@@ -263,8 +263,8 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
         </div>
       )}
 
-      {/* 해시태그 + 후기 수 — 별점은 데이터 미정착으로 노출 제거 (2026-05-15) */}
-      <div className="flex items-center justify-between">
+      {/* 해시태그 + 후기 수 */}
+      <div className="flex items-center justify-between gap-2 min-w-0">
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 min-w-0">
           {hashtags.map((tag) => (
             <span key={tag} className="text-[14px] leading-[110%] text-[#374151]">
@@ -272,12 +272,16 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
             </span>
           ))}
         </div>
-        <div className="flex items-center gap-2.5 shrink-0 ml-2.5">
-          <span className="flex items-center gap-0.5">
-            <img src="/img/ic_message_g.svg" alt="" className="w-4 h-4" />
-            <span className="text-[14px] leading-[110%] text-[#6A7282]">{reviewCount}</span>
-          </span>
-        </div>
+        {reviewCount > 0 && (
+          <Link
+            to={`/counselors/${id}/reviews`}
+            className="flex items-center gap-0.5 text-[13px] text-[#6A7282] leading-none shrink-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <span>⭐</span>
+            <span>후기({reviewCount})</span>
+          </Link>
+        )}
       </div>
 
       {/* busy 클릭 시 안내 모달 — Phase 2 에서 접속알림 등록 기능으로 교체 예정 */}
