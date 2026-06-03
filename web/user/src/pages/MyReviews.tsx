@@ -233,25 +233,25 @@ export default function MyReviews() {
                 <span className="text-[14px] font-medium text-[#ec4899] shrink-0">{r.counselor_code}</span>
               )}
 
-              <div className="ml-auto relative">
-                <button
-                  type="button"
-                  aria-label="더보기"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    setOpenMenuId((v) => (v === r.id ? null : r.id))
-                  }}
-                  className="w-7 h-7 flex items-center justify-center text-[#9CA3AF]"
-                >
-                  ⋮
-                </button>
-                {openMenuId === r.id && (
-                  <div
-                    role="menu"
-                    className="absolute top-full right-0 mt-1 z-30 min-w-[100px] bg-white rounded-[10px] border border-[#E5E7EB] shadow-[0_8px_20px_rgba(16,24,40,0.10)] py-1"
+              {/* 수정·삭제 = 작성 후 5분 이내 + 상담사 답변 없을 때만 (백엔드 동일 정책) */}
+              {Date.now() - new Date(r.created_at).getTime() < 5 * 60 * 1000 && !r.has_reply && (
+                <div className="ml-auto relative">
+                  <button
+                    type="button"
+                    aria-label="더보기"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      setOpenMenuId((v) => (v === r.id ? null : r.id))
+                    }}
+                    className="w-7 h-7 flex items-center justify-center text-[#9CA3AF]"
                   >
-                    {/* 작성 후 5분 이내에만 수정 가능 (백엔드 동일 정책) */}
-                    {Date.now() - new Date(r.created_at).getTime() < 5 * 60 * 1000 && (
+                    ⋮
+                  </button>
+                  {openMenuId === r.id && (
+                    <div
+                      role="menu"
+                      className="absolute top-full right-0 mt-1 z-30 min-w-[100px] bg-white rounded-[10px] border border-[#E5E7EB] shadow-[0_8px_20px_rgba(16,24,40,0.10)] py-1"
+                    >
                       <button
                         type="button"
                         role="menuitem"
@@ -260,21 +260,21 @@ export default function MyReviews() {
                       >
                         수정
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setOpenMenuId(null)
-                        setDeleteTarget(r)
-                      }}
-                      className="w-full px-4 py-2 text-left text-[14px] text-[#FB2C36] hover:bg-[#FEEBEE]"
-                    >
-                      삭제
-                    </button>
-                  </div>
-                )}
-              </div>
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setOpenMenuId(null)
+                          setDeleteTarget(r)
+                        }}
+                        className="w-full px-4 py-2 text-left text-[14px] text-[#FB2C36] hover:bg-[#FEEBEE]"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <p className="mt-1 text-[12px] text-[#99A1AF]">

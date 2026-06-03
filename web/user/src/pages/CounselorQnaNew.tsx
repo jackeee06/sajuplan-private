@@ -1,8 +1,16 @@
 ﻿import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
-import { SecretCheckbox } from './CounselorReviewNew'
 import { ApiError, counselorQnaApi } from '../lib/api'
+
+function SecretCheckbox({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2 cursor-pointer select-none">
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="w-[22px] h-[22px]" />
+      <span className="text-[15px] leading-[130%] text-[#6A7282]">비밀글로 작성</span>
+    </label>
+  )
+}
 
 /**
  * 상담 문의 작성 — Figma 163:19878

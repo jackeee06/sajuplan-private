@@ -1419,6 +1419,8 @@ export interface MyReviewItem {
   content: string
   rating: number | null
   created_at: string
+  /** 상담사 답변 존재 여부 — true 이면 수정/삭제 불가 */
+  has_reply: boolean
   photo_url: string | null
   /** WebP 변환 사이블링 URL — <picture>에서 우선 노출 */
   photo_url_webp: string | null

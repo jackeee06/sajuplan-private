@@ -232,6 +232,7 @@ export class UserReviewsService {
       rating: number | null;
       created_at: Date;
       has_file: boolean;
+      has_reply: boolean;
       extras: Record<string, unknown> | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
@@ -249,6 +250,7 @@ export class UserReviewsService {
 
     const rows = await this.sql<Row[]>`
       SELECT r.id, r.title, r.content, r.rating, r.created_at, r.has_file, r.extras,
+             (rp.id IS NOT NULL) AS has_reply,
              rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id,
              c.id        AS counselor_id,
              c.name      AS counselor_name,
@@ -263,9 +265,10 @@ export class UserReviewsService {
              pc.hashtag1, pc.hashtag2, pc.specialty,
              COUNT(*) OVER ()::text AS total
         FROM post_review r
-        LEFT JOIN member rm        ON rm.id = r.member_id
-        INNER JOIN member c        ON c.id  = r.counselor_id
-        LEFT JOIN post_counselor pc ON pc.member_id = c.id
+        LEFT JOIN member rm         ON rm.id = r.member_id
+        INNER JOIN member c         ON c.id  = r.counselor_id
+        LEFT JOIN post_counselor pc  ON pc.member_id = c.id
+        LEFT JOIN post_review_reply rp ON rp.review_id = r.id
        WHERE r.member_id = ${params.memberId}
          ${photoFilter}
        ORDER BY r.created_at DESC
@@ -293,6 +296,7 @@ export class UserReviewsService {
         content: r.content ?? '',
         rating: r.rating,
         created_at: created.toISOString(),
+        has_reply: Boolean(r.has_reply),
         photo_url: photoUrl,
         photo_url_webp: photoUrlWebp,
         consult_type: consultType,
