@@ -209,6 +209,40 @@ export class PostsService {
   }
 
   async getById(slug: string, id: number) {
+    if (slug === 'qa_counselor') {
+      const rows = await this.sql<PostRow[]>`
+        SELECT q.id, NULL::bigint AS wr_id, q.member_id,
+               m.mb_id, m.name AS member_name, m.nickname AS member_nickname,
+               q.title, q.content, 'counselor' AS category,
+               0 AS view_count, 0 AS like_count, 0 AS dislike_count,
+               q.is_secret, q.is_hidden, FALSE AS has_file, NULL AS ip,
+               q.created_at, q.counselor_id, c.name AS counselor_name,
+               (SELECT r.id FROM counselor_qna_reply r WHERE r.qna_id = q.id LIMIT 1) IS NOT NULL AS has_reply,
+               (SELECT jsonb_build_object(
+                  'content', r2.content,
+                  'replied_at', r2.created_at,
+                  'replied_by', COALESCE(c2.nickname, c2.name, '상담사'),
+                  'replied_by_id', r2.counselor_id
+                ) FROM counselor_qna_reply r2
+                  LEFT JOIN member c2 ON c2.id = r2.counselor_id
+                 WHERE r2.qna_id = q.id ORDER BY r2.id DESC LIMIT 1
+               ) AS counselor_reply,
+               '{}'::jsonb AS extras
+          FROM counselor_qna q
+          LEFT JOIN member m ON m.id = q.member_id
+          LEFT JOIN member c ON c.id = q.counselor_id
+         WHERE q.id = ${id}
+         LIMIT 1
+      `;
+      if (rows.length === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
+      // extras에 counselor_reply 포함해 admin_reply처럼 노출
+      const row = rows[0] as PostRow & { counselor_reply?: Record<string, unknown> | null };
+      if (row.counselor_reply) {
+        row.extras = { admin_reply: row.counselor_reply };
+      }
+      return row;
+    }
+
     const cfg = this.resolveSlug(slug);
     const tableSql = this.sql.unsafe(cfg.table);
     const rows = await this.sql<PostRow[]>`
@@ -223,6 +257,11 @@ export class PostsService {
   }
 
   async remove(slug: string, id: number) {
+    if (slug === 'qa_counselor') {
+      const result = await this.sql`DELETE FROM counselor_qna WHERE id = ${id}`;
+      if (result.count === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
+      return { ok: true };
+    }
     const cfg = this.resolveSlug(slug);
     const tableSql = this.sql.unsafe(cfg.table);
     const result = await this.sql`DELETE FROM ${tableSql} WHERE id = ${id}`;
@@ -246,8 +285,11 @@ export class PostsService {
     adminId: number,
     adminName?: string,
   ) {
-    if (slug !== 'qa' && slug !== 'qa_counselor') {
-      throw new BadRequestException('답변은 1:1 문의(qa / qa_counselor)에서만 가능합니다.');
+    if (slug === 'qa_counselor') {
+      throw new BadRequestException('1:1문의(상담사) 답변은 상담사가 앱에서 직접 합니다.');
+    }
+    if (slug !== 'qa') {
+      throw new BadRequestException('답변은 1:1 문의(qa)에서만 가능합니다.');
     }
     if (!content || !content.trim()) {
       throw new BadRequestException('답변 내용을 입력하세요.');
@@ -270,6 +312,7 @@ export class PostsService {
 
   /** 어드민 답변 삭제 — extras.admin_reply 제거. */
   async deleteQaReply(slug: string, id: number) {
+    if (slug === 'qa_counselor') throw new BadRequestException('1:1문의(상담사) 답변은 상담사가 앱에서 직접 합니다.');
     if (slug !== 'qa' && slug !== 'qa_counselor') {
       throw new BadRequestException('1:1 문의에서만 가능합니다.');
     }

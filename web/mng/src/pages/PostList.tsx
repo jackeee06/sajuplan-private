@@ -97,9 +97,11 @@ export default function PostList() {
   const [replySubmitting, setReplySubmitting] = useState(false)
   const [viewPost, setViewPost] = useState<Post | null>(null)
   const isQa = slug === 'qa' || slug === 'qa_counselor'
+  const isCounselorQna = slug === 'qa_counselor'
 
   const onRowClick = (p: Post) => {
-    if (isQa) openReply(p)
+    if (isCounselorQna) setViewPost(p)   // 읽기 전용 보기
+    else if (isQa) openReply(p)
     else setViewPost(p)
   }
 
@@ -409,31 +411,52 @@ export default function PostList() {
         />
       )}
 
-      {/* 본문 미리보기 모달 (비QA 게시판) */}
+      {/* 본문 미리보기 모달 */}
       {viewPost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setViewPost(null)}>
           <div className="bg-white dark:bg-gray-900 rounded-xl w-full max-w-2xl mx-4 p-5 max-h-[85vh] overflow-y-auto border border-gray-200 dark:border-gray-700 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{viewPost.title}</h3>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                {isCounselorQna && viewPost.is_hidden && <span className="mr-1.5 text-xs px-1.5 py-0.5 bg-red-50 text-red-500 rounded">숨김</span>}
+                {viewPost.title}
+              </h3>
               <button onClick={() => setViewPost(null)} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
             <div className="text-xs text-gray-500 mb-3 flex flex-wrap gap-2">
               <span>작성자: {viewPost.mb_id || viewPost.member_nickname || viewPost.member_name || '익명'}</span>
               <span>·</span>
               <span>{formatDT(viewPost.created_at)}</span>
-              <span>·</span>
-              <span>조회 {viewPost.view_count.toLocaleString()}</span>
-              <span>·</span>
-              <span>👍 {viewPost.like_count} / 👎 {viewPost.dislike_count}</span>
+              {isCounselorQna && viewPost.counselor_name && (
+                <><span>·</span><span>상담사: <strong>{viewPost.counselor_name}</strong></span></>
+              )}
+              {!isCounselorQna && (
+                <><span>·</span><span>조회 {viewPost.view_count.toLocaleString()}</span></>
+              )}
             </div>
-            {slug === 'review' && viewPost.counselor_name && (
+            {!isCounselorQna && slug === 'review' && viewPost.counselor_name && (
               <div className="text-xs mb-3 text-gray-600">
                 <span className="font-medium">상담사:</span> {viewPost.counselor_name}
               </div>
             )}
-            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 text-sm border border-gray-200 dark:border-gray-700 whitespace-pre-wrap text-gray-700 dark:text-gray-300 max-h-96 overflow-y-auto">
-              {viewPost.content || <span className="text-gray-400">(내용 없음)</span>}
+            {/* 문의 본문 */}
+            <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800 text-sm border border-gray-200 dark:border-gray-700 whitespace-pre-wrap text-gray-700 dark:text-gray-300 max-h-64 overflow-y-auto">
+              {viewPost.is_secret ? <span className="text-gray-400 italic">비밀글입니다.</span> : (viewPost.content || <span className="text-gray-400">(내용 없음)</span>)}
             </div>
+            {/* counselor_qna 전용: 상담사 답변 */}
+            {isCounselorQna && (
+              <div className="mt-3">
+                <p className="text-xs font-medium text-gray-500 mb-1.5">상담사 답변</p>
+                {viewPost.has_reply && viewPost.extras?.admin_reply ? (
+                  <div className="p-3 rounded-lg bg-pink-50 border border-pink-100 text-sm whitespace-pre-wrap text-gray-700 max-h-48 overflow-y-auto">
+                    <p className="text-xs text-gray-400 mb-1">{viewPost.extras.admin_reply.replied_by as string} · {formatDT(viewPost.extras.admin_reply.replied_at as string)}</p>
+                    {viewPost.extras.admin_reply.content as string}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 italic">아직 답변이 없습니다.</p>
+                )}
+                <p className="text-[11px] text-gray-400 mt-2">* 답변은 상담사가 앱에서 직접 작성합니다.</p>
+              </div>
+            )}
             <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => {
