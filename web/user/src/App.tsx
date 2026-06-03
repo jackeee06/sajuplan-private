@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AuthProvider } from './lib/auth-context'
 import { ConsultProvider } from './lib/consult-context'
 import { LikeProvider } from './lib/like-context'
@@ -22,8 +22,6 @@ import SearchResult from './pages/SearchResult'
 import Notifications from './pages/Notifications'
 import CounselorList from './pages/CounselorList'
 import CounselorDetail from './pages/CounselorDetail'
-import CounselorReviews from './pages/CounselorReviews'
-import CounselorQna from './pages/CounselorQna'
 import CounselorQnaDetail from './pages/CounselorQnaDetail'
 import CounselorQnaNew from './pages/CounselorQnaNew'
 import CounselorReviewNew from './pages/CounselorReviewNew'
@@ -88,6 +86,12 @@ import CounselorApplyNew from './pages/CounselorApplyNew'
 import CounselorApplyDone from './pages/CounselorApplyDone'
 import CounselorApplyDetail from './pages/CounselorApplyDetail'
 
+/** 구 URL (/counselors/:id/reviews, /qna) → ?tab= 방식으로 리다이렉트 */
+function TabRedirect({ tab }: { tab: string }) {
+  const { id } = useParams<{ id: string }>()
+  return <Navigate to={`/counselors/${id}?tab=${tab}`} replace />
+}
+
 export default function App() {
   return (
     <BrowserRouter basename="/">
@@ -114,9 +118,10 @@ export default function App() {
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/counselors" element={<CounselorList />} />
         <Route path="/counselors/:id" element={<CounselorDetail />} />
-        <Route path="/counselors/:id/reviews" element={<CounselorReviews />} />
+        {/* 구 URL 하위호환 — 동일 페이지 ?tab= 방식으로 리다이렉트 */}
+        <Route path="/counselors/:id/reviews" element={<TabRedirect tab="reviews" />} />
         <Route path="/counselors/:id/reviews/new" element={<CounselorReviewNew />} />
-        <Route path="/counselors/:id/qna" element={<CounselorQna />} />
+        <Route path="/counselors/:id/qna" element={<TabRedirect tab="qna" />} />
         <Route path="/counselors/:id/qna/:qnaId" element={<CounselorQnaDetail />} />
         <Route path="/counselors/:id/qna/new" element={<CounselorQnaNew />} />
         <Route path="/chat/:id" element={<ChatRoom />} />

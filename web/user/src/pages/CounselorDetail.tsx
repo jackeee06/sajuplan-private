@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import CounselorDetailLayout from '../components/CounselorDetailLayout'
+import CounselorReviewsTab from './CounselorReviewsTab'
+import CounselorQnaTab from './CounselorQnaTab'
 import type { Badge, CounselorDetailData } from '../data/counselorDetails'
 import { counselorsApi, type PublicCounselorDetail, ApiError } from '../lib/api'
 import { FILE_BASE } from '../lib/runtime-env'
+
+type ActiveTab = 'intro' | 'reviews' | 'qna'
 
 function resolveImageUrl(u: string | null): string {
   if (!u) return '/img/sample_img01.jpg'
@@ -81,6 +85,9 @@ function formatNoticeDate(iso: string): string {
 export default function CounselorDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const rawTab = searchParams.get('tab')
+  const activeTab: ActiveTab = (rawTab === 'reviews' || rawTab === 'qna') ? rawTab : 'intro'
   const [data, setData] = useState<CounselorDetailData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -175,12 +182,15 @@ export default function CounselorDetail() {
   }
 
   return (
-    <CounselorDetailLayout data={data} activeTab="intro">
-      <div
-        className="counselor-intro text-[14px] leading-[160%] text-[#4A5565]"
-        // 본문은 mapDetail 에서 sanitizeIntroHtml() 통과해 안전화됨.
-        dangerouslySetInnerHTML={{ __html: data.introText }}
-      />
+    <CounselorDetailLayout data={data} activeTab={activeTab}>
+      {activeTab === 'intro' && (
+        <div
+          className="counselor-intro text-[14px] leading-[160%] text-[#4A5565]"
+          dangerouslySetInnerHTML={{ __html: data.introText }}
+        />
+      )}
+      {activeTab === 'reviews' && <CounselorReviewsTab counselorId={id!} />}
+      {activeTab === 'qna' && <CounselorQnaTab counselorId={id!} />}
     </CounselorDetailLayout>
   )
 }

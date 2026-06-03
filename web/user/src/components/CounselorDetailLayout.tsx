@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, type ReactNode } from 'react'
+﻿import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import FloatingActions from './FloatingActions'
 import ShareBottomSheet from './ShareBottomSheet'
@@ -41,18 +41,9 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
   const [likeBusy, setLikeBusy] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
-  const tabRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') setShareUrl(window.location.href)
-  }, [])
-
-  // 탭 클릭 이동 시 탭 위치로 즉시 이동 (애니메이션 없음 → 탭이 처음부터 상단에 있는 것처럼 보임)
-  useEffect(() => {
-    if (sessionStorage.getItem('counselorTabNav') === '1') {
-      sessionStorage.removeItem('counselorTabNav')
-      tabRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })
-    }
   }, [])
 
   const triggerConsult = (variant: 'phone' | 'chat') => {
@@ -248,7 +239,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
       <div className="h-2 bg-[#F9FAFB]" aria-hidden />
 
       {/* 탭 sticky + 본문 */}
-      <div ref={tabRef}>
+      <div>
         <div className="sticky top-0 z-20 bg-white px-4 border-b border-[#F3F4F6]">
           <DetailTabs activeTab={activeTab} id={String(data.id)} />
         </div>
@@ -289,9 +280,9 @@ function DetailTabs({
   id: string
 }) {
   const tabs: { key: 'intro' | 'reviews' | 'qna'; label: string; to: string }[] = [
-    { key: 'intro', label: '상담사 소개', to: `/counselors/${id}` },
-    { key: 'reviews', label: '후기', to: `/counselors/${id}/reviews` },
-    { key: 'qna', label: '문의', to: `/counselors/${id}/qna` },
+    { key: 'intro',   label: '상담사 소개', to: `/counselors/${id}` },
+    { key: 'reviews', label: '후기',       to: `/counselors/${id}?tab=reviews` },
+    { key: 'qna',     label: '문의',       to: `/counselors/${id}?tab=qna` },
   ]
 
   return (
@@ -302,17 +293,11 @@ function DetailTabs({
           <Link
             key={t.key}
             to={t.to}
-            onClick={() => {
-              if (!active) sessionStorage.setItem('counselorTabNav', '1')
-            }}
+            replace
             className={`flex-1 h-[44px] flex items-center justify-center text-[14px] font-medium ${
               active ? 'text-[#f472b6]' : 'text-[#6A7282] border-b border-[#E5E7EB]'
             }`}
-            style={
-              active
-                ? { boxShadow: 'inset 0 -2px 0 0 #f472b6' }
-                : undefined
-            }
+            style={active ? { boxShadow: 'inset 0 -2px 0 0 #f472b6' } : undefined}
           >
             {t.label}
           </Link>
