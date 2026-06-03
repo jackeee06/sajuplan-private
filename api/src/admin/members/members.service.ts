@@ -800,6 +800,13 @@ export class MembersService {
       nickname: input.nickname,
     });
 
+    // point 행 보장 — 신규 상담사도 earning_balance 적립 통장이 있어야 수익금 기록 가능
+    await this.sql`
+      INSERT INTO point (member_id, free_balance, paid_balance, earning_balance, total_earned, total_used)
+      VALUES (${memberId}, 0, 0, 0, 0, 0)
+      ON CONFLICT (member_id) DO NOTHING
+    `;
+
     return memberId;
   }
 
@@ -863,6 +870,13 @@ export class MembersService {
       profile_specialty: input.profile_specialty ?? undefined,
       nickname: input.nickname,
     });
+
+    // point 행 보장 — 회원→상담사 승격 시에도 earning_balance 통장 필요
+    await this.sql`
+      INSERT INTO point (member_id, free_balance, paid_balance, earning_balance, total_earned, total_used)
+      VALUES (${input.memberId}, 0, 0, 0, 0, 0)
+      ON CONFLICT (member_id) DO NOTHING
+    `;
 
     return input.memberId;
   }

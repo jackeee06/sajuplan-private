@@ -8,9 +8,9 @@ const KOREAN_BANKS = [
   '새마을금고', '신협', '우체국', '수협',
 ]
 
-// 계좌번호 자릿수 정책 (시중은행 일반적 범위)
+// 계좌번호 자릿수 정책 (새마을금고·신협 등 일부 지방은행 16자리 지원)
 const MIN_ACCOUNT_DIGITS = 10
-const MAX_ACCOUNT_DIGITS = 14
+const MAX_ACCOUNT_DIGITS = 16
 
 // 예금주명 — 한글 자모/완성형 + 공백만 허용 (외국인 영문은 별도 케이스라 운영자 협의 후 등록)
 const HOLDER_REGEX = /^[가-힣ㄱ-ㅎㅏ-ㅣ ]*$/

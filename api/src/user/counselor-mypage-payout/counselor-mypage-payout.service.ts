@@ -548,8 +548,8 @@ export class UserCounselorMypagePayoutService {
       throw new BadRequestException('예금주명은 한글 2~20자만 입력 가능합니다.');
     }
     const accountDigits = bankAccount.replace(/-/g, '');
-    if (accountDigits.length < 10 || accountDigits.length > 14) {
-      throw new BadRequestException('계좌번호는 10~14자리여야 합니다.');
+    if (accountDigits.length < 10 || accountDigits.length > 16) {
+      throw new BadRequestException('계좌번호는 10~16자리여야 합니다.');
     }
 
     const result = await this.sql.begin(async (tx) => {

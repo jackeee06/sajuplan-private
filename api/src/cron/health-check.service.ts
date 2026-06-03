@@ -375,7 +375,7 @@ export class HealthCheckService {
         SELECT COUNT(*)::text AS cnt
           FROM payout_request
          WHERE status = 'pending'
-           AND requested_at < NOW() - (${pendingDays}::int || ' days')::interval
+           AND requested_at < NOW() - INTERVAL '1 day' * ${pendingDays}
       `;
       checks.push({
         id: 'C-21',
