@@ -102,4 +102,19 @@ export class UserCounselorQnaController {
   ) {
     return this.svc.deleteQna({ memberId: req.user.sub, qnaId });
   }
+
+  @Post(':qnaId/report')
+  @UseGuards(UserAuthGuard)
+  async report(
+    @Param('id', ParseIntPipe) counselorId: number,
+    @Param('qnaId', ParseIntPipe) qnaId: number,
+    @Req() req: UserAuthedRequest,
+    @Body() body: { reason?: string },
+  ) {
+    return this.svc.reportQna({
+      qnaId,
+      reporterId: req.user.sub,
+      reason: body.reason ? String(body.reason).slice(0, 500) : null,
+    });
+  }
 }

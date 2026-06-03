@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import CounselorDetailLayout from '../components/CounselorDetailLayout'
 import type { Badge, CounselorDetailData } from '../data/counselorDetails'
@@ -9,6 +9,7 @@ import {
   type PublicCounselorDetail,
   type PublicCounselorQnaItem,
 } from '../lib/api'
+import { useAuth } from '../lib/auth-context'
 import { FILE_BASE } from '../lib/runtime-env'
 
 function resolveImageUrl(u: string | null): string {
@@ -160,11 +161,21 @@ export default function CounselorQna() {
         </Link>
       </div>
 
-      {/* 카운터 */}
-      <div className="px-0 pb-3 flex items-center border-b border-[#F3F4F6]">
+      {/* 카운터 + 나의 문의 */}
+      <div className="px-0 pb-3 flex items-center justify-between border-b border-[#F3F4F6]">
         <p className="text-[15px] leading-[130%] text-[#4A5565]">
           전체 <span className="font-medium text-[#ec4899]">{data.qnaTotal}</span>건
         </p>
+        <Link
+          to="/mypage/my-qnas"
+          className="flex items-center gap-1 text-[13px] text-[#6A7282]"
+        >
+          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
+            <path d="M13 3H3a1 1 0 00-1 1v8a1 1 0 001 1h10a1 1 0 001-1V4a1 1 0 00-1-1z" stroke="#6A7282" strokeWidth="1.3" />
+            <path d="M5 7h6M5 10h4" stroke="#6A7282" strokeWidth="1.3" strokeLinecap="round" />
+          </svg>
+          나의 문의
+        </Link>
       </div>
 
       {/* 문의 카드 리스트 */}
@@ -183,42 +194,64 @@ export default function CounselorQna() {
 
 function QnaCard({ qna, counselorId }: { qna: PublicCounselorQnaItem; counselorId: string }) {
   const { id, status, title, content, is_secret, reviewer_name, created_at } = qna
-  const statusActive = status === '답변완료'
+  const { member } = useAuth()
+  const hasReply = status === '답변완료'
   const dateText = formatDate(created_at)
+  const bodyText = is_secret ? null : (content || title)
+  const [reported, setReported] = useState(false)
+
+  const handleReport = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (reported) return
+    try {
+      await counselorQnaApi.report(counselorId, id)
+      setReported(true)
+    } catch {
+      // 이미 신고했거나 본인 글 — 무시
+      setReported(true)
+    }
+  }
 
   return (
     <Link
       to={`/counselors/${counselorId}/qna/${id}`}
-      className="block px-0 py-4 flex flex-col gap-2 border-b border-[#F3F4F6] hover:bg-[#F9FAFB]/40 transition"
+      className="block px-0 py-4 border-b border-[#F3F4F6] transition"
     >
-      {/* 뱃지 + 제목 */}
-      <div className="flex items-center gap-2">
-        <div className="flex-1 flex items-center gap-1.5 min-w-0">
-          <span
-            className={`inline-flex items-center px-2 py-[3px] rounded-full text-[12px] leading-[110%] font-medium shrink-0 ${
-              statusActive ? 'bg-[#fdf2f8] text-[#ec4899]' : 'bg-[#F3F4F6] text-[#6A7282]'
-            }`}
-          >
-            {status}
-          </span>
-          {is_secret && <LockIcon />}
-          <h3 className="text-[16px] leading-[130%] font-medium text-[#1E2939] truncate">
-            {is_secret && !content ? '비밀 문의입니다.' : title}
-          </h3>
+      {/* 작성자 · 날짜 · 신고 */}
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-[14px] font-medium text-[#364153]">{reviewer_name}</span>
+          <span className="text-[12px] text-[#99A1AF]">{dateText}</span>
         </div>
+        {/* 공개글 + 로그인 상태일 때만 신고 버튼 노출 (비밀글은 내용 미확인이므로 신고 불가) */}
+        {!is_secret && member && (
+          <button
+            type="button"
+            onClick={handleReport}
+            className="text-[12px] text-[#99A1AF] shrink-0"
+          >
+            {reported ? '신고됨' : '신고하기'}
+          </button>
+        )}
       </div>
 
-      {/* 본문 */}
-      <p className="text-[14px] leading-[150%] text-[#6A7282] line-clamp-2 whitespace-pre-line">
-        {is_secret && !content ? '비밀 문의입니다.' : content}
-      </p>
+      {/* 내용 */}
+      {is_secret ? (
+        <p className="text-[14px] text-[#99A1AF] flex items-center gap-1">
+          비밀글입니다. <LockIcon />
+        </p>
+      ) : (
+        <p className="text-[14px] leading-[150%] text-[#6A7282] line-clamp-2 whitespace-pre-line">
+          {bodyText}
+        </p>
+      )}
 
-      {/* 작성자 · 날짜 */}
-      <div className="flex items-center gap-1 text-[13px] leading-[130%] text-[#99A1AF]">
-        <span>{reviewer_name}</span>
-        <span aria-hidden>∙</span>
-        <span>{dateText}</span>
-      </div>
+      {/* 답변완료 — 핑크 박스 */}
+      {hasReply && (
+        <div className="mt-2 bg-[#fdf2f8] rounded-[8px] px-3 py-2">
+          <p className="text-[13px] text-[#ec4899] font-medium">답변이 달렸습니다.</p>
+        </div>
+      )}
     </Link>
   )
 }

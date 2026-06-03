@@ -91,6 +91,8 @@ export interface CounselorQnaDetail {
   title: string;
   content: string;
   is_secret: boolean;
+  is_mine: boolean;
+  has_reply: boolean;
   reviewer_name: string;
   created_at: string;
   reply: {
@@ -213,9 +215,9 @@ export class UserCounselorQnaService {
     const q = rows[0];
 
     const isOwner =
-      params.requesterId != null && Number(q.member_id) === params.requesterId;
+      params.requesterId != null && Number(q.member_id) === Number(params.requesterId);
     const isCounselor =
-      params.requesterId != null && params.requesterId === Number(q.counselor_id);
+      params.requesterId != null && Number(params.requesterId) === Number(q.counselor_id);
     const canSeeContent = !q.is_secret || isOwner || isCounselor;
 
     type ReplyRow = {
@@ -267,6 +269,8 @@ export class UserCounselorQnaService {
       title: q.title,
       content: canSeeContent ? q.content : '',
       is_secret: q.is_secret,
+      is_mine: isOwner,
+      has_reply: reply !== null,
       reviewer_name: displayReviewer(q.reviewer_nickname, q.reviewer_mb_id),
       created_at:
         q.created_at instanceof Date
@@ -752,7 +756,7 @@ export class UserCounselorQnaService {
        LIMIT 1
     `;
     if (rows.length === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
-    if (Number(rows[0].member_id) !== params.memberId) throw new ForbiddenException('본인이 작성한 문의만 수정할 수 있습니다.');
+    if (Number(rows[0].member_id) !== Number(params.memberId)) throw new ForbiddenException('본인이 작성한 문의만 수정할 수 있습니다.');
 
     const reply = await this.sql<{ id: number }[]>`
       SELECT id FROM counselor_qna_reply WHERE qna_id = ${params.qnaId} LIMIT 1
@@ -783,6 +787,31 @@ export class UserCounselorQnaService {
     if (reply.length > 0) throw new ForbiddenException('답변이 달린 문의는 삭제할 수 없습니다.');
 
     await this.sql`DELETE FROM counselor_qna WHERE id = ${params.qnaId}`;
+    return { ok: true };
+  }
+
+  async reportQna(params: {
+    qnaId: number;
+    reporterId: number;
+    reason: string | null;
+  }): Promise<{ ok: true }> {
+    const rows = await this.sql<{ id: number; member_id: number }[]>`
+      SELECT id, member_id FROM counselor_qna WHERE id = ${params.qnaId} LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
+    if (Number(rows[0].member_id) === Number(params.reporterId)) throw new BadRequestException('본인이 작성한 문의는 신고할 수 없습니다.');
+
+    try {
+      await this.sql`
+        INSERT INTO post_report (board_slug, post_id, reporter_id, reporter_mb_id, target_member_id, target_mb_id, mode, reason, status, created_at)
+        VALUES ('counselor_qna', ${params.qnaId}, ${params.reporterId}, '',
+                ${rows[0].member_id}, '', 'report', ${params.reason ?? ''}, 0, NOW())
+      `;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (msg.includes('unique') || msg.includes('duplicate')) throw new ConflictException('이미 신고한 문의입니다.');
+      throw e;
+    }
     return { ok: true };
   }
 

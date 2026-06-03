@@ -106,15 +106,19 @@ export default function MyQnas() {
     if (!content) { setEditError('내용을 입력해주세요.'); return }
     setSaving(true)
     setEditError(null)
+    let success = false
     try {
       await myQnaApi.update(editTarget.counselor_id, editTarget.id, { title, content })
-      setEditTarget(null)
-      setToast('문의가 수정되었습니다.')
-      setReload((x) => x + 1)
+      success = true
     } catch (e) {
       setEditError(e instanceof Error ? e.message : '수정 실패')
     } finally {
       setSaving(false)
+      if (success) {
+        setEditTarget(null)
+        setToast('문의가 수정되었습니다.')
+        setReload((x) => x + 1)
+      }
     }
   }
 

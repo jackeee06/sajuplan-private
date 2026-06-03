@@ -1,10 +1,12 @@
 ﻿import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
+import ConfirmModal from '../components/ConfirmModal'
 import FloatingActions from '../components/FloatingActions'
 import UploadedImage from '../components/UploadedImage'
-import { ApiError, counselorQnaApi, type PublicCounselorQnaDetail } from '../lib/api'
+import { ApiError, counselorQnaApi, myQnaApi, type PublicCounselorQnaDetail } from '../lib/api'
 import { FILE_BASE } from '../lib/runtime-env'
+import { useAuth } from '../lib/auth-context'
 
 function resolveImageUrl(u: string | null): string | null {
   if (!u) return null
@@ -37,6 +39,12 @@ export default function CounselorQnaDetail() {
   const [qna, setQna] = useState<PublicCounselorQnaDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editContent, setEditContent] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!id || !qnaId) {
@@ -81,6 +89,21 @@ export default function CounselorQnaDetail() {
           <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
         </button>
         <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">상담 문의</h1>
+        {/* 본인 글 + 답변 없을 때 수정/삭제 */}
+        {qna?.is_mine && !qna?.has_reply && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => { setEditTitle(qna.title); setEditContent(qna.content); setEditOpen(true) }}
+              className="h-8 px-3 rounded-full border border-[#D1D5DB] text-[14px] text-[#4A5565] bg-white"
+            >수정</button>
+            <button
+              type="button"
+              onClick={() => setDeleteTarget(true)}
+              className="h-8 px-3 rounded-full border border-[#FB2C36] text-[14px] font-medium text-[#FB2C36] bg-white"
+            >삭제</button>
+          </div>
+        )}
       </header>
 
       <main className="flex-1 flex flex-col pb-10">
@@ -134,7 +157,77 @@ export default function CounselorQnaDetail() {
 
       <FloatingActions bottomOffset={16} showKakao={false} />
       <BottomNav />
-      </div>
+
+      {/* 수정 모달 */}
+      {editOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={(e) => { if (e.target === e.currentTarget) setEditOpen(false) }}>
+          <div className="w-full max-w-[600px] bg-white rounded-t-[20px] px-4 pt-5 pb-8">
+            <h2 className="text-[17px] font-semibold text-[#030712] mb-4">문의 수정</h2>
+            <div className="mb-3">
+              <label className="block text-[13px] font-medium text-[#4A5565] mb-1">제목</label>
+              <input
+                className="w-full px-3 py-2.5 text-[15px] border border-[#D1D5DB] rounded-[10px] bg-[#F9FAFB] focus:outline-none focus:border-[#9b7af7]"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                maxLength={255}
+              />
+            </div>
+            <div className="mb-4">
+              <label className="block text-[13px] font-medium text-[#4A5565] mb-1">내용</label>
+              <textarea
+                className="w-full px-3 py-2.5 text-[15px] border border-[#D1D5DB] rounded-[10px] bg-[#F9FAFB] focus:outline-none focus:border-[#9b7af7] min-h-[120px] resize-none"
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setEditOpen(false)} className="btn btn-outline-gray btn--base flex-1">취소</button>
+              <button type="button" disabled={saving} className="btn btn-primary btn--base flex-1"
+                onClick={async () => {
+                  if (!qna || !editTitle.trim() || !editContent.trim()) return
+                  setSaving(true)
+                  const newTitle = editTitle.trim()
+                  const newContent = editContent.trim()
+                  let success = false
+                  try {
+                    await myQnaApi.update(Number(id), qna.id, { title: newTitle, content: newContent })
+                    success = true
+                  } catch { /* 저장 실패 무시 */ } finally {
+                    setSaving(false)
+                    setEditOpen(false)
+                    if (success) setQna({ ...qna, title: newTitle, content: newContent })
+                  }
+                }}
+              >{saving ? '저장 중...' : '저장'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={deleteTarget}
+        title="문의 삭제"
+        message="문의를 삭제하시겠습니까?"
+        subMessage="삭제 후 복구할 수 없습니다."
+        actionLabel="삭제"
+        actionClassName="bg-[#FB2C36] text-white hover:bg-[#E0192A]"
+        loading={deleting}
+        onConfirm={async () => {
+          if (!qna) return
+          setDeleting(true)
+          let success = false
+          try {
+            await myQnaApi.remove(Number(id), qna.id)
+            success = true
+          } catch { /* 삭제 실패 — 모달 닫고 대기 */ } finally {
+            setDeleting(false)
+            setDeleteTarget(false)
+            if (success) navigate(-2)
+          }
+        }}
+        onCancel={() => setDeleteTarget(false)}
+      />
+    </div>
   )
 }
 

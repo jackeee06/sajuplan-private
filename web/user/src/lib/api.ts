@@ -1240,6 +1240,8 @@ export interface PublicCounselorQnaDetail {
   title: string
   content: string
   is_secret: boolean
+  is_mine: boolean
+  has_reply: boolean
   reviewer_name: string
   created_at: string
   reply: {
@@ -1269,6 +1271,8 @@ export const counselorQnaApi = {
     body: { title: string; content: string; is_secret: boolean },
   ) =>
     api.post<{ id: number }>(`/user/counselors/${counselorId}/qna`, body),
+  report: (counselorId: number | string, qnaId: number | string) =>
+    api.post<{ ok: true }>(`/user/counselors/${counselorId}/qna/${qnaId}/report`, {}),
 }
 
 // ─────────────────────────────────────────────
