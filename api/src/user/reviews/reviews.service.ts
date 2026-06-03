@@ -352,7 +352,7 @@ export class UserReviewsService {
     `;
     const r = rows[0];
     if (!r) throw new NotFoundException('후기를 찾을 수 없습니다.');
-    if (Number(r.member_id) !== memberId) throw new ForbiddenException('본인이 작성한 후기만 조회할 수 있습니다.');
+    if (Number(r.member_id) !== Number(memberId)) throw new ForbiddenException('본인이 작성한 후기만 조회할 수 있습니다.');
 
     const extras = parseExtras(r.extras);
     const photoUrl = pickPhotoUrl(extras);
@@ -399,7 +399,7 @@ export class UserReviewsService {
       SELECT member_id, extras, created_at FROM post_review WHERE id = ${id} LIMIT 1
     `;
     if (owner.length === 0) throw new NotFoundException('후기를 찾을 수 없습니다.');
-    if (Number(owner[0].member_id) !== memberId) throw new ForbiddenException('본인이 작성한 후기만 수정할 수 있습니다.');
+    if (Number(owner[0].member_id) !== Number(memberId)) throw new ForbiddenException('본인이 작성한 후기만 수정할 수 있습니다.');
 
     // 5분(300초) 이내만 수정 가능
     const created = owner[0].created_at instanceof Date ? owner[0].created_at : new Date(owner[0].created_at as unknown as string);
@@ -506,7 +506,7 @@ export class UserReviewsService {
       `;
       const c = rows[0];
       if (!c) throw new NotFoundException('상담 내역을 찾을 수 없습니다.');
-      if (Number(c.member_id) !== memberId) {
+      if (Number(c.member_id) !== Number(memberId)) {
         throw new ForbiddenException('본인의 상담만 후기를 작성할 수 있습니다.');
       }
       // 진행 중 상담은 후기 작성 불가 — 안전망 (정상 흐름에선 consultation INSERT 가 종료 시점에만 발생)
@@ -736,7 +736,7 @@ export class UserReviewsService {
       SELECT member_id FROM post_review WHERE id = ${reviewId} LIMIT 1
     `;
     if (rows.length === 0) throw new NotFoundException('후기를 찾을 수 없습니다.');
-    if (Number(rows[0].member_id) === reporterId) {
+    if (Number(rows[0].member_id) === Number(reporterId)) {
       throw new BadRequestException('본인이 작성한 후기는 신고할 수 없습니다.');
     }
 
@@ -767,7 +767,7 @@ export class UserReviewsService {
     `;
     if (rows.length === 0) throw new NotFoundException('후기를 찾을 수 없습니다.');
     const r = rows[0];
-    if (Number(r.counselor_id) !== counselorId) {
+    if (Number(r.counselor_id) !== Number(counselorId)) {
       throw new ForbiddenException('본인이 받은 후기만 베스트로 선정할 수 있습니다.');
     }
     // 동일 상태 요청 — no-op

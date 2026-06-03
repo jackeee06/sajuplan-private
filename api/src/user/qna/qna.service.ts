@@ -400,7 +400,7 @@ export class UserCounselorQnaService {
       throw new NotFoundException('문의를 찾을 수 없습니다.');
     }
     const q = rows[0];
-    if (Number(q.member_id) !== params.memberId) {
+    if (Number(q.member_id) !== Number(params.memberId)) {
       throw new ForbiddenException('본인 문의만 조회할 수 있습니다.');
     }
 
@@ -554,7 +554,7 @@ export class UserCounselorQnaService {
       throw new NotFoundException('문의를 찾을 수 없습니다.');
     }
     const q = rows[0];
-    if (Number(q.counselor_id) !== params.counselorId) {
+    if (Number(q.counselor_id) !== Number(params.counselorId)) {
       throw new ForbiddenException('본인 앞 문의만 조회할 수 있습니다.');
     }
 
@@ -631,7 +631,7 @@ export class UserCounselorQnaService {
     if (qrows.length === 0) {
       throw new NotFoundException('문의를 찾을 수 없습니다.');
     }
-    if (Number(qrows[0].counselor_id) !== params.counselorId) {
+    if (Number(qrows[0].counselor_id) !== Number(params.counselorId)) {
       throw new ForbiddenException('본인 앞 문의에만 답변할 수 있습니다.');
     }
 
@@ -692,7 +692,7 @@ export class UserCounselorQnaService {
     if (rows.length === 0) {
       throw new NotFoundException('답변을 찾을 수 없습니다.');
     }
-    if (Number(rows[0].counselor_id) !== params.counselorId) {
+    if (Number(rows[0].counselor_id) !== Number(params.counselorId)) {
       throw new ForbiddenException('본인이 작성한 답변만 삭제할 수 있습니다.');
     }
     await this.sql`DELETE FROM counselor_qna_reply WHERE id = ${rows[0].id}`;

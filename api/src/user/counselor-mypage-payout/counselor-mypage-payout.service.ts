@@ -494,7 +494,7 @@ export class UserCounselorMypagePayoutService {
       `;
       if (rows.length === 0) throw new NotFoundException('신청을 찾을 수 없습니다.');
       const r = rows[0];
-      if (Number(r.counselor_id) !== memberId) throw new ForbiddenException('본인의 신청만 취소할 수 있습니다.');
+      if (Number(r.counselor_id) !== Number(memberId)) throw new ForbiddenException('본인의 신청만 취소할 수 있습니다.');
       if (r.status !== 'pending') {
         throw new BadRequestException(`'${r.status}' 상태의 신청은 취소할 수 없습니다.`);
       }

@@ -254,7 +254,7 @@ export class UserChatService {
        WHERE chat_room_id = ${params.chatRoomId}
        ORDER BY created_at ASC, id ASC
     `;
-    for (const msg of messages) msg.is_mine = Number(msg.sender_id) === params.me;
+    for (const msg of messages) msg.is_mine = Number(msg.sender_id) === Number(params.me);
 
     // 본인이 방에 입장한 시점 — 현재 방의 상대 메시지 중 안 읽은 것을 read_at = NOW() 마킹.
     void this.sql`
@@ -277,7 +277,7 @@ export class UserChatService {
     //   m2net 은 같은 (membid, csrid) 조합이면 내부적으로 동일한 채팅 세션으로 라우팅한다.
     let wss: { url: string; token: string; role: 'member' | 'counselor' } | undefined;
     const isActive = room.status === 'STAY' || room.status === 'CNCH';
-    const isCounselor = Number(room.counselor_id) === params.me;
+    const isCounselor = Number(room.counselor_id) === Number(params.me);
     const role: 'member' | 'counselor' = isCounselor ? 'counselor' : 'member';
     if (isActive && room.member_csrid && room.counselor_csrid) {
       // 토큰 캐시 우선 — 같은 chat_room.id 에 대해 첫 발급 토큰 쌍을 재사용한다.
@@ -391,7 +391,7 @@ export class UserChatService {
       WHERE chat_room_id = ${room.id}
       ORDER BY created_at ASC, id ASC
     `;
-    for (const msg of messages) msg.is_mine = Number(msg.sender_id) === params.me;
+    for (const msg of messages) msg.is_mine = Number(msg.sender_id) === Number(params.me);
 
     return { room, messages };
   }
@@ -427,7 +427,7 @@ export class UserChatService {
            WHERE chat_room_id = ${params.chatRoomId}
            ORDER BY created_at ASC, id ASC
         `;
-    for (const msg of messages) msg.is_mine = Number(msg.sender_id) === params.me;
+    for (const msg of messages) msg.is_mine = Number(msg.sender_id) === Number(params.me);
     return messages;
   }
 
@@ -576,7 +576,7 @@ export class UserChatService {
     const room = rooms[0];
     if (!room) throw new NotFoundException('채팅방을 찾을 수 없습니다.');
 
-    const isCounselor = Number(room.counselor_id) === params.me;
+    const isCounselor = Number(room.counselor_id) === Number(params.me);
 
     if (params.mode === 'soft') {
       // sample/counsel/ajax.counsel_chat.php act='leaveRoom' — 잠시 이탈(try_out='Y')만.
@@ -665,7 +665,7 @@ export class UserChatService {
     `;
     const room = rooms[0];
     if (!room) return { ok: true };
-    const isCounselor = Number(room.counselor_id) === params.me;
+    const isCounselor = Number(room.counselor_id) === Number(params.me);
     // 본인의 try_out 플래그가 TRUE 인 경우 = 명시적 leave/peer-event 가 마킹한 진짜 이탈.
     // 시스템 메시지 INSERT 는 이 경우에만. (첫 입장에서 "다시 입장" 오발화 차단)
     const wasOut = isCounselor ? room.counselor_try_out : room.member_try_out;

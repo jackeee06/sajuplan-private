@@ -199,7 +199,7 @@ export class UserCounselorReviewsService {
     `;
     const r = rows[0];
     if (!r) throw new NotFoundException('후기를 찾을 수 없습니다.');
-    if (Number(r.counselor_id) !== counselorId) {
+    if (Number(r.counselor_id) !== Number(counselorId)) {
       throw new ForbiddenException('본인이 받은 후기만 조회할 수 있습니다.');
     }
 
@@ -257,7 +257,7 @@ export class UserCounselorReviewsService {
     if (target.length === 0) {
       throw new NotFoundException('후기를 찾을 수 없습니다.');
     }
-    if (Number(target[0].counselor_id) !== counselorId) {
+    if (Number(target[0].counselor_id) !== Number(counselorId)) {
       throw new ForbiddenException('본인이 받은 후기만 답변할 수 있습니다.');
     }
 
@@ -294,7 +294,7 @@ export class UserCounselorReviewsService {
     if (rows.length === 0) {
       throw new NotFoundException('답변이 존재하지 않습니다.');
     }
-    if (Number(rows[0].counselor_id) !== counselorId) {
+    if (Number(rows[0].counselor_id) !== Number(counselorId)) {
       throw new ForbiddenException('본인이 작성한 답변만 수정할 수 있습니다.');
     }
 
@@ -315,7 +315,7 @@ export class UserCounselorReviewsService {
     if (rows.length === 0) {
       throw new NotFoundException('답변이 존재하지 않습니다.');
     }
-    if (Number(rows[0].counselor_id) !== counselorId) {
+    if (Number(rows[0].counselor_id) !== Number(counselorId)) {
       throw new ForbiddenException('본인이 작성한 답변만 삭제할 수 있습니다.');
     }
     await this.sql`DELETE FROM post_review_reply WHERE id = ${rows[0].id}`;
