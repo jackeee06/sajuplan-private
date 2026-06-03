@@ -198,13 +198,14 @@ export class UserCounselorQnaService {
       title: string;
       content: string;
       is_secret: boolean;
+      is_hidden: boolean;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
       created_at: Date;
     };
 
     const rows = await this.sql<QnaRow[]>`
-      SELECT q.id, q.counselor_id, q.member_id, q.title, q.content, q.is_secret, q.created_at,
+      SELECT q.id, q.counselor_id, q.member_id, q.title, q.content, q.is_secret, q.is_hidden, q.created_at,
              m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
         FROM counselor_qna q
         LEFT JOIN member m ON m.id = q.member_id
@@ -222,6 +223,11 @@ export class UserCounselorQnaService {
       params.requesterId != null && Number(q.member_id) === Number(params.requesterId);
     const isCounselor =
       params.requesterId != null && Number(params.requesterId) === Number(q.counselor_id);
+
+    // 숨김 처리된 글: 작성자 본인 + 해당 상담사만 접근 가능
+    if (q.is_hidden && !isOwner && !isCounselor) {
+      throw new NotFoundException('문의를 찾을 수 없습니다.');
+    }
     const canSeeContent = !q.is_secret || isOwner || isCounselor;
 
     type ReplyRow = {
@@ -783,7 +789,7 @@ export class UserCounselorQnaService {
       SELECT id, member_id FROM counselor_qna WHERE id = ${params.qnaId} LIMIT 1
     `;
     if (rows.length === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
-    if (Number(rows[0].member_id) !== params.memberId) throw new ForbiddenException('본인이 작성한 문의만 삭제할 수 있습니다.');
+    if (Number(rows[0].member_id) !== Number(params.memberId)) throw new ForbiddenException('본인이 작성한 문의만 삭제할 수 있습니다.');
 
     const reply = await this.sql<{ id: number }[]>`
       SELECT id FROM counselor_qna_reply WHERE qna_id = ${params.qnaId} LIMIT 1

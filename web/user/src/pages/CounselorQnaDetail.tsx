@@ -205,13 +205,11 @@ export default function CounselorQnaDetail() {
       )}
 
       <ConfirmModal
-        isOpen={deleteTarget}
-        title="문의 삭제"
+        open={deleteTarget}
         message="문의를 삭제하시겠습니까?"
         subMessage="삭제 후 복구할 수 없습니다."
         actionLabel="삭제"
-        actionClassName="bg-[#FB2C36] text-white hover:bg-[#E0192A]"
-        loading={deleting}
+        tone="danger"
         onConfirm={async () => {
           if (!qna) return
           setDeleting(true)
@@ -222,7 +220,7 @@ export default function CounselorQnaDetail() {
           } catch { /* 삭제 실패 — 모달 닫고 대기 */ } finally {
             setDeleting(false)
             setDeleteTarget(false)
-            if (success) navigate(-2)
+            if (success) navigate(-1)
           }
         }}
         onCancel={() => setDeleteTarget(false)}
