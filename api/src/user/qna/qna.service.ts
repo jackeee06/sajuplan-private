@@ -812,7 +812,6 @@ export class UserCounselorQnaService {
       SELECT id, member_id FROM counselor_qna WHERE id = ${params.qnaId} LIMIT 1
     `;
     if (rows.length === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
-    if (Number(rows[0].member_id) === Number(params.reporterId)) throw new BadRequestException('본인이 작성한 문의는 신고할 수 없습니다.');
 
     try {
       await this.sql`

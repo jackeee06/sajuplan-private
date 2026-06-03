@@ -269,8 +269,8 @@ function QnaCard({ qna, counselorId, onReported }: { qna: PublicCounselorQnaItem
             <span className="text-[14px] font-medium text-[#364153]">{reviewer_name}</span>
             <span className="text-[12px] text-[#99A1AF]">{dateText}</span>
           </div>
-          {/* 공개글 + 로그인 + 타인 글일 때만 신고 버튼 노출 */}
-          {!is_secret && member && !is_mine && (
+          {/* 공개글 + 로그인 상태일 때 신고 버튼 노출 */}
+          {!is_secret && member && (
             <button
               type="button"
               onClick={openReport}
