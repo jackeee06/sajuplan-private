@@ -219,7 +219,7 @@ function QnaCard({ qna, counselorId, onReported }: { qna: PublicCounselorQnaItem
   const { member } = useAuth()
   const hasReply = status === '답변완료'
   const dateText = formatDate(created_at)
-  const bodyText = is_secret ? null : (content || title)
+  const bodyText = (is_secret && !is_mine) ? null : (content || title)
   const [reported, setReported] = useState(false)
   const [reportOpen, setReportOpen] = useState(false)
   const [selectedReason, setSelectedReason] = useState('')
@@ -282,7 +282,7 @@ function QnaCard({ qna, counselorId, onReported }: { qna: PublicCounselorQnaItem
         </div>
 
         {/* 내용 */}
-        {is_secret ? (
+        {is_secret && !is_mine ? (
           <p className="text-[14px] text-[#99A1AF] flex items-center gap-1">
             비밀글입니다. <LockIcon />
           </p>

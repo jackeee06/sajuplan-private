@@ -136,7 +136,7 @@ export default function CounselorQnaDetail() {
               </div>
 
               <p className="text-[14px] leading-[150%] text-[#4A5565] whitespace-pre-line">
-                {qna.is_secret && !qna.content ? '비밀 문의입니다.' : qna.content}
+                {qna.is_secret && !qna.content && !qna.is_mine ? '비밀 문의입니다.' : qna.content}
               </p>
             </div>
 
