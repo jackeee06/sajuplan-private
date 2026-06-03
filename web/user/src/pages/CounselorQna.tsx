@@ -69,6 +69,13 @@ export default function CounselorQna() {
   const [qnas, setQnas] = useState<PublicCounselorQnaItem[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 2500)
+    return () => clearTimeout(t)
+  }, [toast])
 
   useEffect(() => {
     if (!id) {
@@ -183,9 +190,22 @@ export default function CounselorQna() {
         {qnas.length === 0 ? (
           <p className="text-center text-[14px] text-[#99A1AF] py-10">아직 문의가 없습니다.</p>
         ) : (
-          qnas.map((q) => <QnaCard key={q.id} qna={q} counselorId={id ?? ''} />)
+          qnas.map((q) => (
+            <QnaCard
+              key={q.id}
+              qna={q}
+              counselorId={id ?? ''}
+              onReported={() => setToast('신고가 접수되었습니다.')}
+            />
+          ))
         )}
       </section>
+
+      {toast && (
+        <div className="fixed bottom-[100px] left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1E2939] text-white text-[13px] rounded-[20px] shadow-md whitespace-nowrap">
+          {toast}
+        </div>
+      )}
     </CounselorDetailLayout>
   )
 }
@@ -194,7 +214,7 @@ export default function CounselorQna() {
 
 const REPORT_REASONS = ['욕설·비하', '스팸·광고', '허위 정보', '음란·성적', '개인정보 노출', '기타']
 
-function QnaCard({ qna, counselorId }: { qna: PublicCounselorQnaItem; counselorId: string }) {
+function QnaCard({ qna, counselorId, onReported }: { qna: PublicCounselorQnaItem; counselorId: string; onReported: () => void }) {
   const { id, status, title, content, is_secret, reviewer_name, created_at } = qna
   const { member } = useAuth()
   const hasReply = status === '답변완료'
@@ -222,6 +242,7 @@ function QnaCard({ qna, counselorId }: { qna: PublicCounselorQnaItem; counselorI
       await counselorQnaApi.report(counselorId, id, reason)
       setReported(true)
       setReportOpen(false)
+      onReported()
     } catch {
       setReported(true)
       setReportOpen(false)
