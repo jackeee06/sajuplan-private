@@ -359,7 +359,7 @@ export default function ConsultModal({ open, onClose, variant, counselor }: Prop
             <p className="flex-1 text-[13px] leading-[160%] text-[#9d174d]">
               <span className="font-medium text-[#ec4899]">{counselor.name}</span> 상담사
               {isPhone ? '에게 자동 연결됩니다' : '와 채팅이 시작됩니다'}.<br />
-              <span className="font-bold">상담사가 입장하기 전까지는 한 푼도 차감되지 않습니다.</span>
+              <span className="font-bold">상담사가 입장하기 전까지는 코인이 차감되지 않습니다.</span>
               {!isPhone && (
                 <>
                   <br />
