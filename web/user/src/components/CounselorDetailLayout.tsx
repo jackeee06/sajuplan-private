@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type ReactNode } from 'react'
+﻿import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import FloatingActions from './FloatingActions'
 import ShareBottomSheet from './ShareBottomSheet'
@@ -41,8 +41,18 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
   const [likeBusy, setLikeBusy] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
+  const tabRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (typeof window !== 'undefined') setShareUrl(window.location.href)
+  }, [])
+
+  // 탭 클릭으로 이동한 경우에만 탭 위치로 스크롤 (외부 진입 시엔 맨 위 유지)
+  useEffect(() => {
+    if (sessionStorage.getItem('counselorTabNav') === '1') {
+      sessionStorage.removeItem('counselorTabNav')
+      tabRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
   }, [])
 
   const triggerConsult = (variant: 'phone' | 'chat') => {
@@ -238,7 +248,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
       <div className="h-2 bg-[#F9FAFB]" aria-hidden />
 
       {/* 탭 + 본문 */}
-      <div className="px-4 flex flex-col gap-5 pb-10">
+      <div ref={tabRef} className="px-4 flex flex-col gap-5 pb-10">
         <DetailTabs activeTab={activeTab} id={String(data.id)} />
         {children}
       </div>
@@ -288,6 +298,9 @@ function DetailTabs({
           <Link
             key={t.key}
             to={t.to}
+            onClick={() => {
+              if (!active) sessionStorage.setItem('counselorTabNav', '1')
+            }}
             className={`flex-1 h-[44px] flex items-center justify-center text-[14px] font-medium ${
               active ? 'text-[#f472b6]' : 'text-[#6A7282] border-b border-[#E5E7EB]'
             }`}
