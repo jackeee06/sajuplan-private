@@ -575,6 +575,13 @@ export class UserReviewsService {
       RETURNING id
     `;
 
+    // post_counselor.review_count 동기화 (best-effort)
+    void this.sql`
+      UPDATE post_counselor SET review_count = (
+        SELECT COUNT(*) FROM post_review WHERE counselor_id = ${resolvedCounselorId}
+      ) WHERE member_id = ${resolvedCounselorId}
+    `.catch(() => {});
+
     // 후기 작성 포인트 지급 (best-effort — 실패해도 후기 작성은 성공으로 본다).
     //  - setting.review.payout_enabled === '1' 이어야 함
     //  - amount > 0 이어야 함
@@ -718,7 +725,21 @@ export class UserReviewsService {
     `;
     if (reply.length > 0) throw new ForbiddenException('상담사가 답변한 후기는 삭제할 수 없습니다.');
 
+    const counselorRow = await this.sql<{ counselor_id: number | null }[]>`
+      SELECT counselor_id FROM post_review WHERE id = ${id} LIMIT 1
+    `;
+    const counselorId = counselorRow[0]?.counselor_id;
+
     await this.sql`DELETE FROM post_review WHERE id = ${id}`;
+
+    // post_counselor.review_count 동기화 (best-effort)
+    if (counselorId) {
+      void this.sql`
+        UPDATE post_counselor SET review_count = (
+          SELECT COUNT(*) FROM post_review WHERE counselor_id = ${counselorId}
+        ) WHERE member_id = ${counselorId}
+      `.catch(() => {});
+    }
   }
 
   /**
