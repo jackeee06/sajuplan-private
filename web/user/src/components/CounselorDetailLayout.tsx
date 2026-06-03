@@ -47,11 +47,11 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
     if (typeof window !== 'undefined') setShareUrl(window.location.href)
   }, [])
 
-  // 탭 클릭으로 이동한 경우에만 탭 위치로 스크롤 (외부 진입 시엔 맨 위 유지)
+  // 탭 클릭 이동 시 탭 위치로 즉시 이동 (애니메이션 없음 → 탭이 처음부터 상단에 있는 것처럼 보임)
   useEffect(() => {
     if (sessionStorage.getItem('counselorTabNav') === '1') {
       sessionStorage.removeItem('counselorTabNav')
-      tabRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      tabRef.current?.scrollIntoView({ behavior: 'instant', block: 'start' })
     }
   }, [])
 
@@ -247,10 +247,14 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
 
       <div className="h-2 bg-[#F9FAFB]" aria-hidden />
 
-      {/* 탭 + 본문 */}
-      <div ref={tabRef} className="px-4 flex flex-col gap-5 pb-10">
-        <DetailTabs activeTab={activeTab} id={String(data.id)} />
-        {children}
+      {/* 탭 sticky + 본문 */}
+      <div ref={tabRef}>
+        <div className="sticky top-0 z-20 bg-white px-4 border-b border-[#F3F4F6]">
+          <DetailTabs activeTab={activeTab} id={String(data.id)} />
+        </div>
+        <div className="px-4 flex flex-col gap-5 py-5 pb-10">
+          {children}
+        </div>
       </div>
 
       {/* 하단 고정 CTA */}
