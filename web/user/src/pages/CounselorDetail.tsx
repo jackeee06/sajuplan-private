@@ -65,7 +65,7 @@ function mapDetail(r: PublicCounselorDetail): CounselorDetailData {
     introText: sanitizeIntroHtml(r.intro ?? '') || '상담사 소개가 준비 중입니다.',
     liveViewers: r.live_viewers,
     reviewTotal: r.review_count.toLocaleString(),
-    qnaTotal: '0',
+    qnaTotal: r.qna_count.toLocaleString(),
   }
 }
 

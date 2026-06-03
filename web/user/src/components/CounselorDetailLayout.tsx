@@ -241,7 +241,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
       {/* 탭 sticky + 본문 */}
       <div>
         <div className="sticky top-0 z-20 bg-white px-4 border-b border-[#F3F4F6]">
-          <DetailTabs activeTab={activeTab} id={String(data.id)} />
+          <DetailTabs activeTab={activeTab} id={String(data.id)} reviewTotal={data.reviewTotal} qnaTotal={data.qnaTotal} />
         </div>
         <div className="px-4 flex flex-col gap-5 py-5 pb-10">
           {children}
@@ -275,14 +275,18 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
 function DetailTabs({
   activeTab,
   id,
+  reviewTotal,
+  qnaTotal,
 }: {
   activeTab: 'intro' | 'reviews' | 'qna'
   id: string
+  reviewTotal: string
+  qnaTotal: string
 }) {
   const tabs: { key: 'intro' | 'reviews' | 'qna'; label: string; to: string }[] = [
     { key: 'intro',   label: '상담사 소개', to: `/counselors/${id}` },
-    { key: 'reviews', label: '후기',       to: `/counselors/${id}?tab=reviews` },
-    { key: 'qna',     label: '문의',       to: `/counselors/${id}?tab=qna` },
+    { key: 'reviews', label: `후기(${reviewTotal})`,  to: `/counselors/${id}?tab=reviews` },
+    { key: 'qna',     label: `문의(${qnaTotal})`,     to: `/counselors/${id}?tab=qna` },
   ]
 
   return (
