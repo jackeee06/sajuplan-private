@@ -167,7 +167,7 @@ export class UserCounselorQnaService {
         params.requesterId != null && Number(r.member_id) === Number(params.requesterId);
       const isCounselor =
         params.requesterId != null && Number(params.requesterId) === Number(params.counselorId);
-      const canSeeContent = !r.is_secret || isOwner || isCounselor;
+      const canSeeContent = isOwner || isCounselor; // 정책: 문의는 제3자에게 항상 비밀
       const has_reply = r.reply_id != null;
       return {
         id: r.id,
@@ -231,7 +231,7 @@ export class UserCounselorQnaService {
     if (q.is_hidden && !isOwner && !isCounselor) {
       throw new NotFoundException('문의를 찾을 수 없습니다.');
     }
-    const canSeeContent = !q.is_secret || isOwner || isCounselor;
+    const canSeeContent = isOwner || isCounselor; // 정책: 문의는 제3자에게 항상 비밀
 
     type ReplyRow = {
       id: number;
@@ -743,8 +743,8 @@ export class UserCounselorQnaService {
       RETURNING id
     `;
 
-    // 알림톡: 상담사에게 신규 문의 도착 안내 (BizM qa_ask2)
-    void this.notifyQaAsk(params.counselorId, params.memberId);
+    // 알림톡: 상담사에게 신규 문의 도착 안내 (BizM qa_ask_v2)
+    void this.notifyQaAsk(params.counselorId, params.memberId, rows[0].id);
 
     return { id: rows[0].id };
   }
@@ -867,7 +867,7 @@ export class UserCounselorQnaService {
    * 변수: 상담사명. 고객명은 마스킹 정책상 본문에 안 들어가도 됨.
    * sample 의 wz_alimtalk_bizm 와 동일하게 fire-and-forget. 실패해도 본문 작성은 성공.
    */
-  private async notifyQaAsk(counselorId: number, memberId: number): Promise<void> {
+  private async notifyQaAsk(counselorId: number, memberId: number, qnaId: number): Promise<void> {
     try {
       const rows = await this.sql<{
         counselor_phone: string | null;
@@ -897,7 +897,7 @@ export class UserCounselorQnaService {
       const res = await this.sms.sendAlimtalkByCode(
         'qa_ask_v2',
         r.counselor_phone,
-        { 상담사명: counselorName, 고객명: customerName, url: '/counselor/mypage/customer-qnas' },
+        { 상담사명: counselorName, 고객명: customerName, url: `/counselor/mypage/customer-qnas/${qnaId}` },
         '사주플랜 상담 문의 도착 안내',
       );
       if (!res.ok) {

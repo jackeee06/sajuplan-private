@@ -3,27 +3,15 @@ import { useNavigate, useParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import { ApiError, counselorQnaApi } from '../lib/api'
 
-function SecretCheckbox({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center gap-2 cursor-pointer select-none">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="w-[22px] h-[22px]" />
-      <span className="text-[15px] leading-[130%] text-[#6A7282]">비밀글로 작성</span>
-    </label>
-  )
-}
-
 /**
  * 상담 문의 작성 — Figma 163:19878
  * 라우트: /counselors/:id/qna/new
  *
- * 백엔드: POST /api/user/counselors/:id/qna  (회원 인증 필요)
- *
- * 미로그인 시 401 → 로그인 페이지로 이동.
+ * 정책: 문의는 제3자에게 항상 비밀 → is_secret 항상 true, 토글 UI 제거
  */
 export default function CounselorQnaNew() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const [secret, setSecret] = useState(true)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -39,7 +27,7 @@ export default function CounselorQnaNew() {
       await counselorQnaApi.create(id, {
         title: title.trim(),
         content: content.trim(),
-        is_secret: secret,
+        is_secret: true,
       })
       navigate(`/counselors/${id}/qna`)
     } catch (e) {
@@ -72,9 +60,6 @@ export default function CounselorQnaNew() {
       </header>
 
       <main className="flex-1 px-4 pt-4 flex flex-col gap-5">
-        {/* 비밀글로 작성 */}
-        <SecretCheckbox checked={secret} onChange={setSecret} />
-
         {/* 제목 */}
         <section className="flex flex-col gap-2">
           <label className="text-[16px] leading-[130%] font-semibold text-[#1E2939]">

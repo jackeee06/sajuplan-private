@@ -111,7 +111,7 @@ export class UserReviewsService {
       id: r.id,
       title: r.title,
       // 비밀글이면 본문 가림
-      content: r.is_secret ? '' : (r.content ?? ''),
+      content: r.content ?? '', // 정책: 후기는 모두에게 공개
       rating: r.rating,
       created_at:
         r.created_at instanceof Date
@@ -180,7 +180,7 @@ export class UserReviewsService {
     const items: PublicCounselorReview[] = rows.map((r) => ({
       id: r.id,
       title: r.title,
-      content: r.is_secret ? '' : (r.content ?? ''),
+      content: r.content ?? '', // 정책: 후기는 모두에게 공개
       is_secret: r.is_secret,
       is_best: r.is_best,
       best_at:
