@@ -36,12 +36,10 @@ let memberCookieValue: string | null = null
 /** context에 미리 발급된 쿠키 적용 (로그인 API 재호출 없음) */
 async function applyCounselorCookie(context: any) {
   if (!counselorCookieValue) throw new Error('상담사 쿠키가 준비되지 않았습니다.')
-  // clearCookies 없이 addCookies — 같은 name+domain+path 면 자동 교체됨.
-  // 도메인을 .sajuplan.com 으로 설정해 api 서브도메인에도 전송.
   await context.addCookies([{
     name: 'sjm_user', value: counselorCookieValue,
-    domain: DOMAIN.startsWith('.') ? DOMAIN : `.${DOMAIN}`,
-    path: '/', httpOnly: true, secure: true, sameSite: 'None',
+    domain: `.${DOMAIN}`, path: '/',
+    httpOnly: true, secure: true, sameSite: 'None',
   }])
 }
 
@@ -59,6 +57,9 @@ async function deleteCounselorReply(request: any, qnaId: number) {
 test.describe('상담사 문의 답변 CRUD', () => {
 
   test.beforeAll(async ({ request }) => {
+    // combined run 시 이전 스펙 로그인 API 호출 누적 → throttle 방지 쿨다운
+    await new Promise((r) => setTimeout(r, 1500))
+
     // ── e2e_member 로그인 (1회) ──
     const memberLogin = await request.post(`https://${API_DOMAIN}/api/user/auth/login`, {
       data: { mb_id: 'e2e_member', password: 'e2e_test_2026' },
