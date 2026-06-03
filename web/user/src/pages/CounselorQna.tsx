@@ -195,7 +195,7 @@ export default function CounselorQna() {
               key={q.id}
               qna={q}
               counselorId={id ?? ''}
-              onReported={() => setToast('신고가 접수되었습니다.')}
+              onReported={(msg) => setToast(msg)}
             />
           ))
         )}
@@ -214,8 +214,8 @@ export default function CounselorQna() {
 
 const REPORT_REASONS = ['욕설·비하', '스팸·광고', '허위 정보', '음란·성적', '개인정보 노출', '기타']
 
-function QnaCard({ qna, counselorId, onReported }: { qna: PublicCounselorQnaItem; counselorId: string; onReported: () => void }) {
-  const { id, status, title, content, is_secret, reviewer_name, created_at } = qna
+function QnaCard({ qna, counselorId, onReported }: { qna: PublicCounselorQnaItem; counselorId: string; onReported: (msg: string) => void }) {
+  const { id, status, title, content, is_secret, reviewer_name, created_at, is_mine } = qna
   const { member } = useAuth()
   const hasReply = status === '답변완료'
   const dateText = formatDate(created_at)
@@ -242,10 +242,16 @@ function QnaCard({ qna, counselorId, onReported }: { qna: PublicCounselorQnaItem
       await counselorQnaApi.report(counselorId, id, reason)
       setReported(true)
       setReportOpen(false)
-      onReported()
-    } catch {
-      setReported(true)
+      onReported('신고가 접수되었습니다.')
+    } catch (e) {
       setReportOpen(false)
+      const msg = e instanceof Error ? e.message : ''
+      if (msg.includes('이미 신고')) {
+        setReported(true)
+        onReported('이미 신고한 문의입니다.')
+      } else {
+        onReported('신고 중 오류가 발생했습니다.')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -263,8 +269,8 @@ function QnaCard({ qna, counselorId, onReported }: { qna: PublicCounselorQnaItem
             <span className="text-[14px] font-medium text-[#364153]">{reviewer_name}</span>
             <span className="text-[12px] text-[#99A1AF]">{dateText}</span>
           </div>
-          {/* 공개글 + 로그인 상태일 때만 신고 버튼 노출 */}
-          {!is_secret && member && (
+          {/* 공개글 + 로그인 + 타인 글일 때만 신고 버튼 노출 */}
+          {!is_secret && member && !is_mine && (
             <button
               type="button"
               onClick={openReport}

@@ -1232,6 +1232,8 @@ export interface PublicCounselorQnaItem {
   status: '답변완료' | '답변대기'
   reviewer_name: string
   created_at: string
+  /** 요청자 본인이 작성한 글 */
+  is_mine: boolean
 }
 
 export interface PublicCounselorQnaDetail {

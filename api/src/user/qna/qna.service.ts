@@ -22,6 +22,8 @@ export interface CounselorQnaListItem {
   /** 마스킹된 작성자 닉네임 (예: '김*객'). 본문은 비밀글이면 가림. */
   reviewer_name: string;
   created_at: string;
+  /** 요청자 본인이 작성한 글 여부 */
+  is_mine: boolean;
 }
 
 export interface CounselorCustomerQnaListItem {
@@ -162,9 +164,9 @@ export class UserCounselorQnaService {
 
     const items: CounselorQnaListItem[] = rows.map((r) => {
       const isOwner =
-        params.requesterId != null && Number(r.member_id) === params.requesterId;
+        params.requesterId != null && Number(r.member_id) === Number(params.requesterId);
       const isCounselor =
-        params.requesterId != null && params.requesterId === params.counselorId;
+        params.requesterId != null && Number(params.requesterId) === Number(params.counselorId);
       const canSeeContent = !r.is_secret || isOwner || isCounselor;
       const has_reply = r.reply_id != null;
       return {
@@ -179,6 +181,7 @@ export class UserCounselorQnaService {
           r.created_at instanceof Date
             ? r.created_at.toISOString()
             : String(r.created_at),
+        is_mine: isOwner,
       };
     });
 
