@@ -39,6 +39,10 @@ export interface SettlementSummary {
   referral_earn: number;
   /** 피추천 수당 차감액 (이번달, 없으면 0) */
   referral_deduct: number;
+  /** 정산비전체 (계산식 표시용 최상위 필드) */
+  price_tot: number;
+  /** 세금 공제 합계 = 부가세 + 원천징수 + 회선비 (계산식 표시용) */
+  tax_deduction: number;
 }
 
 export interface IncomeItem {
@@ -224,6 +228,8 @@ export class UserSettlementsService {
       month: targetMonth,
       referral_earn: Number(r.referral_earn ?? 0),       // 추천인 수당 적립
       referral_deduct: Number(r.referral_deduct ?? 0),   // 피추천 수당 차감
+      price_tot: priceTot,
+      tax_deduction: vatAmount + withholdingTax + replyFee,
       payout_breakdown: {
         amt_free: amtFree,
         amt_pro: amtPro,

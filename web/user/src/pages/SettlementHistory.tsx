@@ -142,9 +142,8 @@ export default function SettlementHistory() {
           ) : null}
           {(() => {
             const estimatedPayout = Number(headerSummary?.estimated_payout ?? 0)
-            const bd = (headerSummary as { payout_breakdown?: { price_tot?: number; vat_amount?: number; withholding_tax?: number; reply_fee?: number } } | null)?.payout_breakdown
-            const priceTot = bd?.price_tot ?? 0
-            const deduction = (bd?.vat_amount ?? 0) + (bd?.withholding_tax ?? 0) + (bd?.reply_fee ?? 0)
+            const priceTot = Number(headerSummary?.price_tot ?? 0)
+            const taxDeduction = Number(headerSummary?.tax_deduction ?? 0)
             return (
               <>
                 <div className="mt-2 flex items-baseline gap-2">
@@ -155,7 +154,7 @@ export default function SettlementHistory() {
                 </div>
                 {priceTot > 0 && (
                   <p className="mt-[3px] text-[11px] text-[#B0B8C1] tabular-nums">
-                    정산비 {priceTot.toLocaleString()} − 공제 {deduction.toLocaleString()}(부가세+원천징수) = {estimatedPayout.toLocaleString()}원
+                    정산비 {priceTot.toLocaleString()} − 공제 {taxDeduction.toLocaleString()}(부가세+원천징수) = {estimatedPayout.toLocaleString()}원
                   </p>
                 )}
                 <p className="mt-2 text-[12px] leading-[150%] text-[#9CA3AF]">
@@ -594,6 +593,11 @@ function RealtimeTab() {
             <p className="mt-1 text-[26px] font-bold tabular-nums">
               {(summary.estimated_payout ?? 0).toLocaleString()}원
             </p>
+            {(bd?.price_tot ?? 0) > 0 && (
+              <p className="mt-1 text-[11px] opacity-60 tabular-nums">
+                정산비 {(bd?.price_tot ?? 0).toLocaleString()} − 공제 {deduction.toLocaleString()}(부가세+원천징수) = {(summary.estimated_payout ?? 0).toLocaleString()}원
+              </p>
+            )}
           </section>
 
           {/* 선/후불 칩 (consultation.preflag — 'Y'=선불, 'N'=후불) */}
