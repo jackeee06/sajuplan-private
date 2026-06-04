@@ -53,7 +53,7 @@ import PushNotifications from './pages/PushNotifications'
 import PushGuide from './pages/PushGuide'
 import AlertGuide from './pages/AlertGuide'
 import PopupLayerList from './pages/PopupLayerList'
-import SajuConfig from './pages/SajuConfig'
+
 import SearchKeywords from './pages/SearchKeywords'
 import SearchPopular from './pages/SearchPopular'
 import SettlementList from './pages/SettlementList'
@@ -159,7 +159,7 @@ export default function App() {
               <Route path="/popup-layers" element={<PopupLayerList />} />
               <Route path="/popup-layers/new" element={<PopupLayerForm />} />
               <Route path="/popup-layers/:id" element={<PopupLayerForm />} />
-              <Route path="/saju-config" element={<SajuConfig />} />
+
 
               {/* 게시판관리 */}
               <Route path="/search-keywords" element={<SearchKeywords />} />

@@ -26,7 +26,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   'notification.email': '알림 - 메일',
   'misc.banners': '기타 - 배너',
   'misc.popup_layers': '기타 - 팝업레이어',
-  'misc.saju_config': '기타 - 사주메인',
+
   'misc.wish': '기타 - 소원다락방',
   'misc.wish_event': '기타 - 소원다락방 EVENT',
   'misc.qa': '기타 - 상담문의',

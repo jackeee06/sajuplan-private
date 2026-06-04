@@ -20,7 +20,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtService } from '@nestjs/jwt';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { diskStorage } from 'multer';
 import { extname, join } from 'node:path';
@@ -109,6 +109,7 @@ export class AuthController {
   // ─────────────────────────────────────────────
   @Get('me')
   @UseGuards(UserAuthGuard)
+  @SkipThrottle()
   async me(@Req() req: UserAuthedRequest) {
     return this.authService.findActiveById(req.user.sub);
   }
@@ -987,9 +988,23 @@ export class AuthController {
       // 실패 시 회원 row 롤백 + 사용자에게 알림 (sample 정책)
       await this.authService.registerWithM2net(created.id);
 
-      // 회원가입 쿠폰 발급 (소셜 가입도 동일하게) — 발급 실패는 가입을 막지 않음
+      // 회원가입 쿠폰 발급 + 알림톡 (소셜 가입도 동일하게) — 발급 실패는 가입을 막지 않음
       try {
-        await this.authService.issueSignupCoupon(created.id);
+        const couponInfo = await this.authService.issueSignupCoupon(created.id);
+        if (couponInfo && body.phone) {
+          const endsAtFormatted = couponInfo.endsAt
+            ? couponInfo.endsAt.toLocaleDateString('ko-KR', {
+                timeZone: 'Asia/Seoul',
+                year: 'numeric', month: '2-digit', day: '2-digit',
+              }).replace(/\. /g, '.').replace(/\.$/, '')
+            : '기간 없음';
+          this.sms.sendAlimtalkByCode(body.phone, 'coupon_signup_v1', {
+            이름: body.name ?? pending.name ?? '',
+            쿠폰명: couponInfo.couponName,
+            유효기간: endsAtFormatted,
+            url: '',
+          }).catch(() => undefined);
+        }
       } catch {
         // 로그는 service 내부에서. 회원가입은 계속 진행.
       }

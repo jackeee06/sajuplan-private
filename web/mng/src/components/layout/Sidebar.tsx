@@ -28,7 +28,7 @@ function pathToGroup(pathname: string): MenuKey | null {
       || pathname.startsWith('/notices') || pathname.startsWith('/events') || pathname.startsWith('/post-reports')
       || pathname.startsWith('/posts-overview')) return 'board'
   if (pathname.startsWith('/push-notifications') || pathname.startsWith('/push-guide') || pathname.startsWith('/alert-guide') || pathname.startsWith('/alimtalk')) return 'notification'
-  if (pathname.startsWith('/banners') || pathname.startsWith('/popup-layers') || pathname.startsWith('/saju-config')) return 'misc'
+  if (pathname.startsWith('/banners') || pathname.startsWith('/popup-layers')) return 'misc'
   if (pathname.startsWith('/admin-users')) return 'permission'
   if (pathname.startsWith('/settings') || pathname.startsWith('/contents')) return 'config'
   return null
@@ -234,7 +234,7 @@ export default function Sidebar() {
                   <ul className="flex flex-col gap-0 mt-0 pl-6">
                     <li><NavLink to="/banners" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>배너관리</NavLink></li>
                     <li><NavLink to="/popup-layers" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>팝업레이어 관리</NavLink></li>
-                    <li><NavLink to="/saju-config" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>사주메인관리</NavLink></li>
+
                   </ul>
                 )}
               </li>

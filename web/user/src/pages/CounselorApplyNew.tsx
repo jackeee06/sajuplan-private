@@ -685,11 +685,11 @@ export default function CounselorApplyNew() {
                 </p>
               </div>
               <div id="field-region">
-                <Field label="지역" required>
+                <Field label="거주 지역" required>
                   <SimpleSelect value={region} options={APPLY_REGION_OPTIONS} placeholder="지역 선택" onChange={setRegion} />
                 </Field>
                 <p className="mt-1.5 text-[12px] leading-[150%] text-[#6A7282]">
-                  💡 메인 활동 지역. 전국 어디서나 상담 가능하시면 <span className="font-medium text-[#1E2939]">'전국'</span>을 선택해주세요.
+                  💡 거주/활동 지역을 선택해주세요.
                 </p>
               </div>
             </>
@@ -902,7 +902,7 @@ export default function CounselorApplyNew() {
               <FileUploadField
                 label="프로필 사진"
                 required
-                hint="회원 카드에 노출되는 정면 인물 사진. JPG/PNG/GIF/WEBP · 30MB 이하 · 권장 200×200 정사각"
+                hint="회원 카드에 노출되는 정면 인물 사진. JPG/PNG/GIF/WEBP · 30MB 이하 · 권장 750×600 (5:4 비율) · 어깨가 모두 나오는 상반신 정면 사진 권장"
                 inputRef={profileFileRef}
                 accept="image/jpeg,image/png,image/gif,image/webp"
                 uploading={uploading === 'profile'}

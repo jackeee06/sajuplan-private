@@ -128,6 +128,7 @@ export interface CounselorRow {
   event_banner_image_url: string | null;
   wide_headline: string | null;
   wide_subcaption: string | null;
+  is_exclusive: boolean;
   // 첨부파일
   files: { id: number; kind: string | null; source_name: string; stored_name: string; stored_name_webp: string | null; filesize: number; created_at: Date }[];
   // 집계
@@ -238,6 +239,8 @@ export interface CounselorInput {
   // ── 와이드 사진 오버레이 캡션 ──
   wide_headline?: string | null;
   wide_subcaption?: string | null;
+  // ── 전속파트너 ──
+  is_exclusive?: boolean;
 }
 
 @Injectable()
@@ -711,6 +714,7 @@ export class MembersService {
              p.event_banner_image_url                   AS event_banner_image_url,
              p.wide_headline                            AS wide_headline,
              p.wide_subcaption                          AS wide_subcaption,
+             COALESCE(p.is_exclusive, FALSE)            AS is_exclusive,
              COALESCE(
                (SELECT json_agg(json_build_object(
                  'id', f.id, 'kind', f.kind, 'source_name', f.source_name,
@@ -747,6 +751,7 @@ export class MembersService {
     counselor_category: string | null;
     profile_intro: string | null;
     profile_specialty: string[] | null;
+    profile_traits?: string[] | null;
   }): Promise<number> {
     if (!input.mb_id) throw new BadRequestException('mb_id는 필수입니다.');
     if (!input.password_hash) throw new BadRequestException('password_hash는 필수입니다.');
@@ -793,10 +798,11 @@ export class MembersService {
     `;
     const memberId = inserted[0].id;
 
-    // post_counselor 프로필 — 신청서의 intro/specialty 만 채움
+    // post_counselor 프로필 — 신청서의 intro/specialty/traits 채움
     await this.upsertCounselorProfile(memberId, {
       profile_intro: input.profile_intro ?? undefined,
       profile_specialty: input.profile_specialty ?? undefined,
+      profile_traits: input.profile_traits ?? undefined,
       nickname: input.nickname,
     });
 
@@ -822,6 +828,7 @@ export class MembersService {
     counselor_category: string | null;
     profile_intro: string | null;
     profile_specialty: string[] | null;
+    profile_traits?: string[] | null;
   }): Promise<number> {
     const rows = await this.sql<{ id: number; role: string; phone: string | null }[]>`
       SELECT id, role, phone FROM member WHERE id = ${input.memberId} LIMIT 1
@@ -868,6 +875,7 @@ export class MembersService {
     await this.upsertCounselorProfile(input.memberId, {
       profile_intro: input.profile_intro ?? undefined,
       profile_specialty: input.profile_specialty ?? undefined,
+      profile_traits: input.profile_traits ?? undefined,
       nickname: input.nickname,
     });
 
@@ -994,7 +1002,8 @@ export class MembersService {
       input.event_ends_at !== undefined ||
       input.event_banner_image_url !== undefined ||
       input.wide_headline !== undefined ||
-      input.wide_subcaption !== undefined;
+      input.wide_subcaption !== undefined ||
+      input.is_exclusive !== undefined;
     if (!hasProfileInput) return;
 
     const existing = await this.sql<{ id: number }[]>`
@@ -1038,6 +1047,7 @@ export class MembersService {
     if (input.event_banner_image_url !== undefined) updates.event_banner_image_url = input.event_banner_image_url || null;
     if (input.wide_headline !== undefined) updates.wide_headline = input.wide_headline || null;
     if (input.wide_subcaption !== undefined) updates.wide_subcaption = input.wide_subcaption || null;
+    if (input.is_exclusive !== undefined) updates.is_exclusive = input.is_exclusive;
     if (Object.keys(updates).length === 0) return;
 
     // 이벤트 상담사 동시 3명 제한 체크 (신규 등록 시만 — event_starts_at이 새로 설정될 때)

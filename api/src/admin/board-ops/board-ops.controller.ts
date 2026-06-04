@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Put, Query, UseGuards } from '@nestjs/common';
 import { AdminAuthGuard } from '../auth/admin-auth.guard';
 import { BoardOpsService } from './board-ops.service';
 
@@ -57,6 +57,18 @@ export class BoardOpsController {
   @Patch('reports/:id')
   updateReport(@Param('id', ParseIntPipe) id: number, @Body() body: { status: number }) {
     return this.svc.updateReportStatus(id, body.status);
+  }
+
+  /** 인기검색어 핀 목록 조회 */
+  @Get('keyword-pins')
+  getKeywordPins() {
+    return this.svc.getKeywordPins();
+  }
+
+  /** 인기검색어 핀 저장 (전체 교체) */
+  @Put('keyword-pins')
+  saveKeywordPins(@Body() body: { pins: { rank: number; keyword: string }[] }) {
+    return this.svc.saveKeywordPins(body.pins ?? []);
   }
 
   /** counselor_qna 숨김 상태 일괄 조회 */

@@ -45,18 +45,19 @@ export class BoardOpsService {
     return { items, total: Number(totalRows[0].cnt), page, limit };
   }
 
-  // ─── 인기검색어 순위 (search_popular_daily) ────────────────
+  // ─── 인기검색어 순위 (search_log 직접 집계) ────────────────
   async popularRanking(filter: { date?: string; days?: number }) {
     const days = Math.min(90, Math.max(1, Math.trunc(filter.days ?? 7)));
     const items = await this.sql`
-      SELECT word,
-             SUM(search_count)::int AS total_count,
-             MAX(log_date) AS last_date
-      FROM search_popular_daily
-      WHERE log_date >= (CURRENT_DATE - (${days}::int || ' days')::interval)::date
-      GROUP BY word
-      ORDER BY total_count DESC, word ASC
-      LIMIT 100
+      SELECT keyword AS word,
+             COUNT(*)::int AS total_count,
+             MAX(created_at)::date::text AS last_date
+        FROM search_log
+       WHERE created_at > now() - (${days}::text || ' days')::interval
+         AND keyword <> ''
+       GROUP BY keyword
+       ORDER BY total_count DESC, keyword ASC
+       LIMIT 100
     `;
     return { items, days };
   }
@@ -164,6 +165,31 @@ export class BoardOpsService {
     const r = await this.sql`UPDATE post_report SET status = ${status} WHERE id = ${id}`;
     if (r.count === 0) throw new NotFoundException('신고를 찾을 수 없습니다.');
     return { ok: true };
+  }
+
+  // ─── 인기검색어 핀 고정 ────────────────────────────
+  async getKeywordPins() {
+    const rows = await this.sql<{ rank: number; keyword: string }[]>`
+      SELECT rank, keyword FROM search_keyword_pin ORDER BY rank
+    `;
+    return { items: rows };
+  }
+
+  async saveKeywordPins(pins: { rank: number; keyword: string }[]) {
+    // rank 범위 검증
+    const valid = pins.filter(
+      (p) => p.rank >= 1 && p.rank <= 20 && typeof p.keyword === 'string' && p.keyword.trim() !== '',
+    ).map((p) => ({ rank: p.rank, keyword: p.keyword.trim() }));
+
+    // 기존 전체 삭제 후 재삽입 (단순 upsert)
+    await this.sql`DELETE FROM search_keyword_pin`;
+    if (valid.length > 0) {
+      await this.sql`
+        INSERT INTO search_keyword_pin ${this.sql(valid, 'rank', 'keyword')}
+        ON CONFLICT (rank) DO UPDATE SET keyword = EXCLUDED.keyword, updated_at = now()
+      `;
+    }
+    return { ok: true, saved: valid.length };
   }
 
   /** counselor_qna 숨김 ON/OFF */

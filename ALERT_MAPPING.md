@@ -86,8 +86,29 @@
 
 ---
 
+## 🔘 알림톡 버튼 타입 규칙 (2026-06-03 정리)
+
+BizM API 버튼 타입에 따라 필드명이 다름. `alimtalk_template.primary_btn_type` 으로 관리.
+
+| 타입 | 의미 | 코드 필드 | 해당 템플릿 |
+|---|---|---|---|
+| `WL` | 웹링크 | `url_mobile`, `url_pc` | 대부분 (`qa_answer_v2`, `counselor_request_v1` 등) |
+| `AL` | 앱링크 (딥링크) | **`scheme_android`, `scheme_ios`** | `qa_ask_v2`, `review_for_counselor_v2` |
+
+> ⚠️ AL 타입은 `url_android`/`url_ios` 가 아니라 **`scheme_android`/`scheme_ios`** — PHP sample (`bizmsg.class.php`) 확인.
+> AL 타입에 `url_android` 보내면 K208 (MissingRequiredParameterException) 거부됨.
+
+### 2026-06-03 수정 이력
+- `qa_ask_v2`: K108 (WL→AL 타입 불일치) → K208 (AL 필드명 오류) → ✅ 해결 (`scheme_android`)
+- `review_for_counselor_v2`: 동일 문제 → ✅ 해결
+- `alimtalk_template.primary_btn_type` 컬럼 신설 (default 'WL')
+- `qna.service.ts notifyQaAsk`: qnaId 파라미터 추가 → 버튼 딥링크에 정확한 QnA ID 포함
+
+---
+
 ## 변경 이력
 
 | 날짜 | 변경 | 작성자 |
 |---|---|---|
 | 2026-05-29 | 최초 작성 — 37 이벤트 × 코드 × prod 3자 매핑 | Claude (사장님 자율) |
+| 2026-06-03 | AL 버튼 타입 필드명 수정 (scheme_android/ios), primary_btn_type 컬럼 신설 | Claude (사장님 자율) |

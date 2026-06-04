@@ -68,6 +68,8 @@ interface CounselorPayload {
   // 와이드 사진 오버레이 캡션
   wide_headline: string
   wide_subcaption: string
+  // 전속파트너
+  is_exclusive: boolean
 }
 
 const empty = (): CounselorPayload => ({
@@ -95,6 +97,7 @@ const empty = (): CounselorPayload => ({
   profile_bio: '', profile_notice: '', profile_intro: '',
   event_starts_at: '', event_ends_at: '', event_banner_image_url: '',
   wide_headline: '', wide_subcaption: '',
+  is_exclusive: false,
 })
 
 const CATEGORIES = ['타로', '신점', '사주', '심리'] as const
@@ -112,8 +115,6 @@ const FILE_BASE = `${FILE_ORIGIN}/uploads/member/`
 
 // 2026-05-15 운영 정책 갱신 — 12개. 사용자 신청 폼(APPLY_SPECIALTY_OPTIONS) 과 동일하게 유지.
 const SPECIALTY_OPTIONS = ['재회', '속마음/궁합', '연애/짝사랑', '운세/총운', '금전/재물', '취업/합격', '사업/직장', '건강', '이사/부동산', '택일', '작명/개명', '가족/고민상담'] as const
-const TRAIT_OPTIONS = ['경청하는', '소통하는', '깊이있는', '공감하는', '긍정적인', '현실조언', '카리스마', '솔직담백', '부드러운', '친근한(반말체)', '차분한', '편안한', '조곤조곤', '또박또박'] as const
-
 export default function CounselorForm() {
   const { id } = useParams<{ id: string }>()
   const isNew = !id || id === 'new'
@@ -127,6 +128,8 @@ export default function CounselorForm() {
   const [showPassword, setShowPassword] = useState(false)
   // 이벤트 활성 상담사 수 (3명 제한 — 등록 전 미리 보여줘서 사고 방지)
   const [eventActiveCount, setEventActiveCount] = useState<number | null>(null)
+  // 스타일 선택지 — setting에서 동적 로드
+  const [traitOptions, setTraitOptions] = useState<string[]>(['친절한', '직설적인', '논리적인', '공감형', '예언적인'])
   // 이벤트 배너 업로드 상태
   const [uploadingEventBanner, setUploadingEventBanner] = useState(false)
   // HtmlEditor refs — onSubmit 직전에 getHTML() 로 본문 추출
@@ -163,6 +166,18 @@ export default function CounselorForm() {
       .then((r) => r.json())
       .then((j) => setEventActiveCount(Array.isArray(j.items) ? j.items.length : 0))
       .catch(() => setEventActiveCount(null))
+  }, [])
+
+  // 스타일 선택지 — setting에서 동적 로드 (어드민 환경설정에서 관리)
+  useEffect(() => {
+    api<{ data: Record<string, string> }>('/admin/settings/counselor')
+      .then((r) => {
+        const raw = r.data?.style_options
+        if (raw) {
+          try { setTraitOptions(JSON.parse(raw) as string[]) } catch { /* 파싱 실패 시 기본값 유지 */ }
+        }
+      })
+      .catch(() => { /* 실패 시 기본값 유지 */ })
   }, [])
 
   useEffect(() => {
@@ -214,6 +229,7 @@ export default function CounselorForm() {
           event_banner_image_url: String(r.event_banner_image_url ?? ''),
           wide_headline: String(r.wide_headline ?? ''),
           wide_subcaption: String(r.wide_subcaption ?? ''),
+          is_exclusive: Boolean(r.is_exclusive),
         }))
         setFiles(Array.isArray(r.files) ? (r.files as CounselorFile[]) : [])
       })
@@ -322,6 +338,7 @@ export default function CounselorForm() {
         event_banner_image_url: data.event_banner_image_url || null,
         wide_headline: data.wide_headline || null,
         wide_subcaption: data.wide_subcaption || null,
+        is_exclusive: data.is_exclusive,
       }
 
       if (isNew) {
@@ -747,6 +764,7 @@ export default function CounselorForm() {
             <div className="ml-4 flex items-center gap-4 text-sm">
               <Toggle label="급상승" checked={data.is_rising} onChange={(v) => set('is_rising', v)} />
               <Toggle label="⭐ 메인 상위노출" checked={data.is_recommended} onChange={(v) => set('is_recommended', v)} />
+              <Toggle label="🏅 전속파트너" checked={data.is_exclusive} onChange={(v) => set('is_exclusive', v)} />
               {isNew && (
                 <Toggle label="엠투넷 자동 등록" checked={data.register_m2net} onChange={(v) => set('register_m2net', v)} />
               )}
@@ -855,9 +873,9 @@ export default function CounselorForm() {
             onChange={(v) => set('profile_specialty', v)}
           />
         </Row>
-        <Row label="스타일" hint={`${data.profile_traits.length} / ${TRAIT_OPTIONS.length} 선택됨`}>
+        <Row label="스타일" hint={`${data.profile_traits.length} / ${traitOptions.length} 선택됨`}>
           <CheckGrid
-            options={TRAIT_OPTIONS as readonly string[]}
+            options={traitOptions}
             value={data.profile_traits}
             onChange={(v) => set('profile_traits', v)}
           />
@@ -1065,7 +1083,7 @@ export default function CounselorForm() {
           <div className="flex flex-col gap-2">
             <div>
               <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 block">프로필 사진</label>
-              <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">JPG/PNG/GIF/WEBP · 5MB 이하 · 권장 200×200</p>
+              <p className="text-[11px] text-gray-400 mt-0.5 leading-snug">JPG/PNG/GIF/WEBP · 5MB 이하 · 권장 750×600 (5:4 비율) · 어깨가 모두 나오는 상반신 정면 사진 권장</p>
             </div>
             <FileSlot
               kind="profile"

@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type ReactNode } from 'react'
+﻿import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import FloatingActions from './FloatingActions'
 import ShareBottomSheet from './ShareBottomSheet'
@@ -127,6 +127,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
                 >
                   {data.badge}
                 </span>
+                {data.isExclusive && <ExclusiveBadge />}
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="text-[18px] leading-[130%] font-semibold text-[#030712] truncate">
                     {data.name}
@@ -190,14 +191,14 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
         </section>
 
         <section className="flex flex-col gap-3 py-6 border-b border-[#F3F4F6]">
-          <div className="flex items-center justify-between">
-            <span className="text-[15px] leading-[110%] font-medium text-[#364153]">전문분야</span>
+          <div className="flex items-center gap-4">
+            <span className="text-[15px] leading-[110%] font-medium text-[#364153] w-[64px] shrink-0">전문분야</span>
             <span className="text-[15px] leading-[110%] text-[#6A7282]">
               {data.fields.join(', ')}
             </span>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[15px] leading-[110%] font-medium text-[#364153]">스타일</span>
+          <div className="flex items-center gap-4">
+            <span className="text-[15px] leading-[110%] font-medium text-[#364153] w-[64px] shrink-0">스타일</span>
             <span className="text-[15px] leading-[110%] text-[#6A7282]">
               {data.styles.join(', ')}
             </span>
@@ -246,6 +247,9 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
         <div className="px-4 flex flex-col gap-5 py-5 pb-10">
           {children}
         </div>
+        <p className="px-4 pb-6 text-[11px] text-[#99A1AF] leading-[160%] break-keep">
+          사주플랜(오리진하우스)은 상담 서비스의 중개 플랫폼으로, 각 상담사가 제공하는 서비스 내용 및 거래에 대한 책임은 해당 상담사에게 있으며 플랫폼은 이에 대한 책임을 부담하지 않습니다.
+        </p>
       </div>
 
       {/* 하단 고정 CTA */}
@@ -361,6 +365,40 @@ function BottomFixedBar({
         <img src="/img/ic_message_circle_solid_w.svg" alt="" className="w-4 h-4" />
         채팅상담
       </button>
+    </div>
+  )
+}
+
+/** 전속파트너 뱃지 — ⓘ 클릭 시 툴팁 노출 */
+function ExclusiveBadge() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={ref} className="relative inline-flex items-center">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-[3px] bg-[#1E2939] text-white text-[12px] font-medium leading-none px-[7px] py-[4px] rounded-full"
+      >
+        전속파트너
+        <span className="w-[14px] h-[14px] rounded-full border border-white/60 inline-flex items-center justify-center text-[10px] font-bold leading-none">i</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-[calc(100%+6px)] z-50 w-[200px] bg-[#1E2939] text-white rounded-xl px-4 py-3 shadow-lg">
+          <p className="text-[13px] font-semibold mb-1 text-[#ec4899]">전속파트너란?</p>
+          <p className="text-[12px] leading-[160%] text-white/80">오직 사주플랜에서만 독점적으로 상담하시는 선생님 이십니다.</p>
+        </div>
+      )}
     </div>
   )
 }

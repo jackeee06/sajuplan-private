@@ -194,6 +194,40 @@ export class UserCounselorsController {
     return this.svc.setMyIntro(req.user.sub, body.intro ?? '');
   }
 
+  /** GET /api/user/counselors/me/notice — 본인 공지사항 조회 */
+  @Get('me/notice')
+  @UseGuards(UserAuthGuard)
+  async getMyNotice(@Req() req: UserAuthedRequest) {
+    return this.svc.getMyNotice(req.user.sub);
+  }
+
+  /** PATCH /api/user/counselors/me/notice — 본인 공지사항 수정. Body: { notice: string } */
+  @Patch('me/notice')
+  @UseGuards(UserAuthGuard)
+  async setMyNotice(
+    @Req() req: UserAuthedRequest,
+    @Body() body: { notice?: string },
+  ) {
+    return this.svc.setMyNotice(req.user.sub, body.notice ?? '');
+  }
+
+  /** GET /api/user/counselors/me/traits — 본인 스타일 조회 */
+  @Get('me/traits')
+  @UseGuards(UserAuthGuard)
+  async getMyTraits(@Req() req: UserAuthedRequest) {
+    return this.svc.getMyTraits(req.user.sub);
+  }
+
+  /** PATCH /api/user/counselors/me/traits — 본인 스타일 수정. Body: { traits: string[] } */
+  @Patch('me/traits')
+  @UseGuards(UserAuthGuard)
+  async setMyTraits(
+    @Req() req: UserAuthedRequest,
+    @Body() body: { traits?: string[] },
+  ) {
+    return this.svc.setMyTraits(req.user.sub, body.traits ?? []);
+  }
+
   /**
    * GET /api/user/counselors/:id  — 상담사 상세.
    * 로그인 시 단골 등록 여부(is_liked)도 같이 반환.

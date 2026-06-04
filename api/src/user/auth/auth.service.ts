@@ -532,9 +532,23 @@ export class AuthService {
     // m2net (AG9/PassCall) 외부 회원 등록 — 실패 시 회원 롤백
     await this.registerWithM2net(insertedId);
 
-    // 회원가입 쿠폰 발급 — m2net 등록 후 (실패 시 회원 자체가 롤백되어 쿠폰도 의미 없음)
+    // 회원가입 쿠폰 발급 + 알림톡 — m2net 등록 후 (실패 시 회원 자체가 롤백되어 쿠폰도 의미 없음)
     try {
-      await this.issueSignupCoupon(insertedId);
+      const couponInfo = await this.issueSignupCoupon(insertedId);
+      if (couponInfo && form.phone) {
+        const endsAtFormatted = couponInfo.endsAt
+          ? couponInfo.endsAt.toLocaleDateString('ko-KR', {
+              timeZone: 'Asia/Seoul',
+              year: 'numeric', month: '2-digit', day: '2-digit',
+            }).replace(/\. /g, '.').replace(/\.$/, '')
+          : '기간 없음';
+        this.sms.sendAlimtalkByCode(form.phone, 'coupon_signup_v1', {
+          이름: form.name,
+          쿠폰명: couponInfo.couponName,
+          유효기간: endsAtFormatted,
+          url: '',
+        }).catch((e) => this.logger.warn(`[signup-coupon-alimtalk] 발송 실패: ${e?.message ?? e}`));
+      }
     } catch (e) {
       this.logger.error(
         `[signup-coupon] 발급 실패(회원가입은 진행) member_id=${insertedId}: ${
@@ -601,7 +615,7 @@ export class AuthService {
    * — 정책이 없으면 silent skip (운영팀이 어드민에서 정책 활성 시 자동 동작)
    * — 같은 회원 + 같은 zone 중복 발급 방지
    */
-  async issueSignupCoupon(memberId: number): Promise<void> {
+  async issueSignupCoupon(memberId: number): Promise<{ couponName: string; endsAt: Date | null } | null> {
     const zones = await this.sql<
       {
         id: number;
@@ -625,7 +639,7 @@ export class AuthService {
     `;
     if (!zones.length) {
       this.logger.log(`[signup-coupon] 정책 미등록 → 발급 skip (member_id=${memberId})`);
-      return;
+      return null;
     }
     const z = zones[0];
 
@@ -637,7 +651,7 @@ export class AuthService {
     `;
     if (dup.length) {
       this.logger.log(`[signup-coupon] 이미 발급됨 (member_id=${memberId})`);
-      return;
+      return null;
     }
 
     // 회원 mb_id 도 같이 채움 — 추적/조회 편의 + sample 호환
@@ -669,6 +683,7 @@ export class AuthService {
     this.logger.log(
       `[signup-coupon] 발급 완료 member_id=${memberId} mb_id=${memberMbId} cp_id=${cpId} ${z.cz_point}원`,
     );
+    return { couponName: z.subject, endsAt: endsAt };
   }
 
   /**

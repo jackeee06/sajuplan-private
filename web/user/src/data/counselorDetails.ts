@@ -41,6 +41,8 @@ export interface CounselorDetailData {
   reviewTotal: string
   /** 문의 총 건수 */
   qnaTotal: string
+  /** 전속파트너 여부 */
+  isExclusive: boolean
 }
 
 /* ─────────── 상담사 mock ─────────── */
@@ -73,6 +75,7 @@ export const MOCK_DETAILS: Record<string, CounselorDetailData> = {
     liveViewers: 15,
     reviewTotal: '9,999',
     qnaTotal: '9,999',
+    isExclusive: false,
   },
 }
 

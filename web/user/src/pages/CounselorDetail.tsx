@@ -66,6 +66,7 @@ function mapDetail(r: PublicCounselorDetail): CounselorDetailData {
     liveViewers: r.live_viewers,
     reviewTotal: r.review_count.toLocaleString(),
     qnaTotal: r.qna_count.toLocaleString(),
+    isExclusive: r.is_exclusive ?? false,
   }
 }
 

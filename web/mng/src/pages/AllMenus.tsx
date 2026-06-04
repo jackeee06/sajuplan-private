@@ -201,9 +201,7 @@ const GROUPS: MenuGroup[] = [
         aliases: ['배너', '광고', '메인 배너'] },
       { label: '팝업레이어 관리', path: '/popup-layers',
         aliases: ['팝업', '레이어', '공지 팝업'] },
-      { label: '사주메인관리', path: '/saju-config',
-        aliases: ['사주 메인', '운세 메인', '사주 페이지', '메인 페이지', '홈 설정'] },
-      { label: '상담문의', path: '/posts/qa',
+{ label: '상담문의', path: '/posts/qa',
         aliases: ['1:1 문의', '고객 문의', '문의 게시판', '고객센터'] },
       { label: '1:1문의(상담사)', path: '/posts/qa_counselor' },
     ],
@@ -545,6 +543,111 @@ export default function AllMenus() {
       {filteredGroups.length === 0 && (
         <div className="text-sm text-gray-400 text-center py-8">
           "{query}" 검색 결과 없음. 다른 단어로 시도해 보세요.
+        </div>
+      )}
+
+      {/* ── 쿠폰 정책 안내 ── */}
+      {!isSearching && <CouponPolicyGuide />}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────
+// 쿠폰 정책 안내 컴포넌트
+// ─────────────────────────────────────────────────────────
+function CouponPolicyGuide() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800/40 rounded-xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
+          <Ticket className="w-4 h-4" />
+          쿠폰 정책 안내 — 관리자 필독
+        </span>
+        <span className="text-amber-600 text-xs">{open ? '▲ 접기' : '▼ 펼치기'}</span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-4 text-sm text-gray-700 dark:text-gray-300 border-t border-amber-200 dark:border-amber-800/40 pt-4">
+
+          {/* 1. 쿠폰 종류 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">1. 쿠폰 종류</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                <p className="font-medium text-violet-700 dark:text-violet-300 mb-1">다운로드 쿠폰</p>
+                <p className="text-xs text-gray-500 leading-relaxed">코드 없이 관리자가 특정 회원에게 직접 발급하는 방식. 회원가입 쿠폰이 이 방식입니다. 회원이 마이페이지에서 "사용" 버튼을 눌러야 코인으로 전환됩니다.</p>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                <p className="font-medium text-violet-700 dark:text-violet-300 mb-1">코드입력 쿠폰</p>
+                <p className="text-xs text-gray-500 leading-relaxed">SNS 이벤트, 제휴, 프로모션에서 쿠폰 코드를 배포하고 회원이 직접 입력하는 방식. 코드 형식: XXXX-XXXX-XXXX-XXXX (자동 생성).</p>
+              </div>
+            </div>
+          </section>
+
+          {/* 2. 회원가입 쿠폰 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">2. 회원가입 쿠폰 (자동 발급)</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 text-xs leading-relaxed space-y-1">
+              <p>• 신규 회원 가입 완료 시 <strong>자동으로</strong> 쿠폰을 지급합니다. 관리자 조작 불필요.</p>
+              <p>• <strong>현재 설정: 5,000코인 / 유효기간 7일</strong> — 변경하려면 쿠폰존 관리에서 "회원가입 쿠폰" 행을 클릭해 수정.</p>
+              <p>• 가입 후 알림톡(coupon_signup_v1)으로 회원에게 자동 발송됩니다.</p>
+              <p>• 중복 발급 방지: 같은 회원에게 2번 발급되지 않습니다.</p>
+              <p className="text-amber-600">⚠ 발급 건수는 쿠폰존 목록의 "다운로드" 숫자로 확인하세요.</p>
+            </div>
+          </section>
+
+          {/* 3. 쿠폰 사용 흐름 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">3. 쿠폰 → 코인 전환 흐름</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 text-xs leading-relaxed">
+              <div className="flex flex-wrap items-center gap-2 text-center">
+                {['가입/코드 입력', '→', '마이페이지 쿠폰 목록에 표시', '→', '"사용" 버튼 클릭', '→', '코인 즉시 충전'].map((s) => (
+                  <span key={s} className={s === '→' ? 'text-gray-400' : 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 px-2 py-1 rounded'}>
+                    {s}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-amber-600">⚠ 쿠폰을 받아도 "사용" 버튼을 누르지 않으면 코인이 충전되지 않습니다. 유효기간이 지나면 자동 소멸.</p>
+            </div>
+          </section>
+
+          {/* 4. 쿠폰존(캠페인) 관리 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">4. 쿠폰존(캠페인) 만들기</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 text-xs leading-relaxed space-y-1">
+              <p>• 쿠폰존 관리 페이지 → <strong>새 쿠폰존 추가</strong> 버튼.</p>
+              <p>• 쿠폰 이름(캠페인명) / 지급 코인 / 유효기간(일수) / 사용 기간 설정.</p>
+              <p>• 코드입력 쿠폰: 코드가 자동 생성됩니다. 이 코드를 SNS에 배포하면 입력한 사람에게 지급.</p>
+              <p>• 다운로드 쿠폰: 발급할 회원을 직접 선택 → 저장하면 즉시 발급.</p>
+              <p className="text-amber-600">⚠ 쿠폰존을 삭제하면 해당 캠페인으로 발급된 쿠폰 이력도 사라집니다. 신중하게.</p>
+            </div>
+          </section>
+
+          {/* 5. 알림톡 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">5. 알림톡 현황</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 text-xs leading-relaxed space-y-1">
+              <p>• <strong>coupon_signup_v1</strong> (회원가입 쿠폰 안내) — BizM 검수 신청 완료. 승인 후 자동 발송.</p>
+              <p>• <strong>coupon_req_v2</strong> (일반 쿠폰 발급 안내) — BizM 반려 상태. 추후 별도 템플릿으로 재신청 예정.</p>
+              <p className="text-amber-600">⚠ 알림톡이 승인 전이면 쿠폰을 줘도 회원이 모를 수 있습니다. BizM 포털에서 승인 상태를 주기적으로 확인하세요.</p>
+            </div>
+          </section>
+
+          {/* 6. 통계 확인 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">6. 발급/사용 통계 확인</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 text-xs leading-relaxed space-y-1">
+              <p>• 쿠폰존 목록: 쿠폰존별 <strong>발급 수(다운로드)</strong> 확인.</p>
+              <p>• 쿠폰존 클릭 → 발급 대상 회원 목록 확인 가능.</p>
+              <p>• 전체 쿠폰 발급/사용 이력: 쿠폰 목록 메뉴에서 회원별로 검색.</p>
+            </div>
+          </section>
+
         </div>
       )}
     </div>

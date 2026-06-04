@@ -108,6 +108,8 @@ export interface PublicCounselorDetail {
   qna_count: number;
   /** 요청자가 이 상담사를 단골 등록했는지 (비로그인이면 false) */
   is_liked: boolean;
+  /** 전속파트너 여부 */
+  is_exclusive: boolean;
 }
 
 /**
@@ -405,6 +407,98 @@ export class UserCounselorsService {
       `;
     }
     return { intro: normalized };
+  }
+
+  /** 상담사 본인 공지사항(content) 조회 */
+  async getMyNotice(counselorId: number): Promise<{ notice: string }> {
+    const meRows = await this.sql<{ role: string }[]>`
+      SELECT role FROM member WHERE id = ${counselorId} LIMIT 1
+    `;
+    if (!meRows[0] || meRows[0].role !== 'counselor') {
+      throw new BadRequestException('상담사만 조회할 수 있습니다.');
+    }
+    const rows = await this.sql<{ content: string | null }[]>`
+      SELECT content FROM post_counselor WHERE member_id = ${counselorId} LIMIT 1
+    `;
+    return { notice: rows[0]?.content ?? '' };
+  }
+
+  /** 상담사 본인 공지사항(content) 수정 */
+  async setMyNotice(counselorId: number, notice: string): Promise<{ notice: string }> {
+    const meRows = await this.sql<{ role: string }[]>`
+      SELECT role FROM member WHERE id = ${counselorId} LIMIT 1
+    `;
+    if (!meRows[0] || meRows[0].role !== 'counselor') {
+      throw new BadRequestException('상담사만 수정할 수 있습니다.');
+    }
+    const normalized = (notice ?? '').toString().slice(0, 2000);
+    const existing = await this.sql<{ id: number }[]>`
+      SELECT id FROM post_counselor WHERE member_id = ${counselorId} LIMIT 1
+    `;
+    if (existing.length > 0) {
+      await this.sql`
+        UPDATE post_counselor
+           SET content = ${normalized}, updated_at = now()
+         WHERE member_id = ${counselorId}
+      `;
+    } else {
+      const nameRows = await this.sql<{ nickname: string }[]>`
+        SELECT nickname FROM member WHERE id = ${counselorId} LIMIT 1
+      `;
+      const title = nameRows[0]?.nickname ?? '상담사 프로필';
+      await this.sql`
+        INSERT INTO post_counselor (member_id, title, content, created_at, updated_at)
+        VALUES (${counselorId}, ${title}, ${normalized}, now(), now())
+      `;
+    }
+    return { notice: normalized };
+  }
+
+  /** 상담사 본인 스타일(traits) 조회 */
+  async getMyTraits(counselorId: number): Promise<{ traits: string[] }> {
+    const meRows = await this.sql<{ role: string }[]>`
+      SELECT role FROM member WHERE id = ${counselorId} LIMIT 1
+    `;
+    if (!meRows[0] || meRows[0].role !== 'counselor') {
+      throw new BadRequestException('상담사만 조회할 수 있습니다.');
+    }
+    const rows = await this.sql<{ traits: string[] | null }[]>`
+      SELECT traits FROM post_counselor WHERE member_id = ${counselorId} LIMIT 1
+    `;
+    return { traits: rows[0]?.traits ?? [] };
+  }
+
+  /** 상담사 본인 스타일(traits) 수정 — 최대 3개 */
+  async setMyTraits(counselorId: number, traits: string[]): Promise<{ traits: string[] }> {
+    const meRows = await this.sql<{ role: string }[]>`
+      SELECT role FROM member WHERE id = ${counselorId} LIMIT 1
+    `;
+    if (!meRows[0] || meRows[0].role !== 'counselor') {
+      throw new BadRequestException('상담사만 수정할 수 있습니다.');
+    }
+    const sanitized = (Array.isArray(traits) ? traits : [])
+      .filter((t) => typeof t === 'string' && t.trim().length > 0)
+      .slice(0, 3);
+    const existing = await this.sql<{ id: number }[]>`
+      SELECT id FROM post_counselor WHERE member_id = ${counselorId} LIMIT 1
+    `;
+    if (existing.length > 0) {
+      await this.sql`
+        UPDATE post_counselor
+           SET traits = ${sanitized}, updated_at = now()
+         WHERE member_id = ${counselorId}
+      `;
+    } else {
+      const nameRows = await this.sql<{ nickname: string }[]>`
+        SELECT nickname FROM member WHERE id = ${counselorId} LIMIT 1
+      `;
+      const title = nameRows[0]?.nickname ?? '상담사 프로필';
+      await this.sql`
+        INSERT INTO post_counselor (member_id, title, traits, created_at, updated_at)
+        VALUES (${counselorId}, ${title}, ${sanitized}, now(), now())
+      `;
+    }
+    return { traits: sanitized };
   }
 
   async list(params: {
@@ -734,12 +828,7 @@ export class UserCounselorsService {
         now - new Date(r.first_seen).getTime() < LOG_NEW_MS,
     }));
 
-    // 충분히 채워졌으면 그대로 반환
-    if (fromLog.length >= cap) {
-      return fromLog.map((it, i) => ({ rank: i + 1, ...it }));
-    }
-
-    // 2) 부족분만큼 hashtag fallback 으로 보충
+    // 2) 부족분만큼 hashtag fallback 으로 보충 (핀 머지 후 슬롯이 부족할 수 있으므로 항상 시도)
     const need = cap - fromLog.length;
     const seen = new Set(
       fromLog.map((it) =>
@@ -784,10 +873,40 @@ export class UserCounselorsService {
       if (fromTag.length >= need) break;
     }
 
-    return [...fromLog, ...fromTag].map((it, i) => ({
-      rank: i + 1,
-      ...it,
-    }));
+    const organic = [...fromLog, ...fromTag];
+
+    // 3) 핀 고정 키워드 머지
+    //    핀이 없으면 organic 순서 그대로.
+    //    핀이 있으면 해당 rank 슬롯을 핀으로 교체하고, 나머지 슬롯을 organic으로 채움.
+    const pinRows = await this.sql<{ rank: number; keyword: string }[]>`
+      SELECT rank, keyword FROM search_keyword_pin ORDER BY rank
+    `;
+
+    if (pinRows.length === 0) {
+      return organic.slice(0, cap).map((it, i) => ({ rank: i + 1, ...it }));
+    }
+
+    const pinMap = new Map(pinRows.map((p) => [p.rank, p.keyword]));
+    const pinnedKeywordsLower = new Set(pinRows.map((p) => p.keyword.toLowerCase().trim()));
+
+    // organic에서 핀과 중복되는 키워드 제거
+    const organicFiltered = organic.filter(
+      (it) => !pinnedKeywordsLower.has(it.keyword.toLowerCase().trim()),
+    );
+
+    const result: { rank: number; keyword: string; isNew: boolean }[] = [];
+    let organicIdx = 0;
+    for (let slot = 1; slot <= cap; slot++) {
+      if (pinMap.has(slot)) {
+        result.push({ rank: slot, keyword: pinMap.get(slot)!, isNew: false });
+      } else {
+        if (organicIdx < organicFiltered.length) {
+          result.push({ rank: slot, ...organicFiltered[organicIdx++] });
+        }
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -1190,6 +1309,7 @@ export class UserCounselorsService {
       pc_updated_at: Date | null;
       wide_headline: string | null;
       wide_subcaption: string | null;
+      is_exclusive: boolean | null;
       profile_stored_name: string | null;
       profile_stored_name_webp: string | null;
       hero_stored_name: string | null;
@@ -1205,7 +1325,7 @@ export class UserCounselorsService {
              COALESCE(NULLIF(m.call_070_unit_cost, 0), NULLIF(m.chat_unit_cost, 0), pc.unit_cost) AS unit_cost,
              pc.review_count, pc.fan_count,
              pc.updated_at AS pc_updated_at,
-             pc.wide_headline, pc.wide_subcaption,
+             pc.wide_headline, pc.wide_subcaption, pc.is_exclusive,
              (SELECT mf.stored_name      FROM member_file mf
                WHERE mf.member_id = m.id AND mf.kind = 'profile'
                ORDER BY mf.id DESC LIMIT 1) AS profile_stored_name,
@@ -1315,6 +1435,7 @@ export class UserCounselorsService {
       hero_image_webp: heroImageWebp,
       wide_headline: r.wide_headline,
       wide_subcaption: r.wide_subcaption,
+      is_exclusive: r.is_exclusive ?? false,
       live_viewers: pseudoLiveViewers(r.id, fanCount),
       qna_count: qnaCount,
       is_liked: isLiked,
