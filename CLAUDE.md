@@ -31,34 +31,40 @@
 - ⏳ Phase 2: 알림톡 BizM 템플릿 + 영수증 PG 협의 (예정)
 - ⏳ Phase 3: 추천인 보상 정책 재검토 (선택)
 
-## ⚠️ 도메인 매핑 (중요 — 끊지 말 것)
+## ⚠️ 도메인 구조 (역사 포함 — AI가 착각하지 않도록 박제)
 
-사주플랜은 **2개 환경** 으로 운영. 각각 별도 서버 + 별도 도메인:
+### 역사적 배경 (필독)
 
-| 환경 | 사용자 도메인 | API 도메인 | 서버 | 용도 |
-|---|---|---|---|---|
-| **PROD** | `sajuplan.com` | `api.sajuplan.com` | 104.64.128.103 | **실제 사용자 운영** |
-| **PROD (legacy)** | `sajumoon.co.kr` | `api.sajumoon.co.kr` | 104.64.128.103 (동일 서버) | 옛 브랜드 도메인 — prod 와 같은 wwwroot 서빙 |
-| **TEST** | `sajumoon.kr` | `api.sajumoon.kr` | 172.235.211.75 | **개발/QA/배포 검증** |
+개발 초기 서비스명은 **사주문(Sajumoon)** 이었고 도메인도 `sajumoon.co.kr` / `sajumoon.kr` 을 사용했다.
+중간에 서비스명을 **사주플랜(Sajuplan)** 으로 변경하면서 `sajuplan.com` 도메인을 신규 구입했다.
 
-### sajumoon.kr 가 살아있어야 하는 이유 (끊으면 안 되는 이유)
+**그러나 서버 내부 폴더명·외부 API 연동 주소(m2net 등) 변경은 작업량이 너무 커서 그대로 유지했다.**
+결과적으로 도메인(겉)과 서버 경로(속)가 이름이 다른 구조가 됐다.
 
-- **TEST 환경 자체** — 모든 신규 기능은 sajumoon.kr 에서 먼저 검증 후 prod 배포
-- 코드에 환경 분기 (`api/src/shared/env/runtime-env.ts` 의 MAP) 가 sajumoon.kr 를 TEST 매핑으로 사용
-- `deploy.config.sh` 의 test 분기가 sajumoon.kr 도메인 사용
-- 외부 서비스 등록(m2net push URL 등) 이 sajumoon.kr 를 TEST 환경으로 가리키고 있을 가능성 → 끊으면 결제·정산 push 실패 위험
+### 실제 구조 (nginx 확인값 — 2026-06-04)
 
-### 미래 정리 계획 (현재는 보류)
+**메인 도메인**: `sajuplan.com` — 모든 사용자가 접속하는 주소.
 
-장기적으로 TEST 환경을 `test.sajuplan.com` 같은 sajuplan 하위 도메인으로 마이그레이션 검토 가능. 단, 다음이 모두 갱신 필요:
-- DNS A 레코드 + SSL 인증서 (Let's Encrypt 등)
-- m2net 가맹점 등록 URL
-- 카카오/네이버 OAuth redirect URI 화이트리스트
-- 알리고/BizM (SMS·알림톡) 발신자 도메인 인증
-- `runtime-env.ts` MAP 수정 + 재빌드/재배포
-- 운영 스크립트 (`tools/_*.py`) 다수의 도메인 참조
+```
+sajuplan.com → nginx root = /data/wwwroot/sajumoon.co.kr/   ← 폴더명만 옛날 것
+sajuplan.com/mng → nginx alias = /data/wwwroot/sajumoon.co.kr/mng/
+```
 
-**현재 단계**: 코드 구조는 깔끔하니 도메인 정리는 정식 운영 + m2net 협의 완료 후 검토.
+| 구분 | 도메인 | 실제 서버 경로 | 역할 |
+|---|---|---|---|
+| 사용자 웹 | `sajuplan.com` | `/data/wwwroot/sajumoon.co.kr/` | **유일한 배포 대상** |
+| 관리자 웹 | `sajuplan.com/mng` | `/data/wwwroot/sajumoon.co.kr/mng/` | **유일한 배포 대상** |
+| API | `api.sajuplan.com` | `/data/wwwroot/api.sajumoon.co.kr/` | **유일한 배포 대상** |
+| (구 도메인) | `sajumoon.co.kr` | → `sajuplan.com` 301 redirect | 아무도 직접 안 씀 |
+| (구 API) | `api.sajumoon.co.kr` | `/data/wwwroot/api.sajumoon.co.kr/` | m2net 등 외부 연동 유지용 |
+| ❌ 죽은 폴더 | — | `/data/wwwroot/sajuplan.com/` | nginx 미사용. 절대 배포 금지 |
+
+### AI가 반드시 기억할 것
+
+1. **배포 경로는 항상 `sajumoon.co.kr` 폴더** — 도메인이 `sajuplan.com` 이어도 폴더는 `sajumoon.co.kr`
+2. **`/data/wwwroot/sajuplan.com/`은 죽은 폴더** — 여기에 배포하면 아무 효과 없음
+3. **`sajumoon.co.kr` 도메인 ≠ `sajumoon.co.kr` 폴더** — 도메인은 redirect 전용, 폴더는 실제 파일
+4. **TEST 서버(172.235.211.75 / sajumoon.kr) 폐기** — 현재 PROD 단일 운영
 
 ## 디자인 충실도 (최우선 규칙)
 
@@ -229,9 +235,8 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 | 상황 | 도구 | 설명 |
 |---|---|---|
 | API 코드 변경 | `python tools/_patch_api.py` | 변경 파일 SFTP → 서버 빌드 → pm2 reload |
-| 프론트 전체 변경 | `python tools/_patch_frontend.py user\|mng` | 로컬 dist tar.gz → 양 경로 SFTP |
+| 프론트 전체 변경 | `python tools/_patch_frontend.py user\|mng` | 로컬 dist → `/data/wwwroot/sajumoon.co.kr[/mng]` SFTP |
 | MD 파일만 변경 | `python tools/_sync_handbook.py` | _HANDBOOK/*.md → 서버 SFTP (빌드 없음) |
-| mng만 빠른 배포 | `python tools/_patch_mng_sajuplan.py` | 빌드 없이 sajuplan.com/mng 에만 SFTP |
 
 ### ⚡ 외과 배포 (빠른 패치 — 빌드 스킵)
 
@@ -250,23 +255,24 @@ python tools/_sync_handbook.py   # _HANDBOOK 전체 SFTP
 python tools/_patch_api.py root@104.64.128.103 /data/wwwroot/api.sajumoon.co.kr sajumoon-api
 ```
 
-**mng 외과 배포 (sajuplan.com/mng 만):**
-```bash
-python tools/_patch_mng_sajuplan.py   # 빌드 없이 현재 dist SFTP
+### ⚠️ 배포 경로 (nginx 실제 확인값 — 2026-06-04)
+
+nginx `sajuplan.com.conf` 분석 결과:
+```
+root /data/wwwroot/sajumoon.co.kr;
+location /mng/ { alias /data/wwwroot/sajumoon.co.kr/mng/; }
 ```
 
-### ⚠️ 배포 경로 (도메인 ≠ 서버 실제 경로)
-
-| 대상 | 도메인(사용자 접속) | **실제 서버 경로 (SFTP 목적지)** |
+| 대상 | 도메인(사용자 접속) | **실제 서버 경로 (유일한 정답)** |
 |---|---|---|
-| 사용자 프론트 | `sajuplan.com` | `/data/wwwroot/sajumoon.co.kr/` **AND** `/data/wwwroot/sajuplan.com/` |
-| 관리자 프론트 | `sajuplan.com/mng` | `/data/wwwroot/sajumoon.co.kr/mng/` **AND** `/data/wwwroot/sajuplan.com/mng/` |
+| 사용자 프론트 | `sajuplan.com` | `/data/wwwroot/sajumoon.co.kr/` |
+| 관리자 프론트 | `sajuplan.com/mng` | `/data/wwwroot/sajumoon.co.kr/mng/` |
 | API | `api.sajuplan.com` | `/data/wwwroot/api.sajumoon.co.kr/` |
 
-- **⚠️ 핵심**: 프론트는 `sajumoon.co.kr`과 `sajuplan.com` **두 경로 모두** 배포 필수. 하나만 하면 한쪽 도메인에서 구버전 노출됨 (2026-06-04 실제 사고 발생)
-- API는 `api.sajumoon.co.kr` 경로 하나만 (nginx가 `api.sajuplan.com` → 동일 디렉토리 서빙)
-- 빌드 후 반드시 `__SAJUMOON_ENV__` → `prod` sed 치환 (index.html) — `_patch_frontend.py` 자동 처리
-- Vite 빌드 EBUSY 오류 시: `--outDir dist3` 사용 후 `_patch_frontend_alt.py`
+- **❌ `/data/wwwroot/sajuplan.com/` — nginx가 서빙하지 않는 죽은 폴더. 절대 배포 금지.**
+- `sajumoon.co.kr` 자체는 redirect-only 도메인 (→ sajuplan.com). 파일 폴더 이름만 `sajumoon.co.kr`인 것.
+- 빌드 후 `__SAJUMOON_ENV__` → `prod` sed 치환 필수 (index.html) — `_patch_frontend.py` 자동 처리
+- Vite 빌드 EBUSY 오류 시: `--outDir dist3` 사용
 
 ## 완료 보고 형식
 

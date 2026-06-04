@@ -33,17 +33,15 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 TARGETS_USER = [
-    # test 서버 폐기 (2026-05-29) — prod 단일 배포
-    # sajumoon.co.kr 과 sajuplan.com 은 별도 폴더 — 둘 다 배포 필수 (2026-06-03)
-    ("prod-sajumoon", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr"),
-    ("prod-sajuplan", "104.64.128.103", "/data/wwwroot/sajuplan.com"),
+    # nginx sajuplan.com vhost root = /data/wwwroot/sajumoon.co.kr (확인: 2026-06-04)
+    # sajuplan.com 폴더는 nginx가 서빙 안 함 — 여기만 배포하면 됨
+    ("prod", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr"),
 ]
 
 TARGETS_MNG = [
-    # test 서버 폐기 (2026-05-29) — prod 단일 배포
-    # sajuplan.com 이 실제 사장님이 보는 도메인 — 둘 다 필수 (2026-06-04 누락 발견)
-    ("prod-sajumoon", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr/mng"),
-    ("prod-sajuplan",  "104.64.128.103", "/data/wwwroot/sajuplan.com/mng"),
+    # nginx sajuplan.com vhost location /mng/ alias = /data/wwwroot/sajumoon.co.kr/mng
+    # 마찬가지로 sajuplan.com/mng 폴더는 nginx 미사용
+    ("prod", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr/mng"),
 ]
 
 
