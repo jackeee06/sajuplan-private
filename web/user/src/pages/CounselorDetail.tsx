@@ -61,7 +61,7 @@ function mapDetail(r: PublicCounselorDetail): CounselorDetailData {
     styles: r.traits.length > 0 ? r.traits : ['친절한'],
     career: r.career.length > 0 ? r.career : ['상담사 약력 준비 중입니다.'],
     noticeDate: formatNoticeDate(r.notice_date),
-    noticeContent: r.notice_content ?? '아직 등록된 공지가 없습니다.',
+    noticeContent: sanitizeIntroHtml(r.notice_content ?? '') || '아직 등록된 공지가 없습니다.',
     introText: sanitizeIntroHtml(r.intro ?? '') || '상담사 소개가 준비 중입니다.',
     liveViewers: r.live_viewers,
     reviewTotal: r.review_count.toLocaleString(),

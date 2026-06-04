@@ -4,26 +4,57 @@
 > **원칙**: 즉시 fix 안 해도 OK. 큰 흐름 막지 않기.
 > **검토 주기**: 정식 운영 준비 시점에 일괄 리뷰.
 
-## 🟢 B-007 — CounselorReviewNew.tsx dead route (2026-05-27 엄격검증)
+## ✅ B-008 — 상담사 상세 공지사항 HTML 태그 노출 + 탭 scroll — RESOLVED (2026-06-04)
+
+**발견**: 2026-06-04 사장님 스크린샷 리포트
+**심각도**: 🟠 High (사용자 화면에서 `<p><br></p>` 노출)
+**상태**: ✅ 해결
+
+### 버그 3가지
+1. **공지사항 `<p><br></p>` 노출** — `whitespace-pre-line` 텍스트 렌더로 HTML 태그 그대로 출력
+2. **탭 첫 클릭 시 히어로 이미지 위치까지 scroll top** — `ScrollToTop.tsx` 의 `navigationType` 의존성이 POP→REPLACE 전환 시 scroll=0 강제
+3. **탭 중간에서 클릭해도 sticky 이동 안 됨** — scroll 로직 없음
+
+### 수정 내용
+- `CounselorDetail.tsx`: `noticeContent` 도 `sanitizeIntroHtml()` 적용
+- `CounselorDetailLayout.tsx`:
+  - 공지사항 `dangerouslySetInnerHTML` 렌더 전환 (HTML 태그 렌더링)
+  - `DetailTabs`: `<Link>` → `<button>` + `useNavigate` 교체
+  - `useEffect([activeTab])` — 탭 전환 시 `window.scrollTo(탭위치, smooth)` 추가
+  - `data-testid="counselor-tab-area"` 추가 (E2E 기준점)
+- `ScrollToTop.tsx`: deps `[pathname, navigationType]` → `[pathname]` (navigationType 변화 단독으론 scroll 리셋 안 함)
+- `main.tsx`: `window.history.scrollRestoration = 'manual'` 추가 (브라우저 자동 scroll 복원 차단)
+
+### E2E 검증
+- `e2e/tests/28-counselor-detail-tabs.spec.ts` 신설 — 4/4 통과
+  - 공지사항 HTML 태그 미노출
+  - 탭 3개 버튼 존재 + 활성 전환
+  - scrollTo 호출 의도 검증 (탭 위치 향)
+  - URL 파라미터 변경 확인
+
+### 관련 파일
+- `web/user/src/pages/CounselorDetail.tsx`
+- `web/user/src/components/CounselorDetailLayout.tsx`
+- `web/user/src/components/ScrollToTop.tsx`
+- `web/user/src/main.tsx`
+
+---
+
+## ✅ B-007 — CounselorReviewNew.tsx dead route — RESOLVED (2026-06-04 코드 확인)
 
 **발견**: 2026-05-27 후기 5분 정책 엄격검증
 **심각도**: 🟢 Low
-**상태**: 미해결 — 정식 운영 전 일괄 처리
+**상태**: ✅ 해결 — 옵션 C 적용됨
 
-### 재현
-- 라우트 `/counselors/:id/reviews/new` 등록되어 있음 (App.tsx:116)
-- 컴포넌트 `CounselorReviewNew.tsx` 가 폼 보여주지만 submit 시 백엔드 호출 X
-- `onSubmit` 가 `// TODO: 실제 API 연동 시 이 자리에 fetch` 주석만 + navigate 만 함
-- 사용자가 URL 직접 입력 또는 어딘가에서 링크 누르면 → 폼 작성 → "완료" 누르면 그냥 상담사 후기 페이지로 이동 → **실제 저장 안 됨**
-
-### 영향
-- 디자인 시안 페이지로 추정. 실 사용자 경로에 노출되는지 미확인
-- 5분 정책과는 무관 (API 자체 호출 안 함)
-
-### 처리
-- 옵션 A: 라우트 제거 + 컴포넌트 삭제
-- 옵션 B: MyReviewNew.tsx 와 통합 — counselor_id 만 받아서 진입 → consultation 선택 모달 → 후기 작성
-- 옵션 C: 진입 시 마이페이지 후기 작성 페이지로 redirect
+### 해결 내용
+`CounselorReviewNew.tsx` 가 폼 컴포넌트 → redirect 컴포넌트로 교체됨:
+```tsx
+export default function CounselorReviewNew() {
+  const { id } = useParams<{ id: string }>()
+  return <Navigate to={`/mypage/my-reviews/new?counselor_id=${id ?? ''}`} replace />
+}
+```
+진입 즉시 `/mypage/my-reviews/new` 로 redirect → `MyReviewNew.tsx` 가 실제 저장 처리.
 
 ---
 
@@ -97,32 +128,21 @@
 
 ---
 
-## 🔴 B-005 — TEST 서버 (172.235.211.75) 외부 응답 없음
+## ✅ B-005 — TEST 서버 (172.235.211.75) 폐기 결정 — RESOLVED (2026-05-29)
 
 **발견**: 2026-05-27 (자율 진행 중)
-**심각도**: 🔴 Critical (TEST 환경 전체 마비)
-**상태**: 미해결 — **사장님 호스팅 콘솔 reboot 필요**
+**심각도**: 🔴 → ⚪
+**상태**: ✅ 해결 — TEST 서버 폐기 결정으로 이슈 자체 종결
 
-### 재현
-- `ping 172.235.211.75` → 100% 손실
-- `curl https://api.sajumoon.kr/api/health` → 000 (timeout 15초)
-- `paramiko ssh` → WinError 10060 (connect timeout)
-- 자정 무렵 이후로 응답 없음
+### 경위
+- 2026-05-27: 172.235.211.75 무응답 발견 (ping 100% 손실)
+- 2026-05-29: **TEST 서버(sajumoon.kr) 폐기 공식 결정** (메모리 `project_test_server_sunset`)
+- 2026-06-04: E2E TARGET 기본값 `test → prod` 변경 커밋 (`097d67a6`) 으로 완전 전환
 
-### 영향
-- TEST 환경 (sajumoon.kr / api.sajumoon.kr) 전체 다운
-- E2E spec 17/18 검증 보류 (test 계정 e2e_member/e2e_dual 인증 불가)
-- chat/auto-cancel cron test 서버 등록 보류
-- PROD (104.64.128.103, sajuplan.com) 는 **정상** — 사용자 영향 0
-
-### 조치 방향
-1. 사장님이 호스팅 콘솔 (Linode 등) 접속 → 인스턴스 상태 확인 → reboot
-2. reboot 후 SSH + pm2 status sajumoon-api 확인
-3. SSL 인증서 acme.sh 정상 작동 (매월 3일 13:00 갱신)
-
-### 미보류 작업 (서버 복구 시 자동 진행)
-- spec 17/18 자동 통과 검증
-- test 서버 crontab 에 chat/auto-cancel 추가 (단순 한 줄)
+### 현재 운영 방식
+- **PROD 단일 배포** — sajuplan.com 만 운영
+- E2E 전체 prod 대상 실행
+- TEST 서버 복구 계획 없음
 
 ---
 

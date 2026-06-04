@@ -30,7 +30,10 @@ export default function ScrollToTop() {
       cancelAnimationFrame(raf)
       window.clearTimeout(t)
     }
-  }, [pathname, navigationType])
+    // navigationType 은 deps 에서 제외 — navigationType 만 변화(예: 탭 전환 첫 번째 클릭 POP→REPLACE)할 때
+    // pathname 이 같으면 새 페이지가 아니므로 스크롤 리셋 불필요.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
 
   return null
 }

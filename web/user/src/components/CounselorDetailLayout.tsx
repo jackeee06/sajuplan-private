@@ -41,6 +41,21 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
   const [likeBusy, setLikeBusy] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [shareUrl, setShareUrl] = useState('')
+  const tabAreaRef = useRef<HTMLDivElement>(null)
+  const prevActiveTabRef = useRef<string | null>(null)
+
+  // 탭 전환 시 탭 영역 최상단으로 스크롤
+  // scrollIntoView({ behavior:'smooth' }) 는 일부 headless 환경에서 무시되므로
+  // getBoundingClientRect + window.scrollTo 로 직접 계산
+  useEffect(() => {
+    const prev = prevActiveTabRef.current
+    prevActiveTabRef.current = activeTab
+    if (prev === null || prev === activeTab) return
+    const el = tabAreaRef.current
+    if (!el) return
+    const targetY = el.getBoundingClientRect().top + window.scrollY
+    window.scrollTo({ top: targetY, behavior: 'smooth' })
+  }, [activeTab])
 
   useEffect(() => {
     if (typeof window !== 'undefined') setShareUrl(window.location.href)
@@ -231,16 +246,17 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
               <p className="text-[14px] leading-[120%] text-[#6A7282]">{data.noticeDate}</p>
             </div>
           </div>
-          <p className="text-[14px] leading-[150%] text-[#4A5565] whitespace-pre-line">
-            {data.noticeContent}
-          </p>
+          <div
+            className="counselor-intro text-[14px] leading-[150%] text-[#4A5565]"
+            dangerouslySetInnerHTML={{ __html: data.noticeContent }}
+          />
         </section>
       </div>
 
       <div className="h-2 bg-[#F9FAFB]" aria-hidden />
 
       {/* 탭 sticky + 본문 */}
-      <div>
+      <div ref={tabAreaRef} data-testid="counselor-tab-area">
         <div className="sticky top-0 z-20 bg-white px-4 border-b border-[#F3F4F6]">
           <DetailTabs activeTab={activeTab} id={String(data.id)} reviewTotal={data.reviewTotal} qnaTotal={data.qnaTotal} />
         </div>
@@ -287,6 +303,7 @@ function DetailTabs({
   reviewTotal: string
   qnaTotal: string
 }) {
+  const navigate = useNavigate()
   const tabs: { key: 'intro' | 'reviews' | 'qna'; label: string; to: string }[] = [
     { key: 'intro',   label: '상담사 소개', to: `/counselors/${id}` },
     { key: 'reviews', label: `후기(${reviewTotal})`,  to: `/counselors/${id}?tab=reviews` },
@@ -298,17 +315,17 @@ function DetailTabs({
       {tabs.map((t) => {
         const active = t.key === activeTab
         return (
-          <Link
+          <button
             key={t.key}
-            to={t.to}
-            replace
+            type="button"
+            onClick={() => navigate(t.to, { replace: true })}
             className={`flex-1 h-[44px] flex items-center justify-center text-[14px] font-medium ${
               active ? 'text-[#f472b6]' : 'text-[#6A7282] border-b border-[#E5E7EB]'
             }`}
             style={active ? { boxShadow: 'inset 0 -2px 0 0 #f472b6' } : undefined}
           >
             {t.label}
-          </Link>
+          </button>
         )
       })}
     </div>
