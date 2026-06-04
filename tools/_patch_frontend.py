@@ -41,7 +41,9 @@ TARGETS_USER = [
 
 TARGETS_MNG = [
     # test 서버 폐기 (2026-05-29) — prod 단일 배포
-    ("prod", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr/mng"),
+    # sajuplan.com 이 실제 사장님이 보는 도메인 — 둘 다 필수 (2026-06-04 누락 발견)
+    ("prod-sajumoon", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr/mng"),
+    ("prod-sajuplan",  "104.64.128.103", "/data/wwwroot/sajuplan.com/mng"),
 ]
 
 

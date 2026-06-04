@@ -221,25 +221,52 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 ## 배포 규칙
 
 - 모든 작업은 배포까지 한 세트로 진행. 배포 없이 완료 보고 금지.
-- 기본: `both` (PROD `sajuplan.com` + TEST `sajumoon.kr` 동시 배포).
-- 외과 배포 우선 조건: md 파일 변경 / API rsync hang / 소수 파일 변경 → 빌드 스킵 + SFTP only.
-- API rsync 60초+ hang 시 즉시 외과 패치로 전환 (묻지 않고).
-- 배포 도구: `tools/_patch_api.py` (API 외과), `tools/deploy_sync.py` (프론트 SFTP).
+- 기본: PROD 단일 배포 (`sajuplan.com`). TEST 서버 폐기됨.
 - 결과 확인 URL은 항상 prod(`sajuplan.com`)로 안내.
 
-### ⚠️ 배포 경로 함정 (도메인 ≠ 서버 실제 경로)
+### 🔧 배포 도구
 
-도메인 이름과 서버의 실제 파일 경로가 다름. 반드시 아래 경로로 배포할 것.
-
-| 대상 | 도메인(노출) | **실제 서버 경로 (SFTP 목적지)** |
+| 상황 | 도구 | 설명 |
 |---|---|---|
-| 프론트엔드 | `sajuplan.com` | `/data/wwwroot/sajumoon.co.kr/` |
+| API 코드 변경 | `python tools/_patch_api.py` | 변경 파일 SFTP → 서버 빌드 → pm2 reload |
+| 프론트 전체 변경 | `python tools/_patch_frontend.py user\|mng` | 로컬 dist tar.gz → 양 경로 SFTP |
+| MD 파일만 변경 | `python tools/_sync_handbook.py` | _HANDBOOK/*.md → 서버 SFTP (빌드 없음) |
+| mng만 빠른 배포 | `python tools/_patch_mng_sajuplan.py` | 빌드 없이 sajuplan.com/mng 에만 SFTP |
+
+### ⚡ 외과 배포 (빠른 패치 — 빌드 스킵)
+
+**언제 외과 배포를 쓰는가:**
+- MD 파일만 변경 (핸드북, CLAUDE.md 등) → 빌드 불필요
+- API rsync 60초+ hang → 즉시 외과 패치로 전환 (묻지 않고)
+- 소수 파일만 변경 (1~3개) → 풀 빌드보다 빠름
+
+**MD 파일 외과 배포:**
+```bash
+python tools/_sync_handbook.py   # _HANDBOOK 전체 SFTP
+```
+
+**API 외과 배포 (hang 회피):**
+```bash
+python tools/_patch_api.py root@104.64.128.103 /data/wwwroot/api.sajumoon.co.kr sajumoon-api
+```
+
+**mng 외과 배포 (sajuplan.com/mng 만):**
+```bash
+python tools/_patch_mng_sajuplan.py   # 빌드 없이 현재 dist SFTP
+```
+
+### ⚠️ 배포 경로 (도메인 ≠ 서버 실제 경로)
+
+| 대상 | 도메인(사용자 접속) | **실제 서버 경로 (SFTP 목적지)** |
+|---|---|---|
+| 사용자 프론트 | `sajuplan.com` | `/data/wwwroot/sajumoon.co.kr/` **AND** `/data/wwwroot/sajuplan.com/` |
+| 관리자 프론트 | `sajuplan.com/mng` | `/data/wwwroot/sajumoon.co.kr/mng/` **AND** `/data/wwwroot/sajuplan.com/mng/` |
 | API | `api.sajuplan.com` | `/data/wwwroot/api.sajumoon.co.kr/` |
 
-- **자주 하는 실수**: 프론트를 `/data/wwwroot/sajuplan.com/`에 올리면 반영 안 됨 (해당 경로를 nginx가 서빙하지 않음)
-- **자주 하는 실수**: API를 `/data/wwwroot/api.sajuplan.com/`에 올리면 반영 안 됨
-- 빌드 후 반드시 `__SAJUMOON_ENV__` → `prod` sed 치환 필요 (index.html)
-- Vite 빌드 시 EBUSY 오류 발생 시 `--outDir dist3` (dist2 대신) 사용
+- **⚠️ 핵심**: 프론트는 `sajumoon.co.kr`과 `sajuplan.com` **두 경로 모두** 배포 필수. 하나만 하면 한쪽 도메인에서 구버전 노출됨 (2026-06-04 실제 사고 발생)
+- API는 `api.sajumoon.co.kr` 경로 하나만 (nginx가 `api.sajuplan.com` → 동일 디렉토리 서빙)
+- 빌드 후 반드시 `__SAJUMOON_ENV__` → `prod` sed 치환 (index.html) — `_patch_frontend.py` 자동 처리
+- Vite 빌드 EBUSY 오류 시: `--outDir dist3` 사용 후 `_patch_frontend_alt.py`
 
 ## 완료 보고 형식
 
