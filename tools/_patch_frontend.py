@@ -33,15 +33,17 @@ for _s in (sys.stdout, sys.stderr):
 import paramiko
 
 TARGETS_USER = [
-    # nginx sajuplan.com vhost root = /data/wwwroot/sajumoon.co.kr (확인: 2026-06-04)
-    # sajuplan.com 폴더는 nginx가 서빙 안 함 — 여기만 배포하면 됨
-    ("prod", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr"),
+    # sajumoon.co.kr 도메인 서빙 경로
+    ("prod sajumoon.co.kr", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr"),
+    # sajuplan.com 도메인 서빙 경로 (별도 디렉토리 — 둘 다 배포 필수)
+    ("prod sajuplan.com", "104.64.128.103", "/data/wwwroot/sajuplan.com"),
 ]
 
 TARGETS_MNG = [
-    # nginx sajuplan.com vhost location /mng/ alias = /data/wwwroot/sajumoon.co.kr/mng
-    # 마찬가지로 sajuplan.com/mng 폴더는 nginx 미사용
-    ("prod", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr/mng"),
+    # sajumoon.co.kr/mng
+    ("prod sajumoon.co.kr/mng", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr/mng"),
+    # sajuplan.com/mng
+    ("prod sajuplan.com/mng", "104.64.128.103", "/data/wwwroot/sajuplan.com/mng"),
 ]
 
 

@@ -783,6 +783,14 @@ export const counselorMypageApi = {
   getIntro: () => api.get<{ intro: string }>('/user/counselors/me/intro'),
   setIntro: (intro: string) =>
     api.patch<{ intro: string }>('/user/counselors/me/intro', { intro }),
+  /** 본인 공지사항(post_counselor.content) 조회/수정 */
+  getMyNotice: () => api.get<{ notice: string }>('/user/counselors/me/notice'),
+  setMyNotice: (notice: string) =>
+    api.patch<{ notice: string }>('/user/counselors/me/notice', { notice }),
+  /** 본인 스타일(post_counselor.traits) 조회/수정 */
+  getMyTraits: () => api.get<{ traits: string[] }>('/user/counselors/me/traits'),
+  setMyTraits: (traits: string[]) =>
+    api.patch<{ traits: string[] }>('/user/counselors/me/traits', { traits }),
 }
 
 // ─────────────────────────────────────────────
@@ -1106,6 +1114,8 @@ export interface PublicCounselorDetail {
   qna_count: number
   /** 요청자가 이 상담사를 단골 등록했는지 (비로그인이면 false) */
   is_liked: boolean
+  /** 전속파트너 여부 */
+  is_exclusive: boolean
 }
 
 export const counselorsApi = {
@@ -1545,6 +1555,12 @@ export interface SettlementSummary {
   estimated_payout: number
   /** 정산 기준 월 (YYYY-MM) */
   month: string
+  /** 정산비전체 = 상담수익 + 기타정산비 (계산식 표시용) */
+  price_tot: number
+  /** 세금 공제 합계 = 부가세 + 원천징수 + 회선비 (계산식 표시용) */
+  tax_deduction: number
+  referral_earn?: number
+  referral_deduct?: number
   payout_breakdown: {
     amt_free: number
     amt_pro: number
