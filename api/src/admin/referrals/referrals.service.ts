@@ -362,4 +362,113 @@ export class AdminReferralsService {
       created_at: new Date(r.created_at).toISOString(),
     }));
   }
+
+  // ─── 추천인 정책 (슈퍼 전용) ────────────────────────────────────────────────
+
+  /** 현재 추천 정책값 조회 */
+  async getPolicy(): Promise<{ rate: number; months: number }> {
+    const rows = await this.sql<{ key: string; value: string }[]>`
+      SELECT key, value FROM setting
+       WHERE namespace = 'promotion' AND key IN ('referral_rate','referral_months')
+    `;
+    const rate   = parseFloat(rows.find(r => r.key === 'referral_rate')?.value   ?? '0.01');
+    const months = parseInt(rows.find(r => r.key === 'referral_months')?.value   ?? '3', 10);
+    return { rate, months };
+  }
+
+  /** 추천 정책 업데이트 (저장 즉시 신규 추천부터 적용, 기존 스냅샷 유지) */
+  async updatePolicy(params: {
+    rate?: number;
+    months?: number;
+    admin_id: number;
+  }): Promise<{ rate: number; months: number }> {
+    if (params.rate !== undefined) {
+      if (params.rate < 0 || params.rate > 1) {
+        throw new BadRequestException('요율은 0 이상 1 이하 소수여야 합니다 (예: 0.01 = 1%)');
+      }
+      await this.sql`
+        INSERT INTO setting (namespace, key, value, updated_by_id, updated_at)
+        VALUES ('promotion','referral_rate',${String(params.rate)},${params.admin_id},NOW())
+        ON CONFLICT (namespace, key) DO UPDATE
+          SET value = EXCLUDED.value, updated_by_id = EXCLUDED.updated_by_id, updated_at = NOW()
+      `;
+    }
+    if (params.months !== undefined) {
+      if (params.months < 1 || params.months > 24) {
+        throw new BadRequestException('기간은 1~24 개월이어야 합니다.');
+      }
+      await this.sql`
+        INSERT INTO setting (namespace, key, value, updated_by_id, updated_at)
+        VALUES ('promotion','referral_months',${String(params.months)},${params.admin_id},NOW())
+        ON CONFLICT (namespace, key) DO UPDATE
+          SET value = EXCLUDED.value, updated_by_id = EXCLUDED.updated_by_id, updated_at = NOW()
+      `;
+    }
+    return this.getPolicy();
+  }
+
+  // ─── 상담사 마이페이지 — 추천 현황 (사용자 API에서 호출) ──────────────────
+
+  /** 상담사 본인 추천 현황 — referral_code + 추천한 상담사 목록 + 누적 수당 */
+  async getMyCounselorReferral(memberId: number): Promise<{
+    referral_code: string | null;
+    referrals: {
+      id: number;
+      referee_mb_id: string | null;
+      referee_nickname: string | null;
+      registered_at: string;
+      expires_at: string;
+      months_snapshot: number;
+      rate_snapshot: number;
+      status: string;
+      total_paid: number;
+    }[];
+    total_paid_all: number;
+  }> {
+    const codeRows = await this.sql<{ referral_code: string | null }[]>`
+      SELECT referral_code FROM member WHERE id = ${memberId} LIMIT 1
+    `;
+    const referral_code = codeRows[0]?.referral_code ?? null;
+
+    const refs = await this.sql<{
+      id: number;
+      referee_mb_id: string | null;
+      referee_nickname: string | null;
+      registered_at: Date;
+      expires_at: Date;
+      months_snapshot: number;
+      rate_snapshot: string;
+      status: string;
+      total_paid: string | null;
+    }[]>`
+      SELECT
+        r.id,
+        ree.mb_id       AS referee_mb_id,
+        ree.nickname    AS referee_nickname,
+        r.registered_at, r.expires_at,
+        r.months_snapshot, r.rate_snapshot, r.status,
+        (SELECT COALESCE(SUM(p.paid_amount),0)
+           FROM counselor_referral_payment p
+          WHERE p.referral_id = r.id) AS total_paid
+      FROM counselor_referral r
+      LEFT JOIN member ree ON ree.id = r.referee_id
+      WHERE r.referrer_id = ${memberId}
+      ORDER BY r.created_at DESC
+    `;
+
+    const referrals = refs.map(r => ({
+      id: Number(r.id),
+      referee_mb_id: r.referee_mb_id,
+      referee_nickname: r.referee_nickname,
+      registered_at: new Date(r.registered_at).toISOString(),
+      expires_at: new Date(r.expires_at).toISOString(),
+      months_snapshot: Number(r.months_snapshot),
+      rate_snapshot: parseFloat(r.rate_snapshot),
+      status: r.status,
+      total_paid: Number(r.total_paid ?? 0),
+    }));
+
+    const total_paid_all = referrals.reduce((s, r) => s + r.total_paid, 0);
+    return { referral_code, referrals, total_paid_all };
+  }
 }

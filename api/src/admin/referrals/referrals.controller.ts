@@ -6,6 +6,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -83,5 +84,26 @@ export class AdminReferralsController {
   ) {
     await this.svc.disable(id, body?.memo);
     return { ok: true };
+  }
+
+  /** GET /admin/referrals/policy — 현재 추천 정책 조회 (슈퍼 전용) */
+  @Get('policy')
+  async getPolicy(@Req() req: AuthedRequest) {
+    if (!req.admin.is_super) throw new BadRequestException('슈퍼관리자 전용입니다.');
+    return this.svc.getPolicy();
+  }
+
+  /** PUT /admin/referrals/policy — 추천 정책 업데이트 (슈퍼 전용) */
+  @Put('policy')
+  async updatePolicy(
+    @Body() body: { rate?: number; months?: number },
+    @Req() req: AuthedRequest,
+  ) {
+    if (!req.admin.is_super) throw new BadRequestException('슈퍼관리자 전용입니다.');
+    return this.svc.updatePolicy({
+      rate:   body.rate   !== undefined ? Number(body.rate)   : undefined,
+      months: body.months !== undefined ? Number(body.months) : undefined,
+      admin_id: req.admin.sub,
+    });
   }
 }

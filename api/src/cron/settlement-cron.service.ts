@@ -473,6 +473,103 @@ export class SettlementCronService {
         `;
       }
 
+      // ─── 추천 수당 처리 (2026-06-04) ────────────────────────────────────────
+      // 피추천인(referee)인 경우: 수익금의 rate_snapshot% 를 추천인(referrer)에게 이전.
+      // - 회선비 제외 (전화망과 무관), 원천징수는 추천인 정산 시 포함됨.
+      // - 3개월(months_snapshot) 이내 active 건만 처리.
+      // - 동일 월 중복 처리 방지: counselor_referral_payment (referral_id, pay_month) UNIQUE.
+      if (!testOnly && priceTot > 0) {
+        const refRows = await tx<{
+          id: number;
+          referrer_id: number;
+          referrer_mb_id: string | null;
+          rate_snapshot: string;
+        }[]>`
+          SELECT r.id, r.referrer_id, rer.mb_id AS referrer_mb_id, r.rate_snapshot
+            FROM counselor_referral r
+            LEFT JOIN member rer ON rer.id = r.referrer_id
+           WHERE r.referee_id  = ${memberId}
+             AND r.status      = 'active'
+             AND r.expires_at  > NOW()
+           LIMIT 1
+        `;
+        if (refRows.length > 0) {
+          const ref = refRows[0];
+          const refRate    = parseFloat(ref.rate_snapshot);
+          const incentive  = Math.floor(priceTot * refRate);   // 수익금(price_tot) × 요율
+
+          if (incentive > 0) {
+            // 중복 방지 — 이미 이 월에 처리됐으면 스킵
+            const dupCheck = await tx<{ id: number }[]>`
+              SELECT id FROM counselor_referral_payment
+               WHERE referral_id = ${ref.id} AND pay_month = ${bmonth}
+               LIMIT 1
+            `;
+            if (dupCheck.length === 0) {
+              // 추천인 earning_balance 적립
+              const refPtRows = await tx<{ earning_balance: number }[]>`
+                SELECT earning_balance FROM point WHERE member_id = ${ref.referrer_id} FOR UPDATE
+              `;
+              if (refPtRows.length > 0) {
+                const refBalAfter = Number(refPtRows[0].earning_balance) + incentive;
+                await tx`
+                  UPDATE point SET
+                    earning_balance = earning_balance + ${incentive},
+                    total_earned    = total_earned    + ${incentive},
+                    updated_at      = NOW()
+                  WHERE member_id = ${ref.referrer_id}
+                `;
+                await tx`
+                  INSERT INTO point_history
+                    (member_id, mb_id, content, earn_point, use_point, balance_after,
+                     is_expired, rel_table, rel_id, rel_action, is_settled, created_at)
+                  VALUES
+                    (${ref.referrer_id}, ${ref.referrer_mb_id}, ${'[추천 수당] ' + mbId + ' ' + bmonth},
+                     ${incentive}, 0, ${refBalAfter},
+                     false, 'counselor_referral', ${String(ref.id)},
+                     ${'추천수당_' + bmonth}, false, ${range.pointInsertAt})
+                `;
+                // 피추천인 수익금에서 차감 (earning_balance 이미 periodSum 으로 차감됨 — price_tot 기준 재차감)
+                await tx`
+                  UPDATE point SET
+                    earning_balance = GREATEST(earning_balance - ${incentive}, 0),
+                    total_used      = total_used + ${incentive},
+                    updated_at      = NOW()
+                  WHERE member_id = ${memberId}
+                `;
+                await tx`
+                  INSERT INTO point_history
+                    (member_id, mb_id, content, earn_point, use_point, balance_after,
+                     is_expired, rel_table, rel_id, rel_action, is_settled, created_at)
+                  VALUES
+                    (${memberId}, ${mbId}, ${'[추천 수당 차감] ' + bmonth},
+                     0, ${incentive}, ${Math.max(0, Number(refPtRows[0].earning_balance) - incentive)},
+                     false, 'counselor_referral', ${String(ref.id)},
+                     ${'추천수당차감_' + bmonth}, false, ${range.pointInsertAt})
+                `;
+                // 지급 이력 기록
+                await tx`
+                  INSERT INTO counselor_referral_payment (referral_id, pay_month, paid_amount, paid_at)
+                  VALUES (${ref.id}, ${bmonth}, ${incentive}, NOW())
+                  ON CONFLICT (referral_id, pay_month) DO NOTHING
+                `;
+              }
+            }
+          }
+
+          // 만료 체크 — expires_at 지났으면 상태 업데이트
+          const refDetail = await tx<{ expires_at: Date }[]>`
+            SELECT expires_at FROM counselor_referral WHERE id = ${ref.id}
+          `;
+          if (refDetail.length > 0 && new Date(refDetail[0].expires_at) <= new Date()) {
+            await tx`
+              UPDATE counselor_referral SET status = 'expired' WHERE id = ${ref.id}
+            `;
+          }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
       // 정산 완료 표시
       await tx`
         UPDATE point_history

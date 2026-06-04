@@ -159,6 +159,8 @@ FILES = [
     ("api/src/user/counselors/counselors.module.ts", "src/user/counselors/counselors.module.ts"),
     ("api/src/user/points/points.controller.ts", "src/user/points/points.controller.ts"),
     ("api/src/user/settlements/settlements.controller.ts", "src/user/settlements/settlements.controller.ts"),
+    # 2026-06-04: 추천인 시스템 — settlements 모듈에 AdminReferralsService 주입
+    ("api/src/user/settlements/settlements.module.ts", "src/user/settlements/settlements.module.ts"),
     ("api/src/user/sms/sms.service.ts", "src/user/sms/sms.service.ts"),
     # 2026-05-25: 메인 통계 디폴트(override) + 실제 자동집계 합산
     ("api/src/user/stats/stats.service.ts", "src/user/stats/stats.service.ts"),

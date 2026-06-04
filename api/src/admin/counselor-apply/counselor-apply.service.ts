@@ -413,6 +413,9 @@ export class AdminCounselorApplyService {
         profile_specialty: Array.isArray(extras.specialties)
           ? (extras.specialties as string[])
           : null,
+        profile_traits: Array.isArray(extras.styles)
+          ? (extras.styles as string[])
+          : null,
       });
     } else {
       // 비회원 신청 — mb_id 중복 검사 후 새 상담사 회원 생성 (회원 단계 거치지 않음, 1회 생성)
@@ -437,6 +440,9 @@ export class AdminCounselorApplyService {
         profile_intro: (extras.intro as string | undefined) ?? null,
         profile_specialty: Array.isArray(extras.specialties)
           ? (extras.specialties as string[])
+          : null,
+        profile_traits: Array.isArray(extras.styles)
+          ? (extras.styles as string[])
           : null,
       });
     }
@@ -466,6 +472,53 @@ export class AdminCounselorApplyService {
 
     // 신청서 첨부파일을 member 폴더로 복사 + member_file insert
     await this.transferFilesToMember(memberId, extras);
+
+    // ─── 추천인 코드 처리 (2026-06-04) ───────────────────────────────────────
+    // 1) 승인된 상담사에게 고유 referral_code 발급 (없으면 생성)
+    await this.sql`
+      UPDATE member
+         SET referral_code = 'CSR-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT || id::TEXT), 1, 8))
+       WHERE id = ${memberId} AND referral_code IS NULL
+    `;
+
+    // 2) 신청서에 추천인 코드가 있으면 counselor_referral 등록
+    const referrerCode = String(extras.referrer_code ?? '').trim().toUpperCase();
+    if (referrerCode) {
+      const referrerRows = await this.sql<{ id: number }[]>`
+        SELECT id FROM member
+         WHERE referral_code = ${referrerCode}
+           AND role = 'counselor'
+           AND left_at IS NULL
+         LIMIT 1
+      `;
+      if (referrerRows.length > 0 && referrerRows[0].id !== memberId) {
+        const referrerId = referrerRows[0].id;
+        // setting 에서 현재 정책값 읽기 (스냅샷으로 저장)
+        const policyRows = await this.sql<{ key: string; value: string }[]>`
+          SELECT key, value FROM setting
+           WHERE namespace = 'promotion' AND key IN ('referral_rate','referral_months')
+        `;
+        const rateVal   = policyRows.find(p => p.key === 'referral_rate')?.value   ?? '0.01';
+        const monthsVal = policyRows.find(p => p.key === 'referral_months')?.value ?? '3';
+        const rate   = parseFloat(rateVal);
+        const months = parseInt(monthsVal, 10);
+        const expiresAt = new Date();
+        expiresAt.setMonth(expiresAt.getMonth() + months);
+
+        await this.sql`
+          INSERT INTO counselor_referral
+            (referrer_id, referee_id, rate_snapshot, months_snapshot,
+             registered_at, expires_at, status)
+          VALUES
+            (${referrerId}, ${memberId}, ${rate}, ${months},
+             NOW(), ${expiresAt.toISOString()}, 'active')
+          ON CONFLICT (referrer_id, referee_id) DO NOTHING
+        `;
+        extras.referrer_member_id = referrerId;
+        extras.referrer_code_used  = referrerCode;
+      }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     // post_apply 갱신 — 평문 PW 는 신청서에 없으므로 보관할 게 없음. hash 는 그대로 유지.
     extras.approved_at = new Date().toISOString();

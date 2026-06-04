@@ -1,6 +1,7 @@
 import { BadRequestException, Controller, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { UserAuthGuard, type UserAuthedRequest } from '../auth/user-auth.guard';
 import { UserSettlementsService } from './settlements.service';
+import { AdminReferralsService } from '../../admin/referrals/referrals.service';
 
 /**
  * 상담사 마이페이지 — 정산 / 정산내역.
@@ -15,7 +16,10 @@ import { UserSettlementsService } from './settlements.service';
 @Controller('user/settlements')
 @UseGuards(UserAuthGuard)
 export class UserSettlementsController {
-  constructor(private readonly svc: UserSettlementsService) {}
+  constructor(
+    private readonly svc: UserSettlementsService,
+    private readonly referralSvc: AdminReferralsService,
+  ) {}
 
   /**
    * 보유 금액 + 이번달/전월 누적 + 정산 예정.
@@ -84,5 +88,11 @@ export class UserSettlementsController {
       page: pageNum,
       limit: limit ? Number(limit) : undefined,
     });
+  }
+
+  /** 상담사 추천 현황 — 내 코드 + 추천한 상담사 목록 + 누적 수당 */
+  @Get('referral')
+  async myReferral(@Req() req: UserAuthedRequest) {
+    return this.referralSvc.getMyCounselorReferral(req.user.sub);
   }
 }

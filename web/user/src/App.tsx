@@ -51,12 +51,15 @@ import ChargeCardRegister from './pages/ChargeCardRegister'
 import ChargeComplete from './pages/ChargeComplete'
 import ChargeVbankInfo from './pages/ChargeVbankInfo'
 import CounselorMyPage from './pages/CounselorMyPage'
+import CounselorMyReferral from './pages/CounselorMyReferral'
 import CounselorMyBank from './pages/CounselorMyBank'
+import CounselorMyStyle from './pages/CounselorMyStyle'
 import CounselorMyPayout from './pages/CounselorMyPayout'
 import CounselorMyTips from './pages/CounselorMyTips'
 import CounselorMyTipDetail from './pages/CounselorMyTipDetail'
 import CounselorMyNotices from './pages/CounselorMyNotices'
 import CounselorMyNoticeDetail from './pages/CounselorMyNoticeDetail'
+import CounselorMyNoticeEdit from './pages/CounselorMyNoticeEdit'
 import CounselorMyQnas from './pages/CounselorMyQnas'
 import CounselorMyQnaNew from './pages/CounselorMyQnaNew'
 import CounselorMyQnaDetail from './pages/CounselorMyQnaDetail'
@@ -154,12 +157,15 @@ export default function App() {
         <Route path="/charge/complete" element={<ChargeComplete />} />
         <Route path="/charge/vbank-info" element={<ChargeVbankInfo />} />
         <Route path="/counselor/mypage" element={<CounselorMyPage />} />
+        <Route path="/counselor/mypage/referral" element={<CounselorMyReferral />} />
         <Route path="/counselor/mypage/bank" element={<CounselorMyBank />} />
+        <Route path="/counselor/mypage/style" element={<CounselorMyStyle />} />
         <Route path="/counselor/mypage/payout" element={<CounselorMyPayout />} />
         <Route path="/counselor/mypage/tips" element={<CounselorMyTips />} />
         <Route path="/counselor/mypage/tips/:id" element={<CounselorMyTipDetail />} />
         <Route path="/counselor/mypage/notices" element={<CounselorMyNotices />} />
         <Route path="/counselor/mypage/notices/:id" element={<CounselorMyNoticeDetail />} />
+        <Route path="/counselor/mypage/notice-edit" element={<CounselorMyNoticeEdit />} />
         <Route path="/counselor/mypage/qnas" element={<CounselorMyQnas />} />
         <Route path="/counselor/mypage/qnas/new" element={<CounselorMyQnaNew />} />
         <Route path="/counselor/mypage/qnas/:id" element={<CounselorMyQnaDetail />} />

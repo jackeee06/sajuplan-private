@@ -12,7 +12,7 @@ import {
   APPLY_SPECIALTY_OPTIONS,
   APPLY_STATUS_OPTIONS,
 } from '../data/myPageMockData'
-import { authApi, counselorApplyApi, smsApi } from '../lib/api'
+import { authApi, counselorApplyApi, settingsApi, smsApi } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 import { resizeImage } from '../lib/image-resize'
 
@@ -135,6 +135,8 @@ export default function CounselorApplyNew() {
   const [field, setField] = useState('')
   const [birth, setBirth] = useState('')
   const [specialties, setSpecialties] = useState<string[]>([])
+  const [styles, setStyles] = useState<string[]>([])
+  const [styleOptions, setStyleOptions] = useState<string[]>(['친절한', '직설적인', '논리적인', '공감형', '예언적인'])
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null)
   const [profilePhotoWebp, setProfilePhotoWebp] = useState<string | null>(null)
   const [contractFiles, setContractFiles] = useState<
@@ -159,6 +161,7 @@ export default function CounselorApplyNew() {
 
   const [submitOpen, setSubmitOpen] = useState(false)
   // 약관 동의 (지원서 풀폼일 때만 노출. 회원·비회원 공통 — 안전 우선)
+  const [referrerCode, setReferrerCode] = useState('')   // 추천인 코드 (선택)
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [agreePrivacy, setAgreePrivacy] = useState(false)
   const [agreeEmail, setAgreeEmail] = useState(false)
@@ -191,6 +194,18 @@ export default function CounselorApplyNew() {
       .catch(() => { /* 실패 시 빈 폼 그대로 */ })
     return () => { alive = false }
   }, [isLoggedIn])
+
+  // 스타일 선택지 — 공개 setting에서 동적 로드
+  useEffect(() => {
+    settingsApi.public()
+      .then((s) => {
+        const raw = s['counselor.style_options']
+        if (raw) {
+          try { setStyleOptions(JSON.parse(raw) as string[]) } catch { /* 파싱 실패 시 기본값 유지 */ }
+        }
+      })
+      .catch(() => { /* 실패 시 기본값 유지 */ })
+  }, [])
 
   // 휴대폰 인증 타이머
   useEffect(() => {
@@ -446,6 +461,7 @@ export default function CounselorApplyNew() {
             field,
             birth: birth.trim(),
             specialties,
+            styles,
             intro: introHtml,
             profile_photo_url: profilePhoto,
             profile_photo_url_webp: profilePhotoWebp,
@@ -454,6 +470,7 @@ export default function CounselorApplyNew() {
             agree_privacy: agreePrivacy,
             agree_email: agreeEmail,
             agree_sms: agreeSms,
+            referrer_code: referrerCode.trim().toUpperCase() || undefined,
           },
         })
       } else {
@@ -841,6 +858,42 @@ export default function CounselorApplyNew() {
                 </p>
               </div>
 
+              {/* 상담 스타일 */}
+              {styleOptions.length > 0 && (
+                <div>
+                  <p className="text-[14px] leading-[140%] font-semibold text-[#030712] mb-2">
+                    상담 스타일
+                  </p>
+                  <ul className="flex flex-wrap gap-2">
+                    {styleOptions.map((s) => {
+                      const active = styles.includes(s)
+                      return (
+                        <li key={s}>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setStyles((prev) =>
+                                prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+                              )
+                            }
+                            className={
+                              active
+                                ? 'h-[36px] px-4 rounded-full bg-[#f472b6] text-white text-[14px] font-medium'
+                                : 'h-[36px] px-4 rounded-full border border-[#E5E7EB] bg-white text-[#6A7282] text-[14px] font-medium'
+                            }
+                          >
+                            {s}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                  <p className="mt-1.5 text-[12px] leading-[150%] text-[#6A7282]">
+                    💡 본인의 상담 스타일을 선택해주세요. 상담사 프로필에 표시됩니다.
+                  </p>
+                </div>
+              )}
+
               {/* 프로필 사진 — 관리자 페이지와 동일 (정사각 200×200, JPG/PNG/GIF/WEBP) */}
               <div id="field-profilePhoto">
               <FileUploadField
@@ -913,6 +966,26 @@ export default function CounselorApplyNew() {
           </div>
 
         </div>
+
+        {/* 추천인 코드 — 풀폼일 때만 노출 (선택) */}
+        {isFullForm && (
+          <div className="mt-4 px-4">
+            <label className="block text-[13px] font-medium text-gray-600 mb-1">
+              추천인 코드 <span className="text-gray-400 font-normal">(선택)</span>
+            </label>
+            <input
+              type="text"
+              value={referrerCode}
+              onChange={(e) => setReferrerCode(e.target.value.toUpperCase())}
+              maxLength={12}
+              placeholder="예: CSR-AB12CD34"
+              className="w-full border border-gray-200 rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:border-[#9b7af7] focus:bg-white focus:outline-none transition"
+            />
+            <p className="text-[12px] text-gray-400 mt-1">
+              추천인 코드 입력 시 가입 후 {/* N */}개월간 수익금의 일부가 추천인에게 지급됩니다.
+            </p>
+          </div>
+        )}
 
         {/* 약관 동의 — 지원서(application) 풀폼일 때만 노출 */}
         {isFullForm && (

@@ -363,10 +363,11 @@ export default function CounselorMyPage() {
             <span className="text-[15px] font-medium text-[#6A7282] ml-0.5">원</span>
           </div>
           <div className="text-[11px] text-[#6A7282] mt-0.5">3.3% 원천세 공제 전 금액</div>
-          <div className="grid grid-cols-3 gap-2 mt-3">
+          <div className="grid grid-cols-4 gap-2 mt-3">
             <Link to="/mypage/calls" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">통화 내역</Link>
             <Link to="/mypage/chats" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">채팅 내역</Link>
             <Link to="/counselor/mypage/settlement/history" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">정산 이력</Link>
+            <Link to="/counselor/mypage/referral" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">추천 현황</Link>
           </div>
           {/* 선지급 미니 */}
           {payout && (
@@ -502,7 +503,23 @@ export default function CounselorMyPage() {
           <span className="text-[#D1D5DB] text-[16px]">›</span>
         </Link>
 
-        {/* [2026-05-31] ⑦ 나만의 메모장 — 본인만 보기/쓰기 */}
+        {/* 상담 스타일 설정 */}
+        <Link to="/counselor/mypage/style" className="rounded-[16px] border border-[#F3F4F6] bg-white px-4 py-3.5 flex items-center justify-between">
+          <span className="text-[14px] font-medium text-[#364153] inline-flex items-center gap-2">
+            ✨ 상담 스타일 설정
+          </span>
+          <span className="text-[#D1D5DB] text-[16px]">›</span>
+        </Link>
+
+        {/* 내 공지사항 작성 — 프로필 페이지의 공지 영역에 표시 */}
+        <Link to="/counselor/mypage/notice-edit" className="rounded-[16px] border border-[#F3F4F6] bg-white px-4 py-3.5 flex items-center justify-between">
+          <span className="text-[14px] font-medium text-[#364153] inline-flex items-center gap-2">
+            📢 내 공지사항 작성
+          </span>
+          <span className="text-[#D1D5DB] text-[16px]">›</span>
+        </Link>
+
+        {/* [2026-05-31] 나만의 메모장 — 본인만 보기/쓰기 */}
         <Link to="/counselor/mypage/memo" className="rounded-[16px] border border-[#F3F4F6] bg-white px-4 py-3.5 flex items-center justify-between">
           <span className="text-[14px] font-medium text-[#364153] inline-flex items-center gap-2">
             📝 나만의 메모장

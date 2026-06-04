@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, Search, X } from 'lucide-react'
+import { Plus, Search, X, Settings2 } from 'lucide-react'
 import { api, ApiError } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Badge, BadgeColor, inputCls } from '../components/table'
 
 /**
@@ -72,7 +73,74 @@ function fmtDate(iso: string): string {
   return iso.slice(0, 10)
 }
 
+/** 슈퍼 전용 정책 패널 */
+function PolicyPanel() {
+  const [rate, setRate] = useState<string>('')
+  const [months, setMonths] = useState<string>('')
+  const [saving, setSaving] = useState(false)
+  const [ok, setOk] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    api<{ rate: number; months: number }>('/admin/referrals/policy')
+      .then((r) => { setRate(String(Math.round(r.rate * 100))); setMonths(String(r.months)) })
+      .catch(() => {})
+  }, [])
+
+  const save = async () => {
+    const rateNum = parseFloat(rate) / 100
+    const mNum = parseInt(months, 10)
+    if (isNaN(rateNum) || rateNum <= 0 || rateNum > 1) { setErr('요율은 0.01~100 사이 숫자(%)'); return }
+    if (isNaN(mNum) || mNum < 1 || mNum > 24) { setErr('기간은 1~24 개월'); return }
+    setSaving(true); setErr(null)
+    try {
+      await api('/admin/referrals/policy', { method: 'PUT', body: JSON.stringify({ rate: rateNum, months: mNum }) })
+      setOk(true); setTimeout(() => setOk(false), 2000)
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : (e as Error).message)
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="border border-amber-200 bg-amber-50 rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
+      <div className="flex items-center gap-2 text-amber-700 font-semibold text-sm">
+        <Settings2 className="w-4 h-4" />
+        추천 정책 <span className="text-amber-500 text-xs font-normal">(슈퍼 전용 — 저장 즉시 신규 추천부터 적용)</span>
+      </div>
+      <div className="flex items-center gap-2 text-sm">
+        <label className="text-gray-600 whitespace-nowrap">인센티브 요율</label>
+        <input
+          type="number" min="0.01" max="100" step="0.01"
+          value={rate} onChange={(e) => setRate(e.target.value)}
+          className="w-20 border border-gray-300 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:border-amber-400"
+        />
+        <span className="text-gray-500">%</span>
+      </div>
+      <div className="flex items-center gap-2 text-sm">
+        <label className="text-gray-600 whitespace-nowrap">적용 기간</label>
+        <input
+          type="number" min="1" max="24" step="1"
+          value={months} onChange={(e) => setMonths(e.target.value)}
+          className="w-16 border border-gray-300 rounded-lg px-2 py-1 text-center text-sm focus:outline-none focus:border-amber-400"
+        />
+        <span className="text-gray-500">개월</span>
+      </div>
+      <button
+        onClick={save} disabled={saving}
+        className="px-4 py-1.5 text-sm rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-medium disabled:opacity-50"
+      >
+        {saving ? '저장 중…' : ok ? '저장 완료 ✓' : '저장'}
+      </button>
+      {err && <span className="text-rose-500 text-xs">{err}</span>}
+      <p className="w-full text-xs text-amber-600 -mt-1">
+        ※ 기존 추천 관계는 등록 당시 요율·기간이 유지됩니다. 변경은 이후 신규 추천부터 적용.
+      </p>
+    </div>
+  )
+}
+
 export default function ReferralList() {
+  const { admin } = useAuth()
   const [month, setMonth] = useState<string>(defaultMonth())
   const [status, setStatus] = useState<string>('')
   const [items, setItems] = useState<Item[]>([])
@@ -139,12 +207,15 @@ export default function ReferralList() {
 
   return (
     <div className="space-y-4 text-sm max-w-[1100px]">
+      {/* 슈퍼 전용 정책 패널 */}
+      {admin?.is_super && <PolicyPanel />}
+
       {/* 타이틀 + 등록 */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">상담사 추천 수당 (프로모션)</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            가입 후 6개월 한정 · 1~3개월 2% · 4~6개월 1% · 매월 1~5일 수동 지급 (전월 매출 기준)
+            수익금의 N% · N개월 한정 · 매월 1일 정산 자동 처리 (전월 수익금 기준)
           </p>
         </div>
         <button
