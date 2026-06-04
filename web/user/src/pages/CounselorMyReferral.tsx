@@ -74,8 +74,8 @@ export default function CounselorMyReferral() {
     }
     Kakao.Share.sendDefault({
       objectType: 'text',
-      text: `사주플랜 상담사로 활동해보세요!\n추천 코드 [${data.referral_code}]로 신청하시면 함께 혜택을 받을 수 있습니다.`,
-      link: { mobileWebUrl: 'https://sajuplan.com/mypage/counselor-apply', webUrl: 'https://sajuplan.com/mypage/counselor-apply' },
+      text: `사주플랜 상담사로 활동해보세요!\n추천 코드 [${data.referral_code}]로 신청하시면 수익금의 일부를 함께 나눌 수 있습니다.\n\n📱 앱스토어 / 구글플레이에서 '사주플랜' 검색 → 설치 → 상담사 신청 시 추천 코드 입력`,
+      link: { mobileWebUrl: 'https://sajuplan.com', webUrl: 'https://sajuplan.com' },
     })
   }
 
