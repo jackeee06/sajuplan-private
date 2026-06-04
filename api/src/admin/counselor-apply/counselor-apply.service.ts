@@ -473,20 +473,21 @@ export class AdminCounselorApplyService {
     // 신청서 첨부파일을 member 폴더로 복사 + member_file insert
     await this.transferFilesToMember(memberId, extras);
 
-    // ─── 추천인 코드 처리 (2026-06-04) ───────────────────────────────────────
-    // 1) 승인된 상담사에게 고유 referral_code 발급 (없으면 생성)
+    // ─── 추천인 코드 처리 (2026-06-04, v2 2026-06-04) ────────────────────────
+    // 1) 승인된 상담사에게 referral_code = mb_id 로 발급 (없으면 생성)
     await this.sql`
       UPDATE member
-         SET referral_code = 'CSR-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT || id::TEXT), 1, 8))
+         SET referral_code = mb_id
        WHERE id = ${memberId} AND referral_code IS NULL
     `;
 
     // 2) 신청서에 추천인 코드가 있으면 counselor_referral 등록
-    const referrerCode = String(extras.referrer_code ?? '').trim().toUpperCase();
+    //    대소문자 구분 없이 mb_id(=referral_code) 검색 (LOWER 비교)
+    const referrerCode = String(extras.referrer_code ?? '').trim().toLowerCase();
     if (referrerCode) {
       const referrerRows = await this.sql<{ id: number }[]>`
         SELECT id FROM member
-         WHERE referral_code = ${referrerCode}
+         WHERE LOWER(referral_code) = ${referrerCode}
            AND role = 'counselor'
            AND left_at IS NULL
          LIMIT 1

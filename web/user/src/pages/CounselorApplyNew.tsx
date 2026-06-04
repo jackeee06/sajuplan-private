@@ -978,7 +978,7 @@ export default function CounselorApplyNew() {
               value={referrerCode}
               onChange={(e) => setReferrerCode(e.target.value.toUpperCase())}
               maxLength={12}
-              placeholder="예: CSR-AB12CD34"
+              placeholder="예: jackee (추천인의 아이디)"
               className="w-full border border-gray-200 rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:border-[#9b7af7] focus:bg-white focus:outline-none transition"
             />
             <p className="text-[12px] text-gray-400 mt-1">

@@ -96,7 +96,7 @@ export default function CounselorMyReferral() {
                 </button>
               </div>
               <p className="text-[12px] text-[#99A1AF] mt-1">
-                이 코드를 상담사 신청 시 입력하면 수익금의 {ratePct ?? 1}%를 나눠 받을 수 있습니다.
+                신청서에 내 아이디를 입력하면 수익금의 {ratePct ?? 1}%를 나눠 받을 수 있습니다.
               </p>
               <button
                 onClick={shareKakao}
