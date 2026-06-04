@@ -161,7 +161,10 @@ export default function CounselorApplyNew() {
 
   const [submitOpen, setSubmitOpen] = useState(false)
   // 약관 동의 (지원서 풀폼일 때만 노출. 회원·비회원 공통 — 안전 우선)
-  const [referrerCode, setReferrerCode] = useState('')   // 추천인 코드 (선택)
+  const [referrerCode, setReferrerCode] = useState('')        // 추천인 코드 (선택)
+  const [referrerNickname, setReferrerNickname] = useState<string | null>(null)
+  const [referrerChecking, setReferrerChecking] = useState(false)
+  const referrerTimerRef = useRef<number | null>(null)
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [agreePrivacy, setAgreePrivacy] = useState(false)
   const [agreeEmail, setAgreeEmail] = useState(false)
@@ -976,14 +979,43 @@ export default function CounselorApplyNew() {
             <input
               type="text"
               value={referrerCode}
-              onChange={(e) => setReferrerCode(e.target.value.toUpperCase())}
-              maxLength={12}
+              onChange={(e) => {
+                const val = e.target.value
+                setReferrerCode(val)
+                setReferrerNickname(null)
+                if (referrerTimerRef.current) clearTimeout(referrerTimerRef.current)
+                const trimmed = val.trim()
+                if (!trimmed) return
+                setReferrerChecking(true)
+                referrerTimerRef.current = window.setTimeout(async () => {
+                  try {
+                    const res = await fetch(
+                      `/api/user/counselor-apply/check-referral-code?code=${encodeURIComponent(trimmed)}`
+                    )
+                    const data = await res.json() as { found: boolean; nickname: string | null }
+                    setReferrerNickname(data.found ? (data.nickname ?? trimmed) : '')
+                  } catch { setReferrerNickname('') }
+                  finally { setReferrerChecking(false) }
+                }, 500)
+              }}
+              maxLength={30}
               placeholder="예: jackee (추천인의 아이디)"
               className="w-full border border-gray-200 rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-900 placeholder-gray-400 focus:border-[#9b7af7] focus:bg-white focus:outline-none transition"
             />
-            <p className="text-[12px] text-gray-400 mt-1">
-              추천인 코드 입력 시 가입 후 {/* N */}개월간 수익금의 일부가 추천인에게 지급됩니다.
-            </p>
+            {/* 닉네임 실시간 확인 */}
+            {referrerChecking && (
+              <p className="text-[12px] text-gray-400 mt-1">확인 중…</p>
+            )}
+            {!referrerChecking && referrerCode.trim() && referrerNickname !== null && (
+              referrerNickname
+                ? <p className="text-[12px] text-emerald-600 mt-1 font-medium">✓ {referrerNickname}</p>
+                : <p className="text-[12px] text-rose-500 mt-1">존재하지 않는 아이디입니다.</p>
+            )}
+            {!referrerCode.trim() && (
+              <p className="text-[12px] text-gray-400 mt-1">
+                추천인의 아이디를 입력하면 수익금의 일부가 추천인에게 지급됩니다.
+              </p>
+            )}
           </div>
         )}
 

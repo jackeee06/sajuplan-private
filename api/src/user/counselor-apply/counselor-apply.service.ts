@@ -306,6 +306,25 @@ export class UserCounselorApplyService {
    * 2) post_apply.extras->>'mb_id' 가 pending/accepted 상태로 겹쳐도 안 됨
    * 형식 위반(영숫자 4~20자)도 사용 불가로 응답해서 프론트가 즉시 안내.
    */
+  /** 추천인 코드(= mb_id) 확인 — 닉네임 반환. 대소문자 무관. */
+  async checkReferralCode(code: string): Promise<{
+    found: boolean;
+    nickname: string | null;
+    mb_id: string | null;
+  }> {
+    const c = (code ?? '').trim().toLowerCase();
+    if (!c) return { found: false, nickname: null, mb_id: null };
+    const rows = await this.sql<{ mb_id: string; nickname: string | null }[]>`
+      SELECT mb_id, nickname FROM member
+       WHERE LOWER(referral_code) = ${c}
+         AND role = 'counselor'
+         AND left_at IS NULL
+       LIMIT 1
+    `;
+    if (rows.length === 0) return { found: false, nickname: null, mb_id: null };
+    return { found: true, nickname: rows[0].nickname, mb_id: rows[0].mb_id };
+  }
+
   async checkMbIdAvailable(rawMbId: string): Promise<{ available: boolean; reason?: string }> {
     const mbId = (rawMbId ?? '').trim();
     if (!mbId) return { available: false, reason: '아이디를 입력해주세요.' };

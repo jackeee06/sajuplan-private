@@ -77,6 +77,14 @@ export class UserCounselorApplyController {
     return this.svc.checkPhoneDuplicate(phone ?? '');
   }
 
+  /** GET /api/user/counselor-apply/check-referral-code?code=jackee
+   *  추천인 코드(= mb_id) 확인 — 닉네임 반환.
+   *  found=false 면 존재하지 않는 코드. 인증 불필요 (공개). */
+  @Get('check-referral-code')
+  async checkReferralCode(@Query('code') code?: string) {
+    return this.svc.checkReferralCode(code ?? '');
+  }
+
   /** GET /api/user/counselor-apply/check-mb-id?mb_id=foo
    *  아이디 중복 체크. member 테이블 + 진행중 신청서 양쪽 검사.
    *  available=true 면 사용 가능. */
