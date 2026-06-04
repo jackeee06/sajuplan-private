@@ -4,18 +4,15 @@ import { defineConfig, devices } from '@playwright/test'
  * Sajumoon E2E 테스트 설정.
  *
  * 환경 선택:
- *   TARGET=test  → https://sajumoon.kr (test 서버, 기본값)
- *   TARGET=prod  → https://sajuplan.com (운영 서버, 신규 브랜드)
+ *   TARGET=prod  → https://sajuplan.com (운영 서버, 기본값 — test 서버 폐기됨)
  *
  * 실행:
- *   npm test                      → test 서버
- *   TARGET=prod npm test          → 운영 서버 (안전한 read-only 시나리오만)
+ *   npm test                      → prod 서버
  *   npx playwright test --headed  → 브라우저 보이게 실행 (디버깅)
  */
 
-const TARGET = process.env.TARGET ?? 'test'
+const TARGET = process.env.TARGET ?? 'prod'
 const BASE_URLS: Record<string, string> = {
-  test: 'https://sajumoon.kr',
   prod: 'https://sajuplan.com',
 }
 const BASE_URL = BASE_URLS[TARGET] ?? BASE_URLS.test
