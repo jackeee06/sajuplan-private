@@ -7,8 +7,11 @@ import { ExecutionContext, Injectable } from '@nestjs/common';
 @Injectable()
 class AppThrottlerGuard extends ThrottlerGuard {
   protected async shouldSkip(ctx: ExecutionContext): Promise<boolean> {
-    const req = ctx.switchToHttp().getRequest<{ url?: string }>();
+    const req = ctx.switchToHttp().getRequest<{ url?: string; method?: string }>();
     if (req.url?.startsWith('/admin/')) return true;
+    // GET은 읽기 전용 — 브라우저 폴링·탭 전환 등에서 대량 발생하나 보안 위협 없음.
+    // 로그인(POST)·결제·작성 등 쓰기 작업은 그대로 throttle 적용.
+    if (req.method === 'GET') return true;
     return super.shouldSkip(ctx);
   }
 }
@@ -30,12 +33,13 @@ import { CronModule } from './cron/cron.module';
       cache: true,
       envFilePath: ['.env', '.env.defaults'],
     }),
-    // [Audit E-W6/I-1] 비정상 트래픽 차단 — 정상 사용자(페이지당 ajax 다중 호출 포함)는 절대 안 닿는 수준.
-    //   default: 분당 1200회 = 초당 20회. 한 페이지 로드에 ajax 30개 가정해도 분당 40페이지 가능.
-    //   login: 분당 20회 (정상 사용자는 1~5회. 20회면 brute-force 차단 충분).
+    // [Audit E-W6/I-1] 비정상 트래픽 차단.
+    //   GET 요청은 AppThrottlerGuard.shouldSkip 에서 전면 면제 (읽기 전용, 보안 위협 없음).
+    //   default(POST·PUT·DELETE): 분당 6000회. 일반 쓰기 작업 보호.
+    //   login: 분당 60회. brute-force 차단.
     ThrottlerModule.forRoot([
-      { name: 'default', ttl: 60_000, limit: 1_200 },
-      { name: 'login', ttl: 60_000, limit: 20 },
+      { name: 'default', ttl: 60_000, limit: 6_000 },
+      { name: 'login', ttl: 60_000, limit: 60 },
     ]),
     SharedModule,
     AlertsModule,
