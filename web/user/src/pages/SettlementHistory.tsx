@@ -142,6 +142,9 @@ export default function SettlementHistory() {
           ) : null}
           {(() => {
             const estimatedPayout = Number(headerSummary?.estimated_payout ?? 0)
+            const bd = (headerSummary as { payout_breakdown?: { price_tot?: number; vat_amount?: number; withholding_tax?: number; reply_fee?: number } } | null)?.payout_breakdown
+            const priceTot = bd?.price_tot ?? 0
+            const deduction = (bd?.vat_amount ?? 0) + (bd?.withholding_tax ?? 0) + (bd?.reply_fee ?? 0)
             return (
               <>
                 <div className="mt-2 flex items-baseline gap-2">
@@ -150,6 +153,11 @@ export default function SettlementHistory() {
                     {estimatedPayout.toLocaleString()}원
                   </span>
                 </div>
+                {priceTot > 0 && (
+                  <p className="mt-[3px] text-[11px] text-[#B0B8C1] tabular-nums">
+                    정산비 {priceTot.toLocaleString()} − 공제 {deduction.toLocaleString()}(부가세+원천징수) = {estimatedPayout.toLocaleString()}원
+                  </p>
+                )}
                 <p className="mt-2 text-[12px] leading-[150%] text-[#9CA3AF]">
                   ※ 수익금 = 상담료 × 수익률 적용 후 원천징수(3.3%) 공제하여 입금됩니다.
                 </p>
