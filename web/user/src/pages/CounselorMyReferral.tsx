@@ -16,10 +16,23 @@ interface ReferralItem {
   total_paid: number
 }
 
+interface ReferredByItem {
+  id: number
+  referrer_mb_id: string | null
+  referrer_nickname: string | null
+  registered_at: string
+  expires_at: string
+  months_snapshot: number
+  rate_snapshot: number
+  status: string
+  total_deducted: number
+}
+
 interface ReferralData {
   referral_code: string | null
   referrals: ReferralItem[]
   total_paid_all: number
+  referred_by: ReferredByItem[]
 }
 
 function statusLabel(s: string): string {
@@ -165,6 +178,53 @@ export default function CounselorMyReferral() {
             </div>
           )}
         </div>
+
+        {/* 나를 추천한 상담사 */}
+        {!loading && data && data.referred_by.length > 0 && (
+          <div>
+            <p className="text-[13px] font-semibold text-[#1E2939] mb-3">나를 추천한 상담사</p>
+            <div className="space-y-2">
+              {data.referred_by.map((r) => {
+                const now = new Date()
+                const start = new Date(r.registered_at)
+                const end = new Date(r.expires_at)
+                const totalMonths = r.months_snapshot
+                const elapsed = Math.min(
+                  totalMonths,
+                  Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30))
+                )
+                const pct = Math.round(r.rate_snapshot * 100)
+                return (
+                  <div key={r.id} className="rounded-xl border border-[#F3F4F6] bg-[#fafafa] px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[14px] font-medium text-[#1E2939]">
+                          {r.referrer_nickname ?? r.referrer_mb_id ?? '(알 수 없음)'}
+                        </p>
+                        <p className="text-[11px] text-[#99A1AF] mt-0.5">
+                          {elapsed}개월/{totalMonths}개월 진행 중 · 수익금의 {pct}% 차감
+                        </p>
+                        <p className="text-[11px] text-[#99A1AF]">
+                          만료: {end.toISOString().slice(0, 10)}
+                        </p>
+                      </div>
+                      <div className="text-right flex flex-col items-end gap-1">
+                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${statusColor(r.status)}`}>
+                          {statusLabel(r.status)}
+                        </span>
+                        {r.total_deducted > 0 && (
+                          <p className="text-[12px] text-[#FB2C36] tabular-nums">
+                            -{r.total_deducted.toLocaleString()}원 차감됨
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       <BottomNav />

@@ -424,6 +424,17 @@ export class AdminReferralsService {
       total_paid: number;
     }[];
     total_paid_all: number;
+    referred_by: {
+      id: number;
+      referrer_mb_id: string | null;
+      referrer_nickname: string | null;
+      registered_at: string;
+      expires_at: string;
+      months_snapshot: number;
+      rate_snapshot: number;
+      status: string;
+      total_deducted: number;
+    }[];
   }> {
     const codeRows = await this.sql<{ referral_code: string | null }[]>`
       SELECT referral_code FROM member WHERE id = ${memberId} LIMIT 1
@@ -469,6 +480,46 @@ export class AdminReferralsService {
     }));
 
     const total_paid_all = referrals.reduce((s, r) => s + r.total_paid, 0);
-    return { referral_code, referrals, total_paid_all };
+
+    // 나를 추천한 상담사 (referee_id = me)
+    const referredByRows = await this.sql<{
+      id: number;
+      referrer_mb_id: string | null;
+      referrer_nickname: string | null;
+      registered_at: Date;
+      expires_at: Date;
+      months_snapshot: number;
+      rate_snapshot: string;
+      status: string;
+      total_deducted: string | null;
+    }[]>`
+      SELECT
+        r.id,
+        rer.mb_id       AS referrer_mb_id,
+        rer.nickname    AS referrer_nickname,
+        r.registered_at, r.expires_at,
+        r.months_snapshot, r.rate_snapshot, r.status,
+        (SELECT COALESCE(SUM(p.paid_amount), 0)
+           FROM counselor_referral_payment p
+          WHERE p.referral_id = r.id) AS total_deducted
+      FROM counselor_referral r
+      LEFT JOIN member rer ON rer.id = r.referrer_id
+      WHERE r.referee_id = ${memberId}
+      ORDER BY r.created_at DESC
+    `;
+
+    const referred_by = referredByRows.map(r => ({
+      id: Number(r.id),
+      referrer_mb_id: r.referrer_mb_id,
+      referrer_nickname: r.referrer_nickname,
+      registered_at: new Date(r.registered_at).toISOString(),
+      expires_at: new Date(r.expires_at).toISOString(),
+      months_snapshot: Number(r.months_snapshot),
+      rate_snapshot: parseFloat(r.rate_snapshot),
+      status: r.status,
+      total_deducted: Number(r.total_deducted ?? 0),
+    }));
+
+    return { referral_code, referrals, total_paid_all, referred_by };
   }
 }
