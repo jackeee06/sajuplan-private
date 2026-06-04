@@ -123,6 +123,23 @@ export default function SettlementHistory() {
               </span>
             </div>
           </div>
+          {/* 추천 수당 적립/차감 — 있을 때만 표시 */}
+          {(headerSummary as { referral_earn?: number; referral_deduct?: number } | null)?.referral_earn ? (
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-[12px] text-emerald-600">추천 수당</span>
+              <span className="text-[13px] font-semibold text-emerald-600 tabular-nums">
+                +{((headerSummary as { referral_earn?: number }).referral_earn ?? 0).toLocaleString()}원
+              </span>
+            </div>
+          ) : null}
+          {(headerSummary as { referral_deduct?: number } | null)?.referral_deduct ? (
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-[12px] text-rose-500">추천 수당 차감</span>
+              <span className="text-[13px] font-semibold text-rose-500 tabular-nums">
+                -{((headerSummary as { referral_deduct?: number }).referral_deduct ?? 0).toLocaleString()}원
+              </span>
+            </div>
+          ) : null}
           {(() => {
             const estimatedPayout = Number(headerSummary?.estimated_payout ?? 0)
             return (
@@ -290,6 +307,33 @@ function IncomeTab() {
         <ul>
           {items.map((it) => {
             const isNegative = it.amount < 0
+            const isReferral = (it as { rel_table?: string | null }).rel_table === 'counselor_referral'
+            if (isReferral) {
+              // 추천 수당 행 — 별도 스타일
+              return (
+                <li
+                  key={it.id}
+                  className={`grid grid-cols-[1.4fr_1.3fr_1fr_0.6fr_0.9fr] gap-2 px-4 py-3 border-b border-[#F3F4F6] items-center ${
+                    isNegative ? 'bg-rose-50/60' : 'bg-emerald-50/60'
+                  }`}
+                >
+                  <span className="text-[12px] text-[#1E2939] tabular-nums">
+                    {formatDateTime(it.created_at)}
+                  </span>
+                  <span className={`text-[12px] font-medium truncate ${isNegative ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    {isNegative ? '추천 수당 차감' : '추천 수당'}
+                  </span>
+                  <span className="text-[12px] text-[#6A7282] truncate col-span-2">
+                    {it.content?.replace(/\[추천 수당[^\]]*\]\s?/, '') ?? ''}
+                  </span>
+                  <span className={`text-right text-[13px] font-bold tabular-nums ${
+                    isNegative ? 'text-rose-600' : 'text-emerald-600'
+                  }`}>
+                    {isNegative ? '' : '+'}{it.amount.toLocaleString()}원
+                  </span>
+                </li>
+              )
+            }
             return (
               <li
                 key={it.id}

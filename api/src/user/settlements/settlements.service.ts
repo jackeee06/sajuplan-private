@@ -35,6 +35,10 @@ export interface SettlementSummary {
   };
   /** 정산 기준 월 (YYYY-MM). 요청 시 지정 가능, 미지정 시 이번달. */
   month: string;
+  /** 추천인 수당 적립액 (이번달, 없으면 0) */
+  referral_earn: number;
+  /** 피추천 수당 차감액 (이번달, 없으면 0) */
+  referral_deduct: number;
 }
 
 export interface IncomeItem {
@@ -48,6 +52,8 @@ export interface IncomeItem {
   /** 고객 표시명 (마스킹) */
   customer_name: string | null;
   consultation_id: number | null;
+  /** counselor_referral 항목 구분용 */
+  rel_table: string | null;
 }
 
 export interface SettlementMonthRow {
@@ -104,6 +110,8 @@ export class UserSettlementsService {
       royalty_pro_pct: number | null;
       other_plus: string | null;
       other_minus: string | null;
+      referral_earn: string | null;    // 추천인 수당 적립 (이번달)
+      referral_deduct: string | null;  // 피추천 수당 차감 (이번달)
     }[]>`
       SELECT
         -- [2026-05-28 강한 분리 정책] 상담사 누적 수익금 = 상담 적립 row 만.
@@ -168,7 +176,20 @@ export class UserSettlementsService {
             AND use_point > 0
             AND (rel_table IS NULL OR rel_table NOT IN ('consultation','member','@member','@thesaju_consulting','@platform_consulting'))
             AND to_char(created_at, 'YYYY-MM') = ${targetMonth}
-        )::text AS other_minus
+        )::text AS other_minus,
+        -- 추천 수당 (별도 표시용 — 계산은 other_plus/minus에 이미 포함)
+        (SELECT COALESCE(SUM(earn_point), 0) FROM point_history
+          WHERE member_id = ${memberId}
+            AND earn_point > 0
+            AND rel_table = 'counselor_referral'
+            AND to_char(created_at, 'YYYY-MM') = ${targetMonth}
+        )::text AS referral_earn,
+        (SELECT COALESCE(SUM(use_point), 0) FROM point_history
+          WHERE member_id = ${memberId}
+            AND use_point > 0
+            AND rel_table = 'counselor_referral'
+            AND to_char(created_at, 'YYYY-MM') = ${targetMonth}
+        )::text AS referral_deduct
     `;
     const r = rows[0] ?? {
       this_month: '0', prev_month: '0', balance: 0,
@@ -201,6 +222,8 @@ export class UserSettlementsService {
       balance: Number(r.balance ?? 0),
       estimated_payout: estimatedPayout,
       month: targetMonth,
+      referral_earn: Number(r.referral_earn ?? 0),       // 추천인 수당 적립
+      referral_deduct: Number(r.referral_deduct ?? 0),   // 피추천 수당 차감
       payout_breakdown: {
         amt_free: amtFree,
         amt_pro: amtPro,
@@ -258,11 +281,13 @@ export class UserSettlementsService {
       preflag: string | null;
       customer_nickname: string | null;
       customer_name: string | null;
+      rel_table: string | null;
       total: string;
     };
     const rows = await this.sql<Row[]>`
       SELECT ph.id, ph.created_at, ph.content,
              ph.earn_point, ph.use_point, ph.is_paid,
+             ph.rel_table,
              c.id AS consultation_id,
              c.preflag,
              cm.nickname AS customer_nickname,
@@ -274,13 +299,17 @@ export class UserSettlementsService {
               AND ph.rel_id = c.id::text
         LEFT JOIN member cm ON cm.id = c.member_id
        WHERE ph.member_id = ${params.memberId}
-         AND ph.rel_table = 'consultation'
-         -- [2026-05-28 강한 분리 정책] 상담사 수익금 페이지엔 상담사 적립 row 만 노출.
-         --   본인이 회원으로 결제한 차감 row (상담코인 차감) 는 회원 영역(코인 사용내역)에서만 노출.
-         AND ph.earn_point > 0
-         AND ph.content LIKE '%상담코인 증가%'
+         AND (
+           -- 상담 수익 (기존)
+           (ph.rel_table = 'consultation'
+            AND ph.earn_point > 0
+            AND ph.content LIKE '%상담코인 증가%'
+            ${mdFilter})
+           OR
+           -- 추천 수당 적립/차감 (2026-06-04 추가)
+           ph.rel_table = 'counselor_referral'
+         )
          ${dateFilter}
-         ${mdFilter}
        ORDER BY ph.created_at DESC, ph.id DESC
        LIMIT ${limit} OFFSET ${offset}
     `;
@@ -298,6 +327,7 @@ export class UserSettlementsService {
         preflag: (r.preflag === 'Y' || r.preflag === 'N') ? r.preflag : '',
         customer_name: customer ? maskName(customer) : null,
         consultation_id: r.consultation_id ?? null,
+        rel_table: r.rel_table ?? null,  // 추천 수당 구분용
       };
     });
     return { items, total, page, limit };

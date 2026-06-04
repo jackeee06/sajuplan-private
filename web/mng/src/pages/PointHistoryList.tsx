@@ -68,11 +68,12 @@ type Sfl = 'mb_id' | 'po_content'
  *   - consume(소비): 회원 충전 / 회원 상담 사용 / 환불 회수 — rose 톤
  *   - other       : 그 외 (이벤트 보너스, 어드민 조정 등) — 색 없음
  */
-function classifyFlow(h: { rel_table: string | null; earn_point: number; use_point: number }): 'earning' | 'consume' | 'other' {
+function classifyFlow(h: { rel_table: string | null; earn_point: number; use_point: number }): 'earning' | 'consume' | 'referral' | 'other' {
   if (h.rel_table === 'settlement_monthly') return 'earning'
   if (h.rel_table === 'consultation') return h.earn_point > 0 ? 'earning' : 'consume'
   if (h.rel_table === 'payment' || h.rel_table === 'payment_autopay') return 'consume'
   if (h.rel_table === 'refund_request') return 'consume'
+  if (h.rel_table === 'counselor_referral') return 'referral'  // 추천 수당 (2026-06-04)
   return 'other'
 }
 
@@ -332,7 +333,9 @@ export default function PointHistoryList() {
                 ? 'shadow-[inset_4px_0_0_0_#f59e0b]'
                 : flow === 'consume'
                   ? 'shadow-[inset_4px_0_0_0_#fda4af]'
-                  : ''
+                  : flow === 'referral'
+                    ? 'shadow-[inset_4px_0_0_0_#34d399]'
+                    : ''
               return (
                 <tr
                   key={h.id}
@@ -344,6 +347,9 @@ export default function PointHistoryList() {
                     )}
                     {flow === 'consume' && (
                       <span className="inline-block mr-1.5 px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-medium align-middle">소비</span>
+                    )}
+                    {flow === 'referral' && (
+                      <span className="inline-block mr-1.5 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-medium align-middle">추천</span>
                     )}
                     {h.content || <span className="text-gray-300">-</span>}
                   </Td>
