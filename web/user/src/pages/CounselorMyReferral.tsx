@@ -41,7 +41,7 @@ export default function CounselorMyReferral() {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
-    api<ReferralData>('/user/settlements/referral')
+    api.get<ReferralData>('/user/settlements/referral')
       .then(setData)
       .catch(() => {})
       .finally(() => setLoading(false))
