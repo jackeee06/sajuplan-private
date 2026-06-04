@@ -230,7 +230,7 @@ export class UserSettlementsService {
         royalty_free_pct: royFreePct,
         royalty_pro_pct: royProPct,
         price_free: 0,
-        price_paid: priceTot,
+        price_paid: thisMonthEarning,   // 상담 수익 (차감 전 순수 상담분)
         price_other: priceOther,
         price_tot: priceTot,
         supply_price: supplyPrice,
