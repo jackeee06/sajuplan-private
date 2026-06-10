@@ -20,33 +20,13 @@ test.use({ storageState: 'user_dual_storage.json' })
 
 test.describe('상담사 선지급 정책 (read-only)', () => {
   test.beforeEach(async ({ page }) => {
-    if (process.env.TARGET === 'prod') test.skip()
+    // TEST 서버 폐기(2026-05-29) → prod 단일. storageState 로 세션 보장.
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-
-    const apiBase = 'https://api.sajumoon.kr'
-    const result = await page.evaluate(async (base) => {
-      try {
-        const me = await fetch(`${base}/api/user/auth/me`, { credentials: 'include' })
-        if (me.ok) {
-          const j = await me.json().catch(() => null)
-          if (j?.ok === true || j?.member) return { ok: true }
-        }
-        const login = await fetch(`${base}/api/user/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mb_id: 'e2e_dual', password: 'e2e_test_2026' }),
-          credentials: 'include',
-        })
-        return { ok: login.ok, status: login.status }
-      } catch (e) {
-        return { ok: false, error: (e as Error).message }
-      }
-    }, apiBase)
-    if (!result.ok) test.skip(true, `e2e_dual 인증 실패 (${JSON.stringify(result).slice(0, 80)})`)
+    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {})
   })
 
   test('GET /api/user/counselor-mypage/payout/available — 정책 5%/3.3%/70%/30000 응답', async ({ page }) => {
-    const apiBase = 'https://api.sajumoon.kr'
+    const apiBase = 'https://api.sajuplan.com'
     const body = await page.evaluate(async (base) => {
       const r = await fetch(`${base}/api/user/counselor-mypage/payout/available`, {
         credentials: 'include',
@@ -74,7 +54,7 @@ test.describe('상담사 선지급 정책 (read-only)', () => {
   })
 
   test('GET /api/user/counselor-mypage/payout/history — 응답 형식', async ({ page }) => {
-    const apiBase = 'https://api.sajumoon.kr'
+    const apiBase = 'https://api.sajuplan.com'
     const body = await page.evaluate(async (base) => {
       const r = await fetch(`${base}/api/user/counselor-mypage/payout/history?limit=30`, {
         credentials: 'include',
@@ -91,7 +71,7 @@ test.describe('상담사 선지급 정책 (read-only)', () => {
 
   test('상담사 마이 → 수익금 페이지 로드', async ({ page }) => {
     await page.goto('/counselor/mypage/payout')
-    await page.waitForLoadState('networkidle', { timeout: 15_000 })
+    await page.waitForLoadState('networkidle', { timeout: 12_000 }).catch(() => {})
 
     const rootText = (await page.locator('#root').textContent()) ?? ''
     expect(rootText.trim().length, '수익금 페이지 빈 화면').toBeGreaterThan(20)

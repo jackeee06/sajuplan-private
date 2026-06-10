@@ -28,6 +28,7 @@ function pathToGroup(pathname: string): MenuKey | null {
       || pathname.startsWith('/notices') || pathname.startsWith('/events') || pathname.startsWith('/post-reports')
       || pathname.startsWith('/posts-overview')) return 'board'
   if (pathname.startsWith('/push-notifications') || pathname.startsWith('/push-guide') || pathname.startsWith('/alert-guide') || pathname.startsWith('/alimtalk')) return 'notification'
+  if (pathname.startsWith('/coupon-coin-guide')) return 'sales'
   if (pathname.startsWith('/banners') || pathname.startsWith('/popup-layers')) return 'misc'
   if (pathname.startsWith('/admin-users')) return 'permission'
   if (pathname.startsWith('/settings') || pathname.startsWith('/contents')) return 'config'
@@ -132,7 +133,7 @@ export default function Sidebar() {
                     <li><NavLink to="/points/history" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>포인트 관리</NavLink></li>
                     <li><NavLink to="/settlements" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>정산 이력</NavLink></li>
                     <li><NavLink to="/payouts" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 선지급 관리</NavLink></li>
-                    <li><NavLink to="/referrals" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 프로모션</NavLink></li>
+                    <li><NavLink to="/referrals" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 추천수익금</NavLink></li>
                   </ul>
                 )}
               </li>
@@ -142,6 +143,12 @@ export default function Sidebar() {
                 <NavLink to="/coupon-zones" className={({ isActive }) => `menu-item ${isActive ? 'menu-item-active' : 'menu-item-inactive'}`}>
                   <Ticket className="w-4 h-4 flex-shrink-0" />
                   <span>쿠폰존 관리</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/coupon-coin-guide" className={({ isActive }) => `menu-item ${isActive ? 'menu-item-active' : 'menu-item-inactive'}`}>
+                  <Ticket className="w-4 h-4 flex-shrink-0 text-violet-500" />
+                  <span>쿠폰·코인 정책</span>
                 </NavLink>
               </li>
 

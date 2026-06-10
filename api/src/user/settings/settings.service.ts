@@ -24,6 +24,7 @@ export class UserSettingsService {
          OR (namespace = 'site' AND key IN ('title', 'kakao_channel_url'))
          OR namespace = 'review'
          OR (namespace = 'maintenance' AND key IN ('banner_active', 'banner_title', 'banner_body', 'banner_link'))
+         OR (namespace = 'counselor' AND key = 'style_options')
        )
     `;
     const out: Record<string, string> = {};

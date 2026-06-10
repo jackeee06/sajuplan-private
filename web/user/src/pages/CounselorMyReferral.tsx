@@ -68,9 +68,14 @@ export default function CounselorMyReferral() {
   }
 
   const shareKakao = () => {
-    if (!data?.referral_code || !(window as unknown as Record<string, unknown>).Kakao) return
+    if (!data?.referral_code) return
     const Kakao = (window as unknown as Record<string, unknown>).Kakao as {
+      isInitialized: () => boolean
       Share: { sendDefault: (o: unknown) => void }
+    } | undefined
+    if (!Kakao?.isInitialized()) {
+      alert('카카오 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.')
+      return
     }
     Kakao.Share.sendDefault({
       objectType: 'text',

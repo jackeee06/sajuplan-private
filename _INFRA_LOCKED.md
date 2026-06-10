@@ -58,6 +58,40 @@
 
 ---
 
+### 🚨 BizM 알림톡 템플릿 버튼 타입 (DB `alimtalk_template`)
+
+> **AI 포함 누구도 BizM 콘솔 확인 없이 아래 컬럼을 수정하면 절대 안 됨.**  
+> `primary_btn_type` / `primary_btn_url` 은 BizM 카카오와의 계약값.  
+> 변경 시 K108 오류로 해당 알림톡 전체 발송 중단.  
+> 2026-06-08 사고: AI가 컬럼 신설 시 기본값 WL로 밀어넣어 5개 템플릿 발송 중단 → 수동 복구.
+
+#### AL(앱링크) 타입 고정 템플릿 — `primary_btn_type = 'AL'`, url = `sajuplan://#{url}`
+
+| template_code | 용도 |
+|---|---|
+| `chat_request_to_counselor` | 채팅 상담 요청 알림 → 상담사 |
+| `counselor_request_v1` | 전화 상담 요청 알림 → 상담사 |
+| `qa_ask_v2` | 고객 문의 도착 → 상담사 |
+| `qa_answer_v2` | 문의 답변 도착 → 회원 |
+| `review_for_counselor_v2` | 새 후기 → 상담사 |
+| `review_req_v2` | 후기 작성 요청 → 회원 |
+| `chat_counseling_v2` | (죽은 템플릿, 예방 차원) |
+
+#### WL(웹링크) 타입 고정 — `primary_btn_type = 'WL'`
+
+| template_code | url 패턴 |
+|---|---|
+| `counselor_request_v1` | — (AL로 변경됨) |
+| `coupon_req_v2` | `https://sajuplan.com/#{url}` |
+| `review_req_v2` | — (AL로 변경됨) |
+
+> **버튼 없는 템플릿** (primary_btn_url 비워야 함):  
+> `chat_auto_cancelled_to_member`, `counselor_state_changed_v2`, `counselor_v2`,  
+> `ops_admin_alert_v2`, `order_bankinfo_v2`, `order_payment_ok_v2`,  
+> `payout_request_*`, `register_*`, `settlement_complete`
+
+---
+
 ## 🟡 변경 가능하지만 주의 필요
 
 | 항목 | 조건 |

@@ -246,7 +246,7 @@ export default function CustomerList() {
                 <Th align="left">이름</Th>
                 <Th align="left">휴대폰</Th>
                 <Th align="left">권한</Th>
-                <Th align="right">소비포인트</Th>
+                <Th align="right">코인</Th>
                 <Th align="center">성별</Th>
                 <Th align="right">연령</Th>
                 <Th align="right">결제</Th>

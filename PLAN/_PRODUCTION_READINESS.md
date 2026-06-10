@@ -43,7 +43,7 @@
 - [x] 환불 시 어떤 balance 에서 빠지는지 명확화 ([MONEY_FLOW.md §5](../MONEY_FLOW.md))
       - 결제환불 = point.paid_balance 회수, 카드 실환불은 stub
       - 상담환불 = free/pro 비율로 복구 + consultation.refunded_amount += → 정산 자동 차감
-- [ ] 추천인 보상 정책 확정 (코인 vs 수익금) — 사장님 의사결정 대기
+- [x] 추천인 보상 정책 확정 — 상담사 추천수당 = 수익금(`earning_balance`), 회원 가입 추천 = 무료코인(`free_balance`) 코드 구현 완료
 
 ### 3. 상담사 정산 검증
 - [x] 매월 1일 정산 cron 등록 확인 (2026-05-25)
@@ -244,7 +244,7 @@
 ## 📋 사장님 의사결정 대기 사항 (우선순위 ↓)
 
 1. [ ] m2net 답변 받은 후 건당 정책 옵션 A/B/C 결정 — 사장님 본인 처리 명시 (2026-05-29)
-2. [ ] 추천인 보상 = 코인 vs 수익금
+2. [x] ~~추천인 보상 = 코인 vs 수익금~~ — 상담사 추천수당 = `earning_balance`, 회원 가입 추천 = `free_balance` 결정·구현 완료
 3. [x] ~~sajumoon.kr → test.sajuplan.com 마이그레이션 시점~~ — test 서버 미사용 결정 (2026-05-29)
 4. [ ] E2E 테스트 계정 셋업 승인 (test 서버 DB INSERT)
 5. [ ] 어드민 admin 비밀번호 변경 (e2e global-setup 비번 갱신 필요)

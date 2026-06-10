@@ -221,13 +221,13 @@ function Kpi({
   }
   const body = (
     <>
-      <div className="text-[11px] text-gray-500 dark:text-gray-400">{label}</div>
-      <div className={`text-xl font-bold tabular-nums leading-tight mt-0.5 ${valueTone[tone]}`}>{value}</div>
-      {sub && <div className="text-[10px] text-gray-400 mt-0.5">{sub}</div>}
+      <div className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">{label}</div>
+      <div className={`text-base font-bold tabular-nums leading-tight mt-0.5 ${valueTone[tone]}`}>{value}</div>
+      {sub && <div className="text-[9px] text-gray-400 mt-0.5 leading-tight">{sub}</div>}
     </>
   )
   const baseCls =
-    'rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2'
+    'rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5'
   if (to) {
     return (
       <Link to={to} className={`${baseCls} block hover:border-brand-300 hover:shadow-sm transition`}>
@@ -304,8 +304,9 @@ export default function Dashboard() {
         </span>
       </div>
 
-      {/* Row 1 — KPI 9개 (별점 추가) */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-2">
+      {/* Row 1 — KPI 10개 한 줄 */}
+      <div className="overflow-x-auto">
+      <div className="grid grid-cols-10 gap-1.5 min-w-[900px]">
         <Kpi
           label="오늘 매출"
           value={won.format(todayTotal)}
@@ -353,6 +354,7 @@ export default function Dashboard() {
           to="/short-call-refunds"
         />
       </div>
+      </div>
 
       {/* Row 2 — 알림 큐 (항상 표시, 0건은 회색 / 폰트·색 강화 7차) */}
       {alerts.length > 0 && (() => {
@@ -363,20 +365,20 @@ export default function Dashboard() {
               ? 'border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20'
               : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/40'
           }`}>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 overflow-x-auto">
               <AlertTriangle
-                className={`w-5 h-5 flex-shrink-0 ${
+                className={`w-4 h-4 flex-shrink-0 ${
                   hasActive ? 'text-amber-600 dark:text-amber-400' : 'text-gray-400'
                 }`}
               />
-              <span className={`text-sm font-bold ${
+              <span className={`text-xs font-bold whitespace-nowrap ${
                 hasActive
                   ? 'text-amber-800 dark:text-amber-200'
                   : 'text-gray-600 dark:text-gray-300'
               }`}>
                 {hasActive ? '즉시 처리 필요' : '알림 현황'}
               </span>
-              <div className="flex flex-wrap gap-2 ml-2">
+              <div className="flex gap-1.5 ml-1">
                 {alerts.map((a) => {
                   const isActive = a.count > 0
                   const colorCls = !isActive
@@ -388,11 +390,11 @@ export default function Dashboard() {
                     <Link
                       key={a.key}
                       to={a.to}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold ${colorCls}`}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold whitespace-nowrap ${colorCls}`}
                     >
                       {a.label}
-                      <span className={`tabular-nums font-bold ${isActive ? 'text-base' : ''}`}>{a.count}</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <span className="tabular-nums font-bold">{a.count}</span>
+                      <ChevronRight className="w-3 h-3" />
                     </Link>
                   )
                 })}

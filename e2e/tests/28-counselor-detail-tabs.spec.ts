@@ -14,7 +14,9 @@ test.use({ storageState: { cookies: [], origins: [] } })
 /** 리스트에서 첫 번째 상담사 URL을 동적으로 획득 */
 async function getFirstCounselorHref(page: import('@playwright/test').Page): Promise<string> {
   await page.goto('/counselors')
-  await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
+  await page.waitForLoadState('load')
+  // 상담사 카드 로드 대기 (networkidle 금지 — WebSocket 폴링으로 never satisfied)
+  await page.waitForSelector('a[href^="/counselors/"]', { timeout: 10_000 }).catch(() => {})
   const link = page.locator('a[href^="/counselors/"]').first()
   const href = await link.getAttribute('href').catch(() => null)
   return href ?? '/counselors/1'
@@ -42,7 +44,7 @@ test.describe('상담사 상세 — 공지사항 HTML + 탭 sticky 엄격 검증
     })
 
     await page.goto(counselorHref)
-    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
+    await page.waitForLoadState('load').catch(() => {})
 
     // "상담사 공지사항" 섹션 존재 확인
     const noticeHeading = page.getByText('상담사 공지사항')
@@ -76,12 +78,13 @@ test.describe('상담사 상세 — 공지사항 HTML + 탭 sticky 엄격 검증
     })
 
     await page.goto(counselorHref)
-    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
+    await page.waitForLoadState('load').catch(() => {})
 
-    // 탭 3개 button 존재 확인 (Link → button 교체 검증)
-    const introBtn   = page.getByRole('button', { name: '상담사 소개' })
-    const reviewsBtn = page.getByRole('button', { name: /후기/ })
-    const qnaBtn     = page.getByRole('button', { name: /문의/ })
+    // 탭 3개 button 존재 확인 — counselor-tab-area 내부로 범위 한정 (페이지의 다른 /후기/ 버튼과 구분)
+    const tabArea = page.locator('[data-testid="counselor-tab-area"]')
+    const introBtn   = tabArea.getByRole('button', { name: '상담사 소개' })
+    const reviewsBtn = tabArea.getByRole('button', { name: /^후기/ })
+    const qnaBtn     = tabArea.getByRole('button', { name: /^문의/ })
 
     await expect(introBtn, '상담사 소개 탭 버튼 없음').toBeVisible({ timeout: 8_000 })
     await expect(reviewsBtn, '후기 탭 버튼 없음').toBeVisible()
@@ -131,7 +134,7 @@ test.describe('상담사 상세 — 공지사항 HTML + 탭 sticky 엄격 검증
     })
 
     await page.goto(counselorHref)
-    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
+    await page.waitForLoadState('load').catch(() => {})
 
     const reviewsBtn = page.getByRole('button', { name: /후기/ })
     await expect(reviewsBtn, '후기 탭 없음').toBeVisible({ timeout: 8_000 })
@@ -167,7 +170,7 @@ test.describe('상담사 상세 — 공지사항 HTML + 탭 sticky 엄격 검증
 
   test('탭 전환 후 URL 파라미터 변경 확인 (replace 히스토리)', async ({ page }) => {
     await page.goto(counselorHref)
-    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
+    await page.waitForLoadState('load').catch(() => {})
 
     const reviewsBtn = page.getByRole('button', { name: /후기/ })
     await expect(reviewsBtn, '후기 탭 없음').toBeVisible({ timeout: 8_000 })

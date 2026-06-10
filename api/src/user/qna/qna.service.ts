@@ -670,7 +670,7 @@ export class UserCounselorQnaService {
     if (rows.length === 0) {
       throw new NotFoundException('답변을 찾을 수 없습니다.');
     }
-    if (Number(rows[0].counselor_id) !== params.counselorId) {
+    if (Number(rows[0].counselor_id) !== Number(params.counselorId)) {
       throw new ForbiddenException('본인이 작성한 답변만 수정할 수 있습니다.');
     }
     await this.sql`
@@ -699,6 +699,32 @@ export class UserCounselorQnaService {
     return { ok: true };
   }
 
+  /** 상담사 마이페이지 — 미처리(미답변) 건수 반환 */
+  async getPendingCounts(counselorId: number): Promise<{ pending_qna: number; pending_review: number }> {
+    const [qnaRows, reviewRows] = await Promise.all([
+      this.sql<{ cnt: string }[]>`
+        SELECT COUNT(*)::text AS cnt
+          FROM counselor_qna q
+         WHERE q.counselor_id = ${counselorId}
+           AND NOT EXISTS (
+             SELECT 1 FROM counselor_qna_reply r WHERE r.qna_id = q.id
+           )
+      `,
+      this.sql<{ cnt: string }[]>`
+        SELECT COUNT(*)::text AS cnt
+          FROM post_review r
+         WHERE r.counselor_id = ${counselorId}
+           AND NOT EXISTS (
+             SELECT 1 FROM post_review_reply rp WHERE rp.review_id = r.id
+           )
+      `,
+    ]);
+    return {
+      pending_qna: Number(qnaRows[0]?.cnt ?? 0),
+      pending_review: Number(reviewRows[0]?.cnt ?? 0),
+    };
+  }
+
   /** 문의 작성 — 회원 인증 필요 */
   async create(params: {
     counselorId: number;
@@ -720,7 +746,9 @@ export class UserCounselorQnaService {
     }
 
     // 본인 페이지에 본인이 문의 작성 금지
-    if (params.memberId === params.counselorId) {
+    // [2026-06-11 버그수정] JWT sub 는 런타임에 문자열이라 `===` 직접 비교 시 타입 불일치로
+    //   ('141' === 141 = false) 차단이 무력화됐다(self 문의 5건 발생). Number() 로 양변 정규화.
+    if (Number(params.memberId) === Number(params.counselorId)) {
       throw new ForbiddenException('본인 페이지에는 문의할 수 없습니다.');
     }
 
@@ -906,6 +934,17 @@ export class UserCounselorQnaService {
     } catch (e) {
       this.logger.warn(`qa_ask2 발송 예외 counselor=${counselorId}: ${(e as Error).message}`);
     }
+
+    // FCM 푸시 — 앱 백그라운드/종료 상태 대비
+    try {
+      await this.push.sendToTopic('chl_5', {
+        title: '새 문의가 도착했습니다',
+        body: '상담 문의가 접수되었습니다. 확인 후 답변을 남겨주세요.',
+        data: { type: 'qa_ask', counselor_id: String(counselorId), qna_id: String(qnaId), link: `/counselor/mypage/customer-qnas/${qnaId}` },
+      });
+    } catch (e) {
+      this.logger.warn(`qa_ask FCM 예외 counselor=${counselorId}: ${(e as Error).message}`);
+    }
   }
 
   /**
@@ -946,7 +985,7 @@ export class UserCounselorQnaService {
       const res = await this.sms.sendAlimtalkByCode(
         'qa_answer_v2',
         r.member_phone,
-        { 고객명: customerName, 상담사명: counselorName },
+        { 고객명: customerName, 상담사명: counselorName, 문의링크: `/mypage/my-qnas/${qnaId}` },
         '사주플랜 문의글 답변 안내',
       );
       if (!res.ok) {

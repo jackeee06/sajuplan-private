@@ -19,7 +19,6 @@ const POLICY_KEYS = [
   'day15_bonus',
   'day20_bonus',
   'day30_coupon_amount',
-  'coupon_expire_days',
   'daily_total_limit',
   'min_signup_days',
   'ip_daily_limit',
@@ -34,7 +33,6 @@ export interface AttendancePolicy {
   day15_bonus: number;
   day20_bonus: number;
   day30_coupon_amount: number;
-  coupon_expire_days: number;
   daily_total_limit: number;
   min_signup_days: number;
   ip_daily_limit: number;
@@ -68,7 +66,6 @@ export class AdminAttendanceService {
       day15_bonus: num('day15_bonus'),
       day20_bonus: num('day20_bonus'),
       day30_coupon_amount: num('day30_coupon_amount'),
-      coupon_expire_days: num('coupon_expire_days'),
       daily_total_limit: num('daily_total_limit'),
       min_signup_days: num('min_signup_days'),
       ip_daily_limit: num('ip_daily_limit'),
@@ -164,11 +161,12 @@ export class AdminAttendanceService {
     const page = Math.max(1, params.page ?? 1);
     const limit = Math.min(100, Math.max(1, params.limit ?? 20));
     const offset = (page - 1) * limit;
-    const frCond = params.frDate ? this.sql`AND a.attended_date >= ${params.frDate}::date` : this.sql``;
-    const toCond = params.toDate ? this.sql`AND a.attended_date <= ${params.toDate}::date` : this.sql``;
+    // postgres.js 빈 프래그먼트(sql``) 를 WHERE 절에 주입하면 조건이 무시되는 버그 우회.
+    // (param IS NULL OR col op param::date) 패턴으로 동적 프래그먼트 없이 필터 처리.
+    const fr = params.frDate ?? null;
+    const to = params.toDate ?? null;
 
     if (!params.member_id && !params.q) {
-      // 전체 최근 출석 이력
       const rows = await this.sql<{
         id: number;
         member_id: number;
@@ -187,7 +185,8 @@ export class AdminAttendanceService {
                COUNT(*) OVER ()::text AS total
           FROM member_attendance a
           JOIN member m ON m.id = a.member_id
-         WHERE 1=1 ${frCond} ${toCond}
+         WHERE (${fr}::date IS NULL OR a.attended_date >= ${fr}::date)
+           AND (${to}::date IS NULL OR a.attended_date <= ${to}::date)
          ORDER BY a.attended_date DESC, a.id DESC
          LIMIT ${limit} OFFSET ${offset}
       `;
@@ -199,7 +198,6 @@ export class AdminAttendanceService {
       };
     }
 
-    // 검색 조건 — member_id 우선, 없으면 q
     const whereMember = params.member_id
       ? this.sql`a.member_id = ${params.member_id}`
       : this.sql`(m.mb_id ILIKE ${`%${params.q}%`} OR m.nickname ILIKE ${`%${params.q}%`} OR m.name ILIKE ${`%${params.q}%`})`;
@@ -222,7 +220,9 @@ export class AdminAttendanceService {
              COUNT(*) OVER ()::text AS total
         FROM member_attendance a
         JOIN member m ON m.id = a.member_id
-       WHERE ${whereMember} ${frCond} ${toCond}
+       WHERE ${whereMember}
+         AND (${fr}::date IS NULL OR a.attended_date >= ${fr}::date)
+         AND (${to}::date IS NULL OR a.attended_date <= ${to}::date)
        ORDER BY a.attended_date DESC, a.id DESC
        LIMIT ${limit} OFFSET ${offset}
     `;

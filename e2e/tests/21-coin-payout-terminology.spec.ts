@@ -23,12 +23,12 @@ const WEB_BASE: Record<string, string> = {
   test: 'https://sajumoon.kr',
   prod: 'https://sajuplan.com',
 }
-const TARGET = process.env.TARGET ?? 'test'
-const WEB = WEB_BASE[TARGET] ?? WEB_BASE.test
+const TARGET = process.env.TARGET ?? 'prod'
+const WEB = WEB_BASE[TARGET] ?? WEB_BASE.prod
 
 test.describe(`회원/상담사 용어 분리 정책 회귀 방지 (${TARGET})`, () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${WEB}/`, { waitUntil: 'networkidle' })
+    await page.goto(`${WEB}/`, { waitUntil: 'load' })
   })
 
   async function getAllScripts(page: import('@playwright/test').Page): Promise<string> {
@@ -66,7 +66,7 @@ test.describe(`회원/상담사 용어 분리 정책 회귀 방지 (${TARGET})`,
 
   test('4) 원천징수 안내 텍스트 존재 (상담사 보호)', async ({ page }) => {
     const src = await getAllScripts(page)
-    expect(src, '원천징수 안내 사라짐 — 상담사 신뢰 보호 회귀').toMatch(/원천징수.*3\.3%/)
+    expect(src, '원천징수 안내 사라짐 — 상담사 신뢰 보호 회귀').toMatch(/원천세.*3\.3%/)
   })
 
   test('5) 실수령 예상 라벨 존재 (수익금 페이지 핵심 정보)', async ({ page }) => {

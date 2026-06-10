@@ -7,8 +7,8 @@
 | PROD | sajuplan.com | 104.64.128.103 | /data/wwwroot/sajumoon.co.kr |
 | PROD (legacy) | sajumoon.co.kr | 104.64.128.103 (동일) | /data/wwwroot/sajumoon.co.kr |
 | PROD API | api.sajuplan.com / api.sajumoon.co.kr | 104.64.128.103 | /data/wwwroot/api.sajumoon.co.kr |
-| TEST | sajumoon.kr | 172.235.211.75 | /data/wwwroot/sajumoon.kr |
-| TEST API | api.sajumoon.kr | 172.235.211.75 | /data/wwwroot/api.sajumoon.kr |
+| ~~TEST (폐기)~~ | ~~sajumoon.kr~~ | ~~172.235.211.75~~ | ~~/data/wwwroot/sajumoon.kr~~ |
+| ~~TEST API (폐기)~~ | ~~api.sajumoon.kr~~ | ~~172.235.211.75~~ | ~~/data/wwwroot/api.sajumoon.kr~~ |
 
 ## ⚠️ 함정 (메모리 `[[prod-api-code-path]]`)
 
@@ -24,12 +24,12 @@ prod 도메인 = `api.sajuplan.com` 인데 실제 코드 경로 = `/data/wwwroot
 
 ## TEST 환경 의존성
 
-CLAUDE.md 박제:
-- `runtime-env.ts` MAP 이 sajumoon.kr 매핑 사용
-- `deploy.config.sh` test 분기
-- 외부 서비스 등록 (m2net push URL 등) 일부가 sajumoon.kr 가리킬 가능성
+> **⚠️ 2026-05-29 폐기 결정** — TEST 서버(sajumoon.kr / 172.235.211.75) 공식 폐기. PROD 단일 운영.
 
-→ sajumoon.kr 끊으면 결제·정산 push 실패 위험
+과거 의존성 (현재는 비활성):
+- `runtime-env.ts` MAP 에 sajumoon.kr 매핑 코드 잔존 (동작 무방, 실 트래픽 없음)
+- `deploy.config.sh` test 분기 코드 잔존 (사용 안 함)
+- E2E TARGET 기본값 `prod` 로 변경 완료 (커밋 `097d67a6`)
 
 ## 미래 정리 계획 (보류)
 

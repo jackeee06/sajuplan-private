@@ -4,8 +4,10 @@
 
 | 환경 | DEPLOY_TARGET | 사용자 도메인 | API 도메인 |
 |---|---|---|---|
-| 개발 (현재) | `dev` (기본) | `sajumoon.kr` | `api.sajumoon.kr` |
-| 실서버 (향후) | `prod` | `sajuplan.com` | `api.sajuplan.com` |
+| ~~개발 (폐기)~~ | ~~`dev`~~ | ~~`sajumoon.kr`~~ | ~~`api.sajumoon.kr`~~ |
+| **운영 (기본)** | **`prod` (기본)** | `sajuplan.com` | `api.sajuplan.com` |
+
+> **2026-05-29**: TEST 서버(sajumoon.kr) 폐기 결정. PROD 단일 배포. E2E TARGET 기본값 `prod` 로 변경.
 
 ## 단일 진실 원천
 

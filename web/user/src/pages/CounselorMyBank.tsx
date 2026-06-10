@@ -74,7 +74,7 @@ export default function CounselorMyBank() {
         {/* 안내 박스 */}
         <section className="rounded-[16px] bg-[#f3f0ff] border border-[#fbcfe8] p-4">
           <p className="text-[13px] leading-[160%] text-[#9d174d]">
-            이 계좌로 매월 1일 <strong>정기 정산금</strong>이 입금됩니다.<br />
+            이 계좌로 매월 9일 <strong>정기 정산금</strong>이 입금됩니다.<br />
             선지급 신청 시에도 같은 계좌가 사용됩니다.
           </p>
         </section>

@@ -11,10 +11,10 @@ import { ReadOnlyForSuper, SuperOnlySection } from '../components/SuperOnlySecti
 type SettingsByNs = Record<string, Record<string, string>>
 
 // 화면에 노출되는 탭 (2026-05-21: payout 추가)
-type TabKey = 'general' | 'grade' | 'payout' | 'ops' | 'legal'
+type TabKey = 'general' | 'grade' | 'payout' | 'ops' | 'legal' | 'counselor'
 // 데이터는 namespace 로 분리 (DB 호환).
 // 'general' 탭은 아래 6개 namespace 를 섹션으로 묶어서 한 화면에 그리드로 표시.
-type Namespace = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer' | 'grade' | 'ops' | 'payout' | 'maintenance'
+type Namespace = 'site' | 'member' | 'review' | 'social' | 'security' | 'footer' | 'grade' | 'ops' | 'payout' | 'maintenance' | 'counselor'
 type FieldKind = 'text' | 'textarea' | 'number' | 'bool' | 'password' | 'select' | 'multiselect'
 interface FieldDef {
   key: string
@@ -321,7 +321,7 @@ const NS_FIELDS: Record<Namespace, { title: string; fields: FieldDef[] }> = {
 // 'general' 탭에서 한 번에 노출되는 섹션 순서
 const GENERAL_SECTIONS: Namespace[] = ['maintenance', 'site', 'member', 'review', 'social', 'security', 'footer']
 
-const TAB_ORDER: TabKey[] = ['general', 'grade', 'payout', 'ops', 'legal']
+const TAB_ORDER: TabKey[] = ['general', 'grade', 'payout', 'ops', 'legal', 'counselor']
 
 // ───────────────────────────────────────────────
 // 페이지
@@ -332,7 +332,7 @@ export default function Settings() {
   // 유효 값: general / grade / payout / ops / legal. 그 외엔 'general' fallback.
   const [searchParams, setSearchParams] = useSearchParams()
   const initialTab = (searchParams.get('tab') as TabKey) || 'general'
-  const validTab: TabKey = (['general', 'grade', 'payout', 'ops', 'legal'] as TabKey[]).includes(initialTab) ? initialTab : 'general'
+  const validTab: TabKey = (['general', 'grade', 'payout', 'ops', 'legal', 'counselor'] as TabKey[]).includes(initialTab) ? initialTab : 'general'
   const [tab, setTabState] = useState<TabKey>(validTab)
   const setTab = (next: TabKey) => {
     setTabState(next)
@@ -383,15 +383,17 @@ export default function Settings() {
     payout: '선지급',
     ops: '운영알림',
     legal: '약관/처리방침',
+    counselor: '상담사 설정',
   }), [])
 
   // 헤더에 표시할 페이지 제목/부제 — 탭별 동적
   const TAB_HEADERS: Record<TabKey, { title: string; subtitle: string }> = useMemo(() => ({
-    general: { title: '기본환경설정', subtitle: '사이트 운영 전반의 기본값을 관리합니다.' },
-    grade:   { title: '등급/단가 설정', subtitle: '상담사 등급별 단가 옵션·정산률·임계값을 관리합니다.' },
-    payout:  { title: '선지급 설정', subtitle: '선지급 정책 안내문과 수수료율·원천세율을 관리합니다.' },
-    ops:     { title: '운영알림 설정', subtitle: '시스템 사고 알림 수신자와 발송 정책을 관리합니다.' },
-    legal:   { title: '약관/처리방침', subtitle: '회원가입약관·개인정보처리방침 본문을 관리합니다.' },
+    general:   { title: '기본환경설정', subtitle: '사이트 운영 전반의 기본값을 관리합니다.' },
+    grade:     { title: '등급/단가 설정', subtitle: '상담사 등급별 단가 옵션·정산률·임계값을 관리합니다.' },
+    payout:    { title: '선지급 설정', subtitle: '선지급 정책 안내문과 수수료율·원천세율을 관리합니다.' },
+    ops:       { title: '운영알림 설정', subtitle: '시스템 사고 알림 수신자와 발송 정책을 관리합니다.' },
+    legal:     { title: '약관/처리방침', subtitle: '회원가입약관·개인정보처리방침 본문을 관리합니다.' },
+    counselor: { title: '상담사 설정', subtitle: '상담사 스타일 선택지 등 상담사 관련 옵션을 관리합니다.' },
   }), [])
 
   if (!data) {
@@ -551,6 +553,11 @@ export default function Settings() {
         <PayoutSettingsForm
           values={data.payout ?? {}}
           onChange={(key, value) => setField('payout', key, value)}
+        />
+      ) : tab === 'counselor' ? (
+        <CounselorStyleEditor
+          values={data.counselor ?? {}}
+          onChange={(key, value) => setField('counselor', key, value)}
         />
       ) : (
         // 그 외 단일 namespace 탭 — 그리드 레이아웃
@@ -1642,5 +1649,98 @@ function FieldInput({
       className={cls}
       autoComplete={def.kind === 'password' ? 'new-password' : 'off'}
     />
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 상담사 스타일 선택지 관리 컴포넌트
+// ─────────────────────────────────────────────────────────────────
+function CounselorStyleEditor({
+  values,
+  onChange,
+}: {
+  values: Record<string, string>
+  onChange: (key: string, value: string) => void
+}) {
+  const raw = values['style_options'] ?? '[]'
+  const options: string[] = (() => {
+    try { return JSON.parse(raw) as string[] } catch { return [] }
+  })()
+
+  const [newItem, setNewItem] = useState('')
+
+  const commit = (next: string[]) => {
+    onChange('style_options', JSON.stringify(next))
+  }
+
+  const add = () => {
+    const t = newItem.trim()
+    if (!t || options.includes(t)) return
+    commit([...options, t])
+    setNewItem('')
+  }
+
+  const remove = (opt: string) => {
+    commit(options.filter((o) => o !== opt))
+  }
+
+  return (
+    <div className="space-y-6 max-w-[600px]">
+      <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">상담사 스타일 선택지</h3>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            상담사 가입 신청서 및 마이페이지에서 선택할 수 있는 스타일 목록입니다.<br />
+            상담사 상세 프로필 페이지에 표시됩니다.
+          </p>
+        </div>
+
+        {/* 현재 목록 */}
+        <div className="flex flex-wrap gap-2 min-h-[40px]">
+          {options.length === 0 && (
+            <span className="text-xs text-gray-400 dark:text-gray-500 self-center">등록된 스타일이 없습니다.</span>
+          )}
+          {options.map((opt) => (
+            <span
+              key={opt}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300 border border-brand-200 dark:border-brand-800"
+            >
+              {opt}
+              <button
+                type="button"
+                onClick={() => remove(opt)}
+                className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-brand-200 dark:hover:bg-brand-800 text-brand-500 font-bold text-xs leading-none"
+                aria-label={`${opt} 삭제`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+
+        {/* 추가 입력 */}
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={newItem}
+            onChange={(e) => setNewItem(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } }}
+            placeholder="새 스타일 입력 (예: 차분한)"
+            className="flex-1 h-9 px-3 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-400"
+          />
+          <button
+            type="button"
+            onClick={add}
+            disabled={!newItem.trim() || options.includes(newItem.trim())}
+            className="h-9 px-4 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-40"
+          >
+            추가
+          </button>
+        </div>
+        <p className="text-xs text-gray-400">
+          ※ 추가/삭제 후 우측 상단 <b>저장</b> 버튼을 눌러야 반영됩니다.
+        </p>
+      </div>
+    </div>
   )
 }

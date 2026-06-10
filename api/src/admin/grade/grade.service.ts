@@ -126,6 +126,27 @@ export class AdminGradeService {
     `;
   }
 
+  /** 실시간 승급 이력 (changed_by='realtime') */
+  async getRealtimeUpgrades(memberId: number, limit = 50) {
+    const lim = Math.min(200, Math.max(1, limit));
+    return await this.sql<Array<{
+      id: number;
+      grade_before: string | null;
+      grade_after: string;
+      last_month_seconds: string | null;
+      reason: string | null;
+      created_at: string;
+    }>>`
+      SELECT id, grade_before, grade_after, last_month_seconds::text,
+             reason, created_at::text
+        FROM member_grade_history
+       WHERE member_id = ${memberId}
+         AND changed_by = 'realtime'
+       ORDER BY id DESC
+       LIMIT ${lim}
+    `;
+  }
+
   /**
    * 어드민 강제 등급 변경 (예외 대응).
    *

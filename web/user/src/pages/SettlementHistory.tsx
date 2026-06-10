@@ -351,7 +351,7 @@ function IncomeTab() {
                 </span>
                 <span className="text-[13px] text-[#1E2939] truncate">{shortContent(it.content)}</span>
                 <span className="text-[13px] text-[#1E2939] truncate">{it.customer_name ?? '-'}</span>
-                <span className="text-center">
+                <span className="text-center flex flex-col items-center gap-0.5">
                   {it.preflag === 'Y' && (
                     <span className="inline-block px-1.5 py-[1px] rounded-full text-[11px] font-semibold text-[#2E7D32] bg-[#E8F5E9]">
                       선불
@@ -363,6 +363,12 @@ function IncomeTab() {
                     </span>
                   )}
                   {!it.preflag && <span className="text-[12px] text-[#99A1AF]">-</span>}
+                  {/* 등급 뱃지 — 실시간 승급 구간 혼동 방지 */}
+                  {it.grade_at_session && (
+                    <span className="inline-block px-1 py-[1px] rounded text-[10px] font-medium text-[#8259F5] bg-[#f3f0ff]">
+                      {({'preliminary':'예비','partner1':'P1','partner2':'P2','partner3':'P3','partner4':'P4','partner5':'P5'} as Record<string,string>)[it.grade_at_session] ?? it.grade_at_session}
+                    </span>
+                  )}
                 </span>
                 <span className={`text-right text-[13px] font-bold tabular-nums ${
                   isNegative ? 'text-[#FB2C36]' : 'text-[#8259F5]'
@@ -469,7 +475,7 @@ function RealtimeTab() {
   }
 
   const bd = summary?.payout_breakdown
-  const deduction = (bd?.vat_amount ?? 0) + (bd?.withholding_tax ?? 0) + (bd?.reply_fee ?? 0)
+  const deduction = (bd?.withholding_tax ?? 0) + (summary?.referral_deduct ?? 0)
   const today = new Date().toISOString().slice(0, 7)
   const isCurrent = month === today
 
@@ -553,10 +559,11 @@ function RealtimeTab() {
               </button>
             </div>
             {deductionOpen && (
-              <div className="px-5 pb-3 grid grid-cols-3 gap-2 text-[12px]">
-                <DeductionItem label="부가세(10%)" value={bd.vat_amount} />
+              <div className="px-5 pb-3 flex gap-4 text-[12px]">
                 <DeductionItem label="원천세(3.3%)" value={bd.withholding_tax} />
-                <DeductionItem label="회선비" value={bd.reply_fee} />
+                {(summary?.referral_deduct ?? 0) > 0 && (
+                  <DeductionItem label="추천인 수수료" value={summary!.referral_deduct!} />
+                )}
               </div>
             )}
             <div className="border-t border-[#F3F4F6] px-5 py-3 flex items-center justify-end">
@@ -570,16 +577,9 @@ function RealtimeTab() {
               </button>
             </div>
             {formulaOpen && (
-              <div className="px-5 pb-4 text-[12px] leading-[170%] text-[#4A5565]">
-                <p>1) 쿠폰상담 = amt_free × {bd.royalty_free_pct}%</p>
-                <p>2) 충전+후불 = amt_pro × {bd.royalty_pro_pct}%</p>
-                <p>3) 정산비전체 = (1) + (2) + 기타정산비</p>
-                <p>4) 공급가 = 정산비전체 ÷ 1.1, 부가세 = 정산비전체 − 공급가</p>
-                <p>5) 원천세 3.3% = 공급가 × 0.033</p>
-                <p>6) 회선비 = 정산비전체 50,000원 이상 시 20,000원</p>
-                <p className="mt-1 font-semibold text-[#1E2939]">
-                  실수령 = 공급가 − 원천세 − 회선비
-                </p>
+              <div className="px-5 pb-4 text-[12px] leading-[190%] text-[#4A5565]">
+                <p>· 원천세(3.3%) 법적 원천징수</p>
+                <p>· 추천인 수수료는 해당자에 한해 차감됩니다</p>
               </div>
             )}
           </section>
@@ -595,7 +595,7 @@ function RealtimeTab() {
             </p>
             {(bd?.price_tot ?? 0) > 0 && (
               <p className="mt-1 text-[11px] opacity-60 tabular-nums">
-                정산비 {(bd?.price_tot ?? 0).toLocaleString()} − 공제 {deduction.toLocaleString()}(부가세+원천징수) = {(summary.estimated_payout ?? 0).toLocaleString()}원
+                수익금 {(bd?.price_tot ?? 0).toLocaleString()}원 → 원천세 공제 후 {(summary.estimated_payout ?? 0).toLocaleString()}원
               </p>
             )}
           </section>
@@ -643,7 +643,7 @@ function RealtimeTab() {
                   >
                     <span className="text-[12px] text-[#1E2939] tabular-nums">{formatDateTime(it.created_at)}</span>
                     <span className="text-[13px] text-[#1E2939] truncate">{it.customer_name ?? '-'}</span>
-                    <span className="text-center">
+                    <span className="text-center flex flex-col items-center gap-0.5">
                       {it.preflag === 'Y' ? (
                         <span className="inline-block px-1.5 py-[1px] rounded-full text-[11px] font-semibold text-[#2E7D32] bg-[#E8F5E9]">
                           선불
@@ -651,6 +651,12 @@ function RealtimeTab() {
                       ) : (
                         <span className="inline-block px-1.5 py-[1px] rounded-full text-[11px] font-semibold text-[#E65100] bg-[#FFF3E0]">
                           후불
+                        </span>
+                      )}
+                      {/* 등급 뱃지 — 실시간 승급 구간별 수수료율이 다를 수 있어 혼란 방지 */}
+                      {it.grade_at_session && (
+                        <span className="inline-block px-1 py-[1px] rounded text-[10px] font-medium text-[#8259F5] bg-[#f3f0ff]">
+                          {({'preliminary':'예비','partner1':'P1','partner2':'P2','partner3':'P3','partner4':'P4','partner5':'P5'} as Record<string,string>)[it.grade_at_session] ?? it.grade_at_session}
                         </span>
                       )}
                     </span>

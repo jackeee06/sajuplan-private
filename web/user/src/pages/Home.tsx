@@ -715,6 +715,9 @@ function Footer({ initialSettings }: { initialSettings: PublicSettings | null })
           )}
         </div>
         <p className="text-[14px] text-[#6A7282] leading-[110%]">{copyright}</p>
+        <p className="text-[11px] text-[#99A1AF] leading-[160%] break-keep">
+          (주) 오리진하우스는 통신판매중개자로서 통신판매의 당사자가 아니며, 각 판매자(상담사)가 등록한 정보 및 거래에 대한 책임은 각 판매자(상담사)에게 있으며, (주)오리진하우스는 책임을 지지 않습니다.
+        </p>
       </div>
     </footer>
   )
@@ -745,8 +748,8 @@ function FloatingButtons({ initialSettings }: { initialSettings: PublicSettings 
         if (alive) setKakaoUrl(r['site.kakao_channel_url'] || '')
       },
       () => {
-        // 실패 시 기본 URL fallback (sample 라이브 채널)
-        if (alive) setKakaoUrl('https://pf.kakao.com/_gLTVX')
+        // 실패 시 사주플랜 채널로 폴백
+        if (alive) setKakaoUrl('https://pf.kakao.com/_IhVbX/chat')
       },
     )
     return () => {

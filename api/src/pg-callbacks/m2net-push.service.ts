@@ -3,6 +3,7 @@ import { SQL, type Sql, type TxSql } from '../shared/db/db.module';
 import { M2netService } from '../shared/m2net/m2net.service';
 import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
 import { AlertsService } from '../shared/alerts/alerts.service';
+import { GradeUpgradeService } from '../shared/grade-upgrade/grade-upgrade.service';
 
 /**
  * 엠투넷(M2NET) Push 콜백 처리.
@@ -50,6 +51,7 @@ export class M2netPushService {
     private readonly m2net: M2netService,
     private readonly opsAlert: OpsAlertService,
     private readonly alerts: AlertsService,
+    private readonly gradeUpgrade: GradeUpgradeService,
   ) {}
 
   /**
@@ -381,6 +383,7 @@ export class M2netPushService {
             const requiredCost = Math.ceil((cm * 60) / us) * uc;
             if (requiredCost > 0) {
               await this.sql.begin(async (tx) => {
+                // member.point 잔액 확인 (FOR UPDATE — 동시 차감 방지)
                 const m = await tx<{ point: number }[]>`
                   SELECT point FROM member WHERE id = ${cr.member_id} FOR UPDATE
                 `;
@@ -390,8 +393,44 @@ export class M2netPushService {
                     `회원 잔액 부족 member=${cr.member_id} point=${m[0].point} < required=${requiredCost}`,
                   );
                 }
+                // [BUG FIX 2026-06-10] point.free_balance/paid_balance 도 함께 차감.
+                // 기존 코드는 member.point 만 줄이고 point 테이블을 그대로 뒀음.
+                // 이후 전화 통화 시 deductMemberPointInTx 가 point 테이블 기준으로
+                // member.point 를 절대값 동기화해 선결제 코인을 복원하는 버그 발생.
+                let pt = await tx<{ free_balance: number; paid_balance: number }[]>`
+                  SELECT free_balance, paid_balance FROM point WHERE member_id = ${cr.member_id} FOR UPDATE
+                `;
+                if (pt.length === 0) {
+                  await tx`
+                    INSERT INTO point (member_id, free_balance, paid_balance, total_earned, total_used)
+                    VALUES (${cr.member_id}, 0, 0, 0, 0)
+                    ON CONFLICT (member_id) DO NOTHING
+                  `;
+                  pt = await tx<{ free_balance: number; paid_balance: number }[]>`
+                    SELECT free_balance, paid_balance FROM point WHERE member_id = ${cr.member_id} FOR UPDATE
+                  `;
+                }
+                const free = Number(pt[0]?.free_balance ?? 0);
+                const paid = Number(pt[0]?.paid_balance ?? 0);
+                // free 우선 차감 (deductMemberPointInTx 와 동일 정책)
+                const takeFree = Math.min(free, requiredCost);
+                const takePaid = Math.min(paid, requiredCost - takeFree);
+                await tx`
+                  UPDATE point SET
+                    free_balance = free_balance - ${takeFree},
+                    paid_balance = paid_balance - ${takePaid},
+                    total_used   = total_used + ${requiredCost},
+                    updated_at   = now()
+                   WHERE member_id = ${cr.member_id}
+                `;
+                // member.point 는 point 테이블 기준 절대값 동기화 (deductMemberPointInTx 와 동일 패턴)
+                await tx`
+                  UPDATE member SET
+                    point = (SELECT free_balance + paid_balance FROM point WHERE member_id = ${cr.member_id}),
+                    updated_at = now()
+                   WHERE id = ${cr.member_id}
+                `;
                 const newPoint = Number(m[0].point) - requiredCost;
-                await tx`UPDATE member SET point = ${newPoint}, updated_at = now() WHERE id = ${cr.member_id}`;
                 await tx`
                   INSERT INTO point_history (
                     member_id, content, earn_point, use_point, balance_after,
@@ -400,7 +439,7 @@ export class M2netPushService {
                     ${cr.member_id}, ${`채팅 선결제 (${cm}분)`}, 0, ${requiredCost}, ${newPoint},
                     'chat_room', ${String(chatRoomId)},
                     ${`chat_room@${chatRoomId}@prepaid_${cm}min`},
-                    true, 'system'
+                    ${takePaid > 0}, 'system'
                   )
                 `;
               });
@@ -524,11 +563,33 @@ export class M2netPushService {
                         SELECT point FROM member WHERE id = ${rr.member_id} FOR UPDATE
                       `;
                       if (!m[0]) throw new Error(`member ${rr.member_id} 없음`);
-                      const newPoint = Number(m[0].point) + refundAmount;
+                      // [BUG FIX 2026-06-10] point.free_balance/paid_balance 도 복원.
+                      // START_CHAT 선결제 차감 fix 와 쌍: 차감 시 point 테이블을 줄였으므로
+                      // 환불 시에도 point 테이블을 복원해야 member.point = free+paid 일치.
+                      // paid_balance 에 환불 (선결제는 paid 우선 사용 정책 — 환불은 역순).
+                      const pt = await tx<{ free_balance: number; paid_balance: number }[]>`
+                        SELECT free_balance, paid_balance FROM point WHERE member_id = ${rr.member_id} FOR UPDATE
+                      `;
+                      const curFree = Number(pt[0]?.free_balance ?? 0);
+                      // 원래 차감은 free 우선이었으므로 환불도 free 우선 복원
+                      // (현재 free 가 0 이면 paid 에 환불, free 가 있으면 free 에 환불)
+                      const restoreToPaid = curFree === 0 ? refundAmount : 0;
+                      const restoreToFree = refundAmount - restoreToPaid;
                       await tx`
-                        UPDATE member SET point = ${newPoint}, updated_at = now()
+                        UPDATE point SET
+                          free_balance = free_balance + ${restoreToFree},
+                          paid_balance = paid_balance + ${restoreToPaid},
+                          total_used   = total_used - ${refundAmount},
+                          updated_at   = now()
+                         WHERE member_id = ${rr.member_id}
+                      `;
+                      await tx`
+                        UPDATE member SET
+                          point = (SELECT free_balance + paid_balance FROM point WHERE member_id = ${rr.member_id}),
+                          updated_at = now()
                          WHERE id = ${rr.member_id}
                       `;
+                      const newPoint = Number(m[0].point) + refundAmount;
                       await tx`
                         INSERT INTO point_history (
                           member_id, content, earn_point, use_point, balance_after,
@@ -842,6 +903,12 @@ export class M2netPushService {
     void counselorMbId;
     void memberMbId;
 
+    // 실시간 등급 승급 체크 — 당월 누적 상담시간이 다음 등급 임계값 도달 시 즉시 승급.
+    // void 호출: 실패해도 상담 처리 롤백 없음. usetm>0 인 실 상담에서만 체크.
+    if (counselorId !== null && usetm > 0) {
+      void this.gradeUpgrade.checkAndUpgrade(counselorId);
+    }
+
     return { ok: true };
   }
 
@@ -1095,6 +1162,12 @@ export class M2netPushService {
     this.logger.log(
       `[settleChatRoomLocal] chatRoomId=${chatRoomId} secs=${secs} amt=${amt} amtFree=${amtFree} amtPro=${amtPro}`,
     );
+
+    // 실시간 등급 승급 체크 — 채팅 정산 완료 후 동일하게 적용
+    if (room.counselor_id !== null && secs > 0) {
+      void this.gradeUpgrade.checkAndUpgrade(room.counselor_id);
+    }
+
     return { ok: true, settled: true };
   }
 
@@ -1410,8 +1483,11 @@ export class M2netPushService {
           updated_at = now()
          WHERE member_id = ${memberId}
       `;
+      // member.point 는 point 테이블 기준으로 절대값 동기화 (delta 방식 사용 시 채팅 선결제와 이중 차감 발생)
       await tx`
-        UPDATE member SET point = point - ${totalDeducted}, updated_at = now()
+        UPDATE member SET
+          point = (SELECT free_balance + paid_balance FROM point WHERE member_id = ${memberId}),
+          updated_at = now()
          WHERE id = ${memberId}
       `;
       // consultation 의 amt_free/amt_pro 도 실제 차감액으로 보정 — 정산 일관성
@@ -1539,12 +1615,12 @@ export class M2netPushService {
         INSERT INTO point_history (
           member_id, content, earn_point, use_point, balance_after,
           rel_table, rel_id, rel_action,
-          is_paid, is_expired, expire_date, actor_type
+          is_paid, is_expired, expire_date, actor_type, balance_kind
         ) VALUES (
           ${counselorId}, ${content},
           ${effectiveAmt}, 0, ${balanceAfter},
           'consultation', ${String(consultationId)}, ${relAction},
-          ${isPaid}, false, NULL, 'system'
+          ${isPaid}, false, NULL, 'system', 'earning'
         )
         ON CONFLICT (rel_table, rel_id, rel_action)
           WHERE rel_table IN ('payment','payment_autopay','consultation')
@@ -1562,6 +1638,108 @@ export class M2netPushService {
           updated_at      = now()
          WHERE member_id = ${counselorId}
       `;
+
+      // ─── 추천수익금 실시간 적립 (2026-06-10) ──────────────────────────────────
+      // [정책] 추천수익금 = 상담사 수익금과 동급으로 동일 관리 (별도 cron/지급버튼 폐지).
+      //   이 상담사(counselorId = 피추천자)를 추천한 상담사(referrer)가 active 이면,
+      //   이번 상담 실수익(effectiveAmt)의 rate_snapshot 비율을 referrer 수익금으로 이전한다.
+      //   - 제로섬: 피추천자 earning 에서 차감 → 추천자 earning 으로 적립 (회사 비용 0, 사장님 정책).
+      //   - 상담 시점 실시간 적립이라 정산 컷("전월 말일까지 earning 합산")에 자동·정확히 포함됨.
+      //   - 멱등성: 이 블록은 위 상담사 적립 INSERT(ON CONFLICT) 가 성공(ins.length>0)한 경우에만
+      //     도달하므로, consultation 재처리 시 자동으로 한 번만 실행된다. (추가 가드 불필요)
+      if (effectiveAmt > 0) {
+        const refRows = await tx<{
+          id: number; referrer_id: number; referrer_mb_id: string | null; rate_snapshot: string;
+        }[]>`
+          SELECT cr.id, cr.referrer_id, rer.mb_id AS referrer_mb_id, cr.rate_snapshot
+            FROM counselor_referral cr
+            LEFT JOIN member rer ON rer.id = cr.referrer_id
+           WHERE cr.referee_id = ${counselorId}
+             AND cr.status = 'active'
+             AND cr.expires_at > now()
+           LIMIT 1
+        `;
+        if (refRows.length > 0) {
+          const ref = refRows[0];
+          const refRate = parseFloat(ref.rate_snapshot);
+          const incentive = Math.floor(effectiveAmt * refRate);
+          // 자기 자신 추천 방지 + 비율 유효성 + 양수만
+          if (
+            incentive > 0 &&
+            Number.isFinite(refRate) && refRate > 0 && refRate < 1 &&
+            Number(ref.referrer_id) !== Number(counselorId)
+          ) {
+            // 추천자 point row 보장
+            await tx`
+              INSERT INTO point (member_id, free_balance, paid_balance, earning_balance, total_earned, total_used)
+              VALUES (${ref.referrer_id}, 0, 0, 0, 0, 0)
+              ON CONFLICT (member_id) DO NOTHING
+            `;
+            // 추천자 earning 적립 (FOR UPDATE 로 정확한 balance_after 산출)
+            const refPt = await tx<{ earning_balance: number }[]>`
+              SELECT earning_balance FROM point WHERE member_id = ${ref.referrer_id} FOR UPDATE
+            `;
+            const refAfter = Number(refPt[0].earning_balance) + incentive;
+            const refIns = await tx<{ id: number }[]>`
+              INSERT INTO point_history (
+                member_id, mb_id, content, earn_point, use_point, balance_after,
+                rel_table, rel_id, rel_action, is_paid, is_expired, expire_date, actor_type, balance_kind
+              ) VALUES (
+                ${ref.referrer_id}, ${ref.referrer_mb_id},
+                ${`[추천수익금] 피추천 상담사 수익의 ${(refRate * 100).toFixed(2)}%`},
+                ${incentive}, 0, ${refAfter},
+                'consultation', ${String(consultationId)}, ${`${consultationId}@추천수익금적립`},
+                false, false, NULL, 'system', 'earning'
+              )
+              ON CONFLICT (rel_table, rel_id, rel_action)
+                WHERE rel_table IN ('payment','payment_autopay','consultation')
+                DO NOTHING
+              RETURNING id
+            `;
+            // 멱등 안전망 — 이미 처리된 상담이면 refIns 0건 → 적립/차감 모두 스킵
+            if (refIns.length > 0) {
+              await tx`
+                UPDATE point SET
+                  earning_balance = earning_balance + ${incentive},
+                  total_earned    = total_earned + ${incentive},
+                  updated_at      = now()
+                 WHERE member_id = ${ref.referrer_id}
+              `;
+              // 피추천자(counselorId) earning 에서 차감 (제로섬)
+              const refereePt = await tx<{ earning_balance: number }[]>`
+                SELECT earning_balance FROM point WHERE member_id = ${counselorId} FOR UPDATE
+              `;
+              const refereeAfter = Math.max(0, Number(refereePt[0].earning_balance) - incentive);
+              await tx`
+                UPDATE point SET
+                  earning_balance = GREATEST(earning_balance - ${incentive}, 0),
+                  total_used      = total_used + ${incentive},
+                  updated_at      = now()
+                 WHERE member_id = ${counselorId}
+              `;
+              await tx`
+                INSERT INTO point_history (
+                  member_id, content, earn_point, use_point, balance_after,
+                  rel_table, rel_id, rel_action, is_paid, is_expired, expire_date, actor_type, balance_kind
+                ) VALUES (
+                  ${counselorId}, ${`[추천수익금 차감] 추천 상담사에게 ${(refRate * 100).toFixed(2)}% 이전`},
+                  0, ${incentive}, ${refereeAfter},
+                  'consultation', ${String(consultationId)}, ${`${consultationId}@추천수익금차감`},
+                  false, false, NULL, 'system', 'earning'
+                )
+                ON CONFLICT (rel_table, rel_id, rel_action)
+                  WHERE rel_table IN ('payment','payment_autopay','consultation')
+                  DO NOTHING
+              `;
+              this.logger.log(
+                `[referral-realtime] consultation=${consultationId} referee=${counselorId} → referrer=${ref.referrer_id} incentive=${incentive} (rate=${refRate})`,
+              );
+            }
+          }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
       // m2net 측 상담사 회원 잔액 동기화용 — 상담사도 사용자처럼 회원으로 등록된 경우 csrid 사용
       const r = await tx<{ csrid: string | null }[]>`
         SELECT csrid FROM member WHERE id = ${counselorId} LIMIT 1

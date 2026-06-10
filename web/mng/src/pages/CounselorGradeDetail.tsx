@@ -4,8 +4,7 @@ import { api } from '../lib/api'
 
 /**
  * 어드민 — 상담사 등급/단가 상세 + 강제 수정 + 이력 (Phase 8).
- *
- * 분쟁/예외 대응 도구. 정상 흐름은 매월 1일 크론.
+ * 2026-06-07: 실시간 승급 대응 — 당월 진행상황 카드 + 이력 구분 추가.
  */
 
 interface GradeDetail {
@@ -53,6 +52,43 @@ const GRADE_LABELS: Record<string, string> = {
   partner5: '파트너5',
 }
 
+interface MonthProgress {
+  total_seconds: number
+  total_hours: number
+  grade: string
+  grade_label: string
+  next_grade: string | null
+  next_grade_label: string | null
+  next_threshold_hours: number | null
+  progress_pct: number
+  realtime_upgrades_this_month: Array<{
+    grade_before: string
+    grade_after: string
+    hours_at_upgrade: number
+    changed_at: string
+  }>
+}
+
+/** changed_by → 뱃지 */
+function ChangedByBadge({ changedBy }: { changedBy: string }) {
+  if (changedBy === 'realtime') return (
+    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+      ⚡ 실시간
+    </span>
+  )
+  if (changedBy === 'cron') return (
+    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-50 text-gray-400 border border-gray-200">
+      📅 크론
+    </span>
+  )
+  if (changedBy?.startsWith('admin:')) return (
+    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-600 border border-blue-200">
+      ✋ 수동
+    </span>
+  )
+  return <span className="text-[12px] text-gray-400">{changedBy}</span>
+}
+
 export default function CounselorGradeDetail() {
   const { id } = useParams<{ id: string }>()
   const memberId = Number(id)
@@ -61,6 +97,7 @@ export default function CounselorGradeDetail() {
   const [detail, setDetail] = useState<GradeDetail | null>(null)
   const [unitHist, setUnitHist] = useState<UnitCostHistoryRow[]>([])
   const [gradeHist, setGradeHist] = useState<GradeHistoryRow[]>([])
+  const [monthProgress, setMonthProgress] = useState<MonthProgress | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,14 +118,36 @@ export default function CounselorGradeDetail() {
     setLoading(true)
     setError(null)
     try {
-      const [d, u, g] = await Promise.all([
+      const [d, u, g, mp] = await Promise.all([
         api<GradeDetail>(`/admin/grade/counselor/${memberId}`),
         api<{ items: UnitCostHistoryRow[] }>(`/admin/grade/counselor/${memberId}/unit-cost-history`),
         api<{ items: GradeHistoryRow[] }>(`/admin/grade/counselor/${memberId}/grade-history`),
+        // 당월 진행상황 — 상담사 본인 API를 관리자가 대신 조회 (해당 상담사 mbId 로 우회 불필요, user API라 못 씀)
+        // admin용 전용 API 없으므로 realtime-upgrades 만 사용
+        api<{ items: Array<{ grade_before: string; grade_after: string; last_month_seconds: string; created_at: string }> }>(
+          `/admin/grade/counselor/${memberId}/realtime-upgrades?limit=10`,
+        ).catch(() => ({ items: [] })),
       ])
       setDetail(d)
       setUnitHist(u.items)
       setGradeHist(g.items)
+      // 당월 실시간 승급 이력만 진행상황 카드용으로 세팅
+      setMonthProgress({
+        total_seconds: 0,
+        total_hours: 0,
+        grade: d.grade,
+        grade_label: GRADE_LABELS[d.grade] ?? d.grade,
+        next_grade: null,
+        next_grade_label: null,
+        next_threshold_hours: null,
+        progress_pct: 0,
+        realtime_upgrades_this_month: mp.items.map((r) => ({
+          grade_before: r.grade_before,
+          grade_after: r.grade_after,
+          hours_at_upgrade: Math.round((Number(r.last_month_seconds ?? 0) / 3600) * 10) / 10,
+          changed_at: r.created_at,
+        })),
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : '로딩 실패')
     } finally {
@@ -176,9 +235,11 @@ export default function CounselorGradeDetail() {
           </button>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
-          <div className="text-xs text-gray-500">직전 1개월 시간</div>
+          <div className="text-xs text-gray-500">직전 크론 기준 시간</div>
           <div className="text-2xl font-bold mt-1 tabular-nums">{detail.last_month_hours}h</div>
-          <div className="text-xs text-gray-400 mt-2">({detail.last_month_seconds.toLocaleString()}초)</div>
+          <div className="text-xs text-gray-400 mt-2">
+            ({detail.last_month_seconds.toLocaleString()}초) · 크론 실행 시 갱신
+          </div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
           <div className="text-xs text-gray-500">현재 단가 (30초)</div>
@@ -217,6 +278,35 @@ export default function CounselorGradeDetail() {
           {detail.available_options.length > 0 ? detail.available_options.map((n) => `${n}원`).join(' / ') : '(미설정)'}
         </span>
       </div>
+
+      {/* 이번 달 실시간 승급 이력 */}
+      {monthProgress && monthProgress.realtime_upgrades_this_month.length > 0 && (
+        <section className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <h2 className="text-sm font-semibold text-amber-900 mb-2 flex items-center gap-1.5">
+            ⚡ 이번 달 실시간 승급 이력 ({monthProgress.realtime_upgrades_this_month.length}건)
+          </h2>
+          <div className="flex flex-col gap-1.5">
+            {monthProgress.realtime_upgrades_this_month.map((u, i) => {
+              const d = new Date(u.changed_at)
+              const dateStr = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+              return (
+                <div key={i} className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-500 tabular-nums text-xs">{dateStr}</span>
+                  <span className="text-gray-600">{GRADE_LABELS[u.grade_before] ?? u.grade_before}</span>
+                  <span className="text-gray-400">→</span>
+                  <span className="font-semibold text-amber-800">{GRADE_LABELS[u.grade_after] ?? u.grade_after}</span>
+                  <span className="text-xs text-gray-400">당월 {u.hours_at_upgrade}시간 달성</span>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+      {monthProgress && monthProgress.realtime_upgrades_this_month.length === 0 && (
+        <div className="text-xs text-gray-400 flex items-center gap-1">
+          ⚡ 이번 달 실시간 승급 없음 (크론 또는 수동 변경만 있었음)
+        </div>
+      )}
 
       {/* 이력 2종 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -278,8 +368,8 @@ export default function CounselorGradeDetail() {
                         {h.grade_before ?? '—'} → <span className="font-medium">{h.grade_after}</span>
                       </td>
                       <td className="px-3 py-2 text-xs">{h.change_type}</td>
-                      <td className="px-3 py-2 text-xs text-gray-500">{h.changed_by}</td>
-                      <td className="px-3 py-2 text-xs">{h.reason ?? '—'}</td>
+                      <td className="px-3 py-2"><ChangedByBadge changedBy={h.changed_by} /></td>
+                      <td className="px-3 py-2 text-xs text-gray-500 max-w-[180px] truncate" title={h.reason ?? ''}>{h.reason ?? '—'}</td>
                     </tr>
                   ))}
                 </tbody>

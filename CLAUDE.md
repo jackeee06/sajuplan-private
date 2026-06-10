@@ -29,7 +29,7 @@
 ### 단계별 마이그레이션 상태
 - ✓ Phase 1: 사용자 화면 UI 라벨 변경 (2026-05-25)
 - ⏳ Phase 2: 알림톡 BizM 템플릿 + 영수증 PG 협의 (예정)
-- ⏳ Phase 3: 추천인 보상 정책 재검토 (선택)
+- ✓ Phase 3: 추천인 보상 정책 확정 — 상담사 추천수당 = `earning_balance`, 회원 가입 추천 = `free_balance`
 
 ## ⚠️ 도메인 구조 (역사 포함 — AI가 착각하지 않도록 박제)
 
@@ -195,6 +195,9 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 - `타로` → `#ec4899` (핑크)
 - `신점` → `#00BBA7` (청록)
 - `사주` → `#FF6467` (빨강)
+- `심리` → `#8259F5` (보라 — primary 계열)
+
+뱃지 위치: 사진 **좌하단** (`bottom-2 left-2`) — 얼굴 가림 방지 (2026-06-04 변경)
 
 `hideChat={true}` prop을 넘기면 채팅 버튼이 숨고 전화 버튼이 풀폭 노출된다 (Figma 카드 `btn2:false` 대응).
 
@@ -220,6 +223,40 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 - [ ] 필터 변경 시 페이지네이션을 1로 리셋하는가?
 - [ ] 새 동작 규칙은 이 섹션에 추가했는가?
 
+## 검증 규칙 (엄격검증 — Playwright E2E)
+
+**모든 기능 검증은 Playwright E2E 자동 클릭 테스트로 한다.** 코드 리뷰나 육안 확인만으로는 완료 보고 금지.
+
+### E2E 실행 방법
+
+```bash
+cd e2e
+npx playwright test                        # 전체 실행 (prod 대상)
+npx playwright test tests/XX-*.spec.ts     # 특정 스펙만
+npx playwright test --reporter=list        # 결과 목록 출력
+```
+
+### 검증 기준
+
+- **신규 기능**: 해당 기능을 커버하는 spec 파일 신규 작성 후 통과 확인
+- **버그 수정**: 해당 버그를 재현하는 케이스가 spec 에 있어야 통과 인정
+- **UI 변경**: 연관 spec 전체 회귀 실행 → 0 failed
+- **API 변경**: API healthcheck + 연관 spec 실행
+
+### 엄격검증 완료 조건
+
+1. `npx playwright test` 실행 결과 `0 failed`
+2. 신규/변경 기능에 해당하는 spec 이 포함됨을 확인
+3. 실행 결과 스크린샷/로그를 완료 보고에 포함
+
+### spec 파일 위치 및 네이밍 규칙
+
+- 위치: `e2e/tests/NN-설명.spec.ts` (NN = 다음 번호)
+- 기존 spec 목록: `e2e/tests/` 참조
+- 새 spec 추가 후 이 CLAUDE.md 의 spec 목록 업데이트
+
+---
+
 ## Git 푸시 규칙
 
 커밋·푸시 전 **README.md**(페이지 목록·상태)와 **CLAUDE.md**(변수·컴포넌트·규칙) 확인 및 업데이트.
@@ -230,34 +267,34 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 - 기본: PROD 단일 배포 (`sajuplan.com`). TEST 서버 폐기됨.
 - 결과 확인 URL은 항상 prod(`sajuplan.com`)로 안내.
 
-### 🔧 배포 도구
+### 🔧 배포 명령 (이것만 쓴다 — 선택지 없음)
 
-| 상황 | 도구 | 설명 |
-|---|---|---|
-| API 코드 변경 | `python tools/_patch_api.py` | 변경 파일 SFTP → 서버 빌드 → pm2 reload |
-| 프론트 전체 변경 | `python tools/_patch_frontend.py user\|mng` | 로컬 dist → `/data/wwwroot/sajumoon.co.kr[/mng]` SFTP |
-| MD 파일만 변경 | `python tools/_sync_handbook.py` | _HANDBOOK/*.md → 서버 SFTP (빌드 없음) |
+> **"fast패치"** = 사장님이 배포 삽질을 끊을 때 쓰는 키워드.
+> Claude가 이 단어를 들으면 즉시 아래 명령만 실행한다. 다른 스크립트·SFTP 직접 작성·dist 폴더 고민 일절 금지.
 
-### ⚡ 외과 배포 (빠른 패치 — 빌드 스킵)
+| 상황 | 명령 |
+|---|---|
+| 사용자 프론트 변경 | `python tools/_patch_frontend_fast.py user` |
+| 관리자 프론트 변경 | `python tools/_patch_frontend_fast.py mng` |
+| API 코드 변경 | `python tools/_patch_api.py` |
+| MD 파일만 변경 | `python tools/_sync_handbook.py` |
 
-**언제 외과 배포를 쓰는가:**
-- MD 파일만 변경 (핸드북, CLAUDE.md 등) → 빌드 불필요
-- API rsync 60초+ hang → 즉시 외과 패치로 전환 (묻지 않고)
-- 소수 파일만 변경 (1~3개) → 풀 빌드보다 빠름
+**SSHPASS · dist 폴더 · `__SAJUMOON_ENV__` 치환은 스크립트가 자동 처리. 별도 설정 없이 실행만 하면 된다.**
+- SSHPASS: `.env.local`에서 자동 로드
+- dist 폴더: `dist/dist2/dist3` 중 `index.html` mtime이 가장 최근인 것 자동 선택 → EBUSY 오류로 `--outDir dist3`을 써도 자동으로 dist3 배포
+- env 치환: `__SAJUMOON_ENV__` → `prod` 자동
+- 배포 검증: 새 JS 해시가 서버에 존재하는지 자동 확인 후 출력
 
-**MD 파일 외과 배포:**
-```bash
-python tools/_sync_handbook.py   # _HANDBOOK 전체 SFTP
+### ✅ API 변경 시만 추가 확인
+
 ```
-
-**API 외과 배포 (hang 회피):**
-```bash
-python tools/_patch_api.py root@104.64.128.103 /data/wwwroot/api.sajumoon.co.kr sajumoon-api
+1. _patch_api.py 상단 FILES 목록에 내가 바꾼 파일이 포함되어 있는가?
+   → 누락 시 배포 전에 FILES 에 추가
+2. rsync 60초+ hang → Ctrl+C 후 python tools/_patch_api.py 즉시 재실행
 ```
 
 ### ⚠️ 배포 경로 (nginx 실제 확인값 — 2026-06-04)
 
-nginx `sajuplan.com.conf` 분석 결과:
 ```
 root /data/wwwroot/sajumoon.co.kr;
 location /mng/ { alias /data/wwwroot/sajumoon.co.kr/mng/; }
@@ -269,10 +306,8 @@ location /mng/ { alias /data/wwwroot/sajumoon.co.kr/mng/; }
 | 관리자 프론트 | `sajuplan.com/mng` | `/data/wwwroot/sajumoon.co.kr/mng/` |
 | API | `api.sajuplan.com` | `/data/wwwroot/api.sajumoon.co.kr/` |
 
-- **❌ `/data/wwwroot/sajuplan.com/` — nginx가 서빙하지 않는 죽은 폴더. 절대 배포 금지.**
-- `sajumoon.co.kr` 자체는 redirect-only 도메인 (→ sajuplan.com). 파일 폴더 이름만 `sajumoon.co.kr`인 것.
-- 빌드 후 `__SAJUMOON_ENV__` → `prod` sed 치환 필수 (index.html) — `_patch_frontend.py` 자동 처리
-- Vite 빌드 EBUSY 오류 시: `--outDir dist3` 사용
+- **❌ `/data/wwwroot/sajuplan.com/` — nginx 미사용 죽은 폴더. `_patch_frontend_fast.py`에서 제거 완료.**
+- `sajumoon.co.kr` 자체는 redirect-only 도메인. 파일 폴더 이름만 `sajumoon.co.kr`인 것.
 
 ## 완료 보고 형식
 

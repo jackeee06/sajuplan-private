@@ -9,6 +9,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { M2netService } from '../../shared/m2net/m2net.service';
+import { PushService } from '../../shared/push/push.service';
 import { SmsService } from '../sms/sms.service';
 
 export interface PhoneConsultResult {
@@ -47,6 +48,7 @@ export class UserConsultService {
     private readonly m2net: M2netService,
     private readonly config: ConfigService,
     private readonly sms: SmsService,
+    private readonly push: PushService,
   ) {}
 
   /** wss 접속 베이스 URL — env 미설정 시 sample/chat_test/cn.php 와 동일한 기본값 */
@@ -63,7 +65,8 @@ export class UserConsultService {
     counselorId: number;
     variant: 'prepaid' | 'postpaid';
   }): Promise<PhoneConsultResult> {
-    if (params.memberId === params.counselorId) {
+    if (Number(params.memberId) === Number(params.counselorId)) {
+      // [2026-06-11 버그수정] JWT sub 는 런타임 문자열 → `===` 직접 비교가 타입 불일치로 무력화됨.
       throw new BadRequestException('본인에게 상담을 요청할 수 없습니다.');
     }
     // 회원/상담사 정보 조회
@@ -197,7 +200,8 @@ export class UserConsultService {
      *  값이 없으면 기존 "잔액 소진까지" 모드 — 하위 호환. */
     chargeMinutes?: number;
   }): Promise<ChatConsultResult> {
-    if (params.memberId === params.counselorId) {
+    if (Number(params.memberId) === Number(params.counselorId)) {
+      // [2026-06-11 버그수정] JWT sub 는 런타임 문자열 → `===` 직접 비교가 타입 불일치로 무력화됨.
       throw new BadRequestException('본인에게 상담을 요청할 수 없습니다.');
     }
     // chargeMinutes 화이트리스트 검증
@@ -503,29 +507,95 @@ export class UserConsultService {
     counselorId: number,
     chatRoomId: number,
   ): Promise<void> {
-    const rows = await this.sql<{ phone: string | null; nickname: string | null; name: string | null }[]>`
-      SELECT phone, nickname, name FROM member WHERE id = ${counselorId} LIMIT 1
+    // 상담사 정보 + 요청한 회원 닉네임을 한 번에 조회.
+    const rows = await this.sql<{
+      phone: string | null;
+      nickname: string | null;
+      name: string | null;
+      member_nickname: string | null;
+      member_name: string | null;
+    }[]>`
+      SELECT c.phone, c.nickname, c.name,
+             m.nickname AS member_nickname, m.name AS member_name
+        FROM member c
+        LEFT JOIN chat_room cr ON cr.id = ${chatRoomId}
+        LEFT JOIN member m ON m.id = cr.member_id
+       WHERE c.id = ${counselorId}
+       LIMIT 1
     `;
     const csr = rows[0];
-    if (!csr || !csr.phone) {
-      this.logger.warn(`[notifyCounselorChatRequest] 상담사 휴대폰 없음 counselorId=${counselorId}`);
+    if (!csr) {
+      this.logger.warn(`[notifyCounselorChatRequest] 상담사 없음 counselorId=${counselorId}`);
       return;
     }
     const displayName = (csr.nickname || csr.name || '상담사').trim();
+    const memberName = (csr.member_nickname || csr.member_name || '회원').trim();
+
+    // ── ① BizM 알림톡 (상담사 phone 있을 때만) ──────────────────────────────
     // [2026-05-23] BizM 신규 템플릿 chat_request_to_counselor 사용:
     //   [ 사주플랜 ] 채팅 상담 요청
     //   #{상담사닉네임} 선생님께 새로운 채팅 상담이 들어왔어요.
     //   3분 안에 채팅방으로 입장하지 않으시면 해당 요청은 자동으로 종료됩니다.
     // 버튼 url 은 채팅방 직접 진입 경로 (ChatRoom 가 비로그인 시 자동 redirect).
-    const r = await this.sms.sendAlimtalkByCode(
-      'chat_request_to_counselor',
-      csr.phone,
-      { 상담사닉네임: displayName, url: `chat/${chatRoomId}` },
-      '채팅 상담 요청 알림',
-    );
-    if (!r.ok) {
+    if (csr.phone) {
+      try {
+        const r = await this.sms.sendAlimtalkByCode(
+          'chat_request_to_counselor',
+          csr.phone,
+          { 상담사닉네임: displayName, url: `chat/${chatRoomId}` },
+          '채팅 상담 요청 알림',
+        );
+        if (!r.ok) {
+          this.logger.warn(
+            `[notifyCounselorChatRequest] BizM 발송 실패 counselorId=${counselorId} reason=${r.reason}`,
+          );
+        }
+      } catch (e) {
+        this.logger.warn(
+          `[notifyCounselorChatRequest] 알림톡 예외 counselorId=${counselorId}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    } else {
+      this.logger.warn(`[notifyCounselorChatRequest] 상담사 휴대폰 없음 counselorId=${counselorId} — 알림톡 skip`);
+    }
+
+    // ── ② FCM 푸시 (앱 백그라운드/종료 상태 대비) ──────────────────────────────
+    // [2026-06-08] 채팅 요청은 그동안 알림톡 + 인앱 polling 뿐이라 앱을 닫으면 도달 0건이었음.
+    //   전화 요청(requestConsult)과 동일하게 푸시 추가 → 앱이 꺼져 있어도 알림 도달.
+    //   인앱 polling 은 앱 포그라운드일 때만 동작(OS 백그라운드 제한)하므로 푸시가 핵심 백업.
+    // [2026-06-10] 버그수정: sendToTopic('chl_5') → sendToTokens(해당 상담사 토큰만)
+    //   chl_5 토픽은 전체 상담사 브로드캐스트 → 모든 상담사에게 다른 사람 알림이 전달되는 버그.
+    try {
+      const tokenRows = await this.sql<{ token: string }[]>`
+        SELECT token FROM member_push_token
+         WHERE member_id = ${counselorId}
+           AND is_active = TRUE
+           AND token IS NOT NULL AND token <> ''
+         LIMIT 10
+      `;
+      if (tokenRows.length > 0) {
+        const r = await this.push.sendToTokens(
+          tokenRows.map((t) => t.token),
+          {
+            title: '채팅 상담 요청이 도착했습니다',
+            body: `${memberName} 님이 채팅상담을 신청했습니다. 3분 안에 입장해주세요.`,
+            data: {
+              type: 'chat_request',
+              counselor_id: String(counselorId),
+              chat_room_id: String(chatRoomId),
+              event_url: `/chat/${chatRoomId}`,
+            },
+          },
+        );
+        if (!r.ok && r.error) {
+          this.logger.warn(
+            `[notifyCounselorChatRequest] FCM 발송 실패 counselorId=${counselorId}: ${r.error}`,
+          );
+        }
+      }
+    } catch (e) {
       this.logger.warn(
-        `[notifyCounselorChatRequest] BizM 발송 실패 counselorId=${counselorId} reason=${r.reason}`,
+        `[notifyCounselorChatRequest] FCM 예외 counselorId=${counselorId}: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
   }

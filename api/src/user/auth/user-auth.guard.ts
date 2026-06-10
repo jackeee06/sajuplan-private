@@ -40,7 +40,14 @@ export class UserAuthGuard implements CanActivate {
     }
     try {
       const payload = await this.jwt.verifyAsync<UserJwtPayload>(token);
-      req.user = payload;
+      // [2026-06-11 근본수정] JWT sub 는 런타임에 문자열로 들어와, 숫자 id 와 `===` 직접 비교 시
+      //   타입 불일치로 self/소유권 검증이 조용히 무력화되는 버그가 있었다(qna/consult/counselors).
+      //   진입점에서 number 로 정규화해 모든 비교·쿼리에서 일관되게 한다. NaN 이면 세션 거부.
+      const sub = Number(payload.sub);
+      if (!Number.isFinite(sub)) {
+        throw new UnauthorizedException('세션이 만료되었거나 유효하지 않습니다.');
+      }
+      req.user = { ...payload, sub };
       return true;
     } catch {
       throw new UnauthorizedException('세션이 만료되었거나 유효하지 않습니다.');

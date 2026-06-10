@@ -112,7 +112,15 @@ test.describe('모든 admin 페이지 자동 검증', () => {
           continue
         }
         await page.waitForLoadState('domcontentloaded')
-        await page.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {})
+        await page.waitForLoadState('networkidle', { timeout: 12_000 }).catch(() => {})
+        // auth context 완료 대기 — "세션 확인 중…"(8자) 이 사라질 때까지
+        await page.waitForFunction(
+          () => {
+            const t = document.getElementById('root')?.textContent ?? ''
+            return t.trim().length >= 20
+          },
+          { timeout: 10_000 },
+        ).catch(() => {})
 
         const config = await page.evaluate(() => (window as any).__SAJUMOON_CONFIG)
         if (config?.env === '__SAJUMOON_ENV__') {

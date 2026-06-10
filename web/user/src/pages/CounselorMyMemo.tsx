@@ -30,7 +30,7 @@ export default function CounselorMyMemo() {
       navigate('/login')
       return
     }
-    fetch(`${API_BASE}/api/user/counselor-mypage/memo`, { credentials: 'include' })
+    fetch(`${API_BASE}/user/counselor-mypage/memo`, { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => {
         setContent(data.content ?? '')
@@ -43,7 +43,7 @@ export default function CounselorMyMemo() {
   const save = async (text: string) => {
     setSaving(true)
     try {
-      const r = await fetch(`${API_BASE}/api/user/counselor-mypage/memo`, {
+      const r = await fetch(`${API_BASE}/user/counselor-mypage/memo`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

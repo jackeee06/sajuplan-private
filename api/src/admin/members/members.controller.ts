@@ -222,6 +222,39 @@ export class MembersController {
   async findOne(@Param('id', ParseIntPipe) id: number) {
     return this.membersService.findById(id);
   }
+
+  // ── 상담사 차단 관리 ──────────────────────────────────────────────────
+
+  /** GET /admin/members/counselors/:id/blocks — 차단 목록 */
+  @Get('counselors/:id/blocks')
+  listBlocks(@Param('id', ParseIntPipe) id: number) {
+    return this.membersService.listBlocks(id);
+  }
+
+  /** POST /admin/members/counselors/:id/blocks — 차단 추가 */
+  @Post('counselors/:id/blocks')
+  addBlock(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { member_id?: number; member_phone?: string; reason?: string },
+    @Req() req: AuthedRequest,
+  ) {
+    return this.membersService.addBlock(id, {
+      memberId: body.member_id ? Number(body.member_id) : undefined,
+      memberPhone: body.member_phone,
+      reason: body.reason,
+      adminId: req.admin.sub,
+    });
+  }
+
+  /** DELETE /admin/members/counselors/:id/blocks/:memberId — 차단 해제 */
+  @Delete('counselors/:id/blocks/:memberId')
+  async removeBlock(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('memberId', ParseIntPipe) memberId: number,
+  ) {
+    await this.membersService.removeBlock(id, memberId);
+    return { ok: true };
+  }
 }
 
 /**

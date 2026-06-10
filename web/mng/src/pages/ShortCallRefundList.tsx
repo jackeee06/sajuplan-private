@@ -138,7 +138,7 @@ export default function ShortCallRefundList() {
             />
           </div>
           <div className="w-[160px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">발생일 종료(미포함)</label>
+            <label className="block text-[11px] font-medium text-gray-500 mb-1">발생일 종료</label>
             <input
               type="date"
               value={pending.to}
@@ -174,7 +174,7 @@ export default function ShortCallRefundList() {
       {data && !loading && (
         <div className="flex items-center gap-4 px-1">
           <p className="text-xs text-gray-500">
-            기간 <span className="font-medium text-gray-700">{from}</span> ~ <span className="font-medium text-gray-700">{to}</span> (미포함)
+            기간 <span className="font-medium text-gray-700">{from}</span> ~ <span className="font-medium text-gray-700">{to}</span>
           </p>
           <p className="text-xs text-gray-500">
             건수 <span className="text-brand-600 font-semibold">{num.format(data.total)}</span>건

@@ -26,7 +26,6 @@ export interface AttendancePolicy {
   day15_bonus: number;
   day20_bonus: number;
   day30_coupon_amount: number;
-  coupon_expire_days: number;
   daily_total_limit: number;
   min_signup_days: number;
   /** 같은 IP 하루 출석 가능한 최대 계정 수 (어뷰징 차단, 2026-05-16 Phase 3). 0 = 무제한 */
@@ -76,7 +75,6 @@ export class AttendanceService {
       day15_bonus: num('day15_bonus'),
       day20_bonus: num('day20_bonus'),
       day30_coupon_amount: num('day30_coupon_amount'),
-      coupon_expire_days: num('coupon_expire_days'),
       daily_total_limit: num('daily_total_limit'),
       min_signup_days: num('min_signup_days'),
       ip_daily_limit: num('ip_daily_limit'),
@@ -196,9 +194,37 @@ export class AttendanceService {
         `;
         // member.point 누적 — 쿠폰 발급 전환 전까지는 30일 보상도 코인으로 합산.
         if (totalAdded > 0) {
+          // point row 보장 — 없으면 생성 (신규 회원 또는 직접 생성 계정 대비)
+          await tx`
+            INSERT INTO point (member_id, free_balance, paid_balance, total_earned, total_used)
+            VALUES (${memberId}, 0, 0, 0, 0)
+            ON CONFLICT (member_id) DO NOTHING
+          `;
+          const ptRows = await tx<{ free_balance: number; paid_balance: number }[]>`
+            SELECT free_balance, paid_balance FROM point WHERE member_id = ${memberId} FOR UPDATE
+          `;
+          const balanceAfter = Number(ptRows[0].free_balance) + Number(ptRows[0].paid_balance) + totalAdded;
           await tx`
             UPDATE member SET point = COALESCE(point, 0) + ${totalAdded}, updated_at = now()
              WHERE id = ${memberId}
+          `;
+          await tx`
+            UPDATE point
+               SET free_balance = free_balance + ${totalAdded},
+                   total_earned = total_earned + ${totalAdded},
+                   updated_at   = now()
+             WHERE member_id = ${memberId}
+          `;
+          const label = bonusCoin > 0
+            ? `출석 코인 (${consecutive}일 연속, 보너스 포함)`
+            : `출석 코인 (${consecutive}일 연속)`;
+          await tx`
+            INSERT INTO point_history
+              (member_id, content, earn_point, use_point, balance_after,
+               is_paid, is_expired, rel_action, actor_type, balance_kind)
+            VALUES
+              (${memberId}, ${label}, ${totalAdded}, 0, ${balanceAfter},
+               false, false, ${'attendance:' + todayStr}, 'system', 'consumer')
           `;
         }
       });

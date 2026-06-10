@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
+import { M2netService } from '../../shared/m2net/m2net.service';
 
 export interface PublicCoupon {
   id: number;
@@ -43,7 +44,10 @@ function fmtDate(d: Date | string | null | undefined): string {
 @Injectable()
 export class UserCouponsService {
   private readonly logger = new Logger(UserCouponsService.name);
-  constructor(@Inject(SQL) private readonly sql: Sql) {}
+  constructor(
+    @Inject(SQL) private readonly sql: Sql,
+    private readonly m2net: M2netService,
+  ) {}
 
   /** 회원 쿠폰 목록 — status=available(사용 전, 만료 전) | used(사용 완료, hidden_at IS NULL) */
   async list(memberId: number, status: 'available' | 'used'): Promise<PublicCoupon[]> {
@@ -89,7 +93,10 @@ export class UserCouponsService {
   /** 보유 쿠폰 사용 — used_at 마킹 + 포인트 적립 + member.point 동기화 */
   async use(memberId: number, couponId: number): Promise<{ point: number; new_balance: number }> {
     try {
-      return await this.useImpl(memberId, couponId);
+      const result = await this.useImpl(memberId, couponId);
+      // m2net 잔액 동기화 — 트랜잭션 커밋 후 비동기 실행 (실패해도 쿠폰 사용은 성공 처리)
+      this.syncM2netCoin(memberId, result.point).catch(() => {});
+      return result;
     } catch (e) {
       this.logger.error(
         `[coupon.use] memberId=${memberId} couponId=${couponId} ` +
@@ -164,6 +171,7 @@ export class UserCouponsService {
 
   /**
    * 쿠폰코드 입력 → 쿠폰 발급 + 즉시 사용 처리 + 포인트 적립.
+   * (트랜잭션 커밋 후 m2net 동기화 포함)
    *  - coupon_zone.cz_type=3 (코드입력)이고 cp_id 일치하는 활성 쿠폰존 조회
    *  - 다운로드 한도(cz_download) 검증 후 coupon row 생성
    *  - 즉시 used_at 마킹 + 포인트 적립
@@ -173,7 +181,12 @@ export class UserCouponsService {
     const trimmed = (code || '').trim();
     if (!trimmed) throw new BadRequestException('쿠폰번호를 입력해주세요.');
 
-    return this.sql.begin(async (tx) => {
+    const result = await this.sql.begin(async (tx) => {
+      // [BUG FIX 2026-06-10] 동시성 락 — 같은 회원이 같은 코드를 동시에 2번 입력하면
+      //   아래 COUNT 중복검사가 둘 다 0을 읽고 둘 다 INSERT → 쿠폰 2개 + 코인 2배 발급 가능.
+      //   coupon 테이블에 (zone_id, member_id) UNIQUE 제약이 없으므로 advisory lock 으로 직렬화.
+      await tx`SELECT pg_advisory_xact_lock(7777005, ${memberId})`;
+
       const zoneRows = await tx<{
         id: number;
         subject: string;
@@ -247,6 +260,10 @@ export class UserCouponsService {
 
       return { point, new_balance: newBalance };
     });
+
+    // m2net 잔액 동기화 — 트랜잭션 커밋 후 비동기 실행
+    this.syncM2netCoin(memberId, result.point).catch(() => {});
+    return result;
   }
 
   /** 사용내역 숨김 — 본인 화면에서만 안 보이게 (이력은 보존) */
@@ -326,5 +343,23 @@ export class UserCouponsService {
     await tx`UPDATE member SET point = point + ${delta}, updated_at = now() WHERE id = ${memberId}`;
 
     return balanceAfter;
+  }
+
+  /** 쿠폰 적립 후 m2net 잔액 동기화 — 실패해도 로그만 남기고 무시 */
+  private async syncM2netCoin(memberId: number, delta: number): Promise<void> {
+    if (delta <= 0) return;
+    const rows = await this.sql<{ m2net_membid: string | null }[]>`
+      SELECT m2net_membid FROM member WHERE id = ${memberId} LIMIT 1
+    `;
+    const mb1 = rows[0]?.m2net_membid;
+    if (!mb1) return;
+    const sync = await this.m2net.addMemberCoin(mb1, delta);
+    if (!sync.ok) {
+      this.logger.warn(
+        `[coupon.m2net] sync 실패 memberId=${memberId} mb1=${mb1} delta=${delta} err=${sync.error}`,
+      );
+    } else {
+      this.logger.log(`[coupon.m2net] sync 완료 memberId=${memberId} mb1=${mb1} +${delta}`);
+    }
   }
 }

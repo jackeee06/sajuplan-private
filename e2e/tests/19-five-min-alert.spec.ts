@@ -28,7 +28,7 @@ const WEB_BASE: Record<string, string> = {
   test: 'https://sajumoon.kr',
   prod: 'https://sajuplan.com',
 }
-const TARGET = process.env.TARGET ?? 'test'
+const TARGET = process.env.TARGET ?? 'prod'
 const BASE = API_BASE[TARGET] ?? API_BASE.test
 const WEB = WEB_BASE[TARGET] ?? WEB_BASE.test
 const CRON_TOKEN =
@@ -37,6 +37,7 @@ const CRON_TOKEN =
     : process.env.CRON_TOKEN_TEST ?? process.env.CRON_TOKEN ?? ''
 
 test.describe(`5분 알림 회귀 방지 (${TARGET})`, () => {
+  test.use({ storageState: 'user_member_storage.json' })
   test.describe.configure({ mode: 'serial' })
 
   test('1) chat-five-min-alert cron endpoint shape', async () => {
@@ -74,20 +75,11 @@ test.describe(`5분 알림 회귀 방지 (${TARGET})`, () => {
     await ctx.dispose()
   })
 
-  test('4) GlobalAlerts polling — 로그인 후 /notifications/pending 요청 발생', async ({ page }) => {
-    if (TARGET === 'prod') test.skip()
-    // e2e_member 인증 (test 환경에만 존재)
+  test('4) GlobalAlerts polling — 로그인 후 /notifications/pending 요청 발생', async ({ page, context }) => {
+    // TEST 서버 폐기(2026-05-29) → prod 단일. user_member_storage.json 세션 사용.
+    await context.addInitScript(() => { /* storageState cookies already loaded */ })
     await page.goto(`${WEB}/`, { waitUntil: 'domcontentloaded' })
-    const loginOk = await page.evaluate(async (base) => {
-      const r = await fetch(`${base}/api/user/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mb_id: 'e2e_member', password: 'e2e_test_2026' }),
-        credentials: 'include',
-      })
-      return r.ok
-    }, BASE)
-    test.skip(!loginOk, 'e2e_member 로그인 실패 — test 서버 미작동')
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
 
     // 페이지 reload → GlobalAlerts mount → polling 시작
     const pendingRequests: string[] = []
@@ -105,7 +97,8 @@ test.describe(`5분 알림 회귀 방지 (${TARGET})`, () => {
   test('5) ChatRoom 빌드 산출물 — 회원/상담사 5분 모달 텍스트 모두 존재', async ({ page }) => {
     // 페이지 진입 후 모든 chunked JS 다운로드. 두 텍스트 모두 발견되어야 함.
     // 분기 사라지면 둘 중 하나 없음 → 사고 재발 (상담사에게 충전 버튼).
-    await page.goto(`${WEB}/`, { waitUntil: 'networkidle' })
+    await page.goto(`${WEB}/`, { waitUntil: 'domcontentloaded' })
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
     // dist 의 모든 chunked JS body 합쳐 검색
     const allScripts = await page.evaluate(async () => {
       const scripts = Array.from(document.querySelectorAll('script[src]'))

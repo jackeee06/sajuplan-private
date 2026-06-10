@@ -62,6 +62,16 @@ export class AdminGradeController {
     return { items: await this.svc.getGradeHistory(id, lim) };
   }
 
+  /** 실시간 승급 이력만 필터링 (changed_by='realtime') */
+  @Get('counselor/:id/realtime-upgrades')
+  async realtimeUpgrades(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('limit') limit?: string,
+  ) {
+    const lim = limit ? Math.min(200, Math.max(1, Number(limit) || 50)) : 50;
+    return { items: await this.svc.getRealtimeUpgrades(id, lim) };
+  }
+
   @Patch('counselor/:id/grade')
   async forceGrade(
     @Param('id', ParseIntPipe) id: number,

@@ -124,12 +124,17 @@ export class UserPointsService {
              is_expired, expire_date, is_paid, rel_action, rel_table, rel_id, created_at
         FROM point_history
        WHERE member_id = ${memberId}
+         AND balance_kind = 'consumer'
+         AND rel_action NOT LIKE 'chat_room%prepaid%'
        ORDER BY created_at DESC, id DESC
        LIMIT ${safeLimit} OFFSET ${offset}
     `;
 
     const totalRows = await this.sql<{ cnt: string }[]>`
-      SELECT count(*)::text AS cnt FROM point_history WHERE member_id = ${memberId}
+      SELECT count(*)::text AS cnt FROM point_history
+       WHERE member_id = ${memberId}
+         AND balance_kind = 'consumer'
+         AND rel_action NOT LIKE 'chat_room%prepaid%'
     `;
 
     const items: PointHistoryItem[] = rows.map((r) => {

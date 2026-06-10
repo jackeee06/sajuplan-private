@@ -87,8 +87,9 @@ export class AuthController {
       body.password,
     );
     await this.issueLoginCookie(res, member, body.keep_login);
-    // 로그인 직후 m2net 잔액을 사주플랜 측 값으로 동기화 — 응답 지연 없도록 비동기 fire-and-forget.
+    // 로그인 직후 m2net 잔액 동기화 + 로그인 포인트 지급 (하루 1회) — fire-and-forget
     void this.authService.syncM2netBalanceForMember(member.id);
+    void this.authService.creditLoginPointOnce(member.id);
     return { ok: true, member };
   }
 
@@ -463,6 +464,7 @@ export class AuthController {
     if (existing) {
       const member = await this.authService.findActiveById(existing.id);
       await this.issueLoginCookie(res, member, true);
+      void this.authService.creditLoginPointOnce(member.id);
       return res.redirect(`${siteUrl}${next}`);
     }
 
@@ -545,6 +547,7 @@ export class AuthController {
     if (existing) {
       const member = await this.authService.findActiveById(existing.id);
       await this.issueLoginCookie(res, member, true);
+      void this.authService.creditLoginPointOnce(member.id);
       return res.redirect(`${siteUrl}${safeRet}`);
     }
 
@@ -860,6 +863,29 @@ export class AuthController {
   }
 
   // ─────────────────────────────────────────────
+  // 비밀번호 재설정 (휴대폰 인증 후 직접 설정)
+  //   POST /api/user/auth/find/phone/reset  { phone, new_password }
+  //   → smsApi.verify() 로 이미 인증한 폰번호에 대해 새 비밀번호를 직접 설정.
+  //   isVerifiedRecently() 로 1회용 소비 없이 최근 인증 여부만 확인.
+  // ─────────────────────────────────────────────
+  @Post('find/phone/reset')
+  @HttpCode(200)
+  @Throttle({ login: { limit: 10, ttl: 60_000 } })
+  async resetPasswordByPhone(@Body() body: { phone?: string; new_password?: string }) {
+    const phone = String(body.phone ?? '').replace(/[^0-9]/g, '');
+    const newPw = String(body.new_password ?? '').trim();
+    if (!/^01[0-9]{8,9}$/.test(phone)) {
+      throw new BadRequestException('휴대폰번호를 올바르게 입력해 주십시오.');
+    }
+    const verified = await this.sms.isVerifiedRecently(phone, 10);
+    if (!verified) {
+      throw new BadRequestException('휴대폰 인증이 만료되었습니다. 다시 인증해주세요.');
+    }
+    const result = await this.authService.resetPasswordByPhone(phone, newPw);
+    return { ok: true, mb_id: result.mb_id };
+  }
+
+  // ─────────────────────────────────────────────
   // 비밀번호 찾기 (이메일) — 임시비밀번호 발급 + 메일 발송
   //   POST /api/user/auth/find/email  { email }
   // ─────────────────────────────────────────────
@@ -988,26 +1014,14 @@ export class AuthController {
       // 실패 시 회원 row 롤백 + 사용자에게 알림 (sample 정책)
       await this.authService.registerWithM2net(created.id);
 
-      // 회원가입 쿠폰 발급 + 알림톡 (소셜 가입도 동일하게) — 발급 실패는 가입을 막지 않음
-      try {
-        const couponInfo = await this.authService.issueSignupCoupon(created.id);
-        if (couponInfo && body.phone) {
-          const endsAtFormatted = couponInfo.endsAt
-            ? couponInfo.endsAt.toLocaleDateString('ko-KR', {
-                timeZone: 'Asia/Seoul',
-                year: 'numeric', month: '2-digit', day: '2-digit',
-              }).replace(/\. /g, '.').replace(/\.$/, '')
-            : '기간 없음';
-          this.sms.sendAlimtalkByCode(body.phone, 'coupon_signup_v1', {
-            이름: body.name ?? pending.name ?? '',
-            쿠폰명: couponInfo.couponName,
-            유효기간: endsAtFormatted,
-            url: '',
-          }).catch(() => undefined);
-        }
-      } catch {
-        // 로그는 service 내부에서. 회원가입은 계속 진행.
-      }
+      // [BUG FIX 2026-06-10] 소셜 가입자 회원가입 코인 누락 수정.
+      //   기존: 소셜 가입은 폐지된 issueSignupCoupon(쿠폰)만 호출 → 쿠폰존 비활성이라 0 지급.
+      //         로컬 가입(service.signup)은 creditRegisterPoint(register_point 코인)를 주는데
+      //         소셜 가입 경로엔 그 호출이 없어 카카오/네이버 가입자가 가입 코인 10,000을 못 받았음.
+      //   수정: 로컬과 동일하게 creditRegisterPoint 지급 + 폐지된 쿠폰 호출 제거 (이중지급 지뢰 제거).
+      this.authService.creditRegisterPoint(created.id).catch(() => {
+        // best-effort — 실패해도 가입은 계속 (로컬 가입과 동일 정책)
+      });
 
       const member = await this.authService.findActiveById(created.id);
       await this.issueLoginCookie(res, member, true);
@@ -1112,10 +1126,13 @@ export class AuthController {
   private cookieSecure(): boolean {
     return runtimeEnv().cookieSecure;
   }
-  private cookieOptions(sameSite: 'strict' | 'lax' = 'lax') {
+  private cookieOptions(sameSite: 'strict' | 'lax' | 'none' = 'none') {
+    // [2026-06-07] SameSite=None: sajuplan.com(프론트) → api.sajuplan.com(API) cross-origin
+    //   GET 요청에도 쿠키가 전달돼야 함. Lax는 cross-origin GET 차단 → 승급 알림 등 API 호출 불가.
+    //   Secure=true 필수 (SameSite=None은 반드시 Secure와 함께).
     return {
       httpOnly: true,
-      secure: this.cookieSecure(),
+      secure: true, // SameSite=None은 Secure 필수
       sameSite,
       path: '/',
     } as const;

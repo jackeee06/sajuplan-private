@@ -56,6 +56,8 @@ export interface AdminCounselorApplyDetail extends AdminCounselorApplyListItem {
   /** extras JSONB 전체 — 프론트가 사진/계약서/생년월일/전문분야 등을 꺼내씀 */
   extras: Record<string, unknown>;
   updated_at: string;
+  /** 연동된 회원의 role — 이미 상담사인지 판단용 */
+  member_role: string | null;
 }
 
 export interface ApproveResult {
@@ -219,6 +221,7 @@ export class AdminCounselorApplyService {
       member_id: number | null;
       member_mb_id: string | null;
       member_name: string | null;
+      member_role: string | null;
       extras: Record<string, unknown>;
       created_at: Date;
       updated_at: Date;
@@ -229,6 +232,7 @@ export class AdminCounselorApplyService {
         a.id, a.status, a.category, a.title, a.content,
         a.applicant_phone, a.applicant_email, a.is_secret, a.view_count,
         a.member_id, m.mb_id AS member_mb_id, m.name AS member_name,
+        m.role AS member_role,
         a.extras, a.created_at, a.updated_at
       FROM post_apply a
       LEFT JOIN member m ON m.id = a.member_id
@@ -257,6 +261,7 @@ export class AdminCounselorApplyService {
       member_id: r.member_id ? Number(r.member_id) : null,
       member_mb_id: r.member_mb_id,
       member_name: r.member_name,
+      member_role: r.member_role ?? null,
       real_name: (extras.real_name as string | undefined) ?? null,
       pen_name: (extras.pen_name as string | undefined) ?? null,
       field: (extras.field as string | undefined) ?? null,
@@ -333,7 +338,7 @@ export class AdminCounselorApplyService {
   }
 
   // ─────────────────────────────────────────────
-  // 승인 — 1클릭 완전자동
+  // 승인 — 1클릭 완전자동 (멱등성 보장)
   //   1) 신청 조회 + 사전검증 (이미 승인됐는지, 신청서에 mb_id/password_hash 있는지)
   //   2) extras 의 mb_id + password_hash 를 그대로 사용해 신규 상담사 생성
   //      - createCounselor 가 password 를 다시 해시하므로, 평문 PW 를 전달해야 함.
@@ -345,6 +350,9 @@ export class AdminCounselorApplyService {
   //
   // 휴대폰 중복: 신청 단계에서 이미 'pending/accepted 상담사 신청' 중복을 차단함.
   // 일반 회원과는 휴대폰이 겹쳐도 OK — 상담사는 별도 mb_id 로 가입되므로 충돌 없음.
+  //
+  // ★ 멱등성: 이전 승인 시도가 promoteToCounselor 직후 실패한 경우(부분 승인 상태)를
+  //   자동 감지하여 나머지 단계(m2net·파일·post_apply)만 완료. 재시도가 안전함.
   // ─────────────────────────────────────────────
   async approve(id: number): Promise<ApproveResult> {
     type Row = {
@@ -397,26 +405,35 @@ export class AdminCounselorApplyService {
     if (existingByPhone.length > 0) {
       const ex = existingByPhone[0];
       if (ex.role === 'counselor') {
-        throw new ConflictException('이미 같은 휴대폰으로 상담사 가입되어 있습니다.');
+        // ★ 부분 승인 복구 — 이전 승인 시도가 promoteToCounselor 직후 실패한 경우.
+        // 같은 사람(member_id 일치 또는 mb_id 일치)이면 ConflictException 대신 나머지 단계만 완료.
+        const isSamePerson =
+          (r.member_id != null && r.member_id === ex.id) || ex.mb_id === mbId;
+        if (!isSamePerson) {
+          throw new ConflictException('이미 같은 휴대폰으로 상담사 가입되어 있습니다.');
+        }
+        // 같은 사람 → promoteToCounselor 스킵, memberId 만 확보 후 m2net·파일·post_apply 마저 완료
+        memberId = ex.id;
+      } else {
+        if (ex.mb_id !== mbId) {
+          throw new ConflictException(
+            `같은 휴대폰으로 다른 아이디(${ex.mb_id}) 의 회원이 있습니다. 회원 아이디와 동일하게 신청해주세요.`,
+          );
+        }
+        // 같은 mb_id 회원 → 상담사로 승격 (role / dtmfno / telno / counselor_category 채움)
+        memberId = await this.members.promoteToCounselor({
+          memberId: ex.id,
+          nickname: penName,
+          counselor_category: (extras.field as string | undefined) ?? null,
+          profile_intro: (extras.intro as string | undefined) ?? null,
+          profile_specialty: Array.isArray(extras.specialties)
+            ? (extras.specialties as string[])
+            : null,
+          profile_traits: Array.isArray(extras.styles)
+            ? (extras.styles as string[])
+            : null,
+        });
       }
-      if (ex.mb_id !== mbId) {
-        throw new ConflictException(
-          `같은 휴대폰으로 다른 아이디(${ex.mb_id}) 의 회원이 있습니다. 회원 아이디와 동일하게 신청해주세요.`,
-        );
-      }
-      // 같은 mb_id 회원 → 상담사로 승격 (role / dtmfno / telno / counselor_category 채움)
-      memberId = await this.members.promoteToCounselor({
-        memberId: ex.id,
-        nickname: penName,
-        counselor_category: (extras.field as string | undefined) ?? null,
-        profile_intro: (extras.intro as string | undefined) ?? null,
-        profile_specialty: Array.isArray(extras.specialties)
-          ? (extras.specialties as string[])
-          : null,
-        profile_traits: Array.isArray(extras.styles)
-          ? (extras.styles as string[])
-          : null,
-      });
     } else {
       // 비회원 신청 — mb_id 중복 검사 후 새 상담사 회원 생성 (회원 단계 거치지 않음, 1회 생성)
       if (!passwordHash) {
@@ -473,11 +490,17 @@ export class AdminCounselorApplyService {
     // 신청서 첨부파일을 member 폴더로 복사 + member_file insert
     await this.transferFilesToMember(memberId, extras);
 
-    // ─── 추천인 코드 처리 (2026-06-04, v2 2026-06-04) ────────────────────────
-    // 1) 승인된 상담사에게 referral_code = mb_id 로 발급 (없으면 생성)
+    // ─── 추천인 코드 처리 ────────────────────────────────────────────────────
+    // 1) 승인된 상담사에게 referral_code 발급 (없으면 생성)
+    //    일반 가입(영숫자 3~20자): mb_id 그대로 사용
+    //    OAuth 가입(카카오/네이버 등, 언더스코어 포함 또는 숫자 과다): A{4자리 id}
     await this.sql`
       UPDATE member
-         SET referral_code = mb_id
+         SET referral_code = CASE
+           WHEN mb_id ~ '^[a-zA-Z0-9]{3,20}$'
+           THEN mb_id
+           ELSE 'A' || LPAD(id::text, 4, '0')
+         END
        WHERE id = ${memberId} AND referral_code IS NULL
     `;
 

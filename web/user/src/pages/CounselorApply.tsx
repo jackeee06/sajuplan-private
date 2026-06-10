@@ -4,6 +4,7 @@ import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
 import { counselorApplyApi, settingsApi, type CounselorApplyListItem } from '../lib/api'
+import { openExternalUrl } from '../lib/native-bridge'
 
 const PAGE_SIZE = 10
 
@@ -81,8 +82,7 @@ export default function CounselorApply() {
 
   const handleKakaoInquiry = () => {
     if (kakaoChannelUrl) {
-      // 외부 새 창/탭으로 카카오 채널 1:1 문의 열기
-      window.open(kakaoChannelUrl, '_blank', 'noopener,noreferrer')
+      openExternalUrl(kakaoChannelUrl)
     } else {
       alert('카카오 채널이 설정되지 않았습니다. 운영자에게 문의해주세요.')
     }

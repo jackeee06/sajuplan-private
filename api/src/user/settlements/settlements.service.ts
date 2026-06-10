@@ -285,6 +285,7 @@ export class UserSettlementsService {
       is_paid: boolean;
       consultation_id: number | null;
       preflag: string | null;
+      grade_at_session: string | null;
       customer_nickname: string | null;
       customer_name: string | null;
       rel_table: string | null;
@@ -296,6 +297,7 @@ export class UserSettlementsService {
              ph.rel_table,
              c.id AS consultation_id,
              c.preflag,
+             c.grade_at_session,
              cm.nickname AS customer_nickname,
              cm.name     AS customer_name,
              COUNT(*) OVER ()::text AS total
@@ -333,6 +335,7 @@ export class UserSettlementsService {
         preflag: (r.preflag === 'Y' || r.preflag === 'N') ? r.preflag : '',
         customer_name: customer ? maskName(customer) : null,
         consultation_id: r.consultation_id ?? null,
+        grade_at_session: r.grade_at_session ?? null,
         rel_table: r.rel_table ?? null,  // 추천 수당 구분용
       };
     });

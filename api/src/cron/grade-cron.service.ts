@@ -44,13 +44,13 @@ export class GradeCronService {
 
     // [role/level 정리] level=5 → role='counselor' 통일 (이중 진실원천 제거)
     const counselors = mbId
-      ? await this.sql<{ id: number; mb_id: string | null; grade: string; grade_recalculated_at: string | null }[]>`
-          SELECT id, mb_id, grade, grade_recalculated_at FROM member
+      ? await this.sql<{ id: number; mb_id: string | null; grade: string; call_070_unit_cost: number | null; chat_unit_cost: number | null; grade_recalculated_at: string | null }[]>`
+          SELECT id, mb_id, grade, call_070_unit_cost, chat_unit_cost, grade_recalculated_at FROM member
            WHERE role = 'counselor' AND left_at IS NULL AND mb_id = ${mbId}
            LIMIT 1
         `
-      : await this.sql<{ id: number; mb_id: string | null; grade: string; grade_recalculated_at: string | null }[]>`
-          SELECT id, mb_id, grade, grade_recalculated_at FROM member
+      : await this.sql<{ id: number; mb_id: string | null; grade: string; call_070_unit_cost: number | null; chat_unit_cost: number | null; grade_recalculated_at: string | null }[]>`
+          SELECT id, mb_id, grade, call_070_unit_cost, chat_unit_cost, grade_recalculated_at FROM member
            WHERE role = 'counselor' AND left_at IS NULL
            ORDER BY id
         `;
@@ -63,6 +63,8 @@ export class GradeCronService {
       grade_before: string;
       grade_after: string;
       change_type: 'promote' | 'demote' | 'unchanged' | 'skipped';
+      unit_cost_before: number | null;
+      unit_cost_after: number | null;
     }> = [];
 
     for (const c of counselors) {
@@ -94,7 +96,7 @@ export class GradeCronService {
   // ────────────────────────────────────────
 
   private async processCounselor(params: {
-    member: { id: number; mb_id: string | null; grade: string; grade_recalculated_at: string | null };
+    member: { id: number; mb_id: string | null; grade: string; call_070_unit_cost: number | null; chat_unit_cost: number | null; grade_recalculated_at: string | null };
     range: { startday: string; endday: string };
     policy: ReturnType<typeof this.emptyPolicy>;
     thisMonthStart: string;
@@ -116,6 +118,8 @@ export class GradeCronService {
         grade_before: member.grade,
         grade_after: member.grade,
         change_type: 'skipped' as const,
+        unit_cost_before: null,
+        unit_cost_after: null,
       };
     }
 
@@ -142,6 +146,22 @@ export class GradeCronService {
           ? 'promote'
           : 'demote';
 
+    // 강등 시 단가 자동 조정 — 새 등급 허용 범위를 초과하면 새 등급의 최상위 단가로 자동 조정
+    // (사장님 정책 2026-06-08: "묻지말고 자동으로 새 등급 최상위 단가로")
+    // call_070_unit_cost / chat_unit_cost 는 항상 동일하게 유지하므로 대표값은 call_070 기준
+    const currentUnitCost = Number(member.call_070_unit_cost ?? member.chat_unit_cost ?? 0);
+    let adjustedUnitCost: number | null = null;
+    if (changeType === 'demote' && currentUnitCost > 0) {
+      const newGradeOptions = await this.loadGradeOptions(finalGrade);
+      if (newGradeOptions.length > 0 && !newGradeOptions.includes(currentUnitCost)) {
+        adjustedUnitCost = Math.max(...newGradeOptions);
+        this.logger.log(
+          `[grade-cron] 단가 자동 조정: memberId=${member.id} mb_id=${member.mb_id} ` +
+          `${currentUnitCost}원 → ${adjustedUnitCost}원 (강등 ${member.grade}→${finalGrade})`,
+        );
+      }
+    }
+
     if (testOnly) {
       return {
         memberId: member.id,
@@ -151,6 +171,8 @@ export class GradeCronService {
         grade_before: member.grade,
         grade_after: finalGrade,
         change_type: changeType,
+        unit_cost_before: currentUnitCost || null,
+        unit_cost_after: adjustedUnitCost,
       };
     }
 
@@ -169,19 +191,35 @@ export class GradeCronService {
         `;
       } else {
         // 등급 변동: 전체 갱신 + 이력 INSERT
-        await tx`
-          UPDATE member
-             SET grade = ${finalGrade},
-                 last_month_seconds = ${seconds},
-                 grade_recalculated_at = NOW(),
-                 unit_cost_changeable_at = NULL
-           WHERE id = ${member.id}
-        `;
+        if (adjustedUnitCost !== null) {
+          await tx`
+            UPDATE member
+               SET grade = ${finalGrade},
+                   last_month_seconds = ${seconds},
+                   grade_recalculated_at = NOW(),
+                   unit_cost_changeable_at = NULL,
+                   call_070_unit_cost = ${adjustedUnitCost},
+                   chat_unit_cost = ${adjustedUnitCost}
+             WHERE id = ${member.id}
+          `;
+        } else {
+          await tx`
+            UPDATE member
+               SET grade = ${finalGrade},
+                   last_month_seconds = ${seconds},
+                   grade_recalculated_at = NOW(),
+                   unit_cost_changeable_at = NULL
+             WHERE id = ${member.id}
+          `;
+        }
+        const reason = adjustedUnitCost !== null
+          ? `monthly recalc (단가 자동조정 ${currentUnitCost}→${adjustedUnitCost}원)`
+          : 'monthly recalc';
         await tx`
           INSERT INTO member_grade_history
             (member_id, grade_before, grade_after, last_month_seconds, change_type, changed_by, reason)
           VALUES
-            (${member.id}, ${member.grade}, ${finalGrade}, ${seconds}, ${changeType}, 'cron', ${'monthly recalc'})
+            (${member.id}, ${member.grade}, ${finalGrade}, ${seconds}, ${changeType}, 'cron', ${reason})
         `;
       }
     });
@@ -194,6 +232,9 @@ export class GradeCronService {
       grade_before: member.grade,
       grade_after: finalGrade,
       change_type: changeType,
+      // 단가 자동 조정 결과 (testOnly=true 시에도 예상값 포함 — 검증용)
+      unit_cost_before: currentUnitCost || null,
+      unit_cost_after: adjustedUnitCost,  // null이면 조정 없음
     };
   }
 
@@ -244,6 +285,23 @@ export class GradeCronService {
     return ['preliminary', 'partner1', 'partner2', 'partner3', 'partner4', 'partner5'][
       Math.max(0, Math.min(5, rank))
     ];
+  }
+
+  // ────── 등급별 단가 옵션 로드 ──────
+
+  /** setting 테이블에서 해당 등급의 허용 단가 목록을 조회. 오름차순 정렬. */
+  private async loadGradeOptions(grade: string): Promise<number[]> {
+    const rows = await this.sql<{ value: string }[]>`
+      SELECT value FROM setting
+       WHERE namespace = 'grade' AND key = ${'options.' + grade}
+       LIMIT 1
+    `;
+    const raw = rows[0]?.value ?? '';
+    return raw
+      .split(',')
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isFinite(n) && n > 0)
+      .sort((a, b) => a - b);
   }
 
   // ────── 정책 로드 ──────

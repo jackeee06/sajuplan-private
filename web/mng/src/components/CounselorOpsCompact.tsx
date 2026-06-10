@@ -71,9 +71,9 @@ export default function CounselorOpsCompact({ memberId }: { memberId: number }) 
       {/* 한 줄 KPI */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-3.5 py-2 text-[13px]">
         <span className="inline-flex items-center gap-1" title="상담 적립으로 번 코인 (매월 1일 정산 대상)">
-          <span className="text-gray-500">💰 수익포인트</span>
-          <span className="font-semibold text-amber-700 tabular-nums">{num.format(data.point.earning_balance)}P</span>
-          <span className="text-[11px] text-gray-400">(소비포인트 {num.format(data.point.total)}P)</span>
+          <span className="text-gray-500">💰 수익금</span>
+          <span className="font-semibold text-amber-700 tabular-nums">{num.format(data.point.earning_balance)}원</span>
+          <span className="text-[11px] text-gray-400">(코인 {num.format(data.point.total)})</span>
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="text-gray-500">📞 오늘</span>

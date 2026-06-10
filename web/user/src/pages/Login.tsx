@@ -1,7 +1,8 @@
 ﻿import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
-import { ApiError, attendanceApi, authApi } from '../lib/api'
+import { ApiError, attendanceApi, authApi, counselorGradeApi } from '../lib/api'
+import { GRADE_UPGRADE_STORAGE_KEY } from '../components/GradeUpgradeToast'
 import { useAuth } from '../lib/auth-context'
 
 type SocialProvider = 'kakao' | 'naver' | 'apple'
@@ -201,6 +202,20 @@ export default function Login() {
           }))
         }
       } catch { /* 출석 실패는 로그인 흐름 막지 않음 */ }
+
+      // 실시간 등급 승급 확인 (2026-06-07) — 상담사 로그인 직후 미확인 승급 체크.
+      // 출석 토스트와 동일 패턴: sessionStorage → GradeUpgradeToast 가 다음 화면에서 1회 표시.
+      if (r.member.role === 'counselor') {
+        try {
+          const upg = await counselorGradeApi.pendingUpgrade()
+          if (upg?.upgrade) {
+            sessionStorage.setItem(GRADE_UPGRADE_STORAGE_KEY, JSON.stringify({
+              grade_label: upg.upgrade.grade_label,
+              hours: upg.upgrade.hours,
+            }))
+          }
+        } catch { /* 승급 확인 실패는 로그인 흐름 막지 않음 */ }
+      }
 
       // 명시적 redirect 가 있으면 그 경로 (예: ?redirect=/charge), 없으면 role 기반 분기
       const target = redirect && redirect !== '/' ? redirect : (r.member.role === 'counselor' ? '/counselor/mypage' : '/')

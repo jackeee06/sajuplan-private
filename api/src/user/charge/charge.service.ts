@@ -154,10 +154,9 @@ export class ChargeService {
     const pkg = await this.fetchPackage(dto.packageId);
 
     const payAmount = Math.round(pkg.amount * 1.1); // VAT 가산
-    // [임시 완화] 가상계좌 10원 테스트 진행 중. 운영 진입 시 30000 으로 복구.
-    // sample/coin_fill.php 라인 70: 정상 정책은 30,000원.
-    if (payAmount < 10) {
-      throw new BadRequestException('최소 결제 금액은 10원입니다.');
+    // sample/coin_fill.php 라인 70: 최소 결제 금액 30,000원.
+    if (payAmount < 30000) {
+      throw new BadRequestException('최소 결제 금액은 30,000원입니다.');
     }
 
     const oid = this.generateOid(memberId, dto.payMethod);
@@ -816,32 +815,16 @@ export class ChargeService {
       }
     });
 
-    // 9) 엠투넷 동기화 (sample 라인 113-123)
-    // [Audit C-#10] 실패 시 retry_count 갱신 — 별도 retry cron 이 재시도하게.
+    // 9) 엠투넷 잔액 동기화
+    // AG9(PG)가 결제 완료 시 m2net에 직통 fill하므로 addMemberCoin(delta) 호출 불필요.
+    // 5초 후 사주플랜 잔액 기준으로 절대값 overwrite — AG9 fill 완료 대기 + 정합 보장.
     if (row.mb_1) {
-      const sync = await this.m2net.addMemberCoin(row.mb_1, Number(row.coin_amount));
-      if (sync.ok) {
-        await this.sql`
-          UPDATE payment SET m2net_status = '코인충전성공', updated_at = now()
-           WHERE id = ${row.id}
-        `;
-        // [2026-05-23] PG-m2net 직통 이중 적립 자동 정정 (백그라운드, 2초 지연).
-        if (row.member_id) {
-          void this.correctM2netDoubleFill(row.member_id, row.mb_1, row.id);
-        }
-      } else {
-        await this.sql`
-          UPDATE payment SET
-            m2net_status = '코인충전실패',
-            m2net_retry_count = COALESCE(m2net_retry_count, 0) + 1,
-            m2net_last_retry_at = NOW(),
-            updated_at = now()
-           WHERE id = ${row.id}
-        `;
-        void this.opsAlert.send(
-          'M2NET 가상계좌 코인 적립 실패',
-          `payment.id=${row.id} oid=${oid} coin=${row.coin_amount}\nm2net error: ${sync.error ?? 'unknown'}`,
-        );
+      await this.sql`
+        UPDATE payment SET m2net_status = '코인충전성공', updated_at = now()
+         WHERE id = ${row.id}
+      `;
+      if (row.member_id) {
+        void this.postPaymentM2netSync(row.member_id, row.mb_1, row.id);
       }
     } else {
       await this.sql`
@@ -1109,35 +1092,19 @@ export class ChargeService {
 
     if (result.done || !result.pmt) return;
 
-    // 트랜잭션 커밋 후 엠투넷 동기화 (sample/coin_pay_ok_v2.php 라인 137-143)
-    // [Audit C-#10] 실패 시 retry_count 증가 → 별도 retry cron 이 재시도.
+    // 트랜잭션 커밋 후 엠투넷 잔액 동기화
+    // AG9(PG)가 결제 완료 시 m2net에 직통 fill하므로 addMemberCoin(delta) 호출 불필요.
+    // 5초 후 사주플랜 잔액 기준으로 절대값 overwrite — AG9 fill 완료 대기 + 정합 보장.
     if (result.pmt.mb_1) {
-      const sync = await this.m2net.addMemberCoin(result.pmt.mb_1, Number(result.pmt.coin_amount));
-      if (sync.ok) {
-        await this.sql`
-          UPDATE payment SET m2net_status = '코인충전성공', updated_at = now()
-           WHERE id = ${result.pmt.id}
-        `;
-        // [2026-05-23] PG-m2net 직통 이중 적립 자동 정정 (백그라운드, 2초 지연).
-        if (result.pmt.member_id) {
-          void this.correctM2netDoubleFill(
-            result.pmt.member_id,
-            result.pmt.mb_1,
-            result.pmt.id,
-          );
-        }
-      } else {
-        await this.sql`
-          UPDATE payment SET
-            m2net_status = '코인충전실패',
-            m2net_retry_count = COALESCE(m2net_retry_count, 0) + 1,
-            m2net_last_retry_at = NOW(),
-            updated_at = now()
-           WHERE id = ${result.pmt.id}
-        `;
-        void this.opsAlert.send(
-          'M2NET 카드/간편결제 코인 적립 실패',
-          `payment.id=${result.pmt.id} oid=${oid} coin=${result.pmt.coin_amount}\nm2net error: ${sync.error ?? 'unknown'}`,
+      await this.sql`
+        UPDATE payment SET m2net_status = '코인충전성공', updated_at = now()
+         WHERE id = ${result.pmt.id}
+      `;
+      if (result.pmt.member_id) {
+        void this.postPaymentM2netSync(
+          result.pmt.member_id,
+          result.pmt.mb_1,
+          result.pmt.id,
         );
       }
     }
@@ -1160,14 +1127,15 @@ export class ChargeService {
    * 비동기 백그라운드 호출 — 응답 지연 방지. 실패 시 syncM2netBalanceForMember 가
    * 다음 로그인 시 다시 정정 시도하므로 결제 자체는 영향 없음.
    */
-  private async correctM2netDoubleFill(
+  private async postPaymentM2netSync(
     memberId: number,
     m2netMembid: string,
     paymentId: number,
   ): Promise<void> {
     try {
-      // AG9 직통 fill 이 사주플랜 콜백보다 늦게 일어나는 케이스 대비 2초 지연.
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // AG9 직통 fill 완료 대기 (5초) 후 사주플랜 잔액으로 절대값 overwrite.
+      // addMemberCoin(delta) 제거 후 이 함수가 유일한 m2net 동기화 경로.
+      await new Promise((resolve) => setTimeout(resolve, 5000));
       const ptRows = await this.sql<{
         free_balance: number;
         paid_balance: number;
@@ -1187,7 +1155,7 @@ export class ChargeService {
           `[postPaymentSync] overwrite 실패 member=${memberId} payment=${paymentId}: ${r.error}`,
         );
         void this.opsAlert.send(
-          'M2NET 잔액 정정 실패(post-payment sync)',
+          'M2NET 결제 후 잔액 동기화 실패',
           `payment.id=${paymentId} member=${memberId} m2net_membid=${m2netMembid}\n` +
           `사주플랜 잔액=${sajumoonAmt} 로 m2net overwrite 시도했으나 실패.\n` +
           `m2net error: ${r.error ?? 'unknown'}\n` +

@@ -1,7 +1,9 @@
-﻿import { useEffect, useRef, useState } from 'react'
+﻿import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ConfirmModal from '../components/ConfirmModal'
-import HtmlEditor, { type HtmlEditorHandle } from '../components/HtmlEditor'
+import EditorErrorBoundary from '../components/EditorErrorBoundary'
+import type { HtmlEditorHandle } from '../components/HtmlEditor'
+const HtmlEditor = lazy(() => import('../components/HtmlEditor'))
 import UploadedImage from '../components/UploadedImage'
 import EmailDomainChips from '../components/EmailDomainChips'
 import AgreeAllSection from '../components/AgreeAllSection'
@@ -544,9 +546,6 @@ export default function CounselorApplyNew() {
             <p className="text-[13px] leading-[150%] text-[#1E40AF]">
               💡 회원 정보에서 일부 항목을 가져왔어요. 바뀐 정보가 있으면 수정해 주세요.
             </p>
-            <p className="text-[12px] leading-[150%] text-[#3B82F6] mt-0.5">
-              휴대폰 인증은 보안을 위해 다시 한 번 받아주세요.
-            </p>
           </div>
         )}
 
@@ -960,11 +959,25 @@ export default function CounselorApplyNew() {
               </p>
             )}
             <div className="rounded-[12px] overflow-hidden border border-[#F3F4F6]">
-              <HtmlEditor
-                ref={introEditorRef}
-                initialHtml={intro}
-                height="360px"
-              />
+              <EditorErrorBoundary
+                fallback={
+                  <textarea
+                    value={intro}
+                    onChange={(e) => setIntro(e.target.value)}
+                    placeholder="본인 소개를 입력해주세요."
+                    rows={10}
+                    className="w-full px-4 py-3 text-[14px] leading-[160%] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none resize-none"
+                  />
+                }
+              >
+                <Suspense fallback={<div className="h-[200px] flex items-center justify-center text-[13px] text-[#99A1AF]">에디터 로딩 중…</div>}>
+                  <HtmlEditor
+                    ref={introEditorRef}
+                    initialHtml={intro}
+                    height="360px"
+                  />
+                </Suspense>
+              </EditorErrorBoundary>
             </div>
           </div>
 

@@ -24,6 +24,7 @@ interface ApplyDetail {
   member_id: number | null
   member_mb_id: string | null
   member_name: string | null
+  member_role: string | null
   real_name: string | null
   pen_name: string | null
   field: string | null
@@ -215,12 +216,23 @@ export default function CounselorApplyDetail() {
         </div>
 
         {/* 상태별 액션 버튼 — 상식 프로세스:
+            pending (이미 상담사) : 버튼 숨김 — 취소처리만 노출
             pending     : 승인/반려/취소처리 (적극 처리)
             rejected/cancelled : "검토중으로" 복구만 (재검토용)
             accepted    : 변경 불가 (이미 계정/M2NET 생성됨)
             superseded  : 변경 불가 (더 최신 신청이 있음) */}
         <div className="flex items-center gap-2">
-          {data.status === 'pending' && (
+          {data.status === 'pending' && data.member_role === 'counselor' && (
+            <button
+              type="button"
+              onClick={() => changeStatus('cancelled')}
+              disabled={updatingTo !== null}
+              className="px-3 py-1.5 text-xs rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50"
+            >
+              {updatingTo === 'cancelled' ? '변경 중…' : '취소처리 (중복 신청)'}
+            </button>
+          )}
+          {data.status === 'pending' && data.member_role !== 'counselor' && (
             <>
               <button
                 type="button"
@@ -262,7 +274,22 @@ export default function CounselorApplyDetail() {
       </div>
 
       {/* 상태별 상단 안내 박스 — 어떤 상태에서 어떤 행동이 가능한지 한 줄로 */}
-      {data.status === 'pending' && (
+      {data.status === 'pending' && data.member_role === 'counselor' && (
+        <div className="px-3 py-2 rounded-md bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-700 text-[12px] text-rose-800 dark:text-rose-300">
+          🚫 <strong>이미 상담사로 등록된 회원의 중복 신청입니다.</strong>{' '}
+          연동된 회원(<span className="font-mono font-semibold">{data.member_mb_id}</span>)이 이미{' '}
+          {data.member_id ? (
+            <Link to={`/members/counselors/${data.member_id}`} className="underline font-semibold text-rose-900 dark:text-rose-100">
+              상담사 계정
+            </Link>
+          ) : (
+            <strong>상담사 계정</strong>
+          )}
+          을 보유하고 있어 승인·반려 처리를 할 수 없습니다.
+          {' '}<strong>취소처리</strong>로 이 신청을 닫아주세요.
+        </div>
+      )}
+      {data.status === 'pending' && data.member_role !== 'counselor' && (
         <div className="px-3 py-2 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-[12px] text-amber-800 dark:text-amber-300">
           💡 승인 시 기본 단가 <strong>1,000원</strong>이 자동 설정됩니다.
           필요 시 승인 후 <strong>회원 상세 페이지</strong>에서 수정할 수 있습니다.

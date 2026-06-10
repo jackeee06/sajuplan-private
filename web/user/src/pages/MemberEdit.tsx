@@ -1,20 +1,19 @@
 ﻿import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import ConfirmModal from '../components/ConfirmModal'
-import HtmlEditor, { type HtmlEditorHandle } from '../components/HtmlEditor'
 import UploadedImage from '../components/UploadedImage'
 import { resizeImage } from '../lib/image-resize'
 import EmailDomainChips from '../components/EmailDomainChips'
 import AgreeAllSection from '../components/AgreeAllSection'
-import { ApiError, authApi, counselorMypageApi, settingsApi, smsApi, type MeProfile } from '../lib/api'
+import { ApiError, authApi, settingsApi, smsApi, type MeProfile } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 import { openExternalUrl } from '../lib/native-bridge'
 import { FILE_BASE } from '../lib/runtime-env'
 
 // readOnly 필드(아이디/이름/상담사 닉네임) 옆에 노출하는 카카오 1:1 문의 안내.
-// kakaoUrl 미설정 시 사주플랜 라이브 채널로 폴백 — Help 페이지와 동일 정책.
-const KAKAO_FALLBACK = 'https://pf.kakao.com/_gLTVX'
+// kakaoUrl 미설정 시 사주플랜 채널로 폴백 — Help 페이지와 동일 정책.
+const KAKAO_FALLBACK = 'https://pf.kakao.com/_IhVbX/chat'
 
 function resolveImageUrl(u: string | null): string | null {
   if (!u) return null
@@ -51,12 +50,6 @@ export default function MemberEdit() {
   const [profile, setProfile] = useState<MeProfile | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // 상담사 본인 소개 — 상담사 회원만 노출. post_counselor.intro 직접 수정.
-  // 별도 저장 버튼 없이 "정보 수정" 클릭 시 함께 PATCH.
-  const introEditorRef = useRef<HtmlEditorHandle>(null)
-  const [intro, setIntro] = useState<string>('')
-  const [introLoaded, setIntroLoaded] = useState(false)
-  const [introError, setIntroError] = useState<string | null>(null)
 
   // 비밀번호
   const [currentPw, setCurrentPw] = useState('')
@@ -155,25 +148,6 @@ export default function MemberEdit() {
     }
   }, [navigate])
 
-  // 상담사 본인 소개 prefill — 별도 fetch (상담사 회원만).
-  useEffect(() => {
-    if (!isCounselor) return
-    let alive = true
-    counselorMypageApi
-      .getIntro()
-      .then((r) => {
-        if (!alive) return
-        setIntro(r.intro ?? '')
-        setIntroLoaded(true)
-      })
-      .catch(() => {
-        // 본인 소개 fetch 실패는 치명적이지 않음 — 빈 본문으로 시작 가능.
-        if (alive) setIntroLoaded(true)
-      })
-    return () => {
-      alive = false
-    }
-  }, [isCounselor])
 
   // 토스트 자동 종료
   useEffect(() => {
@@ -320,7 +294,6 @@ export default function MemberEdit() {
   const handleSubmit = async () => {
     if (!profile) return
     setSubmitError(null)
-    setIntroError(null)
     if (phoneChanged && !phoneVerified) {
       setSubmitError('휴대폰 번호 변경 시 인증을 완료해주세요.')
       return
@@ -343,20 +316,6 @@ export default function MemberEdit() {
       setPhoneVerified(false)
       setPhoneSent(false)
       setPhoneCode('')
-
-      // 상담사 회원이면 본인 소개도 같이 저장 — 본인 소개 저장 실패는 전체 실패로 취급하지 않음.
-      if (isCounselor && introLoaded) {
-        const html = (introEditorRef.current?.getHTML() ?? intro).trim()
-        const isEmpty = !html || html === '<p><br></p>'
-        if (!isEmpty) {
-          try {
-            const r = await counselorMypageApi.setIntro(html)
-            setIntro(r.intro)
-          } catch (e) {
-            setIntroError(e instanceof Error ? e.message : '본인 소개 저장에 실패했습니다.')
-          }
-        }
-      }
 
       setToast('회원 정보 수정이 완료되었습니다.')
     } catch (e) {
@@ -532,10 +491,11 @@ export default function MemberEdit() {
                   setNewPw(v)
                   if (pwError) setPwError(null)
                 }}
-                placeholder="새 비밀번호 8~20자 (영문+숫자)"
+                placeholder="새 비밀번호를 입력해주세요."
                 visible={showNewPw}
                 onToggle={() => setShowNewPw((v) => !v)}
               />
+              <p className="text-[12px] text-gray-400 mt-1">영문+숫자 혼합 8~20자</p>
             </Field>
 
             <Field label="새 비밀번호 확인">
@@ -751,28 +711,20 @@ export default function MemberEdit() {
           />
         </Field>
 
-        {/* 상담사 본인 소개 — "정보 수정" 버튼에 통합되어 함께 저장됨. */}
+        {/* 상담사 본인 소개 — 별도 페이지로 분리 */}
         {isCounselor && (
-          <section className="flex flex-col gap-2">
-            <label className="text-[16px] leading-[130%] font-semibold text-[#1E2939]">
-              본인 소개
-            </label>
-            <p className="text-[12px] leading-[140%] text-[#99A1AF]">
-              상담사 상세 페이지 "소개" 탭에 노출되는 본문입니다. 이미지·서식 포함 가능.
-            </p>
-            {introLoaded ? (
-              <div className="rounded-[12px] overflow-hidden border border-[#F3F4F6]">
-                <HtmlEditor ref={introEditorRef} initialHtml={intro} height="360px" />
-              </div>
-            ) : (
-              <div className="h-[120px] rounded-[12px] bg-[#F9FAFB] border border-[#F3F4F6] flex items-center justify-center text-[13px] text-[#99A1AF]">
-                불러오는 중…
-              </div>
-            )}
-            {introError && (
-              <p className="text-[13px] text-[#FB2C36]">{introError}</p>
-            )}
-          </section>
+          <Link
+            to="/counselor/mypage/intro"
+            className="flex items-center justify-between rounded-[12px] border border-[#F3F4F6] bg-white px-4 py-3.5"
+          >
+            <div>
+              <p className="text-[14px] font-semibold text-[#1E2939]">본인 소개 수정</p>
+              <p className="text-[12px] text-[#99A1AF] mt-0.5">상담사 상세 페이지 소개 탭에 노출되는 본문</p>
+            </div>
+            <svg viewBox="0 0 20 20" className="w-4 h-4 text-[#99A1AF] flex-shrink-0" fill="none">
+              <path d="M7.5 5L12.5 10L7.5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </Link>
         )}
 
         <div className="mt-1">
@@ -807,8 +759,10 @@ export default function MemberEdit() {
       </main>
 
       {toast && (
-        <div className="fixed top-[80px] left-1/2 -translate-x-1/2 z-40 px-5 py-3 rounded-[12px] bg-[#1F2937] text-white text-[14px] leading-[140%] shadow-[0_4px_20px_rgba(0,0,0,0.2)]">
-          {toast}
+        <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 flex justify-center pointer-events-none">
+          <div className="bg-[#1F2937] text-white text-[16px] font-medium leading-[150%] px-8 py-5 rounded-[16px] shadow-[0_8px_32px_rgba(0,0,0,0.28)] text-center max-w-[320px] w-full">
+            {toast}
+          </div>
         </div>
       )}
 

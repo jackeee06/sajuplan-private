@@ -26,7 +26,7 @@ const API_BASE: Record<string, string> = {
   test: 'https://api.sajumoon.kr',
   prod: 'https://api.sajuplan.com',
 }
-const TARGET = process.env.TARGET ?? 'test'
+const TARGET = process.env.TARGET ?? 'prod'
 const BASE = API_BASE[TARGET] ?? API_BASE.test
 
 test.describe(`API 헬스체크 (${TARGET} / ${BASE})`, () => {
@@ -88,7 +88,10 @@ test.describe(`API 헬스체크 (${TARGET} / ${BASE})`, () => {
 
   test('OAuth config — kakao/naver 활성화 확인', async () => {
     const ctx = await request.newContext()
+    // 연속 실행 시 throttler 429 가능 — 잠시 대기 후 재시도
+    await new Promise(r => setTimeout(r, 2000))
     const resp = await ctx.get(`${BASE}/api/user/auth/social/config`, { timeout: 10_000 })
+    if (resp.status() === 429) { await ctx.dispose(); test.skip() }
     expect(resp.status()).toBe(200)
     const json = await resp.json()
     expect(json.use, 'social.use=false 이면 모든 소셜 로그인 미활성').toBe(true)

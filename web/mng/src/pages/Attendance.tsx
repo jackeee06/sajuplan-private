@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
@@ -27,7 +27,6 @@ interface Policy {
   day15_bonus: number
   day20_bonus: number
   day30_coupon_amount: number
-  coupon_expire_days: number
   daily_total_limit: number
   min_signup_days: number
   ip_daily_limit: number
@@ -105,6 +104,42 @@ export default function Attendance() {
 
 /* ───────────── Tab 1: 정책 설정 — 좌우 2분할 패널 ───────────── */
 
+function NumberRow({
+  label, k, hint, policy, onChange,
+}: {
+  label: string
+  k: keyof Policy
+  hint?: string
+  policy: Policy
+  onChange: (k: keyof Policy, v: number) => void
+}) {
+  const [focused, setFocused] = React.useState(false)
+  const raw = Number(policy[k])
+  const displayValue = focused
+    ? (raw === 0 ? '' : String(raw))
+    : raw.toLocaleString('ko-KR')
+
+  return (
+    <div className="flex items-center gap-2 py-1.5">
+      <label className="w-28 shrink-0 text-xs text-gray-700 dark:text-gray-300">{label}</label>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={displayValue}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onChange={(e) => {
+          const num = Number(e.target.value.replace(/,/g, '').replace(/[^0-9]/g, ''))
+          onChange(k, isNaN(num) ? 0 : num)
+        }}
+        className="w-24 px-2 py-1 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs tabular-nums text-right"
+      />
+      <span className="text-[11px] text-gray-400">원</span>
+      {hint && <span className="text-[11px] text-gray-400 flex-1 truncate" title={hint}>{hint}</span>}
+    </div>
+  )
+}
+
 function PolicyPanel({ target, headerLabel }: { target: Target; headerLabel: string }) {
   const [policy, setPolicy] = useState<Policy | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -145,20 +180,7 @@ function PolicyPanel({ target, headerLabel }: { target: Target; headerLabel: str
     }
   }
 
-  const NumberRow = ({ label, k, hint }: { label: string; k: keyof Policy; hint?: string }) => (
-    <div className="flex items-center gap-2 py-1.5">
-      <label className="w-28 shrink-0 text-xs text-gray-700 dark:text-gray-300">{label}</label>
-      <input
-        type="number"
-        min={0}
-        value={Number(policy[k])}
-        onChange={(e) => set(k, Number(e.target.value) as Policy[typeof k])}
-        className="w-24 px-2 py-1 rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs tabular-nums text-right"
-      />
-      <span className="text-[11px] text-gray-400">원</span>
-      {hint && <span className="text-[11px] text-gray-400 flex-1 truncate" title={hint}>{hint}</span>}
-    </div>
-  )
+  const setNum = (k: keyof Policy, v: number) => set(k, v as Policy[keyof Policy])
 
   return (
     <div className="w-[540px] max-w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 space-y-2">
@@ -179,20 +201,19 @@ function PolicyPanel({ target, headerLabel }: { target: Target; headerLabel: str
 
       <div className="pt-1">
         <p className="text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">💰 출석 코인</p>
-        <NumberRow label="일일 출석" k="day1" hint="매일 출석 시 적립" />
-        <NumberRow label="연속 5일" k="day5_bonus" />
-        <NumberRow label="연속 10일" k="day10_bonus" />
-        <NumberRow label="연속 15일" k="day15_bonus" />
-        <NumberRow label="연속 20일" k="day20_bonus" />
-        <NumberRow label="연속 30일 쿠폰" k="day30_coupon_amount" hint={target === 'counselor' ? '상담사 0 권장' : '1만원 할인권'} />
-        <NumberRow label="쿠폰 만료(일)" k="coupon_expire_days" hint="발급 후 N일" />
+        <NumberRow label="일일 출석" k="day1" hint="매일 출석 시 적립" policy={policy} onChange={setNum} />
+        <NumberRow label="연속 5일" k="day5_bonus" policy={policy} onChange={setNum} />
+        <NumberRow label="연속 10일" k="day10_bonus" policy={policy} onChange={setNum} />
+        <NumberRow label="연속 15일" k="day15_bonus" policy={policy} onChange={setNum} />
+        <NumberRow label="연속 20일" k="day20_bonus" policy={policy} onChange={setNum} />
+        <NumberRow label="연속 30일 보너스" k="day30_coupon_amount" hint={target === 'counselor' ? '상담사 0 권장' : '30일 달성 보너스 코인'} policy={policy} onChange={setNum} />
       </div>
 
       <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
         <p className="text-[11px] font-semibold text-gray-600 dark:text-gray-300 mb-1">🛡 안전장치</p>
-        <NumberRow label="일일 총 한도" k="daily_total_limit" hint="합산 초과 시 중단" />
-        <NumberRow label="신규 회원(일)" k="min_signup_days" hint="가입 N일 이후 가능" />
-        <NumberRow label="IP 1일 최대" k="ip_daily_limit" hint="0 = 무제한" />
+        <NumberRow label="일일 총 한도" k="daily_total_limit" hint="합산 초과 시 중단" policy={policy} onChange={setNum} />
+        <NumberRow label="신규 회원(일)" k="min_signup_days" hint="가입 N일 이후 가능" policy={policy} onChange={setNum} />
+        <NumberRow label="IP 1일 최대" k="ip_daily_limit" hint="0 = 무제한" policy={policy} onChange={setNum} />
       </div>
 
       {error && <div className="p-2 rounded-md bg-rose-50 text-rose-700 text-xs">{error}</div>}

@@ -61,7 +61,11 @@ export default function MyHistory() {
     setLoading(true)
     setError(null)
     historyApi
-      .list({ page, limit: PAGE_SIZE, type: filter })
+      // [BUG FIX 2026-06-10] role:'member' 명시 필수.
+      //   미지정 시 백엔드가 토큰 role 로 폴백하는데, 듀얼역할자(상담사)는 'counselor' 시점으로
+      //   조회되어 "본인이 상담해준 건"이 회원 상담내역에 노출 + 상대(회원)를 상담사로 착각하는
+      //   "해당 회원은 상담사가 아닙니다" 후기 작성 버그가 발생했음. MyCalls/MyChats 와 동일하게 명시.
+      .list({ role: 'member', page, limit: PAGE_SIZE, type: filter })
       .then((r) => {
         if (!mounted) return
         setItems(r.items)

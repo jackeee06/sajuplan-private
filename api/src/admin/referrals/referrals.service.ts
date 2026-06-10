@@ -200,6 +200,16 @@ export class AdminReferralsService {
     referee_sales: number;
     point_history_id: number;
   }> {
+    // [2026-06-11 정산 단순화] 추천수익금 수동지급 폐지 — 지뢰 제거.
+    //   추천수익금은 이제 상담 종료 시점에 earning_balance 로 자동 적립된다
+    //   (m2net-push.service.ts creditCounselorPointInTx). 이 메서드는 과거에 추천수당을
+    //   paid_balance 에 추가 적립하던 코드라, 호출 시 이중지급/오적립(충전코인 계좌)이 발생한다.
+    //   옛 프론트 캐시·직접 호출로 들어와도 적립 코드에 도달하지 못하도록 진입 즉시 차단한다.
+    throw new BadRequestException(
+      '추천수익금은 상담 종료 시점에 자동 적립됩니다. 수동 지급 기능은 폐지되었습니다.',
+    );
+
+    // eslint-disable-next-line no-unreachable
     const targetMonth = this.resolveMonth(params.month);
     const monthStart = `${targetMonth}-01`;
 

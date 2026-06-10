@@ -532,32 +532,111 @@ export class AuthService {
     // m2net (AG9/PassCall) 외부 회원 등록 — 실패 시 회원 롤백
     await this.registerWithM2net(insertedId);
 
-    // 회원가입 쿠폰 발급 + 알림톡 — m2net 등록 후 (실패 시 회원 자체가 롤백되어 쿠폰도 의미 없음)
-    try {
-      const couponInfo = await this.issueSignupCoupon(insertedId);
-      if (couponInfo && form.phone) {
-        const endsAtFormatted = couponInfo.endsAt
-          ? couponInfo.endsAt.toLocaleDateString('ko-KR', {
-              timeZone: 'Asia/Seoul',
-              year: 'numeric', month: '2-digit', day: '2-digit',
-            }).replace(/\. /g, '.').replace(/\.$/, '')
-          : '기간 없음';
-        this.sms.sendAlimtalkByCode(form.phone, 'coupon_signup_v1', {
-          이름: form.name,
-          쿠폰명: couponInfo.couponName,
-          유효기간: endsAtFormatted,
-          url: '',
-        }).catch((e) => this.logger.warn(`[signup-coupon-alimtalk] 발송 실패: ${e?.message ?? e}`));
-      }
-    } catch (e) {
-      this.logger.error(
-        `[signup-coupon] 발급 실패(회원가입은 진행) member_id=${insertedId}: ${
-          e instanceof Error ? e.message : String(e)
-        }`,
-      );
-    }
+    // 회원가입 포인트 지급 (setting.member.register_point) — best-effort
+    // [정책 2026-06-07] 회원가입 쿠폰 폐지 → 직접 코인 지급으로 통일. issueSignupCoupon() 제거.
+    this.creditRegisterPoint(insertedId).catch(() => {});
 
     return { id: insertedId };
+  }
+
+  /**
+   * 회원가입 포인트 지급 (2026-06-05 신설).
+   * setting.member.register_point > 0 이면 해당 코인 지급 + m2net 동기화.
+   */
+  async creditRegisterPoint(memberId: number): Promise<void> {
+    const rows = await this.sql<{ value: string | null }[]>`
+      SELECT value FROM setting WHERE namespace = 'member' AND key = 'register_point' LIMIT 1
+    `;
+    const amount = Math.max(0, Math.trunc(Number(rows[0]?.value ?? '0')));
+    if (amount <= 0) return;
+    await this.creditPointToMember(memberId, amount, '회원가입 적립', 'register_point');
+    this.logger.log(`[register_point] ${amount}코인 지급 memberId=${memberId}`);
+  }
+
+  /**
+   * 로그인 포인트 지급 — 하루 1회 (2026-06-05 신설).
+   * setting.member.login_point > 0 이면 오늘 이미 지급된 이력이 없을 때만 지급 + m2net 동기화.
+   * 로컬/소셜 로그인 모두에서 fire-and-forget으로 호출.
+   */
+  async creditLoginPointOnce(memberId: number): Promise<void> {
+    const rows = await this.sql<{ value: string | null }[]>`
+      SELECT value FROM setting WHERE namespace = 'member' AND key = 'login_point' LIMIT 1
+    `;
+    const amount = Math.max(0, Math.trunc(Number(rows[0]?.value ?? '0')));
+    if (amount <= 0) return;
+
+    // KST 기준 오늘 날짜 (UTC+9)
+    const now = new Date();
+    const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+    const today = kst.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+    const relAction = `login_point:${today}`;
+
+    // 오늘 이미 지급됐으면 skip
+    const dup = await this.sql<{ id: number }[]>`
+      SELECT id FROM point_history
+       WHERE member_id = ${memberId} AND rel_action = ${relAction}
+       LIMIT 1
+    `;
+    if (dup.length > 0) return;
+
+    await this.creditPointToMember(memberId, amount, '로그인 적립', relAction);
+    this.logger.log(`[login_point] ${amount}코인 지급 memberId=${memberId} date=${today}`);
+  }
+
+  /**
+   * 포인트 적립 공통 헬퍼 — point_history + point + member.point 업데이트 + m2net 동기화.
+   */
+  private async creditPointToMember(
+    memberId: number,
+    amount: number,
+    content: string,
+    relAction: string,
+  ): Promise<void> {
+    const termRows = await this.sql<{ value: string | null }[]>`
+      SELECT value FROM setting WHERE namespace = 'member' AND key = 'point_term' LIMIT 1
+    `;
+    const term = Number(termRows[0]?.value ?? 0) || 0;
+    let expireDate: string | null = null;
+    if (term > 0) {
+      const dt = new Date();
+      dt.setDate(dt.getDate() + term - 1);
+      expireDate = dt.toISOString().slice(0, 10);
+    }
+
+    await this.sql.begin(async (tx) => {
+      let ptRows = await tx<{ free_balance: number; paid_balance: number }[]>`
+        SELECT free_balance, paid_balance FROM point WHERE member_id = ${memberId} FOR UPDATE
+      `;
+      if (ptRows.length === 0) {
+        await tx`INSERT INTO point (member_id, free_balance, paid_balance, total_earned, total_used)
+                 VALUES (${memberId}, 0, 0, 0, 0) ON CONFLICT (member_id) DO NOTHING`;
+        ptRows = await tx<{ free_balance: number; paid_balance: number }[]>`
+          SELECT free_balance, paid_balance FROM point WHERE member_id = ${memberId} FOR UPDATE
+        `;
+      }
+      const balanceAfter = Number(ptRows[0].free_balance) + Number(ptRows[0].paid_balance) + amount;
+      await tx`
+        INSERT INTO point_history (member_id, content, earn_point, use_point, balance_after,
+          is_paid, is_expired, expire_date, rel_action, actor_type)
+        VALUES (${memberId}, ${content}, ${amount}, 0, ${balanceAfter},
+          false, false, ${expireDate}, ${relAction}, 'system')
+        ON CONFLICT DO NOTHING
+      `;
+      await tx`UPDATE point SET free_balance=free_balance+${amount}, total_earned=total_earned+${amount}, updated_at=now() WHERE member_id=${memberId}`;
+      await tx`UPDATE member SET point=point+${amount}, updated_at=now() WHERE id=${memberId}`;
+    });
+
+    // m2net 동기화
+    const m2rows = await this.sql<{ m2net_membid: string | null }[]>`
+      SELECT m2net_membid FROM member WHERE id = ${memberId} LIMIT 1
+    `;
+    const mb1 = m2rows[0]?.m2net_membid;
+    if (mb1) {
+      const sync = await this.m2net.addMemberCoin(mb1, amount);
+      if (!sync.ok) {
+        this.logger.warn(`[creditPoint.m2net] 실패 memberId=${memberId} mb1=${mb1} +${amount} err=${sync.error}`);
+      }
+    }
   }
 
   /**
@@ -737,6 +816,45 @@ export class AuthService {
       );
     }
     this.logger.log(`[find-pw/phone] member_id=${m.id} mb_id=${m.mb_id} 임시비밀번호 발급`);
+  }
+
+  /**
+   * 휴대폰 인증 후 새 비밀번호 직접 설정.
+   * isVerifiedRecently() 로 1회용 소비 없이 최근 인증 여부 확인.
+   * counselor/user 모두 지원 (상담사도 이 경로로 비밀번호 재설정 가능).
+   */
+  async resetPasswordByPhone(phone: string, newPw: string): Promise<{ mb_id: string }> {
+    if (!newPw || newPw.length < 8 || newPw.length > 20) {
+      throw new BadRequestException('비밀번호는 8~20자여야 합니다.');
+    }
+    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(newPw)) {
+      throw new BadRequestException('비밀번호는 영문과 숫자를 각각 1개 이상 포함해야 합니다.');
+    }
+    const rows = await this.sql<{
+      id: number;
+      mb_id: string;
+      name: string;
+      social_provider: string | null;
+    }[]>`
+      SELECT id, mb_id, name, social_provider FROM member
+       WHERE regexp_replace(phone, '[^0-9]', '', 'g') = ${phone}
+         AND left_at IS NULL
+       ORDER BY id DESC LIMIT 1
+    `;
+    const m = rows[0];
+    if (!m || !m.mb_id) {
+      throw new BadRequestException('해당 휴대폰번호로 가입된 회원이 없습니다.');
+    }
+    if (m.social_provider) {
+      const label = m.social_provider === 'kakao' ? '카카오' : '네이버';
+      throw new BadRequestException(
+        `${label}로 가입된 계정입니다. ${label} 로그인을 이용해주세요.`,
+      );
+    }
+    const hash = await bcrypt.hash(newPw, 12);
+    await this.sql`UPDATE member SET password = ${hash}, updated_at = now() WHERE id = ${m.id}`;
+    this.logger.log(`[find-pw/phone/reset] member_id=${m.id} mb_id=${m.mb_id} 비밀번호 직접 재설정`);
+    return { mb_id: m.mb_id };
   }
 
   /**

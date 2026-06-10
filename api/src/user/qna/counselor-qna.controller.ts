@@ -30,6 +30,12 @@ import { UserCounselorQnaService } from './qna.service';
 export class UserCounselorCustomerQnaController {
   constructor(private readonly svc: UserCounselorQnaService) {}
 
+  @Get('pending-counts')
+  async pendingCounts(@Req() req: UserAuthedRequest) {
+    this.assertCounselor(req);
+    return this.svc.getPendingCounts(req.user.sub);
+  }
+
   @Get()
   async list(
     @Req() req: UserAuthedRequest,

@@ -52,29 +52,46 @@ const GROUPS: MenuGroup[] = [
     icon: Users,
     items: [
       { label: '고객 리스트', path: '/members/customers',
-        aliases: ['회원', '유저', '사용자', '닉네임', '휴대폰', '전화번호', '이메일', '차단', '블랙', '탈퇴', '활동 회원'],
-        subFeatures: ['전체', '활동 회원', '차단 회원', '탈퇴 회원'] },
+        aliases: ['회원', '유저', '사용자', '닉네임', '휴대폰', '전화번호', '이메일', '차단', '블랙', '탈퇴', '활동 회원',
+          '무료코인', '코인내역', '포인트조정', '수동지급', '코인지급', '코인차감', '포인트이력', '출석이력', '회원조회'],
+        subFeatures: ['전체', '활동 회원', '차단 회원', '탈퇴 회원', '포인트 조정', '출석 이력'] },
       { label: '상담사 리스트', path: '/members/counselors',
-        aliases: ['강사', '선생님', '상담원', '해시태그', '태그', '프로필', '한줄소개', '헤드라인', '닉네임', '단가', '분야', '사주', '타로', '신점', '심리', '사진', '이미지'],
-        subFeatures: ['상태: 상담가능', '상태: 상담중', '상태: 부재', '분야: 타로', '분야: 신점', '분야: 사주', '분야: 심리'] },
+        aliases: ['강사', '선생님', '상담원', '해시태그', '태그', '프로필', '한줄소개', '헤드라인', '닉네임', '단가', '분야', '사주', '타로', '신점', '심리', '사진', '이미지',
+          '뱃지', '전속파트너', '전속', '채팅단가', '전화단가', '예비파트너', '파트너', '상담사조회', '상담사검색',
+          '차단', '블랙', '회원차단', '차단관리', '차단해제', '블랙리스트', '부적절회원'],
+        subFeatures: ['상태: 상담가능', '상태: 상담중', '상태: 부재', '분야: 타로', '분야: 신점', '분야: 사주', '분야: 심리', '전속파트너 뱃지', '해시태그 설정',
+          '차단 관리 (상담사 상세 하단)'] },
       { label: '상담사 신청 내역', path: '/members/counselor-apply',
-        aliases: ['지원', '신청', '가입 신청', '승인', '심사', '신청서', '대기', '반려'] },
+        aliases: ['지원', '신청', '가입 신청', '승인', '심사', '신청서', '대기', '반려', '상담사등록', '상담사신청', '신규상담사'] },
       { label: '출석 관리', path: '/attendance', star: true,
-        aliases: ['출석', '체크인', '출석체크', '보너스 포인트', '일일 출석'],
+        aliases: ['출석', '체크인', '출석체크', '보너스 포인트', '일일 출석',
+          '연속출석', '연속보너스', '30일쿠폰', '5일보너스', '10일보너스', '15일보너스', '20일보너스',
+          '출석보상', '출석코인', '출석이력', '무료코인출석', '출석정책', '출석한도'],
         subFeatures: [
           { label: '정책 설정', tab: '정책' },
           { label: '통계', tab: '통계' },
           { label: '회원별 이력', tab: '회원별 이력' },
           '회원/상담사 토글',
+          '연속 보너스 (5·10·15·20일)',
+          '30일 달성 쿠폰 (10,000코인, 14일 만료)',
+          '일일 총 한도 설정',
+          'IP 일일 제한',
+          '최소 가입일 조건',
         ] },
       { label: '등급 관리', path: '/grade', star: true,
-        aliases: ['등급', '단가', '정산률', '승급', '강등'],
+        aliases: ['등급', '단가', '정산률', '승급', '강등',
+          '예비파트너', '파트너1', '파트너2', '파트너3', '파트너4', '파트너5', 'preliminary', 'partner',
+          '임계값', '누적상담시간', '재산정', '자동강등', '강등단계', '월1일락', '등급분포', '등급이력'],
         subFeatures: [
           '등급별 분포',
           '단가·정산률 변경',
-          '재산정 D-day',
+          '재산정 D-day (매월 1일)',
           '최근 등급 변동',
           '정책 변경 이력',
+          '예비 / 파트너1~5 등급',
+          '임계값 (누적 상담 시간 기준)',
+          '강등 최대 단계 설정',
+          '월 1일 단가 변경 락',
         ] },
     ],
   },
@@ -83,30 +100,37 @@ const GROUPS: MenuGroup[] = [
     icon: CreditCard,
     items: [
       { label: '사용(상담) 내역', path: '/consultations',
-        aliases: ['통화', '상담 내역', '전화 내역'],
-        subFeatures: ['전체목록', '060', '070', '채팅'] },
+        aliases: ['통화', '상담 내역', '전화 내역', '채팅상담', '전화상담', '060', '070', '상담기록', '통화기록', '상담시간', '상담이력',
+          '차단', '블랙', '회원차단', '차단등록'],
+        subFeatures: ['전체목록', '060 전화', '070 전화', '채팅', '상담 상세', '상담 건별 회원 차단 (행 우측 [차단] 버튼)'] },
       { label: '환불 이력', path: '/refunds', star: true,
-        aliases: ['취소', '환급', '환불 신청', '환불 요청', '리펀드'],
-        subFeatures: ['회원 아이디 검색', '상태별 필터'] },
+        aliases: ['취소', '환급', '환불 신청', '환불 요청', '리펀드', '결제취소', '코인환불', '환불처리'],
+        subFeatures: ['회원 아이디 검색', '상태별 필터', '환불 승인/거절'] },
       { label: '고객보호비용 내역', path: '/short-call-refunds', star: true,
-        aliases: ['매몰비용', '30초 미만', '짧은 통화', '환원', '자동 환원', '단기 통화'],
+        aliases: ['매몰비용', '30초 미만', '짧은 통화', '환원', '자동 환원', '단기 통화', '고객보호', '자동환불', '짧은통화보상'],
         subFeatures: ['이번달 합계', '발생일 필터', '회원 매핑', 'callid·csrid·membid'] },
       { label: '운영 KPI', path: '/ops-kpi', star: true,
-        aliases: ['지표', '실적', '성과', '매출 지표'],
-        subFeatures: ['최근 7일', '최근 30일', '최근 90일', 'KPI 카드', '상담사 순위'] },
+        aliases: ['지표', '실적', '성과', '매출 지표', 'health-check', '불변식', '이상감지', '헬스체크', '건강체크', '자동감지', '22개점검', 'KPI', '핵심지표'],
+        subFeatures: ['최근 7일', '최근 30일', '최근 90일', 'KPI 카드', '상담사 순위', 'health-check 22개 불변식'] },
       { label: '충전금액 설정', path: '/charge-amounts',
-        aliases: ['코인 충전', '충전 금액', '결제 옵션'] },
+        aliases: ['코인 충전', '충전 금액', '결제 옵션', '패키지', 'VVIP', 'VIP', '보너스퍼센트', '충전상품', '보너스적립',
+          '30만원패키지', '20만원패키지', '10만원패키지', '5만원패키지', '3만원패키지'],
+        subFeatures: ['상품명·금액·보너스% 설정', '총 지급 포인트 설정', '문구 설정', '노출 ON/OFF'] },
       { label: '결제 내역', path: '/payments',
-        aliases: ['주문', '구매', '카드 결제', '가상계좌'],
-        subFeatures: ['전체목록', '카드', '가상결제', '카드취소'] },
+        aliases: ['주문', '구매', '카드 결제', '가상계좌', '자동충전', '사주플랜페이', '빌링키', 'AG9', 'PG', '결제완료', '결제취소'],
+        subFeatures: ['전체목록', '카드', '가상계좌', '자동충전', '카드취소'] },
       { label: '포인트 관리', path: '/points/history',
-        aliases: ['포인트', '코인', '잔액', '잔액 조정', '지급', '차감', '증감'],
-        subFeatures: ['포인트 이력', '개별회원 포인트 증감 설정'] },
+        aliases: ['포인트', '코인', '잔액', '잔액 조정', '지급', '차감', '증감',
+          '무료코인', '유료코인', '후기코인', '베스트후기코인', '출석보상코인',
+          '수동지급', '이벤트보상', '관리자지급', '코인이력', '적립내역', '코인지급이력'],
+        subFeatures: ['포인트 이력', '개별회원 포인트 증감 설정', '무료 코인 이력', '후기 작성 보상', '출석 보상', '베스트 후기 선정 10,000코인', '관리자 수동 지급'] },
       { label: '정산 이력', path: '/settlements',
-        aliases: ['정산', '부가세', 'VAT', '회선비', '원천세', '월정산', '월별 정산'],
-        subFeatures: ['총건수', '총정산금액', '부가세', '원천세', '회선비'] },
+        aliases: ['정산', '부가세', 'VAT', '회선비', '원천세', '월정산', '월별 정산',
+          '공급가', '실수령', '추천수당', '3.3%', '10%', '선지급차감', '이월음수', '정산비'],
+        subFeatures: ['총건수', '총정산금액', '공급가', '부가세(10%)', '원천세(3.3%)', '회선비', '추천 수당 반영', '선지급 차감액', '이월 음수', '실수령액'] },
       { label: '선지급 관리', path: '/payouts', star: true,
-        aliases: ['선지급', '가불', '미리 지급', '수수료', '원천세'],
+        aliases: ['선지급', '가불', '미리 지급', '수수료', '원천세',
+          '수수료5%', '가용잔액70%', '일1회한도', '원천징수3.3%', '조기정산', '즉시입금', '입금신청', '은행이체', '정산전입금'],
         subFeatures: [
           '처리 대기',
           '오늘 지급',
@@ -114,38 +138,68 @@ const GROUPS: MenuGroup[] = [
           '24h+ 미처리',
           { label: '대기 CSV 다운로드', tab: 'pending' },
           '선지급 운영 정책',
+          '수수료 5% + 원천세 3.3% 차감',
+          '가용 잔액 70% 한도',
+          '일 1회 신청 제한',
         ] },
-      { label: '상담사 추천 수당 (프로모션)', path: '/referrals', star: true,
-        subFeatures: ['활성 관계', '이번 달 지급대상', '지급 완료', '미지급', '월별 필터', '상태별 필터'] },
+      { label: '추천수익금', path: '/referrals', star: true,
+        aliases: ['추천인', '추천코드', 'CSR코드', '인센티브', 'referral', '수당',
+          '추천자', '피추천자', '추천수익', '추천관계', '6개월', '2%', '1%', '매월지급', '추천보상', '추천시스템'],
+        subFeatures: ['활성 관계', '이번 달 지급대상', '지급 완료', '미지급', '월별 필터', '상태별 필터',
+          '정책 설정 (요율·기간)', '새 추천 관계 등록', '개별 지급 처리',
+          '1~3개월: 매출 2% / 4~6개월: 매출 1%'] },
     ],
   },
   {
     title: '쿠폰',
     icon: Ticket,
     items: [
-      { label: '쿠폰존 관리', path: '/coupon-zones' },
+      { label: '쿠폰존 관리', path: '/coupon-zones',
+        aliases: ['쿠폰', '코드쿠폰', '다운로드쿠폰', '쿠폰발급', '가입쿠폰', '이벤트쿠폰',
+          '쿠폰캠페인', '할인코드', '프로모코드', '무료코인쿠폰', '쿠폰정책', '쿠폰존'],
+        subFeatures: ['다운로드 쿠폰 (직접 발급)', '코드입력 쿠폰 (SNS 배포)', '회원가입 자동 쿠폰', '만료일 설정', '발급 이력 확인'] },
     ],
   },
   {
     title: '상담관리',
     icon: Headphones,
     items: [
-      { label: '상담후기 관리', path: '/posts/review' },
-      { label: '후기 신고 관리', path: '/review-reports' },
-      { label: '채팅내역 리스트', path: '/chat-history' },
+      { label: '상담후기 관리', path: '/posts/review',
+        aliases: ['후기', '리뷰', '베스트후기', '베스트선정', '10000코인', '후기보상', '사진후기', '후기관리', '후기삭제', '후기코인'],
+        subFeatures: ['베스트 후기 선정 (10,000코인 즉시 지급)', '후기 숨김/복원', '사진 후기 구분', '신고 후기 처리'] },
+      { label: '후기 신고 관리', path: '/review-reports',
+        aliases: ['신고', '허위후기', '악성후기', '신고처리', '후기신고', '불량후기'],
+        subFeatures: ['신고 3회 자동 숨김', '신고 수동 처리', '신고 사유 확인'] },
+      { label: '채팅내역 리스트', path: '/chat-history',
+        aliases: ['채팅', '채팅룸', '대화내용', '채팅로그', '채팅내역', '채팅기록', '채팅방', '채팅조회'],
+        subFeatures: ['채팅룸 ID 검색', '회원별 채팅 이력', '상담사별 채팅 이력'] },
     ],
   },
   {
     title: '게시판관리',
     icon: FileText,
     items: [
-      { label: '인기검색어 관리', path: '/search-keywords' },
-      { label: '인기검색어 순위', path: '/search-popular' },
-      { label: 'FAQ 관리', path: '/faqs' },
-      { label: '공지사항 관리', path: '/notices' },
-      { label: '이벤트 관리', path: '/events' },
-      { label: '게시판 신고 관리', path: '/post-reports' },
-      { label: '글·댓글 현황', path: '/posts-overview' },
+      { label: '인기검색어 관리', path: '/search-keywords',
+        aliases: ['핀고정', '고정검색어', '트렌딩', '검색어순위', '자동완성', '검색추천', '인기어', '핀', '인기검색', '검색어관리'],
+        subFeatures: ['핀 고정 (최상단 고정)', '수동 검색어 등록', '순위 관리', '노출 ON/OFF'] },
+      { label: '인기검색어 순위', path: '/search-popular',
+        aliases: ['검색순위', '랭킹', '인기순위', '검색통계', '검색량', '실시간순위'],
+        subFeatures: ['실시간 검색순위', '기간별 통계'] },
+      { label: 'FAQ 관리', path: '/faqs',
+        aliases: ['자주묻는질문', '도움말', 'FAQ', '질문답변', '고객FAQ', '공통FAQ'],
+        subFeatures: ['FAQ 등록/수정/삭제', '카테고리 분류', '노출 순서'] },
+      { label: '공지사항 관리', path: '/notices',
+        aliases: ['공지', '알림', '안내', '시스템공지', '서비스공지', '공지등록'],
+        subFeatures: ['공지 등록/수정/삭제', '노출 기간 설정'] },
+      { label: '이벤트 관리', path: '/events',
+        aliases: ['이벤트', '행사', '프로모션', '캠페인', '이벤트페이지', '이벤트등록'],
+        subFeatures: ['이벤트 등록/수정/삭제', '이벤트 기간 설정', '이미지 업로드'] },
+      { label: '게시판 신고 관리', path: '/post-reports',
+        aliases: ['신고', '신고처리', '불량게시물', '게시판신고', '악성댓글', '신고게시물'],
+        subFeatures: ['신고 목록', '신고 처리 (숨김/복원)', '신고 사유'] },
+      { label: '글·댓글 현황', path: '/posts-overview',
+        aliases: ['게시물', '댓글', '활동현황', '글현황', '게시판현황', '작성현황'],
+        subFeatures: ['게시판별 글 수', '최근 작성 현황'] },
     ],
   },
   {
@@ -153,7 +207,7 @@ const GROUPS: MenuGroup[] = [
     icon: Bell,
     items: [
       { label: '🔔 알림 가이드 (3채널 통합)', path: '/alert-guide', star: true,
-        aliases: ['알림 가이드', '알림 매트릭스', '알림 정책', '알림 정리', '채널', '푸시 인앱 알림톡', '결정', '중복', '카탈로그', '온보딩', '신입 관리자'],
+        aliases: ['알림 가이드', '알림 매트릭스', '알림 정책', '알림 정리', '채널', '푸시 인앱 알림톡', '결정', '중복', '카탈로그', '온보딩', '신입 관리자', '알림채널', '알림결정'],
         subFeatures: [
           '38개 이벤트 × 3채널 매트릭스',
           '결정완료/검토중 표시',
@@ -162,19 +216,19 @@ const GROUPS: MenuGroup[] = [
           '읽는 법 안내',
         ] },
       { label: '📱 푸시 가이드 (카드)', path: '/push-guide',
-        aliases: ['푸시 가이드', '푸시 카탈로그', '푸시 종류', 'FCM 종류', 'push catalog'],
+        aliases: ['푸시 가이드', '푸시 카탈로그', '푸시 종류', 'FCM 종류', 'push catalog', '푸시목록', '알림종류'],
         subFeatures: ['30+ 푸시 종류', '카테고리별 그리드', '상태 칩 (완료/예정/안함)'] },
       { label: '푸시 알림 (발송)', path: '/push-notifications',
-        aliases: ['푸시', '앱 알림', '앱 푸시', '푸시 발송', '푸시 이력', 'FCM 발송'],
+        aliases: ['푸시', '앱 알림', '앱 푸시', '푸시 발송', '푸시 이력', 'FCM 발송', '푸시전송', '앱알림발송'],
         subFeatures: ['발송', '이력 조회', '카테고리 필터'] },
       { label: '알림톡 발송', path: '/alimtalk-bulk', star: true,
-        aliases: ['카톡', '카카오톡', '문자', '메시지', 'SMS', '비즈엠'],
+        aliases: ['카톡', '카카오톡', '문자', '메시지', 'SMS', '비즈엠', '알림톡발송', '카카오알림톡', 'BizM발송'],
         subFeatures: [
           { label: '발송', tab: '발송' },
           { label: '이력', tab: '이력' },
         ] },
       { label: '알림톡 템플릿', path: '/alimtalk-templates',
-        aliases: ['템플릿', '카톡 양식', '메시지 양식', '비즈엠', 'BizM', 'v1', 'v2', '카톡 본문'] },
+        aliases: ['템플릿', '카톡 양식', '메시지 양식', '비즈엠', 'BizM', 'v1', 'v2', '카톡 본문', '알림톡양식', '템플릿목록'] },
     ],
   },
   {
@@ -182,6 +236,7 @@ const GROUPS: MenuGroup[] = [
     icon: BarChart3,
     items: [
       { label: '통계', path: '/stats',
+        aliases: ['방문자', '매출통계', '방문통계', '일별', '월별', '트래픽', 'DAU', 'MAU', '매출추이', '방문추이', '통계조회'],
         subFeatures: ['일별 방문자', '일별 매출', '월별 매출', '일별 추이 기간'] },
     ],
   },
@@ -190,7 +245,8 @@ const GROUPS: MenuGroup[] = [
     icon: Shield,
     items: [
       { label: '관리자 계정', path: '/admin-users',
-        aliases: ['어드민', '권한', '하위 관리자', '운영자'] },
+        aliases: ['어드민', '권한', '하위 관리자', '운영자', '관리자등록', '관리자추가', '슈퍼관리자', '일반관리자'],
+        subFeatures: ['관리자 등록/삭제', '슈퍼/일반 구분', '권한 매트릭스'] },
     ],
   },
   {
@@ -198,12 +254,14 @@ const GROUPS: MenuGroup[] = [
     icon: MoreHorizontal,
     items: [
       { label: '배너관리', path: '/banners',
-        aliases: ['배너', '광고', '메인 배너'] },
+        aliases: ['배너', '광고', '메인 배너', '배너등록', '배너이미지'],
+        subFeatures: ['메인 배너 등록/수정', '배너 활성/비활성', '링크 연결', '노출 기간'] },
       { label: '팝업레이어 관리', path: '/popup-layers',
-        aliases: ['팝업', '레이어', '공지 팝업'] },
-{ label: '상담문의', path: '/posts/qa',
-        aliases: ['1:1 문의', '고객 문의', '문의 게시판', '고객센터'] },
-      { label: '1:1문의(상담사)', path: '/posts/qa_counselor' },
+        aliases: ['팝업', '레이어', '공지 팝업', '팝업등록', '팝업관리'] },
+      { label: '상담문의', path: '/posts/qa',
+        aliases: ['1:1 문의', '고객 문의', '문의 게시판', '고객센터', '회원문의', '고객문의처리'] },
+      { label: '1:1문의(상담사)', path: '/posts/qa_counselor',
+        aliases: ['상담사문의', '상담사 1:1', '상담사 문의', '상담사 고객센터', '상담사QA'] },
     ],
   },
   {
@@ -217,40 +275,39 @@ const GROUPS: MenuGroup[] = [
           '회원가입 포인트', '추천인 포인트',
           '스팸', '차단', '금지', 'IP',
           '세금', '원천', '수수료',
-          // 2026-05-28 점검 안내 배너 추가
           '점검', '점검 안내', '점검 배너', '서비스 점검', 'maintenance',
+          '후기포인트설정', '출석보상설정', '가입포인트', '로그인포인트',
+          '자동충전설정', '사주플랜페이설정', '쿠폰설정', '무료코인설정',
+          '등급단가설정', '정산률설정', '선지급설정',
         ],
         subFeatures: [
-          // ─ 점검 안내 배너 (NEW 2026-05-28) — Settings.tsx ?tab=general
           { label: '🔧 점검 안내 배너', tab: 'general' },
           { label: '배너 활성 ON/OFF', tab: 'general' },
-          // ─ 기본환경 탭 (6 섹션) — Settings.tsx ?tab=general (디폴트)
           '사이트',
-          { label: '회원가입', tab: 'general' },
-          { label: '후기 포인트', tab: 'general' },
+          { label: '회원가입 설정', tab: 'general' },
+          { label: '후기 포인트 (일반 500코인 / 사진 +500코인)', tab: 'general' },
+          { label: '가입포인트·로그인포인트 (출시 예정)', tab: 'general' },
           { label: '소셜로그인 (카카오/네이버)', tab: 'general' },
           { label: '보안 (IP 차단/금지 ID)', tab: 'general' },
           { label: '푸터(회사정보)', tab: 'general' },
-          // ─ 등급/단가 탭
-          { label: '등급/단가', tab: 'grade' },
-          { label: '단가 옵션', tab: 'grade' },
-          { label: '정산률', tab: 'grade' },
-          { label: '임계값', tab: 'grade' },
-          { label: '월 1일 락', tab: 'grade' },
+          { label: '등급/단가 (예비~파트너5)', tab: 'grade' },
+          { label: '단가 옵션 (등급별 선택지)', tab: 'grade' },
+          { label: '정산률 (등급별 %)', tab: 'grade' },
+          { label: '임계값 (승급 기준 상담시간)', tab: 'grade' },
+          { label: '월 1일 락 (단가 변경 잠금)', tab: 'grade' },
           { label: '재산정 일자/시각', tab: 'grade' },
           { label: '강등 최대 단계', tab: 'grade' },
-          // ─ 선지급 탭 (NEW)
           { label: '선지급 정책 안내문', tab: 'payout' },
-          { label: '선지급 수수료율', tab: 'payout' },
-          { label: '선지급 원천세율', tab: 'payout' },
-          // ─ 운영알림 탭
+          { label: '선지급 수수료율 (현재 5%)', tab: 'payout' },
+          { label: '선지급 원천세율 (현재 3.3%)', tab: 'payout' },
           { label: '운영알림', tab: 'ops' },
           { label: '운영자 알림 활성', tab: 'ops' },
           { label: '수신자 목록', tab: 'ops' },
-          // ─ 약관/처리방침 탭
           { label: '약관/처리방침', tab: 'legal' },
+          { label: '상담사 스타일 선택지', tab: 'counselor' },
         ] },
-      { label: '내용 관리 (약관/처리방침)', path: '/contents' },
+      { label: '내용 관리 (약관/처리방침)', path: '/contents',
+        aliases: ['약관', '처리방침', '이용약관', '개인정보', '서비스이용약관', '개인정보처리방침', '약관관리', '법적문서'] },
     ],
   },
   {
@@ -258,6 +315,7 @@ const GROUPS: MenuGroup[] = [
     icon: BarChart3,
     items: [
       { label: '대시보드', path: '/dashboard',
+        aliases: ['홈', '메인', '요약', '현황', '오늘현황'],
         subFeatures: ['14일 매출 추이', '상담사 상태', '14일 방문자 추이', 'TOP5 상담사', 'TOP5 고객', '최근 가입', '최근 게시물', '최근 포인트'] },
     ],
   },
@@ -265,12 +323,19 @@ const GROUPS: MenuGroup[] = [
     title: '운영 도구',
     icon: Wrench,
     items: [
-      // 2026-05-22: 어제 신설 메모장 등록 (사이드바 단독 → AllMenus 누락 보강)
       { label: '메모장', path: '/memo',
-        aliases: ['노트', '기록', '필기', '비망록', '메모'] },
-      // 2026-05-24: 영업이익 시뮬레이터 — 슈퍼 전용. 일반 admin 에게는 메뉴 자체 비노출.
+        aliases: ['노트', '기록', '필기', '비망록', '메모', '운영메모', '관리자메모'] },
       { label: '💰 영업이익 시뮬레이터', path: '/profit-simulator', star: true, superOnly: true,
-        aliases: ['수익', '재무', '이익', '시뮬레이션', '시뮬', '손익', '마진'] },
+        aliases: ['수익', '재무', '이익', '시뮬레이션', '시뮬', '손익', '마진', 'BEP', '손익분기', '매출시뮬'] },
+      { label: '📖 운영 바이블', path: '/handbook', star: true,
+        aliases: ['바이블', 'handbook', '운영매뉴얼', '정책문서', '운영가이드', '매뉴얼', '가이드', '정책검색', '운영정책'],
+        subFeatures: ['채팅 운영 정책', '결제·정산 정책', '회원 운영', '상담사 운영', '알림 정책', '추천수익금·쿠폰 정책', '시스템·인프라'] },
+      { label: '🤖 운영 바이블 AI', path: '/handbook-ai', star: true,
+        aliases: ['AI질문', 'AI검색', '자연어검색', 'Claude', 'AI운영', '운영AI', '바이블AI', '정책질문', '자연어질문', 'AI답변', '스마트검색'],
+        subFeatures: ['자연어 질문 (예: "추천인 수수료 얼마야?")', '정책·데이터 통합 답변', 'SQL 조회 연계', '신입 관리자 온보딩'] },
+      { label: '🔒 인프라 잠금 정보', path: '/infra-info', superOnly: true,
+        aliases: ['인프라', '서버경로', '잠금', '변경불가', '죽은폴더', 'nginx', '배포경로', '서버설정', '고정경로'],
+        subFeatures: ['변경 금지 경로 목록', '외부 서비스 등록 URL', '죽은 폴더 주의사항'] },
     ],
   },
 ]
@@ -546,8 +611,159 @@ export default function AllMenus() {
         </div>
       )}
 
+      {/* ── 무료 코인 지급 정책 안내 ── */}
+      {!isSearching && <FreeCoinPolicyGuide />}
+
       {/* ── 쿠폰 정책 안내 ── */}
       {!isSearching && <CouponPolicyGuide />}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────
+// 무료 코인 지급 정책 안내 컴포넌트
+// ─────────────────────────────────────────────────────────
+function FreeCoinPolicyGuide() {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="border border-violet-200 bg-violet-50 dark:bg-violet-900/10 dark:border-violet-800/40 rounded-xl overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <span className="flex items-center gap-2 text-sm font-semibold text-violet-800 dark:text-violet-300">
+          🎁 무료 코인 지급 정책 — 관리자 필독
+        </span>
+        <span className="text-violet-600 text-xs">{open ? '▲ 접기' : '▼ 펼치기'}</span>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 space-y-4 text-sm text-gray-700 dark:text-gray-300 border-t border-violet-200 dark:border-violet-800/40 pt-4">
+
+          {/* 전체 목록 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">무료 코인 지급 경로 전체 (현재 설정값)</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-violet-100 dark:bg-violet-900/30">
+                    <th className="text-left px-3 py-2 font-semibold text-violet-800 dark:text-violet-300 border border-violet-200 dark:border-violet-700">#</th>
+                    <th className="text-left px-3 py-2 font-semibold text-violet-800 dark:text-violet-300 border border-violet-200 dark:border-violet-700">경로</th>
+                    <th className="text-right px-3 py-2 font-semibold text-violet-800 dark:text-violet-300 border border-violet-200 dark:border-violet-700">현재 금액</th>
+                    <th className="text-left px-3 py-2 font-semibold text-violet-800 dark:text-violet-300 border border-violet-200 dark:border-violet-700">자동 여부</th>
+                    <th className="text-left px-3 py-2 font-semibold text-violet-800 dark:text-violet-300 border border-violet-200 dark:border-violet-700">설정 위치</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { no: 1, label: '출석 일일 기본 (회원)', amount: '100 코인/일', auto: '자동', setting: '출석 관리 → 정책' },
+                    { no: 2, label: '출석 일일 기본 (상담사)', amount: '50 코인/일', auto: '자동', setting: '출석 관리 → 정책' },
+                    { no: 3, label: '출석 연속 5일 보너스 (회원)', amount: '+200 코인', auto: '자동', setting: '출석 관리 → 정책' },
+                    { no: 4, label: '출석 연속 10일 보너스 (회원)', amount: '+300 코인', auto: '자동', setting: '출석 관리 → 정책' },
+                    { no: 5, label: '출석 연속 15일 보너스 (회원)', amount: '+400 코인', auto: '자동', setting: '출석 관리 → 정책' },
+                    { no: 6, label: '출석 연속 20일 보너스 (회원)', amount: '+500 코인', auto: '자동', setting: '출석 관리 → 정책' },
+                    { no: 7, label: '출석 30일 달성 쿠폰 (회원)', amount: '10,000 코인 쿠폰 (14일 만료)', auto: '자동', setting: '출석 관리 → 정책' },
+                    { no: 8, label: '회원가입 쿠폰', amount: '쿠폰존 설정값', auto: '가입 시 자동', setting: '쿠폰존 관리' },
+                    { no: 9, label: '보유 쿠폰 사용', amount: '쿠폰존 설정값', auto: '회원 직접', setting: '쿠폰존 관리' },
+                    { no: 10, label: '쿠폰 코드 입력', amount: '쿠폰존 설정값', auto: '회원 직접', setting: '쿠폰존 관리' },
+                    { no: 11, label: '일반 후기 작성', amount: '500 코인', auto: '자동', setting: '환경설정 → 후기 포인트' },
+                    { no: 12, label: '사진 포함 후기 작성', amount: '1,000 코인 (기본 500 + 사진 500)', auto: '자동', setting: '환경설정 → 후기 포인트' },
+                    { no: 13, label: '관리자 베스트 후기 선정', amount: '10,000 코인 고정 (해제 시 회수 없음)', auto: '관리자 수동', setting: '상담후기 관리' },
+                    { no: 14, label: '관리자 수동 지급', amount: '자유 설정', auto: '관리자 수동', setting: '고객 리스트 → 포인트 조정' },
+                    { no: 15, label: '회원가입 포인트 ⏳', amount: '미구현 (곧 출시 예정)', auto: '—', setting: '환경설정 → 회원' },
+                    { no: 16, label: '로그인 포인트 ⏳', amount: '미구현 (곧 출시 예정)', auto: '—', setting: '환경설정 → 회원' },
+                  ].map((row) => (
+                    <tr key={row.no} className={`border border-violet-100 dark:border-violet-800/30 ${row.label.includes('⏳') ? 'opacity-50' : ''}`}>
+                      <td className="px-3 py-1.5 text-gray-400">{row.no}</td>
+                      <td className="px-3 py-1.5 font-medium">{row.label}</td>
+                      <td className="px-3 py-1.5 text-right tabular-nums text-violet-700 dark:text-violet-300">{row.amount}</td>
+                      <td className="px-3 py-1.5 text-gray-500">{row.auto}</td>
+                      <td className="px-3 py-1.5 text-gray-500">{row.setting}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* 출석 보상 상세 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">1. 출석 보상 — 경우의 수</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                <p className="font-medium text-violet-700 dark:text-violet-300 mb-2">회원 출석 보상</p>
+                <ul className="text-xs space-y-1 text-gray-600 dark:text-gray-400">
+                  <li>• 매일 출석: <strong className="text-gray-800 dark:text-gray-200">+100 코인</strong></li>
+                  <li>• 연속 5일: <strong className="text-gray-800 dark:text-gray-200">+200 추가</strong> (당일 총 300)</li>
+                  <li>• 연속 10일: <strong className="text-gray-800 dark:text-gray-200">+300 추가</strong> (당일 총 400)</li>
+                  <li>• 연속 15일: <strong className="text-gray-800 dark:text-gray-200">+400 추가</strong> (당일 총 500)</li>
+                  <li>• 연속 20일: <strong className="text-gray-800 dark:text-gray-200">+500 추가</strong> (당일 총 600)</li>
+                  <li>• 30일 달성: <strong className="text-gray-800 dark:text-gray-200">10,000코인 쿠폰</strong> (14일 만료)</li>
+                  <li className="text-amber-600 pt-1">⚠ 조건: 가입 후 3일 이상 경과, 하루 1회, 자정 KST 기준 리셋</li>
+                </ul>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                <p className="font-medium text-violet-700 dark:text-violet-300 mb-2">상담사 출석 보상 (회원의 절반)</p>
+                <ul className="text-xs space-y-1 text-gray-600 dark:text-gray-400">
+                  <li>• 매일 출석: <strong className="text-gray-800 dark:text-gray-200">+50 코인</strong></li>
+                  <li>• 연속 5일: <strong className="text-gray-800 dark:text-gray-200">+100 추가</strong></li>
+                  <li>• 연속 10일: <strong className="text-gray-800 dark:text-gray-200">+150 추가</strong></li>
+                  <li>• 연속 15일: <strong className="text-gray-800 dark:text-gray-200">+200 추가</strong></li>
+                  <li>• 연속 20일: <strong className="text-gray-800 dark:text-gray-200">+250 추가</strong></li>
+                  <li>• 30일 달성: <strong className="text-gray-800 dark:text-gray-200">없음</strong> (상담사 제외)</li>
+                  <li className="text-amber-600 pt-1">⚠ 출석을 건너뛰면 연속일 초기화</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+          {/* 후기 보상 상세 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">2. 후기 작성 보상 — 경우의 수</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 text-xs leading-relaxed space-y-1">
+              <p>• 일반 후기 작성: <strong>500 코인</strong></p>
+              <p>• 사진 포함 후기: <strong>1,000 코인</strong> (기본 500 + 사진 보너스 500)</p>
+              <p>• 최소 사용 코인 조건: <strong>없음</strong> (금액 무관하게 상담 후 후기 작성하면 지급)</p>
+              <p>• 상담 1회당 1회만 작성 가능</p>
+              <p className="text-amber-600">⚠ 환경설정 → 후기 포인트 섹션에서 payout_enabled=0 으로 설정하면 전체 중단</p>
+            </div>
+          </section>
+
+          {/* 베스트 후기 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">3. 베스트 후기 선정 — 주의사항</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 text-xs leading-relaxed space-y-1">
+              <p>• 관리자가 후기를 베스트로 선정하면 작성자에게 <strong>10,000 코인 즉시 지급</strong></p>
+              <p>• 금액은 코드에 고정 (변경 불가)</p>
+              <p className="text-rose-600">⚠ 베스트 해제해도 지급된 코인 <strong>회수 불가</strong>. 신중하게 선정할 것.</p>
+            </div>
+          </section>
+
+          {/* 관리자 수동 지급 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">4. 관리자 수동 지급 — 사용법</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 text-xs leading-relaxed space-y-1">
+              <p>경로: <strong>회원현황 → 고객 리스트 → 회원 상세 → 포인트 조정 버튼</strong></p>
+              <p>• 양수 입력 = 지급, 음수 입력 = 차감</p>
+              <p>• 사유 입력 필수 (감사 로그에 기록됨, 이후 추적 가능)</p>
+              <p>• 무료 코인(free)과 결제 코인(paid) 중 선택 가능</p>
+              <p className="text-amber-600">⚠ 이벤트 보상, 오류 보정 등 비정기 지급 시 사유를 명확히 입력할 것</p>
+            </div>
+          </section>
+
+          {/* 예정 기능 */}
+          <section>
+            <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">5. 출시 예정 기능 ⏳</h3>
+            <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 text-xs leading-relaxed space-y-1">
+              <p>• <strong>회원가입 포인트</strong>: 가입 완료 시 자동 코인 직접 지급. 설정 화면은 준비됨 (환경설정 → 회원 섹션).</p>
+              <p>• <strong>로그인 포인트</strong>: 로그인할 때마다 코인 지급. 설정 화면은 준비됨 (환경설정 → 회원 섹션).</p>
+              <p className="text-gray-400">현재는 설정만 있고 실제 지급 코드가 미구현 상태. 출시 후 이 안내 업데이트 예정.</p>
+            </div>
+          </section>
+
+        </div>
+      )}
     </div>
   )
 }

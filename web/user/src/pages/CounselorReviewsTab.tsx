@@ -18,20 +18,26 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** 상담사 상세 — 후기 탭 내용 (레이아웃 없이 content만) */
+const PAGE_SIZE = 20
+
+/** 상담사 상세 — 후기 탭 내용 */
 export default function CounselorReviewsTab({ counselorId }: { counselorId: string }) {
   const { member } = useAuth()
   const [reviews, setReviews] = useState<PublicCounselorReview[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [policyOpen, setPolicyOpen] = useState(false)
 
   const canWriteReview = !member || member.role !== 'counselor'
+  const hasMore = reviews.length < total
 
   useEffect(() => {
     if (!counselorId) return
     let alive = true
     setLoading(true)
-    counselorsApi.reviews(counselorId, { limit: 20 })
+    setReviews([])
+    counselorsApi.reviews(counselorId, { limit: PAGE_SIZE, offset: 0 })
       .then((rv) => {
         if (!alive) return
         setReviews(rv.items)
@@ -41,6 +47,20 @@ export default function CounselorReviewsTab({ counselorId }: { counselorId: stri
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [counselorId])
+
+  const loadMore = async () => {
+    if (loadingMore || !hasMore) return
+    setLoadingMore(true)
+    try {
+      const rv = await counselorsApi.reviews(counselorId, { limit: PAGE_SIZE, offset: reviews.length })
+      setReviews((prev) => [...prev, ...rv.items])
+      setTotal(rv.total)
+    } catch {
+      // silent
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -52,23 +72,31 @@ export default function CounselorReviewsTab({ counselorId }: { counselorId: stri
     )
   }
 
+  const adminBestList = reviews.filter((r) => r.is_admin_best)
+  const counselorBestList = reviews.filter((r) => !r.is_admin_best && r.is_best).slice(0, 5)
+  const normalList = reviews.filter((r) => !r.is_admin_best && !r.is_best)
+
   return (
     <div className="flex flex-col gap-3">
       {/* 안내 카드 */}
       <article className="bg-[#F9FAFB] rounded-[12px] p-4 flex flex-col gap-2">
         <img src="/img/review_visual_img.png" alt="" className="w-[46px] h-auto" />
         <h2 className="text-[18px] leading-[130%] font-semibold text-[#ec4899]">
-          후기 작성 시 포인트 지급!
+          후기 작성 시 코인 지급!
         </h2>
         <p className="text-[14px] leading-[130%] text-[#4A5565]">
           본인인증 완료 및 5분 이상 상담을 진행하신 고객님에 한하여 후기 작성이 가능합니다.
         </p>
-        <a href="#" className="inline-flex items-center gap-1 text-[14px] leading-[130%] font-medium text-[#4A5565]">
+        <button
+          type="button"
+          onClick={() => setPolicyOpen(true)}
+          className="inline-flex items-center gap-1 text-[14px] leading-[130%] font-medium text-[#4A5565]"
+        >
           상담후기 운영정책
           <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
             <path d="M6 4L10 8L6 12" stroke="#4A5565" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-        </a>
+        </button>
       </article>
 
       {canWriteReview && (
@@ -88,53 +116,68 @@ export default function CounselorReviewsTab({ counselorId }: { counselorId: stri
         </p>
       </div>
 
-      {/* 베스트 후기 */}
-      {(() => {
-        const bestList = reviews.filter((r) => r.is_best).slice(0, 5)
-        if (bestList.length === 0) return null
-        return (
-          <section className="-mx-4 px-4 bg-[#FFFBEB] border-y border-[#FDE68A]">
-            <div className="pt-4 pb-2 flex items-center gap-1.5">
-              <span aria-hidden>⭐</span>
-              <h2 className="text-[15px] font-bold text-[#1E2939]">베스트 후기</h2>
-              <span className="text-[12px] text-[#92400E]">상담사가 직접 선정한 후기 {bestList.length}건</span>
-            </div>
-            <div className="flex flex-col pb-2">
-              {bestList.map((r) => (
-                <ReviewCard key={`best-${r.id}`} review={r} isLoggedIn={!!member} />
-              ))}
-            </div>
-          </section>
-        )
-      })()}
+      {/* 관리자 선정 후기 — 최상단, 조용한 왼쪽 핑크 줄 표시 */}
+      {adminBestList.length > 0 && (
+        <section className="flex flex-col">
+          {adminBestList.map((r) => (
+            <ReviewCard key={`admin-best-${r.id}`} review={r} isLoggedIn={!!member} showAdminMark />
+          ))}
+        </section>
+      )}
 
-      {/* 후기 전체 */}
+      {/* 상담사 선정 후기 (표시 없이 위로만) */}
+      {counselorBestList.length > 0 && (
+        <section className="flex flex-col">
+          {counselorBestList.map((r) => (
+            <ReviewCard key={`best-${r.id}`} review={r} isLoggedIn={!!member} />
+          ))}
+        </section>
+      )}
+
+      {/* 일반 후기 */}
       <section className="flex flex-col -mt-2">
         {reviews.length === 0 ? (
           <p className="text-center text-[14px] text-[#99A1AF] py-10">아직 후기가 없습니다.</p>
         ) : (
-          reviews.filter((r) => !r.is_best).map((r) => (
+          normalList.map((r) => (
             <ReviewCard key={r.id} review={r} isLoggedIn={!!member} />
           ))
         )}
       </section>
 
-      <div className="flex justify-center">
-        <Link
-          to="/reviews"
-          className="inline-flex items-center justify-center h-10 px-4 rounded-full bg-white border border-[#D1D5DC] text-[#6A7282] text-[14px] font-medium gap-1"
-        >
-          상담 후기 더보기
-          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
-            <path d="M6 4L10 8L6 12" stroke="#6A7282" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </Link>
-      </div>
+      {hasMore && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="inline-flex items-center justify-center h-10 px-4 rounded-full bg-white border border-[#D1D5DC] text-[#6A7282] text-[14px] font-medium gap-1 disabled:opacity-50"
+          >
+            {loadingMore ? '불러오는 중…' : '상담 후기 더보기'}
+            {!loadingMore && (
+              <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
+                <path d="M6 4L10 8L6 12" stroke="#6A7282" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* 운영정책 팝업 */}
+      {policyOpen && <ReviewPolicyModal onClose={() => setPolicyOpen(false)} />}
     </div>
   )
 }
 
-function ReviewCard({ review, isLoggedIn }: { review: PublicCounselorReview; isLoggedIn: boolean }) {
+function ReviewCard({
+  review,
+  isLoggedIn,
+  showAdminMark = false,
+}: {
+  review: PublicCounselorReview
+  isLoggedIn: boolean
+  showAdminMark?: boolean
+}) {
   const { id, title, content, is_secret, reviewer_name, created_at } = review
   const navigate = useNavigate()
   const [reportOpen, setReportOpen] = useState(false)
@@ -148,11 +191,17 @@ function ReviewCard({ review, isLoggedIn }: { review: PublicCounselorReview; isL
 
   return (
     <>
-      <Link to={`/reviews/${id}`} className="block px-0 py-4 flex flex-col gap-2 border-b border-[#F3F4F6] hover:bg-[#F9FAFB]/40 transition">
+      <Link
+        to={`/reviews/${id}`}
+        className={`block px-0 py-4 flex flex-col gap-2 border-b border-[#F3F4F6] hover:bg-[#F9FAFB]/40 transition ${showAdminMark ? 'pl-3 border-l-2 border-l-[#f472b6]' : ''}`}
+      >
         <div className="flex items-center gap-2">
           <div className="flex-1 flex items-center gap-1 min-w-0">
             <img src="/img/ic_reviewer.svg" alt="" className="w-4 h-4 shrink-0" />
             <span className="text-[14px] leading-[130%] font-medium text-[#1E2939] truncate">{reviewer_name}</span>
+            {showAdminMark && (
+              <span className="text-[11px] text-[#99A1AF] font-normal shrink-0">추천</span>
+            )}
           </div>
           <button type="button" onClick={onReportClick} className="shrink-0 text-[12px] text-[#99A1AF] hover:text-[#FB2C36]" aria-label="이 후기 신고">신고</button>
         </div>
@@ -167,6 +216,71 @@ function ReviewCard({ review, isLoggedIn }: { review: PublicCounselorReview; isL
       </Link>
       <ReviewReportModal reviewId={id} open={reportOpen} onClose={() => setReportOpen(false)} />
     </>
+  )
+}
+
+/** 운영정책 팝업 */
+function ReviewPolicyModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ background: 'rgba(0,0,0,0.5)' }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-[600px] bg-white rounded-t-[20px] p-6 pb-10 flex flex-col gap-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-[18px] font-semibold text-[#030712]">상담후기 운영정책</h2>
+          <button type="button" onClick={onClose} aria-label="닫기" className="w-8 h-8 flex items-center justify-center">
+            <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none">
+              <path d="M6 6L18 18M18 6L6 18" stroke="#030712" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+
+        {/* 작성 조건 */}
+        <section className="flex flex-col gap-2">
+          <h3 className="text-[15px] font-semibold text-[#1E2939]">후기 작성 조건</h3>
+          <ul className="flex flex-col gap-1 text-[14px] text-[#4A5565] leading-[150%]">
+            <li>• 본인인증 완료 회원만 작성 가능</li>
+            <li>• 5분 이상 상담을 진행한 경우에만 작성 가능</li>
+            <li>• 상담 종료 후 7일 이내에만 작성 가능</li>
+            <li>• 동일 상담에 대해 후기 1건만 가능</li>
+          </ul>
+        </section>
+
+        {/* 코인 혜택 */}
+        <section className="flex flex-col gap-2">
+          <h3 className="text-[15px] font-semibold text-[#1E2939]">코인 혜택</h3>
+          <div className="bg-[#FDF2F8] rounded-[10px] p-4 flex flex-col gap-2">
+            <div className="flex items-center justify-between text-[14px]">
+              <span className="text-[#4A5565]">일반 후기 작성</span>
+              <span className="font-semibold text-[#ec4899]">500 코인</span>
+            </div>
+            <div className="flex items-center justify-between text-[14px]">
+              <span className="text-[#4A5565]">사진 포함 후기</span>
+              <span className="font-semibold text-[#ec4899]">1,000 코인</span>
+            </div>
+            <div className="flex items-center justify-between text-[14px]">
+              <span className="text-[#4A5565]">베스트 후기 선정</span>
+              <span className="font-semibold text-[#ec4899]">10,000 코인</span>
+            </div>
+          </div>
+        </section>
+
+        {/* 삭제 규정 */}
+        <section className="flex flex-col gap-2">
+          <h3 className="text-[15px] font-semibold text-[#1E2939]">후기 수정 · 삭제 기준</h3>
+          <ul className="flex flex-col gap-1 text-[14px] text-[#4A5565] leading-[150%]">
+            <li>• 작성 후 <span className="font-medium text-[#1E2939]">5분 이내</span>에만 수정 · 삭제 가능</li>
+            <li>• 상담사 답변이 달린 후기는 삭제 불가</li>
+            <li>• 허위 · 비방 후기는 관리자 검토 후 삭제될 수 있습니다</li>
+          </ul>
+        </section>
+      </div>
+    </div>
   )
 }
 

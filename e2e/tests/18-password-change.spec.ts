@@ -18,34 +18,14 @@ test.use({ storageState: 'user_member_storage.json' })
 
 test.describe('비밀번호 변경 정책', () => {
   test.beforeEach(async ({ page }) => {
-    if (process.env.TARGET === 'prod') test.skip()
+    // TEST 서버 폐기(2026-05-29) → prod 단일. storageState 로 세션 보장.
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-
-    const apiBase = 'https://api.sajumoon.kr'
-    const result = await page.evaluate(async (base) => {
-      try {
-        const me = await fetch(`${base}/api/user/auth/me`, { credentials: 'include' })
-        if (me.ok) {
-          const j = await me.json().catch(() => null)
-          if (j?.ok === true || j?.member) return { ok: true }
-        }
-        const login = await fetch(`${base}/api/user/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mb_id: 'e2e_member', password: 'e2e_test_2026' }),
-          credentials: 'include',
-        })
-        return { ok: login.ok, status: login.status }
-      } catch (e) {
-        return { ok: false, error: (e as Error).message }
-      }
-    }, apiBase)
-    if (!result.ok) test.skip(true, `e2e_member 인증 실패 (${JSON.stringify(result).slice(0, 80)})`)
+    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {})
   })
 
   async function tryChange(page: import('@playwright/test').Page, newPw: string) {
     return await page.evaluate(async ({ pw }) => {
-      const r = await fetch('https://api.sajumoon.kr/api/user/auth/me/password', {
+      const r = await fetch('https://api.sajuplan.com/api/user/auth/me/password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

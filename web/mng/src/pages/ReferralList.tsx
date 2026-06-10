@@ -5,14 +5,17 @@ import { useAuth } from '../lib/auth'
 import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Badge, BadgeColor, inputCls } from '../components/table'
 
 /**
- * 어드민 — 상담사 추천 수당 관리 (2026-05-17).
+ * 어드민 — 상담사 추천수익금 현황 (조회/관리 전용, 2026-06-11 정산 단순화 반영).
  *
- * 정책 (수동 운영):
- *   - 추천자(A) → 피추천자(B) 가입 후 6개월 한정
- *   - 1~3개월: B 매출의 2% → A 포인트 적립
- *   - 4~6개월: B 매출의 1% → A 포인트 적립
- *   - 매월 1~5일 운영자가 "이번 달 지급" 버튼 클릭 → 추천자 포인트 자동 적립
- *   - 디폴트 month = 전월 (정산 cron 이 매월 1일 04:00 에 전월 정산하므로)
+ * 정책:
+ *   - 추천자(A) → 피추천자(B) 가입 후 N개월 한정.
+ *     요율·기간은 슈퍼 정책 패널에서 설정하며, 관계별 스냅샷으로 고정된다(이후 변경은 신규 추천부터).
+ *   - 추천수익금은 B 의 상담 종료 시점에 A 의 earning_balance 로 '실시간 자동 적립'된다
+ *     (m2net-push.service.ts creditCounselorPointInTx). 일반 상담 수익금과 동일하게 정산에 포함.
+ *   - 옛 수동 "이번 달 지급" 버튼(payCurrentMonth)은 폐지됨 — paid_balance 오적립 지뢰였음(2026-06-11 제거).
+ *   - 이 화면은 추천 관계 조회 + 신규 등록 + 비활성 관리용. 지급은 정산(수익금) 흐름에 통합.
+ *   - TODO(백로그): summary/테이블의 '지급' 라벨·expected_payment 컬럼은 옛 월별 수동지급 모델 잔재.
+ *     실시간 적립 모델에 맞춰 '이번 달 추천수익 적립액' 등으로 화면 재정비 필요.
  */
 
 interface Item {
@@ -174,21 +177,8 @@ export default function ReferralList() {
     return { active: active.length, eligible: eligible.length, paid: paid.length, pending: pending.length, totalExpected }
   }, [items])
 
-  const onPay = async (it: Item) => {
-    const a = it.referrer_nickname ?? it.referrer_mb_id ?? `#${it.referrer_id}`
-    if (!confirm(`${a} 에게 ${fmt(it.expected_payment)}원 (${month}, ${it.rate_pct}%) 지급?\n\n* 추천자 포인트가 즉시 적립됩니다.`)) return
-    try {
-      const r = await api<{ paid_amount: number; rate_pct: number; referee_sales: number }>(
-        `/admin/referrals/${it.id}/pay`,
-        { method: 'POST', body: JSON.stringify({ month }) },
-      )
-      alert(`지급 완료: ${fmt(r.paid_amount)}원 (${r.rate_pct}% × ${fmt(r.referee_sales)}원)`)
-      load()
-    } catch (e) {
-      const msg = e instanceof ApiError ? e.message : (e as Error).message
-      alert(`지급 실패: ${msg}`)
-    }
-  }
+  // [2026-06-11] 추천수당 수동지급(onPay) 폐지 — 추천수익금은 상담 종료 시점에
+  //   earning_balance 로 자동 적립된다. 옛 수동지급은 paid_balance 오적립 지뢰라 제거.
 
   const onDisable = async (it: Item) => {
     const reason = prompt(`추천 관계 비활성 사유를 입력하세요.\n(예: 허위 가입 / 본인 셀프 추천 등)\n\n대상: ${it.referrer_nickname ?? '#'+it.referrer_id} → ${it.referee_nickname ?? '#'+it.referee_id}`)
@@ -213,7 +203,7 @@ export default function ReferralList() {
       {/* 타이틀 + 등록 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">상담사 추천 수당 (프로모션)</h1>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">추천수익금</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             수익금의 N% · N개월 한정 · 매월 1일 정산 자동 처리 (전월 수익금 기준)
           </p>
@@ -335,14 +325,7 @@ export default function ReferralList() {
                 </Td>
                 <Td align="center">
                   <div className="flex items-center justify-center gap-1">
-                    {it.status === 'active' && it.expected_payment > 0 && !it.paid_this_month && (
-                      <button
-                        onClick={() => onPay(it)}
-                        className="px-2 py-1 rounded-md bg-brand-600 hover:bg-brand-700 text-white text-[11px] font-medium"
-                      >
-                        이번 달 지급
-                      </button>
-                    )}
+                    {/* [2026-06-11] 추천수당 수동지급 버튼 폐지 — earning_balance 실시간 적립으로 대체 (paid_balance 오적립 지뢰 제거) */}
                     {it.paid_this_month && (
                       <Badge color="emerald">지급 완료 ({fmt(it.paid_amount ?? 0)})</Badge>
                     )}

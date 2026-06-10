@@ -29,6 +29,13 @@ export default function Find() {
   const [codeError, setCodeError] = useState<string | null>(null)
   const [verifying, setVerifying] = useState(false)
 
+  // 인증 후 새 비밀번호 설정 상태 (휴대폰 탭)
+  const [newPw, setNewPw] = useState('')
+  const [newPwConfirm, setNewPwConfirm] = useState('')
+  const [showNewPw, setShowNewPw] = useState(false)
+  const [showNewPwConfirm, setShowNewPwConfirm] = useState(false)
+  const [newPwError, setNewPwError] = useState<string | null>(null)
+
   // 이메일 탭 상태
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
@@ -102,49 +109,45 @@ export default function Find() {
     }
   }
 
-  const onSubmit = async (e: FormEvent) => {
+  const onResetPassword = async (e: FormEvent) => {
     e.preventDefault()
     if (submitting) return
-
-    if (tab === 'phone') {
-      if (!phoneSent) {
-        setPhoneError('인증번호를 전송해주세요.')
-        return
-      }
-      if (!phoneVerified) {
-        setCodeError('휴대폰 인증을 완료해주세요.')
-        return
-      }
-      setCodeError(null)
-    } else {
-      if (!email.includes('@')) {
-        setEmailError('올바른 이메일 형식이 아닙니다.')
-        return
-      }
-      setEmailError(null)
-    }
-
+    setNewPwError(null)
+    if (!newPw) { setNewPwError('새 비밀번호를 입력해주세요.'); return }
+    if (newPw.length < 8 || newPw.length > 20) { setNewPwError('비밀번호는 8~20자여야 합니다.'); return }
+    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(newPw)) { setNewPwError('영문과 숫자를 각각 1개 이상 포함해야 합니다.'); return }
+    if (newPw !== newPwConfirm) { setNewPwError('비밀번호가 일치하지 않습니다.'); return }
     setSubmitting(true)
     try {
-      if (tab === 'phone') {
-        // 비밀번호 찾기 (휴대폰) — 인증 완료된 폰번호로 임시비밀번호 발급 + 알림톡 발송
-        await authApi.findByPhone(phone, phoneCode)
-      } else {
-        // 비밀번호 찾기 (이메일) — 임시비밀번호 발급 + 메일 발송
-        await authApi.findByEmail(email)
-      }
-      navigate('/find/complete', { replace: true, state: { method: tab } })
+      await authApi.resetPasswordByPhone(phone, newPw)
+      navigate('/find/complete', { replace: true, state: { method: 'phone' } })
     } catch (e) {
-      const msg = e instanceof ApiError ? e.message : '요청에 실패했습니다.'
-      if (tab === 'phone') setCodeError(msg)
-      else setEmailError(msg)
+      setNewPwError(e instanceof ApiError ? e.message : '비밀번호 변경에 실패했습니다.')
     } finally {
       setSubmitting(false)
     }
   }
 
-  const canSubmit =
-    tab === 'phone' ? phoneVerified : email.includes('@')
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (submitting) return
+    if (!email.includes('@')) {
+      setEmailError('올바른 이메일 형식이 아닙니다.')
+      return
+    }
+    setEmailError(null)
+    setSubmitting(true)
+    try {
+      await authApi.findByEmail(email)
+      navigate('/find/complete', { replace: true, state: { method: 'email' } })
+    } catch (e) {
+      setEmailError(e instanceof ApiError ? e.message : '요청에 실패했습니다.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const canSubmit = email.includes('@')
 
   return (
     <div className="mobile-frame flex flex-col">
@@ -192,96 +195,126 @@ export default function Find() {
           )}
         </div>
 
-        <form onSubmit={onSubmit} className="flex-1 flex flex-col mt-6">
-          {tab === 'phone' ? (
-            <>
-              <FieldLabel required>휴대폰번호</FieldLabel>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <InputField
-                    type="tel"
-                    value={phone}
-                    onChange={(v) => setPhone(v.replace(/[^0-9]/g, ''))}
-                    placeholder="'-' 없이 숫자만 입력해주세요."
-                    error={!!phoneError}
-                    rightPadding="sm"
-                    autoComplete="tel"
-                    disabled={phoneSent && timer > 0}
-                  />
-                </div>
-                <OutlineButton type="button" onClick={onSendCode} disabled={sending}>
-                  {sending ? '전송 중...' : phoneSent ? '재전송' : '인증번호 전송'}
-                </OutlineButton>
+        {/* 휴대폰 탭 — 인증 전: 폰 + 인증번호 입력 / 인증 후: 새 비밀번호 설정 */}
+        {tab === 'phone' && !phoneVerified && (
+          <div className="flex-1 flex flex-col mt-6">
+            <FieldLabel required>휴대폰번호</FieldLabel>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <InputField
+                  type="tel"
+                  value={phone}
+                  onChange={(v) => setPhone(v.replace(/[^0-9]/g, ''))}
+                  placeholder="'-' 없이 숫자만 입력해주세요."
+                  error={!!phoneError}
+                  rightPadding="sm"
+                  autoComplete="tel"
+                  disabled={phoneSent && timer > 0}
+                />
               </div>
-              {phoneError && <p className="text-[13px] text-[#FF6467] mt-1.5 ml-2">{phoneError}</p>}
-              {!phoneSent && !phoneError && (
-                <p className="mt-1.5 ml-1 text-[12px] text-[#6A7282]">
-                  💬 인증번호는 <span className="font-semibold text-[#1E2939]">카카오톡</span>으로 발송됩니다. 카카오톡 알림이 안 오면 잠시 후 다시 시도해 주세요.
-                </p>
-              )}
-
-              {phoneSent && (
-                <>
-                  <div className="flex items-end justify-between mt-4 mb-1.5">
-                    <FieldLabel required className="mb-0">
-                      인증번호
-                    </FieldLabel>
-                    {!phoneVerified && (
-                      <span className="text-[13px] text-[#FF6467] font-medium">{fmt(timer)}</span>
-                    )}
+              <OutlineButton type="button" onClick={onSendCode} disabled={sending}>
+                {sending ? '전송 중...' : phoneSent ? '재전송' : '인증번호 전송'}
+              </OutlineButton>
+            </div>
+            {phoneError && <p className="text-[13px] text-[#FF6467] mt-1.5 ml-2">{phoneError}</p>}
+            {!phoneSent && !phoneError && (
+              <p className="mt-1.5 ml-1 text-[12px] text-[#6A7282]">
+                💬 인증번호는 <span className="font-semibold text-[#1E2939]">카카오톡</span>으로 발송됩니다. 카카오톡 알림이 안 오면 잠시 후 다시 시도해 주세요.
+              </p>
+            )}
+            {phoneSent && (
+              <>
+                <div className="flex items-end justify-between mt-4 mb-1.5">
+                  <FieldLabel required className="mb-0">인증번호</FieldLabel>
+                  <span className="text-[13px] text-[#FF6467] font-medium">{fmt(timer)}</span>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <InputField
+                      value={phoneCode}
+                      onChange={(v) => setPhoneCode(v.replace(/[^0-9]/g, '').slice(0, 6))}
+                      placeholder="인증번호 6자리를 입력해주세요."
+                      error={!!codeError}
+                      rightPadding="sm"
+                      maxLength={6}
+                      inputMode="numeric"
+                    />
                   </div>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <InputField
-                        value={phoneCode}
-                        onChange={(v) => setPhoneCode(v.replace(/[^0-9]/g, '').slice(0, 6))}
-                        placeholder="인증번호 6자리를 입력해주세요."
-                        error={!!codeError}
-                        rightPadding="sm"
-                        disabled={phoneVerified}
-                        maxLength={6}
-                        inputMode="numeric"
-                      />
-                    </div>
-                    {!phoneVerified && (
-                      <OutlineButton type="button" onClick={onVerifyCode} disabled={verifying}>
-                        {verifying ? '확인 중...' : '인증하기'}
-                      </OutlineButton>
-                    )}
-                  </div>
-                  {codeError && !phoneVerified && (
-                    <p className="text-[13px] text-[#FF6467] mt-1.5 ml-2">{codeError}</p>
-                  )}
-                  {phoneVerified && (
-                    <p className="text-[13px] text-[#10b981] mt-1.5">✓ 휴대폰 인증이 완료되었습니다.</p>
-                  )}
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <FieldLabel required>이메일</FieldLabel>
-              <InputField
-                type="email"
-                value={email}
-                onChange={setEmail}
-                placeholder="이메일 주소를 입력해주세요."
-                error={!!emailError}
-                onClear={() => setEmail('')}
-                autoComplete="email"
-              />
-              <EmailDomainChips value={email} onChange={setEmail} />
-              {emailError && <p className="text-[13px] text-[#FF6467] mt-1.5 ml-2">{emailError}</p>}
-            </>
-          )}
-
-          {/* 하단 고정 버튼 */}
-          <div className="mt-auto pt-8 pb-8">
-            <PrimaryButton type="submit" loading={submitting} disabled={!canSubmit}>
-              요청하기
-            </PrimaryButton>
+                  <OutlineButton type="button" onClick={onVerifyCode} disabled={verifying}>
+                    {verifying ? '확인 중...' : '인증하기'}
+                  </OutlineButton>
+                </div>
+                {codeError && (
+                  <p className="text-[13px] text-[#FF6467] mt-1.5 ml-2">{codeError}</p>
+                )}
+              </>
+            )}
           </div>
-        </form>
+        )}
+
+        {/* 휴대폰 인증 완료 후: 새 비밀번호 직접 설정 */}
+        {tab === 'phone' && phoneVerified && (
+          <form onSubmit={onResetPassword} className="flex-1 flex flex-col mt-6">
+            <p className="text-[13px] text-[#10b981] mb-5">✓ 휴대폰 인증이 완료되었습니다. 새 비밀번호를 설정해주세요.</p>
+
+            <FieldLabel required>새 비밀번호</FieldLabel>
+            <PasswordInput
+              value={newPw}
+              onChange={(v) => { setNewPw(v); setNewPwError(null) }}
+              placeholder="새 비밀번호를 입력해주세요."
+              visible={showNewPw}
+              onToggle={() => setShowNewPw((v) => !v)}
+            />
+            <p className="text-[12px] text-gray-400 mt-1 mb-4">영문+숫자 혼합 8~20자</p>
+
+            <FieldLabel required>새 비밀번호 확인</FieldLabel>
+            <PasswordInput
+              value={newPwConfirm}
+              onChange={(v) => { setNewPwConfirm(v); setNewPwError(null) }}
+              placeholder="새 비밀번호를 한번 더 입력해주세요."
+              visible={showNewPwConfirm}
+              onToggle={() => setShowNewPwConfirm((v) => !v)}
+            />
+            {newPw && newPwConfirm && newPw !== newPwConfirm && (
+              <p className="text-[13px] text-[#FF6467] mt-1">비밀번호가 일치하지 않습니다.</p>
+            )}
+
+            {newPwError && <p className="text-[13px] text-[#FF6467] mt-2">{newPwError}</p>}
+
+            <div className="mt-auto pt-8 pb-8">
+              <PrimaryButton
+                type="submit"
+                loading={submitting}
+                disabled={!newPw || !newPwConfirm || newPw !== newPwConfirm}
+              >
+                비밀번호 변경
+              </PrimaryButton>
+            </div>
+          </form>
+        )}
+
+        {/* 이메일 탭 */}
+        {tab === 'email' && (
+          <form onSubmit={onSubmit} className="flex-1 flex flex-col mt-6">
+            <FieldLabel required>이메일</FieldLabel>
+            <InputField
+              type="email"
+              value={email}
+              onChange={setEmail}
+              placeholder="이메일 주소를 입력해주세요."
+              error={!!emailError}
+              onClear={() => setEmail('')}
+              autoComplete="email"
+            />
+            <EmailDomainChips value={email} onChange={setEmail} />
+            {emailError && <p className="text-[13px] text-[#FF6467] mt-1.5 ml-2">{emailError}</p>}
+            <div className="mt-auto pt-8 pb-8">
+              <PrimaryButton type="submit" loading={submitting} disabled={!canSubmit}>
+                요청하기
+              </PrimaryButton>
+            </div>
+          </form>
+        )}
       </main>
 
       <AlertModal
@@ -332,5 +365,44 @@ function FieldLabel({
       {children}
       {required && <span className="text-[#FF6467]"> *</span>}
     </label>
+  )
+}
+
+function PasswordInput({
+  value,
+  onChange,
+  placeholder,
+  visible,
+  onToggle,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder: string
+  visible: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div className="relative">
+      <input
+        type={visible ? 'text' : 'password'}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full h-[50px] px-4 pr-12 rounded-xl border border-[#e5e7eb] text-[15px] text-[#1E2939] placeholder-[#9CA3AF] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 bg-white"
+        autoComplete="new-password"
+      />
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label={visible ? '비밀번호 숨기기' : '비밀번호 보기'}
+        className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center"
+      >
+        <img
+          src={visible ? '/img/ic_input_eye.svg' : '/img/ic_input_eye_closed.svg'}
+          alt=""
+          className="w-6 h-6"
+        />
+      </button>
+    </div>
   )
 }

@@ -7,9 +7,9 @@ import { test, expect } from '@playwright/test'
  * - 각 테스트는 describe 블록 내에서 순서대로 실행됨 (앞 테스트 결과에 의존)
  */
 
-const API_DOMAIN = (process.env.TARGET ?? 'test') === 'prod' ? 'api.sajuplan.com' : 'api.sajumoon.kr'
-const DOMAIN = (process.env.TARGET ?? 'test') === 'prod' ? 'sajuplan.com' : 'sajumoon.kr'
-const COUNSELOR_ID = '123'
+const API_DOMAIN = (process.env.TARGET ?? 'prod') === 'prod' ? 'api.sajuplan.com' : 'api.sajumoon.kr'
+const DOMAIN = (process.env.TARGET ?? 'prod') === 'prod' ? 'sajuplan.com' : 'sajumoon.kr'
+const COUNSELOR_ID = '102'  // dummy_01 전용 — 실제 상담사(라온선생 id=123) 사용 금지
 
 const QNA_TITLE    = 'E2E 테스트 문의 제목'
 const QNA_CONTENT  = 'E2E 테스트 문의 내용입니다.'
@@ -24,7 +24,7 @@ async function loginAs(page: any, context: any, mbId: string) {
   if (match) {
     await context.addCookies([{
       name: 'sjm_user', value: match[1],
-      domain: DOMAIN, path: '/',
+      domain: `.${DOMAIN}`, path: '/',
       httpOnly: true, secure: true, sameSite: 'None',
     }])
   }
@@ -44,15 +44,14 @@ test.describe('상담사 문의 CRUD', () => {
     await page.goto(`/counselors/${COUNSELOR_ID}/qna/new`)
     await page.waitForLoadState('domcontentloaded')
 
-    const secretCheck = page.locator('input[type="checkbox"]').first()
-    if (await secretCheck.isChecked()) await secretCheck.click()
+    // is_secret 은 항상 true 로 고정 (체크박스 UI 제거됨 — 2026-06 정책)
 
     await page.getByPlaceholder(/제목/).fill(QNA_TITLE)
     await page.getByPlaceholder(/내용|궁금/).fill(QNA_CONTENT)
     await page.getByRole('button', { name: '작성완료' }).click()
 
     await page.waitForLoadState('domcontentloaded')
-    await expect(page).toHaveURL(/counselors\/\d+\/qna$/, { timeout: 10000 })
+    await expect(page).toHaveURL(/counselors\/\d+(\?tab=qna|\/qna)/, { timeout: 10000 })
   })
 
   test('3. 목록에서 작성 문의 확인 (본문 기준)', async ({ page, context }) => {
@@ -142,7 +141,7 @@ test.describe('상담사 문의 CRUD', () => {
     await page.getByRole('button', { name: '삭제', exact: true }).last().click()
 
     // 상세 → 목록으로 navigate 대기
-    await page.waitForURL(`**/${COUNSELOR_ID}/qna`, { timeout: 10000 })
+    await page.waitForURL(/counselors\/\d+(\?tab=qna|\/qna)/, { timeout: 10000 })
     await expect(page.getByText(e2eItem.content ?? '')).toHaveCount(0, { timeout: 5000 })
   })
 })

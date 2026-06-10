@@ -35,9 +35,12 @@ export class AlertsService {
   private seq = 0;
 
   /** 멤버 큐에 알림 push. 같은 type+link+consult_id 이미 있으면 중복 X (멱등성). */
-  enqueue(memberId: number, alert: Omit<PendingAlert, 'id' | 'created_at'>): void {
-    if (!memberId || memberId <= 0) return;
-    const list = this.queues.get(memberId) ?? [];
+  enqueue(memberId: number | string, alert: Omit<PendingAlert, 'id' | 'created_at'>): void {
+    // [2026-06-07 fix] 키 타입 정규화 — enqueue 는 number(m.id), polling 은 JWT sub(string "91")
+    //   로 들어와 Map.get(91) ≠ Map.get("91") 미스매치 → 알림 영구 미수신 버그. Number 로 통일.
+    const key = Number(memberId);
+    if (!Number.isFinite(key) || key <= 0) return;
+    const list = this.queues.get(key) ?? [];
     // [엄격검증 fix 2026-05-27] 기존 코드의 `alert.data?.consult_id === alert.data?.consult_id` 는
     //   자기 자신 비교라 항상 true 였음. 의도대로 a.data ↔ alert.data 비교로 수정.
     const dup = list.find(
@@ -49,20 +52,22 @@ export class AlertsService {
     if (dup) return;
     const id = `${Date.now()}-${++this.seq}`;
     list.push({ ...alert, id, created_at: Date.now() });
-    this.queues.set(memberId, list);
+    this.queues.set(key, list);
     this.logger.log(
-      `[alerts.enqueue] memberId=${memberId} type=${alert.type} link=${alert.link ?? '-'}`,
+      `[alerts.enqueue] memberId=${key} type=${alert.type} link=${alert.link ?? '-'}`,
     );
   }
 
   /** 멤버 큐에서 모든 알림 꺼내고 비움. 만료된 알림은 자동 폐기. */
-  dequeueAll(memberId: number): PendingAlert[] {
-    if (!memberId || memberId <= 0) return [];
-    const list = this.queues.get(memberId);
+  dequeueAll(memberId: number | string): PendingAlert[] {
+    // [2026-06-07 fix] enqueue 와 동일하게 Number 정규화 (JWT sub 가 string 이라 미스매치 방지)
+    const key = Number(memberId);
+    if (!Number.isFinite(key) || key <= 0) return [];
+    const list = this.queues.get(key);
     if (!list || list.length === 0) return [];
     const now = Date.now();
     const fresh = list.filter((a) => now - a.created_at < TTL_MS);
-    this.queues.delete(memberId);
+    this.queues.delete(key);
     return fresh;
   }
 

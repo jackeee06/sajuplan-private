@@ -4,9 +4,11 @@
   python tools/_patch_frontend.py user
   python tools/_patch_frontend.py mng
 
-원격 경로:
-  user: /data/wwwroot/sajumoon.kr (test) / /data/wwwroot/sajumoon.co.kr (prod)
-  mng:  /data/wwwroot/mng.sajumoon.kr / /data/wwwroot/mng.sajuplan.com
+원격 경로 (nginx 실제 서빙 경로):
+  user: /data/wwwroot/sajumoon.co.kr        ← sajuplan.com 이 여기서 서빙됨
+  mng:  /data/wwwroot/sajumoon.co.kr/mng    ← sajuplan.com/mng 이 여기서 서빙됨
+
+⚠️ /data/wwwroot/sajuplan.com/ 은 acme.sh 전용 — nginx 콘텐츠 서빙 안 함. 배포 대상 아님.
 
 전략:
   1. 로컬 dist/ 를 tar.gz 으로 묶기
@@ -32,18 +34,15 @@ for _s in (sys.stdout, sys.stderr):
 
 import paramiko
 
+# nginx가 실제로 sajuplan.com 을 /data/wwwroot/sajumoon.co.kr 에서 서빙함
+# (nginx vhost 확인 완료 — 2026-06-06)
+# /data/wwwroot/sajuplan.com/ 은 acme.sh 전용, 콘텐츠 서빙 안 함
 TARGETS_USER = [
-    # sajumoon.co.kr 도메인 서빙 경로
-    ("prod sajumoon.co.kr", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr"),
-    # sajuplan.com 도메인 서빙 경로 (별도 디렉토리 — 둘 다 배포 필수)
-    ("prod sajuplan.com", "104.64.128.103", "/data/wwwroot/sajuplan.com"),
+    ("prod", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr"),
 ]
 
 TARGETS_MNG = [
-    # sajumoon.co.kr/mng
-    ("prod sajumoon.co.kr/mng", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr/mng"),
-    # sajuplan.com/mng
-    ("prod sajuplan.com/mng", "104.64.128.103", "/data/wwwroot/sajuplan.com/mng"),
+    ("prod/mng", "104.64.128.103", "/data/wwwroot/sajumoon.co.kr/mng"),
 ]
 
 

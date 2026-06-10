@@ -636,28 +636,24 @@ export default function CounselorList() {
           <Th align="left">휴대폰</Th>
           <Th align="left">상담사번호</Th>
           <Th align="left">m2net</Th>
-          <Th align="left">070번호</Th>
           <Th align="right">단가(070)</Th>
-          <Th align="right">단가(060)</Th>
           <Th align="right">채팅</Th>
           <Th align="right">로열티</Th>
           <Th align="right">우선순위</Th>
           <Th align="right">누적상담</Th>
           <Th align="right">누적시간</Th>
           <Th align="right">이번달(070)</Th>
-          <Th align="right">이번달(060)</Th>
           <Th align="right">지난달(070)</Th>
-          <Th align="right">지난달(060)</Th>
-          <Th align="right">수익포인트</Th>
-          <Th align="right">소비포인트</Th>
+          <Th align="right">수익금</Th>
+          <Th align="right">코인</Th>
           <Th align="center">상태</Th>
           <Th align="center">급상승</Th>
         </THead>
         <TBody>
           {loading ? (
-            <EmptyRow colSpan={25} loading />
+            <EmptyRow colSpan={21} loading />
           ) : !data || pagedItems.length === 0 ? (
-            <EmptyRow colSpan={25} />
+            <EmptyRow colSpan={21} />
           ) : (
             pagedItems.map((c) => (
               <Tr key={c.id} onClick={() => navigate(`/members/counselors/${c.id}`)}>
@@ -688,11 +684,7 @@ export default function CounselorList() {
                 <Td align="left" className="font-mono text-xs text-gray-600">
                   {c.csrid ?? <span className="text-gray-300">-</span>}
                 </Td>
-                <Td align="left" className="font-mono text-xs text-gray-600">
-                  {fmtPhone(c.telno)}
-                </Td>
                 <Td align="right"><NumCell value={c.call_070_unit_cost} /></Td>
-                <Td align="right"><NumCell value={c.call_060_unit_cost} /></Td>
                 <Td align="right"><NumCell value={c.chat_unit_cost} /></Td>
                 <Td align="right" className="text-xs tabular-nums text-gray-600">
                   {c.paid_royalty_pct !== null ? `${c.paid_royalty_pct}%` : <span className="text-gray-300">-</span>}
@@ -705,9 +697,7 @@ export default function CounselorList() {
                   {secsToMin(c.total_usetm)}
                 </Td>
                 <Td align="right"><NumCell value={c.this_month_070} /></Td>
-                <Td align="right"><NumCell value={c.this_month_060} /></Td>
                 <Td align="right"><NumCell value={c.last_month_070} /></Td>
-                <Td align="right"><NumCell value={c.last_month_060} /></Td>
                 <Td align="right"><NumCell value={c.earning_balance} bold /></Td>
                 <Td align="right" className="text-xs tabular-nums text-gray-500"><NumCell value={c.point} /></Td>
                 <Td align="center"><StateBadge state={c.state} /></Td>

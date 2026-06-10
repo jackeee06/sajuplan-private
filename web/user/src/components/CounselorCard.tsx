@@ -43,11 +43,12 @@ interface Props {
   hideChat?: boolean
 }
 
-/** 뱃지 종류별 배경색 — Figma 1:175(신점=#00BBA7) / 1:177(사주=#FF6467) / 1:183(타로=#ec4899) */
+/** 뱃지 종류별 배경색 — Figma 1:175(신점=#00BBA7) / 1:177(사주=#FF6467) / 1:183(타로=#ec4899) / 심리=#8259F5 */
 const BADGE_BG: Record<string, string> = {
   타로: '#ec4899',
   신점: '#00BBA7',
   사주: '#FF6467',
+  심리: '#8259F5',
 }
 
 /**
@@ -164,7 +165,7 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
           </Link>
           {badge && (
             <span
-              className="absolute top-2 left-2 text-white text-[12px] font-medium leading-[110%] px-[5px] py-[3px] rounded-full inline-flex items-center justify-center"
+              className="absolute bottom-2 left-2 text-white text-[12px] font-medium leading-[110%] px-[5px] py-[3px] rounded-full inline-flex items-center justify-center"
               style={{ backgroundColor: badgeBg }}
             >
               {badge}

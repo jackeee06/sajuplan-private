@@ -23,19 +23,20 @@
 | new_review | reviews.service.ts:610 | review_for_counselor_v2 | ✅ (5/29 fix) |
 | new_qna | qna.service.ts:759 | qa_ask_v2 | ✅ (5/29 fix) |
 | qna_answered | qna.service.ts:808 | qa_answer_v2 | ✅ (5/29 fix) |
-| coupon_zone_grant | coupon-zones.service.ts:274 | coupon_req_v2 | 🔴 **prod 반려** (사장님 처리 중) |
+| coupon_zone_grant | coupon-zones.service.ts:274 | coupon_req_v2 | ⚪ **미사용 — BizM 반려 상태, 삭제 불가로 방치** (알림 안 감, 의도된 것) |
 | payout_request_received | counselor-mypage-payout.service.ts:471 | payout_request_received | ✅ |
 | payout_processed | payouts.service.ts:430 | payout_request_paid | ✅ |
 | payout_rejected | payouts.service.ts:282 | payout_request_rejected | ✅ |
 | (운영자) | ops-alert.service.ts:79 | ops_admin_alert_v2 | ✅ (5/29 검증) |
 
-## 🔵 검수 통과 대기 (사장님 BizM 검수요청 완료, 카카오 1~3일)
+## ✅ 검수 완료 (2026-06-06 BizM 콘솔 확인)
 
-| 이벤트 | 코드 위치 | prod template_code | 비고 |
+| 이벤트 | 코드 위치 | prod template_code | 상태 |
 |---|---|---|---|
-| consult_request_arrived | counselors.service.ts:200 | counselor_request_v1 | 전화상담 요청 시 |
-| chat_request_to_counselor | consult.service.ts:515 | (동명) | 채팅상담 요청 시 |
-| chat_auto_cancelled | consult.service.ts:647 | chat_auto_cancelled_to_member | cron 자동 취소 시 |
+| consult_request_arrived | counselors.service.ts:200 | counselor_request_v1 | ✅ 승인 |
+| chat_request_to_counselor | consult.service.ts:515 | (동명) | ✅ 승인 (동명 구 템플릿 1개 사용불가 상태로 방치 — BizM 숨김 불가, 무해) |
+| chat_auto_cancelled | consult.service.ts:647 | chat_auto_cancelled_to_member | ✅ 승인 |
+| settlement_complete | settlements.service.ts | settlement_complete | ✅ 승인 |
 
 ## 🚨 신규 발견 — 운영 시작 시 누락
 

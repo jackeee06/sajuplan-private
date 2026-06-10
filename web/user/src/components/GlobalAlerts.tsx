@@ -31,6 +31,7 @@ export default function GlobalAlerts() {
   const [activeAlert, setActiveAlert] = useState<PendingAlert | null>(null)
   const seenRef = useRef<Set<string>>(new Set())
 
+
   // 폴링 — 로그인 사용자만
   // [엄격검증 3차 fix 2026-05-27 T-4] 401 응답 시 polling 중단 + 5분 후 재시도 (토큰 갱신 대기)
   useEffect(() => {
@@ -42,7 +43,7 @@ export default function GlobalAlerts() {
     const poll = async () => {
       if (Date.now() < pausedUntil) return
       try {
-        const res = await fetch(`${API_BASE}/api/user/notifications/pending`, {
+        const res = await fetch(`${API_BASE}/user/notifications/pending`, {
           credentials: 'include',
         })
         if (res.status === 401) {
@@ -79,18 +80,11 @@ export default function GlobalAlerts() {
 
   if (!activeAlert) return null
 
-  // [엄격검증 fix 2026-05-27] 상담사 알림은 충전 버튼 X — 확인 버튼만.
   const isCounselorAudience = activeAlert.data?.audience === 'counselor'
 
   const handleClose = () => setActiveAlert(null)
   const handleAction = () => {
-    if (!activeAlert.link) {
-      handleClose()
-      return
-    }
-    // 채팅 5분 알림이면 결제 후 복귀 위해 chatRoomId 저장 (회원만)
-    // [엄격검증 4차 fix 2026-05-27 Q-3] timestamp 같이 저장 → ChargeComplete 30분 TTL
-    //                                   + 백엔드 dedupKey 형식 (`${chatRoomId}-${ms}`) 에서 chat_room_id 분리
+    if (!activeAlert.link) { handleClose(); return }
     if (
       !isCounselorAudience &&
       activeAlert.data?.consult_type === 'chat' &&
@@ -107,6 +101,7 @@ export default function GlobalAlerts() {
     setActiveAlert(null)
   }
 
+  // ── 5분 잔여 알림 모달 ─────────────────────────────────────────────
   return (
     <div
       role="alertdialog"

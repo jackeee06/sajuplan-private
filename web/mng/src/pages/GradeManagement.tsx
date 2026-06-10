@@ -60,6 +60,32 @@ const CHANGE_TYPE_LABEL: Record<string, string> = {
   unchanged: '— 유지',
 }
 
+/** changed_by 값 → 아이콘+라벨 (실시간 승급과 크론 구분) */
+function ChangedByBadge({ changedBy }: { changedBy: string }) {
+  if (changedBy === 'realtime') {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+        ⚡ 실시간
+      </span>
+    )
+  }
+  if (changedBy === 'cron') {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-50 text-gray-500 border border-gray-200">
+        📅 크론
+      </span>
+    )
+  }
+  if (changedBy?.startsWith('admin:')) {
+    return (
+      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-600 border border-blue-200">
+        ✋ 수동
+      </span>
+    )
+  }
+  return <span className="text-[12px] text-gray-400">{changedBy}</span>
+}
+
 /** 설정 키(영문) → 한글 라벨 매핑 */
 const SETTING_KEY_LABEL: Record<string, string> = {
   'revenue_rate.preliminary': '예비파트너 정산률',
@@ -174,10 +200,16 @@ export default function GradeManagement() {
           >
             💰 단가·정산률 변경
           </Link>
-          <div className="inline-flex items-center gap-2 px-3 h-10 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-            <span>⏰</span>
-            <span>재산정 <span className="font-semibold text-amber-900">D-{dDay}</span></span>
-            <span className="text-amber-600/70">(매월 1일)</span>
+          <div className="flex flex-col items-end gap-1">
+            <div className="inline-flex items-center gap-2 px-3 h-9 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+              <span>📅 크론 재산정</span>
+              <span className="font-semibold text-amber-900">D-{dDay}</span>
+              <span className="text-amber-600/70">(매월 1일)</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 h-8 rounded-md bg-amber-100 border border-amber-300 text-amber-900 text-xs font-medium">
+              <span>⚡</span>
+              <span>당월 목표시간 달성 시 <strong>즉시 승급</strong>도 가능</span>
+            </div>
           </div>
         </div>
       </div>
@@ -275,7 +307,7 @@ export default function GradeManagement() {
                         <span className="font-medium">{c.grade_after}</span>
                       </Td>
                       <Td align="left" className="text-[13px]">{CHANGE_TYPE_LABEL[c.change_type] ?? c.change_type}</Td>
-                      <Td align="left" className="text-[13px] text-gray-500">{c.changed_by}</Td>
+                      <Td align="left"><ChangedByBadge changedBy={c.changed_by} /></Td>
                     </Tr>
                   ))
                 )}

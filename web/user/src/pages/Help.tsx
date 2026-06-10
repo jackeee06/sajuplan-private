@@ -83,8 +83,8 @@ export default function Help() {
       openExternalUrl(kakaoUrl)
       return
     }
-    // 어드민에 채널 URL 미등록 — 사주플랜 라이브 채널로 폴백
-    openExternalUrl('https://pf.kakao.com/_gLTVX')
+    // 어드민에 채널 URL 미등록 — 사주플랜 채널로 폴백
+    openExternalUrl('https://pf.kakao.com/_IhVbX/chat')
   }
 
   return (

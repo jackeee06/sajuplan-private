@@ -85,6 +85,7 @@ export default function MyQnas() {
     } catch (e) {
       setToast(e instanceof Error ? e.message : '삭제 실패')
       setDeleteTarget(null)
+      setReload((x) => x + 1) // 삭제 실패 후 목록 새로고침 (답변 달린 항목 상태 반영)
     } finally {
       setDeleting(false)
     }
@@ -223,13 +224,11 @@ export default function MyQnas() {
 
       {/* 삭제 확인 모달 */}
       <ConfirmModal
-        isOpen={!!deleteTarget}
-        title="문의 삭제"
+        open={!!deleteTarget}
         message="문의를 삭제하시겠습니까?"
         subMessage="삭제 후 복구할 수 없습니다."
         actionLabel="삭제"
-        actionClassName="bg-[#FB2C36] text-white hover:bg-[#E0192A]"
-        loading={deleting}
+        tone="danger"
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />

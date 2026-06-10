@@ -62,6 +62,11 @@ const CHAT_MINUTE_OPTIONS_PUBLIC: Array<{ min: number; tag?: string }> = [
   { min: 60 },
 ]
 
+/** [2026-06-08] 후불 상담 탭 노출 여부.
+ *  후불 결제 수단 미확정 → false 로 숨김. 060 계약 완료 후 true 로 변경.
+ *  false 시 전화 모달에서 탭 자체가 사라지고 선불만 동작. */
+const POSTPAID_ENABLED = false
+
 /** [2026-05-29] 1분 테스트 옵션 노출 정책.
  *  현재: 모든 사용자에게 노출 (다수가 테스트 진행 중 — 사장님 결정 2026-05-29 v2).
  *  운영 시작 시: SHOW_TEST_MINUTE_TO_ALL = false 로 + 옵션 자체 제거.
@@ -246,8 +251,8 @@ export default function ConsultModal({ open, onClose, variant, counselor }: Prop
             </div>
           </div>
 
-          {/* 전화 모달 토글 */}
-          {isPhone && (
+          {/* 전화 모달 토글 — POSTPAID_ENABLED=false 시 탭 미노출 (선불만) */}
+          {isPhone && POSTPAID_ENABLED && (
             <div className="flex">
               {(['prepaid', 'postpaid'] as const).map((t) => {
                 const active = t === phoneTab

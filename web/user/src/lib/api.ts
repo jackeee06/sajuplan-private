@@ -313,6 +313,9 @@ export const authApi = {
   /** 이메일로 아이디/비밀번호 찾기 — 임시비밀번호 발송(메일) */
   findByEmail: (email: string) =>
     api.post<{ ok: true }>('/user/auth/find/email', { email }),
+  /** 휴대폰 인증 후 새 비밀번호 직접 설정 — 임시비번 SMS 없이 바로 재설정 */
+  resetPasswordByPhone: (phone: string, newPassword: string) =>
+    api.post<{ ok: true; mb_id: string }>('/user/auth/find/phone/reset', { phone, new_password: newPassword }),
   /** 마이페이지 회원정보 수정 폼 prefill — 풀 프로필 (휴대폰/주소/생년월일 등) */
   meProfile: () => api.get<MeProfile>('/user/auth/me/profile'),
   updateMeProfile: (body: UpdateMeBody) =>
@@ -818,9 +821,40 @@ export interface UnitCostChangeResult {
   next_changeable_at: string
 }
 
+export interface GradeProgressInfo {
+  total_seconds: number
+  total_hours: number
+  grade: CounselorGrade
+  grade_label: string
+  next_grade: CounselorGrade | null
+  next_grade_label: string | null
+  next_threshold_hours: number | null
+  progress_pct: number
+  realtime_upgrades_this_month: Array<{
+    grade_before: string
+    grade_after: string
+    hours_at_upgrade: number
+    changed_at: string
+  }>
+}
+
+/** 미확인 실시간 승급 1건 (출석 토스트 방식 — 상담 종료/진입 시 조회) */
+export interface PendingUpgradeInfo {
+  grade_after: string
+  grade_label: string
+  hours: string
+  upgraded_at: string
+}
+
 export const counselorGradeApi = {
   /** 내 등급/단가/락 상태 */
   getMine: () => api.get<MyGradeInfo>('/user/counselor-mypage/grade'),
+  /** 당월 상담시간 진행상황 + 실시간 승급 이력 */
+  getProgress: () => api.get<GradeProgressInfo>('/user/counselor-mypage/grade/progress'),
+  /** 미확인 실시간 승급 1건 조회 + 즉시 마킹 (있으면 토스트 1회). 없으면 upgrade=null.
+   *  POST 사용 — WebView cross-origin GET 쿠키 불안정 회피 (checkin과 동일 패턴). */
+  pendingUpgrade: () =>
+    api.post<{ upgrade: PendingUpgradeInfo | null }>('/user/counselor-mypage/grade/pending-upgrade'),
   /** 단가 변경 — body.unit_cost: 30초당 원 (정책 옵션 중 하나) */
   changeUnitCost: (unitCost: number, reason?: string) =>
     api.post<UnitCostChangeResult>('/user/counselor-mypage/grade/unit-cost', {
@@ -1218,13 +1252,14 @@ export interface PublicCounselorReview {
   /** 비밀글이면 빈 문자열 */
   content: string
   is_secret: boolean
-  /** 베스트 후기 여부 (상담사가 선정, 2026-05-15 신설) */
+  /** 상담사가 선정한 베스트 */
   is_best: boolean
-  /** 베스트 선정 시각 (정렬용, 해제 시 null) */
   best_at: string | null
+  /** 관리자가 선정한 베스트 (2026-06-05 신설) — 상담사 선정보다 상위 노출 */
+  is_admin_best: boolean
+  admin_best_at: string | null
   rating: number | null
   created_at: string
-  /** 마스킹된 작성자명 */
   reviewer_name: string
 }
 
@@ -1376,6 +1411,8 @@ export interface CounselorCustomerQnaDetailDto {
 }
 
 export const counselorCustomerQnaApi = {
+  pendingCounts: () =>
+    api.get<{ pending_qna: number; pending_review: number }>('/user/counselor/customer-qnas/pending-counts'),
   list: (params?: { limit?: number; offset?: number }) => {
     const qs = new URLSearchParams()
     if (params?.limit) qs.set('limit', String(params.limit))
@@ -1514,6 +1551,9 @@ export const reviewsApi = {
   /** 베스트 후기 토글 (2026-05-15 신설) — 상담사 본인만, 5개 제한 */
   toggleBest: (id: number, isBest: boolean) =>
     api.patch<{ ok: true; is_best: boolean; best_at: string | null }>(`/user/reviews/${id}/best`, { is_best: isBest }),
+  /** 관리자 베스트 토글 (2026-06-05 신설) — 관리자 전용, 10,000코인 자동 지급 */
+  adminToggleBest: (id: number, isAdminBest: boolean) =>
+    api.patch<{ ok: true; is_admin_best: boolean }>(`/admin/posts/reviews/${id}/admin-best`, { is_admin_best: isAdminBest }),
   /** 새 후기 작성 — consultation_id 가 있으면 그 상담 1건만 작성 가능 (중복 차단) */
   create: (body: {
     counselor_id: number
@@ -1589,6 +1629,8 @@ export interface SettlementIncomeItem {
   preflag: 'Y' | 'N' | ''
   customer_name: string | null
   consultation_id: number | null
+  /** 해당 상담 시점의 등급 (실시간 승급 구간 표시용) */
+  grade_at_session: string | null
 }
 
 export interface SettlementMonthRow {

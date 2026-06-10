@@ -3,7 +3,7 @@
 ## 배포 종류
 
 ### 1. 일반 배포 (`deploy.sh`)
-- 양 서버 동시 (PROD + TEST)
+- **PROD 단일** (TEST 서버 2026-05-29 폐기)
 - Vite 빌드 → rsync 또는 paramiko → 원격 적용
 - `./deploy.sh both` 또는 `user` / `api`
 
@@ -35,9 +35,9 @@ sed -i 's/__SAJUMOON_ENV__/prod/g' /data/wwwroot/sajumoon.co.kr/index.html
 
 `.deploy.lock` 디렉토리. 중단 시 잔재 → 1분+ "락 대기" 보이면 즉시 `rm -rf .deploy.lock` 후 재시도 (메모리 `[[deploy-stale-lock]]`).
 
-## TEST 서버 (172.235.211.75)
+## TEST 서버 (172.235.211.75) — ⚪ 폐기
 
-자주 다운 (메모리). PROD 만 배포 가능한 시기 존재 — 살아나면 재배포.
+2026-05-29 공식 폐기 결정. PROD 단일 운영. E2E TARGET 기본값 `prod` 로 변경 완료.
 
 ## 핵심 코드 위치
 
@@ -48,7 +48,7 @@ sed -i 's/__SAJUMOON_ENV__/prod/g' /data/wwwroot/sajumoon.co.kr/index.html
 ## CLAUDE.md 박제
 
 - 모든 작업은 배포까지 한 세트
-- 기본 `both` (PROD + TEST)
+- 기본 **PROD 단일** (TEST 폐기 — 2026-05-29)
 - 외과 배포 우선 조건: md / rsync hang / 소수 파일
 - 결과 URL 항상 prod (sajuplan.com)
 

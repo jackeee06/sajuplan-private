@@ -56,6 +56,8 @@ interface Post {
   /** 후기 신고 누적 */
   report_count?: number
   report_pending_count?: number
+  /** 관리자 베스트 후기 여부 (2026-06-05 신설) */
+  is_admin_best?: boolean
   /** 어드민 답변 (qa / qa_counselor 만) */
   extras?: { admin_reply?: AdminReply }
   /** counselor_qna 전용 */
@@ -119,8 +121,29 @@ export default function PostList() {
   const [replyContent, setReplyContent] = useState('')
   const [replySubmitting, setReplySubmitting] = useState(false)
   const [viewPost, setViewPost] = useState<Post | null>(null)
+  const [adminBestLoading, setAdminBestLoading] = useState<number | null>(null)
   const isQa = slug === 'qa' || slug === 'qa_counselor'
   const isCounselorQna = slug === 'qa_counselor'
+  const isReview = slug === 'review'
+
+  const onAdminBest = async (e: React.MouseEvent, p: Post) => {
+    e.stopPropagation()
+    if (adminBestLoading !== null) return
+    const nextBest = !p.is_admin_best
+    setAdminBestLoading(p.id)
+    try {
+      await api(`/admin/posts/reviews/${p.id}/admin-best`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_admin_best: nextBest }),
+      })
+      setSuccess(nextBest ? '베스트 후기 선정 완료 (10,000코인 지급)' : '베스트 후기 해제 완료')
+      load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '처리 실패')
+    } finally {
+      setAdminBestLoading(null)
+    }
+  }
 
   const onRowClick = (p: Post) => {
     if (isCounselorQna) setViewPost(p)   // 읽기 전용 보기
@@ -420,6 +443,20 @@ export default function PostList() {
                   </Td>
                   <Td align="center">
                     <div className="flex items-center justify-center gap-1">
+                      {isReview && (
+                        <button
+                          onClick={(e) => void onAdminBest(e, p)}
+                          disabled={adminBestLoading === p.id}
+                          title={p.is_admin_best ? '베스트 해제' : '베스트 선정 (10,000코인 지급)'}
+                          className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] rounded-md border font-medium transition-colors ${
+                            p.is_admin_best
+                              ? 'border-pink-300 bg-pink-50 text-pink-700 hover:bg-pink-100'
+                              : 'border-gray-200 text-gray-500 hover:bg-gray-50 hover:border-pink-200 hover:text-pink-600'
+                          }`}
+                        >
+                          {adminBestLoading === p.id ? '...' : p.is_admin_best ? '★ 베스트' : '☆ 베스트'}
+                        </button>
+                      )}
                       {isQa && (
                         <button
                           onClick={(e) => { e.stopPropagation(); openReply(p) }}

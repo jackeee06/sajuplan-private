@@ -1,6 +1,7 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { ApiError, chatApi, type ChatMessage, type ChatRoomDetail } from '../lib/api'
+import { ApiError, chatApi, counselorGradeApi, type ChatMessage, type ChatRoomDetail } from '../lib/api'
+import { GRADE_UPGRADE_STORAGE_KEY } from '../components/GradeUpgradeToast'
 import { useAuth } from '../lib/auth-context'
 import { useChatSocket } from '../hooks/useChatSocket'
 import UploadedImage from '../components/UploadedImage'
@@ -742,7 +743,20 @@ export default function ChatRoom() {
     if (initiallyEndedRef.current) return
     if (chatStatus === 'ended') setEndedAlertOpen(true)
     if (chatStatus === 'ended-points') setPointsAlertOpen(true)
-  }, [chatStatus])
+
+    // [2026-06-07] 상담 종료 직후 상담사 등급 승급 확인 (출석 토스트 패턴).
+    // 상담사가 상담을 마친 직후 → 미확인 승급 있으면 sessionStorage → GradeUpgradeToast 가 1회 표시.
+    if (isMeCounselor && (chatStatus === 'ended' || chatStatus === 'ended-points')) {
+      counselorGradeApi.pendingUpgrade().then((r) => {
+        if (r?.upgrade) {
+          sessionStorage.setItem(GRADE_UPGRADE_STORAGE_KEY, JSON.stringify({
+            grade_label: r.upgrade.grade_label,
+            hours: r.upgrade.hours,
+          }))
+        }
+      }).catch(() => { /* 승급 확인 실패 — 무시 */ })
+    }
+  }, [chatStatus, isMeCounselor])
 
   // 상담사 백키 가드 — 상담사가 활성 채팅 중일 때 브라우저/앱 백키를 그대로 두면
   // wss 가 끊기고 m2net 측 세션과 어긋나 재진입 시 채팅이 안 된다.

@@ -1148,6 +1148,9 @@ export default function CounselorForm() {
         </div>
       </Section>
 
+      {/* 차단 관리 — 수정 모드만 */}
+      {!isNew && id && <BlockPanel counselorId={Number(id)} />}
+
         {/* 폼이 길어 상단 저장 버튼이 안 보이는 문제 해결 — 항상 보이는 sticky 저장 바.
             dirty 상태면 펄스/그림자/뱃지로 강조, 없으면 차분한 회색. */}
         <div className="sticky bottom-0 left-0 right-0 -mx-5 px-5 py-3 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-t border-gray-200 dark:border-gray-700 flex items-center gap-4 z-30">
@@ -1833,5 +1836,145 @@ function CheckGrid({
       })}
       </div>
     </div>
+  )
+}
+
+/* ───────────────── 차단 관리 패널 ───────────────── */
+
+interface BlockItem {
+  id: number
+  member_id: number
+  member_mb_id: string | null
+  member_name: string | null
+  member_phone: string | null
+  reason: string | null
+  blocked_by_mb_id: string | null
+  created_at: string
+}
+
+function BlockPanel({ counselorId }: { counselorId: number }) {
+  const [blocks, setBlocks] = useState<BlockItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [phone, setPhone] = useState('')
+  const [reason, setReason] = useState('')
+  const [adding, setAdding] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+
+  const load = () => {
+    setLoading(true)
+    api<BlockItem[]>(`/admin/members/counselors/${counselorId}/blocks`)
+      .then((r) => { setBlocks(r); setLoading(false) })
+      .catch(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [counselorId])
+
+  const onAdd = async () => {
+    if (!phone.trim()) { setError('휴대폰번호를 입력해주세요.'); return }
+    setAdding(true); setError(null); setSuccess(null)
+    try {
+      await api(`/admin/members/counselors/${counselorId}/blocks`, {
+        method: 'POST',
+        body: JSON.stringify({ member_phone: phone.trim(), reason: reason.trim() || undefined }),
+      })
+      setPhone(''); setReason('')
+      setSuccess('차단 추가 완료')
+      load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '차단 추가 실패')
+    } finally {
+      setAdding(false)
+    }
+  }
+
+  const onRemove = async (memberId: number) => {
+    if (!window.confirm('차단을 해제하시겠습니까?')) return
+    try {
+      await api(`/admin/members/counselors/${counselorId}/blocks/${memberId}`, { method: 'DELETE' })
+      setSuccess('차단 해제 완료')
+      load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '해제 실패')
+    }
+  }
+
+  return (
+    <Section title="차단 관리" subtitle="차단된 회원은 이 상담사를 목록에서 볼 수 없습니다" icon={<span className="text-lg">🚫</span>}>
+      <div className="space-y-4">
+        {/* 추가 폼 */}
+        <div className="flex flex-wrap gap-2 items-end">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">회원 휴대폰번호</label>
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/[^0-9]/g, ''))}
+              placeholder="01012345678"
+              className="w-40 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm bg-white dark:bg-gray-800"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">사유 (선택)</label>
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="예: 욕설·괴롭힘"
+              className="w-48 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 text-sm bg-white dark:bg-gray-800"
+            />
+          </div>
+          <button
+            onClick={onAdd}
+            disabled={adding}
+            className="px-4 py-2 rounded-lg bg-rose-500 hover:bg-rose-600 text-white text-sm font-medium disabled:opacity-50"
+          >
+            {adding ? '추가 중…' : '차단 추가'}
+          </button>
+        </div>
+
+        {error && <p className="text-sm text-rose-600">{error}</p>}
+        {success && <p className="text-sm text-emerald-600">{success}</p>}
+
+        {/* 차단 목록 */}
+        {loading ? (
+          <p className="text-sm text-gray-400">로딩 중...</p>
+        ) : blocks.length === 0 ? (
+          <p className="text-sm text-gray-400">차단된 회원이 없습니다.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-gray-200 dark:border-gray-700 text-xs text-gray-500">
+                  <th className="text-left py-2 pr-3 whitespace-nowrap">회원 ID (이름)</th>
+                  <th className="text-left py-2 pr-3 whitespace-nowrap">전화번호</th>
+                  <th className="text-left py-2 pr-3 whitespace-nowrap">사유</th>
+                  <th className="text-left py-2 pr-3 whitespace-nowrap">날짜</th>
+                  <th className="text-left py-2 whitespace-nowrap">해제</th>
+                </tr>
+              </thead>
+              <tbody>
+                {blocks.map((b) => (
+                  <tr key={b.id} className="border-b border-gray-100 dark:border-gray-800">
+                    <td className="py-2 pr-3 font-mono text-xs whitespace-nowrap">{b.member_mb_id ?? '-'} ({b.member_name ?? '-'})</td>
+                    <td className="py-2 pr-3 text-xs text-gray-500 whitespace-nowrap">{b.member_phone ?? '-'}</td>
+                    <td className="py-2 pr-3 text-xs text-gray-500">{b.reason ?? '-'}</td>
+                    <td className="py-2 pr-3 text-xs text-gray-400 whitespace-nowrap">{new Date(b.created_at).toLocaleDateString('ko-KR')}</td>
+                    <td className="py-2">
+                      <button
+                        onClick={() => onRemove(b.member_id)}
+                        className="px-3 py-1 text-xs rounded border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 whitespace-nowrap"
+                      >
+                        차단 해제
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Section>
   )
 }

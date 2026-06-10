@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
+import { M2netService } from '../../shared/m2net/m2net.service';
 
 /**
  * sample/adm/point_list.php (메뉴 350430, "포인트 관리") 정확 매핑.
@@ -105,7 +107,11 @@ export interface HistoryFilter {
 
 @Injectable()
 export class PointsService {
-  constructor(@Inject(SQL) private readonly sql: Sql) {}
+  private readonly logger = new Logger(PointsService.name);
+  constructor(
+    @Inject(SQL) private readonly sql: Sql,
+    private readonly m2net: M2netService,
+  ) {}
 
   /** sample/lib/common.lib.php:1025 — cf_point_term을 setting 테이블에서 조회 (default 365일) */
   private async getPointTerm(): Promise<number> {
@@ -168,13 +174,14 @@ export class PointsService {
       expireDate = new Date().toISOString().slice(0, 10);
     }
 
-    return await this.sql.begin(async (tx) => {
-      const memberRows = await tx<{ id: number }[]>`
-        SELECT id FROM member WHERE id = ${memberId} LIMIT 1
+    const result = await this.sql.begin(async (tx) => {
+      const memberRows = await tx<{ id: number; m2net_membid: string | null }[]>`
+        SELECT id, m2net_membid FROM member WHERE id = ${memberId} LIMIT 1
       `;
       if (memberRows.length === 0) {
         throw new NotFoundException('해당 회원을 찾을 수 없습니다.');
       }
+      const m2netMembid = memberRows[0].m2net_membid;
 
       let ptRows = await tx<{ free_balance: number; paid_balance: number; earning_balance: number }[]>`
         SELECT free_balance, paid_balance, earning_balance
@@ -262,8 +269,23 @@ export class PointsService {
         freeBalance: kind === 'paid' ? free : free + delta,
         paidBalance: kind === 'paid' ? paid + delta : paid,
         earningBalance: earning,
+        m2netMembid,
       };
     });
+
+    // m2net 잔액 동기화 — 소비 코인(free/paid) 적립 시에만, 수익금 조정은 제외
+    if (delta > 0 && kind !== 'earning' && result.m2netMembid) {
+      const sync = await this.m2net.addMemberCoin(result.m2netMembid, delta);
+      if (!sync.ok) {
+        this.logger.warn(
+          `[admin.points.m2net] sync 실패 memberId=${memberId} mb1=${result.m2netMembid} delta=${delta} err=${sync.error}`,
+        );
+      } else {
+        this.logger.log(`[admin.points.m2net] sync 완료 memberId=${memberId} mb1=${result.m2netMembid} +${delta}`);
+      }
+    }
+
+    return result;
   }
 
   /** sample 페이지 하단 폼 — 회원아이디(mb_id) 직접 입력으로 조정 */

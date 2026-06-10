@@ -68,6 +68,8 @@ interface Consultation {
   counselor_earning?: number
   m2net_deduction?: number
   sajuplan_revenue?: number
+  is_blocked: boolean
+  block_reason: string | null
 }
 
 interface Resp {
@@ -305,6 +307,7 @@ export default function ConsultationList() {
           <Th align="right">상담사수익금</Th>
           <Th align="right">영업이익(≈23%)</Th>
           <Th align="center">채팅내역</Th>
+          <Th align="center">차단</Th>
         </THead>
         <TBody>
           {loading && !data ? (
@@ -335,6 +338,9 @@ export default function ConsultationList() {
 
 // ─── 행 ────────────────────────────────────────
 function ConsultationRow({ c, onOpen }: { c: Consultation; onOpen: () => void }) {
+  const [blockState, setBlockState] = useState<{ done: false } | { done: true; reason: string }>(
+    c.is_blocked ? { done: true, reason: c.block_reason ?? '' } : { done: false }
+  )
   const isChat = c.reason === 'END_CHAT'
   const memberIdCell =
     c.member_mb_id ?? (c.caller_phone ? '(전화 매칭 미연결)' : '회원정보가 없습니다.')
@@ -438,6 +444,56 @@ function ConsultationRow({ c, onOpen }: { c: Consultation; onOpen: () => void })
           >
             채팅내역
           </Link>
+        ) : (
+          <span className="text-gray-300">-</span>
+        )}
+      </Td>
+      <Td align="center">
+        {c.counselor_id && c.member_id ? (
+          blockState.done ? (
+            <div className="flex flex-col items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  if (!window.confirm('차단을 해제하시겠습니까?')) return
+                  try {
+                    await api(`/admin/members/counselors/${c.counselor_id}/blocks/${c.member_id}`, { method: 'DELETE' })
+                    setBlockState({ done: false })
+                  } catch (err) {
+                    alert(err instanceof Error ? err.message : '해제 실패')
+                  }
+                }}
+                className="px-2 py-0.5 text-[11px] rounded border border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 whitespace-nowrap"
+              >
+                차단해제
+              </button>
+              {blockState.reason && (
+                <span className="text-[10px] text-gray-400 max-w-[80px] truncate" title={blockState.reason}>
+                  {blockState.reason}
+                </span>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={async (e) => {
+                e.stopPropagation()
+                const reason = window.prompt(`[${c.counselor_mb_id ?? c.counselor_id}] 상담사가 [${c.member_mb_id ?? c.member_id}] 회원을 차단합니다.\n사유를 입력하세요 (선택):`)
+                if (reason === null) return
+                try {
+                  await api(`/admin/members/counselors/${c.counselor_id}/blocks`, {
+                    method: 'POST',
+                    body: JSON.stringify({ member_id: c.member_id, reason: reason.trim() || undefined }),
+                  })
+                  setBlockState({ done: true, reason: reason.trim() })
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : '차단 실패')
+                }
+              }}
+              className="px-2 py-0.5 text-[11px] rounded border border-rose-200 text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400"
+            >
+              차단
+            </button>
+          )
         ) : (
           <span className="text-gray-300">-</span>
         )}

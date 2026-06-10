@@ -32,6 +32,36 @@ import paramiko
 # 2026-05-17: 상담사 후기 알림톡 추가
 # audit A~G 전체 변경분 외과 패치 (18개 파일) — 이전 배포 분
 FILES = [
+    # 2026-06-11: JWT sub 문자열 비교 버그 근본수정 (self/소유권 검증 무력화 방지) + qna 본인페이지 차단
+    ("api/src/user/auth/user-auth.guard.ts", "src/user/auth/user-auth.guard.ts"),
+    ("api/src/user/qna/qna.service.ts", "src/user/qna/qna.service.ts"),
+    # 2026-06-08: FCM 푸시 토큰→토픽 방식 전환 (sendToTokens → sendToTopic 'chl_5')
+    ("api/src/user/counselors/counselors.service.ts", "src/user/counselors/counselors.service.ts"),
+    ("api/src/user/consult/consult.service.ts", "src/user/consult/consult.service.ts"),
+    # 2026-06-08: 출석 관리 날짜 필터 버그 수정 — 컨트롤러 frDate/toDate 누락 + IS NULL OR 패턴
+    ("api/src/admin/attendance/attendance.controller.ts", "src/admin/attendance/attendance.controller.ts"),
+    ("api/src/admin/attendance/attendance.service.ts", "src/admin/attendance/attendance.service.ts"),
+    # 2026-06-07: 실시간 등급 승급 시스템 — 상담 종료 즉시 승급 체크 + settlement 구간 정산
+    ("api/src/shared/grade-upgrade/grade-upgrade.service.ts", "src/shared/grade-upgrade/grade-upgrade.service.ts"),
+    ("api/src/shared/grade-upgrade/grade-upgrade.module.ts", "src/shared/grade-upgrade/grade-upgrade.module.ts"),
+    ("api/src/pg-callbacks/m2net-push.module.ts", "src/pg-callbacks/m2net-push.module.ts"),
+    # m2net-push.service.ts: GradeUpgradeService 주입 + checkAndUpgrade 호출 추가
+    # (아래 기존 항목과 중복이지만 최신 버전 유지 — SFTP put 은 덮어쓰기라 무해)
+    ("api/src/cron/settlement-cron.service.ts", "src/cron/settlement-cron.service.ts"),
+    ("api/src/user/counselor-mypage-grade/counselor-mypage-grade.controller.ts", "src/user/counselor-mypage-grade/counselor-mypage-grade.controller.ts"),
+    ("api/src/user/counselor-mypage-grade/counselor-mypage-grade.module.ts", "src/user/counselor-mypage-grade/counselor-mypage-grade.module.ts"),
+    ("api/src/admin/grade/grade.service.ts", "src/admin/grade/grade.service.ts"),
+    ("api/src/admin/grade/grade.controller.ts", "src/admin/grade/grade.controller.ts"),
+    ("api/src/user/settlements/settlements.service.ts", "src/user/settlements/settlements.service.ts"),
+    ("api/db/migrations/20260607000000_realtime_grade_upgrade.sql", "db/migrations/20260607000000_realtime_grade_upgrade.sql"),
+    # 2026-06-05: 쿠폰/관리자 지급 코인 m2net 동기화 누락 버그 수정
+    ("api/src/user/coupons/coupons.service.ts", "src/user/coupons/coupons.service.ts"),
+    ("api/src/admin/points/points.service.ts", "src/admin/points/points.service.ts"),
+    # 2026-06-05: 후기 시스템 — 사진 +500코인 / 관리자 베스트 10,000코인 / is_admin_best 정렬
+    ("api/src/user/reviews/reviews.service.ts", "src/user/reviews/reviews.service.ts"),
+    ("api/src/admin/posts/posts.controller.ts", "src/admin/posts/posts.controller.ts"),
+    ("api/src/admin/posts/posts.module.ts", "src/admin/posts/posts.module.ts"),
+    ("api/src/user/reviews/reviews.module.ts", "src/user/reviews/reviews.module.ts"),
     # 🟣 ID 단일화 작업 (2026-05-22) — 한 사람 한 mb_id, 회원 → 상담사 승격, m2net 컬럼 분리
     ("api/src/user/auth/auth.service.ts", "src/user/auth/auth.service.ts"),
     # 2026-05-25: 비밀번호 정책 강화 (8자리 + 영문/숫자 혼합) — 가입 DTO 검증
@@ -122,6 +152,10 @@ FILES = [
     ("api/src/cron/retry-cron.service.ts", "src/cron/retry-cron.service.ts"),
     ("api/src/cron/health-check.service.ts", "src/cron/health-check.service.ts"),
     ("api/src/cron/settlement-cron.service.ts", "src/cron/settlement-cron.service.ts"),
+    # 2026-06-10 정산 단순화: markPaid 가 earning 차감 + is_settled 마킹 수행
+    ("api/src/admin/settlements/settlements.service.ts", "src/admin/settlements/settlements.service.ts"),
+    ("api/src/admin/settlements/settlements.controller.ts", "src/admin/settlements/settlements.controller.ts"),
+    ("api/src/admin/settlements/settlements.module.ts", "src/admin/settlements/settlements.module.ts"),
     # 2026-05-27 5차: chat module exports UserChatService (cron 에서 chat 호출 위함)
     ("api/src/user/chat/chat.module.ts", "src/user/chat/chat.module.ts"),
     ("api/src/main.ts", "src/main.ts"),

@@ -1533,6 +1533,96 @@ export class MembersService {
       recent_consultation: recentConsult,
     };
   }
+
+  // ─────────────────────────────────────────────
+  // 상담사 차단 관리 — 특정 회원에게 상담사가 노출되지 않도록
+  // ─────────────────────────────────────────────
+
+  async listBlocks(counselorId: number): Promise<Array<{
+    id: number;
+    member_id: number;
+    member_mb_id: string | null;
+    member_name: string | null;
+    member_phone: string | null;
+    reason: string | null;
+    blocked_by_admin_id: number | null;
+    blocked_by_mb_id: string | null;
+    created_at: string;
+  }>> {
+    const rows = await this.sql<{
+      id: number;
+      member_id: number;
+      member_mb_id: string | null;
+      member_name: string | null;
+      member_phone: string | null;
+      reason: string | null;
+      blocked_by_admin_id: number | null;
+      blocked_by_mb_id: string | null;
+      created_at: Date;
+    }[]>`
+      SELECT cb.id, cb.member_id,
+             m.mb_id AS member_mb_id, m.name AS member_name, m.phone AS member_phone,
+             cb.reason, cb.blocked_by_admin_id,
+             a.mb_id AS blocked_by_mb_id,
+             cb.created_at
+        FROM counselor_block cb
+        LEFT JOIN member m ON m.id = cb.member_id
+        LEFT JOIN member a ON a.id = cb.blocked_by_admin_id
+       WHERE cb.counselor_id = ${counselorId}
+       ORDER BY cb.created_at DESC
+    `;
+    return rows.map(r => ({
+      id: Number(r.id),
+      member_id: Number(r.member_id),
+      member_mb_id: r.member_mb_id,
+      member_name: r.member_name,
+      member_phone: r.member_phone,
+      reason: r.reason,
+      blocked_by_admin_id: r.blocked_by_admin_id ? Number(r.blocked_by_admin_id) : null,
+      blocked_by_mb_id: r.blocked_by_mb_id,
+      created_at: r.created_at instanceof Date ? r.created_at.toISOString() : String(r.created_at),
+    }));
+  }
+
+  async addBlock(counselorId: number, params: {
+    memberPhone?: string;
+    memberId?: number;
+    reason?: string;
+    adminId: number;
+  }): Promise<{ id: number; member_id: number; member_mb_id: string | null }> {
+    let memberId = params.memberId;
+    if (!memberId && params.memberPhone) {
+      const phone = params.memberPhone.replace(/[^0-9]/g, '');
+      const rows = await this.sql<{ id: number }[]>`
+        SELECT id FROM member
+         WHERE regexp_replace(phone, '[^0-9]', '', 'g') = ${phone}
+           AND left_at IS NULL
+         LIMIT 1
+      `;
+      if (rows.length === 0) throw new NotFoundException(`휴대폰 ${params.memberPhone} 로 가입된 회원을 찾을 수 없습니다.`);
+      memberId = Number(rows[0].id);
+    }
+    if (!memberId) throw new BadRequestException('member_id 또는 member_phone 을 입력해주세요.');
+    if (Number(memberId) === Number(counselorId)) throw new BadRequestException('상담사 본인을 차단할 수 없습니다.');
+
+    const mbRow = await this.sql<{ mb_id: string | null }[]>`SELECT mb_id FROM member WHERE id = ${memberId} LIMIT 1`;
+    if (!mbRow.length) throw new NotFoundException('회원을 찾을 수 없습니다.');
+
+    await this.sql`
+      INSERT INTO counselor_block (counselor_id, member_id, blocked_by_admin_id, reason)
+      VALUES (${counselorId}, ${memberId}, ${params.adminId}, ${params.reason ?? null})
+      ON CONFLICT (counselor_id, member_id) DO UPDATE SET reason = EXCLUDED.reason, blocked_by_admin_id = EXCLUDED.blocked_by_admin_id
+    `;
+    const row = await this.sql<{ id: number }[]>`SELECT id FROM counselor_block WHERE counselor_id=${counselorId} AND member_id=${memberId} LIMIT 1`;
+    return { id: Number(row[0].id), member_id: memberId, member_mb_id: mbRow[0].mb_id };
+  }
+
+  async removeBlock(counselorId: number, memberId: number): Promise<void> {
+    const result = await this.sql`
+      DELETE FROM counselor_block WHERE counselor_id = ${counselorId} AND member_id = ${memberId}
+    `;
+    if (!result.count) throw new NotFoundException('차단 기록을 찾을 수 없습니다.');
+  }
 }
 
 /**

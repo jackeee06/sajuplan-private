@@ -10,12 +10,6 @@ import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
 const COUNSELOR_MIN_ACTIVE_DAYS = 14;
 
 /**
- * 정산 음수 (carry_over_negative) 임계값 — 초과 시 OpsAlert 발송.
- * 사장님이 카톡으로 즉시 인지 → 상담사와 직접 협의.
- */
-const CARRY_OVER_ALERT_THRESHOLD = 1_000_000;
-
-/**
  * 월별 상담사 정산 cron 서비스.
  *
  * 원본: sample/cron/month_pay_end.php → set_con_account_v2() (sample/lib/common.lib.php:4611)
@@ -120,6 +114,26 @@ export class SettlementCronService {
 
     const ok = results.filter((r) => r.ok).length;
     const fail = results.length - ok;
+
+    // 추천 관계 만료 일괄 정리 — 정산 계산(settleOne)과 분리. 실제 실행(testOnly=false) 시 1회.
+    //   추천수익금 적립은 상담 종료 시점에 실시간으로 끝나므로, 여기서는 만료된 추천 관계의
+    //   상태(active→expired)만 정리한다.
+    if (!testOnly) {
+      try {
+        const expired = await this.sql<{ id: number }[]>`
+          UPDATE counselor_referral
+             SET status = 'expired'
+           WHERE status = 'active' AND expires_at <= NOW()
+          RETURNING id
+        `;
+        if (expired.length > 0) {
+          this.logger.log(`[settlement] 추천관계 만료 정리 ${expired.length}건 (month=${targetMonth})`);
+        }
+      } catch (e) {
+        this.logger.warn(`[settlement] 추천관계 만료 정리 실패: ${(e as Error).message}`);
+      }
+    }
+
     this.logger.log(`[settlement] month=${targetMonth} total=${results.length} ok=${ok} fail=${fail} test=${testOnly} mb_id=${mbId ?? 'ALL'}`);
     return { month: targetMonth, testOnly, mbId: mbId ?? null, total: results.length, ok, fail, results };
   }
@@ -143,233 +157,82 @@ export class SettlementCronService {
       // 상담사 단위 직렬화 (같은 member_id 중복 실행 차단)
       await tx`SELECT pg_advisory_xact_lock(7777002, ${memberId})`;
 
-      const memberRows = await tx<{
-        id: number;
-        mb_id: string | null;
-        grade: string | null;
-        free_royalty_pct: number | null;
-        paid_royalty_pct: number | null;
-        call_070_unit_cost: number | null;
-      }[]>`
-        SELECT id, mb_id, grade, free_royalty_pct, paid_royalty_pct, call_070_unit_cost
-          FROM member
-         WHERE id = ${memberId}
-         LIMIT 1
+      // ───── 정산예상금액 = 전달 말일까지 미정산 수익금(earning) 순액 합산 ─────
+      // [2026-06-10 정산 단순화] 사장님 직접 결정.
+      //   상담수익 + 추천수익금이 모두 balance_kind='earning' 으로 흐르므로 그냥 합산한다.
+      //   상담 종료 시점에 이미 effectiveAmt(=amt×정산률)로 earning 에 적립됐기 때문에,
+      //   consultation.amt 에 정산률을 다시 곱하던 기존 재계산(이중계산)을 폐지한다.
+      //   cutoff = range.endday (= 정산대상월 다음달 1일 00:00 KST) → "전달 말일까지".
+      //   제거: 부가세 / 회선비 / 등급 구간 재계산 / 무료·유료 구분 / carry_over (사장님 미지시 임의계산).
+      const settleRow = await tx<{ amount: string }[]>`
+        SELECT COALESCE(SUM(earn_point) - SUM(use_point), 0)::text AS amount
+          FROM point_history
+         WHERE member_id = ${memberId}
+           AND balance_kind = 'earning'
+           AND is_settled = false
+           AND created_at < ${range.endday}
       `;
-      if (memberRows.length === 0) return {
-        already: false, price: 0, price_tot: 0,
-        early_payout_total: 0, prev_carry_over: 0, final_payout_amount: 0, carry_over_negative: 0,
-      };
-      const m = memberRows[0];
-      const mb4 = Number(m.call_070_unit_cost ?? 0);
+      const settleAmount = Math.max(0, Number(settleRow[0].amount));
 
-      // ───── 정산률: grade 기반 우선, 없으면 legacy royalty_pct ─────
-      // 등급 시스템 도입 (2026-05-16). setting.revenue_rate.<grade> 가 있으면 그 비율로 통일.
-      // 단일 비율을 amt_free / amt_pro 양쪽에 동일 적용.
-      let royaltyFree: number;
-      let royaltyPaid: number;
-      const gradeRow = m.grade
-        ? await tx<{ value: string }[]>`
-            SELECT value FROM setting
-             WHERE namespace = 'grade' AND key = ${`revenue_rate.${m.grade}`}
-             LIMIT 1
-          `
-        : [];
-      if (gradeRow.length > 0 && gradeRow[0].value) {
-        // 0.35 같은 decimal → 35 (percent) 로 환산 (기존 코드가 /100 함)
-        // [Audit A-#1] 정산률 형식 검증 — 0.35 대신 35 가 저장되면 ×100 환산 후 3500%
-        // 적용되어 회사에 큰 손실. decimal 0~1 범위 강제.
-        const rate = Number(gradeRow[0].value);
-        if (!Number.isFinite(rate) || rate < 0 || rate > 1) {
-          throw new Error(
-            `[settlement] 정산률 형식 오류: namespace=grade key=revenue_rate.${m.grade} value="${gradeRow[0].value}" — decimal 0~1 사이여야 함 (예: 0.35). ` +
-            `정책 설정 확인 후 재실행하세요.`,
-          );
-        }
-        const ratePct = rate * 100;
-        royaltyFree = ratePct;
-        royaltyPaid = ratePct;
-      } else {
-        // legacy 폴백 — 등급 시스템 시드 전 데이터 호환
-        royaltyFree = Number(m.free_royalty_pct ?? 0);
-        royaltyPaid = Number(m.paid_royalty_pct ?? 0);
-      }
-
-      // 상담 집계 (환불 + 포인트 미지급 제외)
-      // [Audit C-#6] 환불 차감을 refund_request 의 amount_free/amount_pro 합산으로 정확히 계산.
-      // 이전 SQL 은 refunded_amount 만으로 추정 차감 (amt_pro 우선) — 환불 시 실제 분배와
-      // 불일치하면 상담사 정산이 과다/과소 산정될 수 있었음.
-      // 환불 시 결정된 free/pro 비율을 그대로 빼서 일관성 보장.
-      const consRow = await tx<{ amt_free: string; amt_pro: string }[]>`
-        SELECT
-          COALESCE(SUM(GREATEST(c.amt_free - COALESCE(rr.refunded_free, 0), 0)), 0)::text AS amt_free,
-          COALESCE(SUM(GREATEST(c.amt_pro  - COALESCE(rr.refunded_pro,  0), 0)), 0)::text AS amt_pro
-        FROM consultation c
-        LEFT JOIN (
-          SELECT consultation_id,
-                 COALESCE(SUM(amount_free), 0)::bigint AS refunded_free,
-                 COALESCE(SUM(amount_pro),  0)::bigint AS refunded_pro
-            FROM refund_request
-           WHERE status = 'approved'
-           GROUP BY consultation_id
-        ) rr ON rr.consultation_id = c.id
-        WHERE c.counselor_id = ${memberId}
-          AND c.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
-          AND c.created_at >= ${range.startday}
-          AND c.created_at <  ${range.endday}
-          -- 단기통화 NOT 제외 조건 제거 (2026-05-22) — 상담사 적립 정상 발생하므로 정산도 포함.
-          AND c.refund_status IS DISTINCT FROM 'full'
-          AND EXISTS (
-            SELECT 1 FROM point_history ph
-             WHERE ph.rel_table = 'consultation'
-               AND ph.rel_id = c.id::text
-               AND ph.member_id = c.counselor_id
-          )
-      `;
-      const amtFree = Number(consRow[0].amt_free);
-      const amtPro = Number(consRow[0].amt_pro);
-
-      // 기타 포인트 (상담/정산차감 제외)
-      const otherRow = await tx<{ amt_plus: string; amt_minus: string }[]>`
-        SELECT
-          COALESCE(SUM(CASE WHEN ph.earn_point > 0 THEN ph.earn_point ELSE 0 END), 0)::text AS amt_plus,
-          COALESCE(SUM(CASE WHEN ph.earn_point < 0 THEN ph.earn_point ELSE 0 END), 0)::text AS amt_minus
-        FROM point_history ph
-        WHERE ph.member_id = ${memberId}
-          AND ph.created_at >= ${range.startday}
-          AND ph.created_at <  ${range.endday}
-          AND (ph.rel_table IS NULL OR ph.rel_table NOT IN ('@member', '@platform_consulting', 'consultation', 'settlement'))
-      `;
-      const amtOtherPlus = Number(otherRow[0].amt_plus);
-      const amtOtherMinus = Number(otherRow[0].amt_minus);
-
-      // 산식
-      const priceFree = Math.floor((amtFree * royaltyFree) / 100);
-      const pricePaid = Math.floor((amtPro * royaltyPaid) / 100);
-      const priceOther = Math.floor((amtOtherPlus * royaltyPaid) / 100) + amtOtherMinus;
-      const priceTot = priceFree + pricePaid + priceOther;
-      const supply = Math.floor(priceTot / 1.1);
-      const vat = priceTot - supply;
-      const withholding = Math.floor(supply * 0.033);
-      const replyFee = priceTot >= 50000 ? 20000 : 0;
-      const price = supply - withholding - replyFee;
-
-      // [Audit B-#12] 부동소수점 정밀도 역산 검증 — 결과가 비정상이면 OpsAlert.
-      // floor 누적 손실이 의도된 범위(VAT 10% 이하) 인지 확인. 이상치 발견 시 운영자 인지.
-      const expectedSupplyMax = Math.ceil(priceTot / 1.1); // 역산 최대
-      const expectedVatRange = priceTot - expectedSupplyMax; // 최소 VAT
-      const anomalies: string[] = [];
-      if (vat < 0) anomalies.push(`vat 음수 (${vat})`);
-      if (vat > Math.ceil(priceTot * 0.12)) anomalies.push(`vat 과다 ${vat} > ${Math.ceil(priceTot * 0.12)}`);
-      if (supply > priceTot) anomalies.push(`supply 과다 ${supply} > priceTot ${priceTot}`);
-      if (priceTot > 0 && price < 0 && replyFee === 0) {
-        // 회신비 없는데 price 가 음수면 부동소수점 오차로 추정
-        anomalies.push(`price 음수 ${price} (회신비 없음)`);
-      }
-      if (anomalies.length > 0) {
-        this.logger.error(
-          `[settlement] 산식 이상 — memberId=${memberId} month=${bmonth} ` +
-          `priceTot=${priceTot} supply=${supply} vat=${vat} withholding=${withholding} ` +
-          `replyFee=${replyFee} price=${price} | 이상: ${anomalies.join(', ')}`,
-        );
-        // 트랜잭션 안에서 OpsAlert 호출 안 함 (외부 호출은 락 시간 늘림) — 로그만.
-        // expectedVatRange 는 진단용 변수로만 사용 (디버깅 단서)
-        void expectedVatRange;
-      }
-
-      // ───── 선지급(early payout) 차감 통합 (Phase 4, 2026-05-21) ─────
-      //   1) 그 달 paid 된 선지급 합산 (settlement_month = bmonth)
-      //   2) 이전 달의 carry_over_negative (= 이월된 음수 차감)
-      //   3) finalPayoutAmount = max(0, price - early - prevCarry)
-      //   4) before < 0 이면 carry_over_negative = |before| → 다음 달로 이월
-      //
-      // 사장님 정책: 음수 정산 시 회사가 임시 메움 + 다음 달 자동 차감 (회수 X).
-      // 따라서 finalPayoutAmount 는 0 으로 cap, 음수분은 carry_over_negative 에 박제.
+      // 미정산 선지급 — 아직 어느 정산에도 물리지 않은(status='paid' AND settled_at IS NULL) 선지급.
       const earlyRow = await tx<{ total: string }[]>`
         SELECT COALESCE(SUM(requested_amount), 0)::text AS total
           FROM payout_request
          WHERE counselor_id = ${memberId}
            AND status = 'paid'
-           AND settlement_month = ${bmonth}
+           AND settled_at IS NULL
       `;
       const earlyPayoutTotal = Number(earlyRow[0].total);
 
-      const prevMonth = this.calcPrevMonthString(bmonth);
-      const prevCarryRow = await tx<{ carry: string }[]>`
-        SELECT COALESCE(carry_over_negative, 0)::text AS carry
-          FROM settlement_monthly
-         WHERE member_id = ${memberId} AND month = ${prevMonth}
-         LIMIT 1
-      `;
-      const prevCarryOver = prevCarryRow.length > 0 ? Number(prevCarryRow[0].carry) : 0;
+      const netSettle = Math.max(0, settleAmount - earlyPayoutTotal);
+      const withholding = Math.floor(netSettle * 0.033); // 원천세 3.3% 만
+      const price = netSettle - withholding;              // 실지급액
+      const priceTot = settleAmount;                       // 정산예상(원금)
 
-      const finalBeforeCap = price - earlyPayoutTotal - prevCarryOver;
-      const finalPayoutAmount = Math.max(0, finalBeforeCap);
-      const carryOverNegative = finalBeforeCap < 0 ? -finalBeforeCap : 0;
-
-      if (carryOverNegative > 0) {
-        this.logger.warn(
-          `[settlement] 선지급 초과 — memberId=${memberId} month=${bmonth} ` +
-          `price=${price} early=${earlyPayoutTotal} prevCarry=${prevCarryOver} ` +
-          `→ final=0 carry_over=${carryOverNegative} (다음 달로 이월)`,
-        );
-        // [carry_over 임계값 OpsAlert] -100만 초과 시 사장님 카톡으로 즉시 알림.
-        //   상담사와 직접 협의 (음수 누적 시 회수 정책 사장님 결정 필요).
-        //   2026-05-29 도입 (사장님 자율 진행).
-        if (carryOverNegative >= CARRY_OVER_ALERT_THRESHOLD) {
-          void this.opsAlert.send(
-            '정산 음수 임계값 초과',
-            `member_id=${memberId} mb_id=${mbId ?? '?'} month=${bmonth}\n` +
-            `정산예상 ${price.toLocaleString()}원 - 선지급 ${earlyPayoutTotal.toLocaleString()}원 ` +
-            `- 이전이월 ${prevCarryOver.toLocaleString()}원 = ${finalBeforeCap.toLocaleString()}원\n` +
-            `→ 음수 이월 ${carryOverNegative.toLocaleString()}원 (임계값 ${CARRY_OVER_ALERT_THRESHOLD.toLocaleString()}원 초과)`,
-          );
-        }
-      }
-
-      // 기존 row 확인 → UPSERT
-      // [Audit A-#2] 멱등성 — member_id 만으로 정확히 매칭 (OR 제거).
-      // OR 조건은 mb_id 가 변경된 row 가 있을 때 잘못된 매칭 → 중복 INSERT 가능했음.
-      // DB 측 UNIQUE 제약 (uq_settlement_member_month, uq_settlement_mb_id_month) 이
-      // 최종 방어선. 코드 검색은 member_id 만 사용해 명확화.
-      const existing = await tx<{ id: number }[]>`
-        SELECT id FROM settlement_monthly
+      // 기존 row 확인 → UPSERT (status='calculated'). 차감/플래그는 [정산하기](markPaid)가 수행.
+      // [Audit A-#2] 멱등성 — member_id 만으로 매칭 (DB UNIQUE 제약이 최종 방어선).
+      const existing = await tx<{ id: number; status: string }[]>`
+        SELECT id, status FROM settlement_monthly
          WHERE month = ${bmonth}
            AND member_id = ${memberId}
          LIMIT 1
       `;
       const alreadyExists = existing.length > 0;
 
-      // [Audit 2026-05-23] dry-run 보호:
-      //   testOnly 일 때는 settlement_monthly 에 INSERT/UPDATE 하지 않는다.
-      //   기존 버그: dry-run 으로도 row 가 생성되면 다음 실 정산 호출이
-      //   alreadyExists=true 로 인식해 부수효과(point 차감) 스킵 → 중복 정산 사고.
+      // testOnly: 계산만, 저장/부수효과 0.
       if (testOnly) {
         return {
-          already: alreadyExists,
-          price,
-          price_tot: priceTot,
-          early_payout_total: earlyPayoutTotal,
-          prev_carry_over: prevCarryOver,
-          final_payout_amount: finalPayoutAmount,
-          carry_over_negative: carryOverNegative,
+          already: alreadyExists, price, price_tot: priceTot,
+          early_payout_total: earlyPayoutTotal, prev_carry_over: 0,
+          final_payout_amount: price, carry_over_negative: 0,
         };
       }
 
+      // 이미 지급완료(paid)된 월은 절대 덮어쓰지 않음 (정산 후 재계산 차단).
+      if (alreadyExists && existing[0].status === 'paid') {
+        return {
+          already: true, price, price_tot: priceTot,
+          early_payout_total: earlyPayoutTotal, prev_carry_over: 0,
+          final_payout_amount: price, carry_over_negative: 0,
+        };
+      }
+
+      // 제거된 항목(price_free/paid/other, vat, reply_fee, carry_over)은 0 으로 박제.
       if (alreadyExists) {
         await tx`
           UPDATE settlement_monthly SET
             price                = ${price},
-            price_free           = ${priceFree},
-            price_paid           = ${pricePaid},
-            price_other          = ${priceOther},
+            price_free           = 0,
+            price_paid           = 0,
+            price_other          = 0,
             price_tot            = ${priceTot},
-            vat_amount           = ${vat},
+            vat_amount           = 0,
             withholding_tax      = ${withholding},
-            reply_fee            = ${replyFee},
+            reply_fee            = 0,
             early_payout_total   = ${earlyPayoutTotal},
-            carry_over_negative  = ${carryOverNegative},
-            final_payout_amount  = ${finalPayoutAmount},
+            carry_over_negative  = 0,
+            final_payout_amount  = ${price},
+            status               = 'calculated',
             member_id            = ${memberId},
             mb_id                = ${mbId},
             wr_datetime          = COALESCE(wr_datetime, now())
@@ -381,230 +244,22 @@ export class SettlementCronService {
             (member_id, mb_id, month, price, price_free, price_paid, price_other, price_tot,
              vat_amount, withholding_tax, reply_fee,
              early_payout_total, carry_over_negative, final_payout_amount,
-             wr_datetime)
+             status, wr_datetime)
           VALUES
-            (${memberId}, ${mbId}, ${bmonth}, ${price}, ${priceFree}, ${pricePaid}, ${priceOther}, ${priceTot},
-             ${vat}, ${withholding}, ${replyFee},
-             ${earlyPayoutTotal}, ${carryOverNegative}, ${finalPayoutAmount},
-             now())
+            (${memberId}, ${mbId}, ${bmonth}, ${price}, 0, 0, 0, ${priceTot},
+             0, ${withholding}, 0,
+             ${earlyPayoutTotal}, 0, ${price},
+             'calculated', now())
         `;
       }
 
-      // 부수효과 스킵 조건:
-      //   - alreadyExists: 이미 정산 완료된 월 → 포인트 중복 차감 방지 (계산값만 갱신)
-      if (alreadyExists) {
-        return {
-          already: alreadyExists,
-          price,
-          price_tot: priceTot,
-          early_payout_total: earlyPayoutTotal,
-          prev_carry_over: prevCarryOver,
-          final_payout_amount: finalPayoutAmount,
-          carry_over_negative: carryOverNegative,
-        };
-      }
-
-      // 선지급 settled_at 마킹 — 다음 정산에서 또 차감되지 않도록.
-      //   ※ 사실 settlement_month 가 bmonth 인 row 만 이번에 차감됐고
-      //     다음 달에는 settlement_month = bmonth+1 row 가 따로 카운트됨.
-      //     settled_at 은 사후 추적용 (health-check C-20 invariant 가 이걸로 누락 감지).
-      if (earlyPayoutTotal > 0) {
-        await tx`
-          UPDATE payout_request
-             SET settled_at = NOW()
-           WHERE counselor_id = ${memberId}
-             AND status = 'paid'
-             AND settlement_month = ${bmonth}
-             AND settled_at IS NULL
-        `;
-      }
-
-      // 전월 포인트 합계 (차감 대상)
-      const sumRow = await tx<{ total: string }[]>`
-        SELECT COALESCE(SUM(earn_point), 0)::text AS total
-          FROM point_history
-         WHERE member_id = ${memberId}
-           AND created_at >= ${range.startday}
-           AND created_at <  ${range.endday}
-           AND content NOT IN ('[수동] 11월 정산 중복', '[수동]정산 시스템 오류로인한 미지급건')
-      `;
-      const periodSum = Number(sumRow[0].total);
-
-      if (periodSum > 0) {
-        const delta = -periodSum;
-        const content = `${bmonth}월 정산`;
-        const relAction = price > 0 ? `${bmonth}월 정기정산` : `${bmonth}월 정기정산 10,000원 이하 정산 X`;
-
-        // 잔액 lock & 갱신 — 정산 대상은 수익포인트(earning_balance) 만.
-        // 회원 표면 잔액(free/paid) 과 member.point 는 건드리지 않는다.
-        let ptRows = await tx<{ earning_balance: number }[]>`
-          SELECT earning_balance FROM point WHERE member_id = ${memberId} FOR UPDATE
-        `;
-        if (ptRows.length === 0) {
-          await tx`
-            INSERT INTO point (member_id, free_balance, paid_balance, earning_balance, total_earned, total_used)
-            VALUES (${memberId}, 0, 0, 0, 0, 0)
-            ON CONFLICT (member_id) DO NOTHING
-          `;
-          ptRows = await tx<{ earning_balance: number }[]>`
-            SELECT earning_balance FROM point WHERE member_id = ${memberId} FOR UPDATE
-          `;
-        }
-        const earningBal = Number(ptRows[0].earning_balance);
-        const balanceAfter = earningBal + delta;
-
-        // 정산 차감 이력 (rel_table='settlement_monthly' 로 일관성 통일 — 마이그레이션/감사에서 식별)
-        await tx`
-          INSERT INTO point_history
-            (member_id, mb_id, content, earn_point, use_point, balance_after,
-             is_expired, expire_date, rel_table, rel_id, rel_action, is_settled, created_at)
-          VALUES
-            (${memberId}, ${mbId}, ${content}, 0, ${periodSum}, ${balanceAfter},
-             true, ${range.pointInsertAt.slice(0, 10)}, 'settlement_monthly', ${mbId}, ${relAction}, true, ${range.pointInsertAt})
-        `;
-
-        // 수익포인트 차감 (정산분 만큼). free/paid 와 member.point 는 회원 표면 잔액이라 무관.
-        await tx`
-          UPDATE point SET
-            earning_balance = GREATEST(earning_balance - ${periodSum}, 0),
-            total_used      = total_used + ${periodSum},
-            updated_at      = now()
-          WHERE member_id = ${memberId}
-        `;
-      }
-
-      // ─── 추천 수당 처리 (2026-06-04) ────────────────────────────────────────
-      // 피추천인(referee)인 경우: 수익금의 rate_snapshot% 를 추천인(referrer)에게 이전.
-      // - 회선비 제외 (전화망과 무관), 원천징수는 추천인 정산 시 포함됨.
-      // - 3개월(months_snapshot) 이내 active 건만 처리.
-      // - 동일 월 중복 처리 방지: counselor_referral_payment (referral_id, pay_month) UNIQUE.
-      if (!testOnly && priceTot > 0) {
-        const refRows = await tx<{
-          id: number;
-          referrer_id: number;
-          referrer_mb_id: string | null;
-          rate_snapshot: string;
-        }[]>`
-          SELECT r.id, r.referrer_id, rer.mb_id AS referrer_mb_id, r.rate_snapshot
-            FROM counselor_referral r
-            LEFT JOIN member rer ON rer.id = r.referrer_id
-           WHERE r.referee_id  = ${memberId}
-             AND r.status      = 'active'
-             AND r.expires_at  > NOW()
-           LIMIT 1
-        `;
-        if (refRows.length > 0) {
-          const ref = refRows[0];
-          const refRate    = parseFloat(ref.rate_snapshot);
-          const incentive  = Math.floor(priceTot * refRate);   // 수익금(price_tot) × 요율
-
-          if (incentive > 0) {
-            // 중복 방지 — 이미 이 월에 처리됐으면 스킵
-            const dupCheck = await tx<{ id: number }[]>`
-              SELECT id FROM counselor_referral_payment
-               WHERE referral_id = ${ref.id} AND pay_month = ${bmonth}
-               LIMIT 1
-            `;
-            if (dupCheck.length === 0) {
-              // 추천인 earning_balance 적립
-              const refPtRows = await tx<{ earning_balance: number }[]>`
-                SELECT earning_balance FROM point WHERE member_id = ${ref.referrer_id} FOR UPDATE
-              `;
-              if (refPtRows.length > 0) {
-                const refBalAfter = Number(refPtRows[0].earning_balance) + incentive;
-                await tx`
-                  UPDATE point SET
-                    earning_balance = earning_balance + ${incentive},
-                    total_earned    = total_earned    + ${incentive},
-                    updated_at      = NOW()
-                  WHERE member_id = ${ref.referrer_id}
-                `;
-                await tx`
-                  INSERT INTO point_history
-                    (member_id, mb_id, content, earn_point, use_point, balance_after,
-                     is_expired, rel_table, rel_id, rel_action, is_settled, created_at)
-                  VALUES
-                    (${ref.referrer_id}, ${ref.referrer_mb_id}, ${'[추천 수당] ' + mbId + ' ' + bmonth},
-                     ${incentive}, 0, ${refBalAfter},
-                     false, 'counselor_referral', ${String(ref.id)},
-                     ${'추천수당_' + bmonth}, false, ${range.pointInsertAt})
-                `;
-                // 피추천인 수익금에서 차감 (earning_balance 이미 periodSum 으로 차감됨 — price_tot 기준 재차감)
-                await tx`
-                  UPDATE point SET
-                    earning_balance = GREATEST(earning_balance - ${incentive}, 0),
-                    total_used      = total_used + ${incentive},
-                    updated_at      = NOW()
-                  WHERE member_id = ${memberId}
-                `;
-                await tx`
-                  INSERT INTO point_history
-                    (member_id, mb_id, content, earn_point, use_point, balance_after,
-                     is_expired, rel_table, rel_id, rel_action, is_settled, created_at)
-                  VALUES
-                    (${memberId}, ${mbId}, ${'[추천 수당 차감] ' + bmonth},
-                     0, ${incentive}, ${Math.max(0, Number(refPtRows[0].earning_balance) - incentive)},
-                     false, 'counselor_referral', ${String(ref.id)},
-                     ${'추천수당차감_' + bmonth}, false, ${range.pointInsertAt})
-                `;
-                // 지급 이력 기록
-                await tx`
-                  INSERT INTO counselor_referral_payment (referral_id, pay_month, paid_amount, paid_at)
-                  VALUES (${ref.id}, ${bmonth}, ${incentive}, NOW())
-                  ON CONFLICT (referral_id, pay_month) DO NOTHING
-                `;
-              }
-            }
-          }
-
-          // 만료 체크 — expires_at 지났으면 상태 업데이트
-          const refDetail = await tx<{ expires_at: Date }[]>`
-            SELECT expires_at FROM counselor_referral WHERE id = ${ref.id}
-          `;
-          if (refDetail.length > 0 && new Date(refDetail[0].expires_at) <= new Date()) {
-            await tx`
-              UPDATE counselor_referral SET status = 'expired' WHERE id = ${ref.id}
-            `;
-          }
-        }
-      }
-      // ─────────────────────────────────────────────────────────────────────────
-
-      // 정산 완료 표시
-      await tx`
-        UPDATE point_history
-           SET is_settled = true
-         WHERE member_id = ${memberId}
-           AND created_at >= ${range.startday}
-           AND created_at <  ${range.endday}
-      `;
-      await tx`
-        UPDATE consultation
-           SET calc_flag = 'Y'
-         WHERE counselor_id = ${memberId}
-           AND reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
-           AND created_at >= ${range.startday}
-           AND created_at <  ${range.endday}
-      `;
-
+      // ★ 차감 안 함! [정산하기] 버튼(markPaid)이 earning 차감 + is_settled 마킹 + 선지급 settled 마킹을 수행.
       return {
-        already: false,
-        price,
-        price_tot: priceTot,
-        early_payout_total: earlyPayoutTotal,
-        prev_carry_over: prevCarryOver,
-        final_payout_amount: finalPayoutAmount,
-        carry_over_negative: carryOverNegative,
+        already: alreadyExists, price, price_tot: priceTot,
+        early_payout_total: earlyPayoutTotal, prev_carry_over: 0,
+        final_payout_amount: price, carry_over_negative: 0,
       };
     });
-  }
-
-  /** 'YYYY-MM' → 전월 'YYYY-MM' */
-  private calcPrevMonthString(month: string): string {
-    const [y, m] = month.split('-').map(Number);
-    const py = m === 1 ? y - 1 : y;
-    const pm = m === 1 ? 12 : m - 1;
-    return `${py}-${String(pm).padStart(2, '0')}`;
   }
 
   /**

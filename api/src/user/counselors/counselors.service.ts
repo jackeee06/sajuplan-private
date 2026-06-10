@@ -32,8 +32,8 @@ export interface PublicCounselor {
   profile_image: string | null;
   /** 프로필 사진 WebP 변환본 (있으면) — <picture> source 로 우선 사용 */
   profile_image_webp: string | null;
-  /** 카테고리 추정 (specialty 또는 hashtag 에서 사주/타로/신점 매칭) */
-  category: '사주' | '타로' | '신점' | '기타';
+  /** 카테고리 — member.counselor_category 진실원, fallback: specialty/hashtag 추정 */
+  category: '사주' | '타로' | '신점' | '심리' | '기타';
   /** 요청자가 이 상담사를 단골 등록했는지 (비로그인이면 false) */
   is_liked: boolean;
   /** 24시간 내 "상담요청하기" 신청 여부 (2026-05-22) — 부재 상담사 카드 버튼 분기에 사용. */
@@ -98,7 +98,7 @@ export interface PublicCounselorDetail {
   wide_headline: string | null;
   /** 히어로 이미지 위 서브카피 (빈 문자열이면 미노출) */
   wide_subcaption: string | null;
-  category: '사주' | '타로' | '신점' | '기타';
+  category: '사주' | '타로' | '신점' | '심리' | '기타';
   /**
    * "현재 N명이 같은 페이지를 보고 있습니다" 표시값.
    * 신 시스템엔 실시간 presence 추적이 없어 상담사 ID + 5분 시간버킷 해시로 자연스럽게 변동하는 의사값.
@@ -214,20 +214,13 @@ export class UserCounselorsService {
     }
 
     try {
-      const tokenRows = await this.sql<{ token: string }[]>`
-        SELECT token FROM member_push_token
-         WHERE member_id = ${params.counselorId} AND is_active = true
-      `;
-      const tokens = tokenRows.map((t) => t.token).filter(Boolean);
-      if (tokens.length > 0) {
-        const r = await this.push.sendToTokens(tokens, {
-          title: '상담 요청이 도착했습니다',
-          body: `${requesterNick} 님이 상담을 요청했습니다. 지금 접속해주세요.`,
-          data: { type: 'counselor_request', counselor_id: String(params.counselorId), link: '/mypage' },
-        });
-        pushOk = r.success > 0;
-        if (!pushOk && r.error) lastError = `${lastError} | push: ${r.error}`.trim();
-      }
+      const r = await this.push.sendToTopic('chl_5', {
+        title: '상담 요청이 도착했습니다',
+        body: `${requesterNick} 님이 상담을 요청했습니다. 지금 접속해주세요.`,
+        data: { type: 'counselor_request', counselor_id: String(params.counselorId), event_url: '/counselor' },
+      });
+      pushOk = r.ok;
+      if (!r.ok && r.error) lastError = `${lastError} | push: ${r.error}`.trim();
     } catch (e) {
       this.logger.warn(`[requestConsult] FCM 실패 counselorId=${params.counselorId}: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -553,7 +546,20 @@ export class UserCounselorsService {
     // 2026-05-22: 부재(ABSE/RESV) 도 리스트에 노출하되 정렬은 가장 뒤로.
     //   회원 입장에서 "지금 가능한 상담사" 가 위에, 부재 상담사는 아래.
     //   부재 카드에는 "상담요청하기" 버튼이 노출되어 회원이 호출 알림을 보낼 수 있다.
+    // 전체·인기 탭: 전화상담 ON/OFF 로 대기 상담사를 세분화
+    //   0 → 상담 중 (CONN/CNCH 5분 내)
+    //   1 → 대기 + 전화상담 ON
+    //   2 → 대기 + 전화상담 OFF (채팅 전용)
+    //   3 → 부재 (ABSE/RESV)
     const statePriority = this.sql`(CASE
+      WHEN m.state IN ('CONN','CNCH') AND m.updated_at >= now() - interval '5 minutes' THEN 0
+      WHEN m.state IN ('ABSE','RESV') THEN 3
+      WHEN m.use_phone = true THEN 1
+      ELSE 2
+    END)`;
+
+    // 채팅 탭: 전화 ON/OFF 무관 — 채팅 가능 여부만 중요
+    const statePriorityChat = this.sql`(CASE
       WHEN m.state IN ('CONN','CNCH') AND m.updated_at >= now() - interval '5 minutes' THEN 0
       WHEN m.state IN ('ABSE','RESV') THEN 2
       ELSE 1
@@ -562,18 +568,12 @@ export class UserCounselorsService {
     const orderBy = (() => {
       switch (tab) {
         case 'popular':
-          // 인기 마킹(is_rising) 우선 + 최근 5분 상담중 + 최근접속순
           return this.sql`m.is_rising DESC, ${statePriority}, m.updated_at DESC NULLS LAST, m.id DESC`;
         case 'chat':
-          // 채팅 가능 상담사 — 최근 5분 상담중 + 최근접속순
-          return this.sql`${statePriority}, m.updated_at DESC NULLS LAST, m.id DESC`;
+          return this.sql`${statePriorityChat}, m.updated_at DESC NULLS LAST, m.id DESC`;
         case 'new':
-          // 신규상담사 — 가입순(created_at DESC) 유지. 신규 본래 의미 보존.
           return this.sql`m.created_at DESC NULLS LAST, m.id DESC`;
         default: // all
-          // 1) 어드민 상위노출(is_recommended) — 평소 비활성, 깜짝 노출용
-          // 2) 최근 5분 상담중 (마케팅 포인트)
-          // 3) 최근접속순 (updated_at DESC)
           return this.sql`m.is_recommended DESC, ${statePriority}, m.updated_at DESC NULLS LAST, m.id DESC`;
       }
     })();
@@ -618,6 +618,14 @@ export class UserCounselorsService {
     //   "본인이 본인에게 상담 요청" 사고는 consult.service.ts:67/196 의 안전망이 차단함.
     const selfExclude = this.sql``;
 
+    // 차단 필터 — 로그인 회원이 특정 상담사에 의해 차단된 경우 해당 상담사 숨김
+    const blockExclude = params.requesterId != null
+      ? this.sql`AND NOT EXISTS (
+          SELECT 1 FROM counselor_block cb
+           WHERE cb.counselor_id = m.id AND cb.member_id = ${params.requesterId}
+        )`
+      : this.sql``;
+
     // [이벤트 상담사] 활성 기간 (event_starts_at <= now < event_ends_at) 인 상담사만 노출
     const eventWhere = params.eventOnly
       ? this.sql`AND pc.event_starts_at IS NOT NULL
@@ -650,6 +658,7 @@ export class UserCounselorsService {
       profile_stored_name_webp: string | null;
       rating_avg: number | null;
       is_new: boolean;
+      counselor_category: string | null;
     };
 
     // 단가/단위시간 source of truth: member.call_070_unit_cost / chat_unit_cost / call_unit_seconds / chat_unit_seconds
@@ -657,7 +666,7 @@ export class UserCounselorsService {
     // 카드의 "30초당 X,XXX원" 표시용으로 통화 단가 우선, 채팅 단가 fallback.
     const rows = await this.sql<Row[]>`
       SELECT m.id, m.mb_id, m.name, m.nickname, m.csrid, m.dtmfno, m.state,
-             m.use_phone, m.use_chat, m.is_rising, m.is_recommended,
+             m.use_phone, m.use_chat, m.is_rising, m.is_recommended, m.counselor_category,
              pc.title, pc.headline, pc.specialty, pc.hashtag1, pc.hashtag2,
              COALESCE(m.call_unit_seconds, m.chat_unit_seconds, pc.unit_seconds) AS unit_seconds,
              COALESCE(NULLIF(m.call_070_unit_cost, 0), NULLIF(m.chat_unit_cost, 0), pc.unit_cost) AS unit_cost,
@@ -678,6 +687,7 @@ export class UserCounselorsService {
          ${tabWhere}
          ${categoryWhere}
          ${selfExclude}
+         ${blockExclude}
          ${eventWhere}
        ORDER BY ${orderBy}
        LIMIT ${limit}
@@ -730,7 +740,7 @@ export class UserCounselorsService {
       // member_file 은 stored_name 만 저장 → 사용자 페이지가 그대로 쓸 수 있도록 풀 경로로 변환
       profile_image: r.profile_stored_name ? `/uploads/member/${r.profile_stored_name}` : null,
       profile_image_webp: r.profile_stored_name_webp ? `/uploads/member/${r.profile_stored_name_webp}` : null,
-      category: this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
+      category: (r.counselor_category as any) || this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
       is_liked: likedIds.has(Number(r.id)),
       is_requested: requestedIds.has(Number(r.id)),
       is_new: !!r.is_new,
@@ -977,6 +987,14 @@ export class UserCounselorsService {
     // 2026-05-22 정책 변경: 본인 카드도 검색 결과에 노출. (위 list 와 동일 사유)
     const selfExclude = this.sql``;
 
+    // 차단 필터
+    const blockExclude = params.requesterId != null
+      ? this.sql`AND NOT EXISTS (
+          SELECT 1 FROM counselor_block cb
+           WHERE cb.counselor_id = m.id AND cb.member_id = ${params.requesterId}
+        )`
+      : this.sql``;
+
     type Row = {
       id: number;
       mb_id: string | null;
@@ -1002,11 +1020,12 @@ export class UserCounselorsService {
       profile_stored_name_webp: string | null;
       rating_avg: number | null;
       is_new: boolean;
+      counselor_category: string | null;
     };
 
     const rows = await this.sql<Row[]>`
       SELECT m.id, m.mb_id, m.name, m.nickname, m.csrid, m.dtmfno, m.state,
-             m.use_phone, m.use_chat, m.is_rising, m.is_recommended,
+             m.use_phone, m.use_chat, m.is_rising, m.is_recommended, m.counselor_category,
              pc.title, pc.headline, pc.specialty, pc.hashtag1, pc.hashtag2,
              COALESCE(m.call_unit_seconds, m.chat_unit_seconds, pc.unit_seconds) AS unit_seconds,
              COALESCE(NULLIF(m.call_070_unit_cost, 0), NULLIF(m.chat_unit_cost, 0), pc.unit_cost) AS unit_cost,
@@ -1038,6 +1057,7 @@ export class UserCounselorsService {
        WHERE m.role = 'counselor'
          AND m.left_at IS NULL
          ${selfExclude}
+         ${blockExclude}
          AND (
               m.name ILIKE ${pat}
            OR m.nickname ILIKE ${pat}
@@ -1101,7 +1121,7 @@ export class UserCounselorsService {
       profile_image_webp: r.profile_stored_name_webp
         ? `/uploads/member/${r.profile_stored_name_webp}`
         : null,
-      category: this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
+      category: (r.counselor_category as any) || this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
       is_liked: likedIds.has(Number(r.id)),
       is_requested: requestedIds.has(Number(r.id)),
       rating_avg: Number(r.rating_avg ?? 0),
@@ -1157,11 +1177,12 @@ export class UserCounselorsService {
       profile_stored_name_webp: string | null;
       rating_avg: number | null;
       is_new: boolean;
+      counselor_category: string | null;
     };
 
     const rows = await this.sql<Row[]>`
       SELECT m.id, m.mb_id, m.name, m.nickname, m.csrid, m.dtmfno, m.state,
-             m.use_phone, m.use_chat, m.is_rising, m.is_recommended,
+             m.use_phone, m.use_chat, m.is_rising, m.is_recommended, m.counselor_category,
              pc.title, pc.headline, pc.specialty, pc.hashtag1, pc.hashtag2,
              COALESCE(m.call_unit_seconds, m.chat_unit_seconds, pc.unit_seconds) AS unit_seconds,
              COALESCE(NULLIF(m.call_070_unit_cost, 0), NULLIF(m.chat_unit_cost, 0), pc.unit_cost) AS unit_cost,
@@ -1209,7 +1230,7 @@ export class UserCounselorsService {
       fan_count: r.fan_count ?? 0,
       profile_image: r.profile_stored_name ? `/uploads/member/${r.profile_stored_name}` : null,
       profile_image_webp: r.profile_stored_name_webp ? `/uploads/member/${r.profile_stored_name_webp}` : null,
-      category: this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
+      category: (r.counselor_category as any) || this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
       is_liked: true,
       is_requested: false,
       rating_avg: Number(r.rating_avg ?? 0),
@@ -1314,11 +1335,12 @@ export class UserCounselorsService {
       profile_stored_name_webp: string | null;
       hero_stored_name: string | null;
       hero_stored_name_webp: string | null;
+      counselor_category: string | null;
     };
 
     const rows = await this.sql<Row[]>`
       SELECT m.id, m.mb_id, m.name, m.nickname, m.csrid, m.dtmfno, m.state,
-             m.use_phone, m.use_chat, m.is_rising, m.is_recommended,
+             m.use_phone, m.use_chat, m.is_rising, m.is_recommended, m.counselor_category,
              pc.headline, pc.specialty, pc.hashtag1, pc.hashtag2,
              pc.bio, pc.content, pc.intro, pc.traits,
              COALESCE(m.call_unit_seconds, m.chat_unit_seconds, pc.unit_seconds) AS unit_seconds,
@@ -1439,13 +1461,14 @@ export class UserCounselorsService {
       live_viewers: pseudoLiveViewers(r.id, fanCount),
       qna_count: qnaCount,
       is_liked: isLiked,
-      category: this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
+      category: (r.counselor_category as any) || this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
     };
   }
 
   /** 단골 등록 (idempotent — 이미 있어도 OK). 새 fan_count 반환. */
   async addFavorite(memberId: number, counselorId: number): Promise<{ fan_count: number }> {
-    if (memberId === counselorId) {
+    // [2026-06-11 버그수정] JWT sub 는 런타임 문자열 → `===` 직접 비교가 타입 불일치로 무력화됨.
+    if (Number(memberId) === Number(counselorId)) {
       throw new ForbiddenException('본인을 단골 등록할 수 없습니다.');
     }
     const cnt = await this.sql<{ count: string }[]>`

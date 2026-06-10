@@ -12,10 +12,12 @@ import { M2netPushModule } from '../pg-callbacks/m2net-push.module';
 import { M2netModule } from '../shared/m2net/m2net.module';
 import { UserConsultModule } from '../user/consult/consult.module';
 import { UserChatModule } from '../user/chat/chat.module';
+import { AlertsModule } from '../shared/alerts/alerts.module';
 
 @Module({
-  imports: [OpsAlertModule, M2netPushModule, M2netModule, UserConsultModule, UserChatModule],
+  imports: [OpsAlertModule, M2netPushModule, M2netModule, UserConsultModule, UserChatModule, AlertsModule],
   controllers: [CronController],
   providers: [SettlementCronService, ResetService, GradeCronService, RetryCronService, HealthCheckService, DailySummaryService, CronTokenGuard],
+  exports: [SettlementCronService],
 })
 export class CronModule {}

@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import ConfirmModal from '../components/ConfirmModal'
@@ -13,13 +13,16 @@ import {
   counselorMypageApi,
   counselorGradeApi,
   counselorPayoutApi,
+  counselorCustomerQnaApi,
   consultApi,
   settlementApi,
   type SettlementSummary,
   type MyGradeInfo,
   type MyPayoutInfo,
   type ConsultMyStats,
+  type GradeProgressInfo,
 } from '../lib/api'
+import { GRADE_UPGRADE_STORAGE_KEY } from '../components/GradeUpgradeToast'
 import { FILE_BASE } from '../lib/runtime-env'
 import UnitCostChangeModal from '../components/UnitCostChangeModal'
 
@@ -104,10 +107,21 @@ export default function CounselorMyPage() {
   const [toggleBusy, setToggleBusy] = useState(false)
   const [settlement, setSettlement] = useState<SettlementSummary | null>(null)
   const [grade, setGrade] = useState<MyGradeInfo | null>(null)
+  const [gradeProgress, setGradeProgress] = useState<GradeProgressInfo | null>(null)
   const [payout, setPayout] = useState<MyPayoutInfo | null>(null)
+  const [pendingCounts, setPendingCounts] = useState<{ pending_qna: number; pending_review: number } | null>(null)
   const [costModalOpen, setCostModalOpen] = useState(false)
   const [extraOpen, setExtraOpen] = useState(false)
   const [monthlyStats, setMonthlyStats] = useState<ConsultMyStats | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // ?action=change-unit-cost — 승급 토스트 "단가 변경하기" 버튼에서 진입 시 모달 자동 오픈
+  useEffect(() => {
+    if (searchParams.get('action') === 'change-unit-cost') {
+      setCostModalOpen(true)
+      setSearchParams((prev) => { prev.delete('action'); return prev }, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   // 진입 시 실제 토글 값 + 정산 요약을 동시에 로드.
   //  - 토글: member.use_phone/use_chat
@@ -138,10 +152,29 @@ export default function CounselorMyPage() {
     }
     refreshSettlement()
 
+    counselorCustomerQnaApi.pendingCounts()
+      .then((r) => { if (!cancelled) setPendingCounts(r) })
+      .catch(() => { /* 미답변 카운트 실패해도 페이지는 동작 */ })
+
     const refreshGrade = () => {
       counselorGradeApi.getMine()
         .then((g) => { if (!cancelled) setGrade(g) })
         .catch(() => { /* 등급 정보 실패해도 페이지는 동작 */ })
+      // 당월 실시간 진행상황 (프로그레스 바 + 승급 이력)
+      counselorGradeApi.getProgress()
+        .then((p) => { if (!cancelled) setGradeProgress(p) })
+        .catch(() => { /* 진행상황 실패해도 페이지는 동작 */ })
+      // [2026-06-07] 미확인 실시간 승급 체크 — 있으면 sessionStorage 저장 → 다음 화면 이동 시 토스트 표시
+      counselorGradeApi.pendingUpgrade()
+        .then((r) => {
+          if (!cancelled && r?.upgrade) {
+            sessionStorage.setItem(GRADE_UPGRADE_STORAGE_KEY, JSON.stringify({
+              grade_label: r.upgrade.grade_label,
+              hours: r.upgrade.hours,
+            }))
+          }
+        })
+        .catch(() => { /* 실패해도 페이지는 동작 */ })
     }
     refreshGrade()
 
@@ -362,7 +395,7 @@ export default function CounselorMyPage() {
             {(settlement?.estimated_payout ?? settlement?.this_month ?? 0).toLocaleString()}
             <span className="text-[15px] font-medium text-[#6A7282] ml-0.5">원</span>
           </div>
-          <div className="text-[11px] text-[#6A7282] mt-0.5">3.3% 원천세 공제 전 금액</div>
+          <div className="text-[11px] text-[#6A7282] mt-0.5">원천세(3.3%) 공제 후 예상 실수령액</div>
           <div className="grid grid-cols-4 gap-2 mt-3">
             <Link to="/mypage/calls" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">통화 내역</Link>
             <Link to="/mypage/chats" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">채팅 내역</Link>
@@ -387,15 +420,34 @@ export default function CounselorMyPage() {
           )}
         </section>
 
-        {/* ③ 🔔 처리 필요 알림 — 0건이어도 긍정 메시지로 표시 (동기부여) */}
-        <section className="rounded-[16px] border border-amber-200 bg-amber-50/40 p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-[13px] font-semibold text-amber-900 inline-flex items-center gap-1.5">
-              ✅ 처리할 일 없어요
-            </span>
-            <span className="text-[11px] text-amber-700">새 후기·문의 답변 대기 0건</span>
-          </div>
-        </section>
+        {/* ③ 🔔 처리 필요 알림 — 미답변 후기/문의 카운트 실시간 표시 */}
+        {(() => {
+          const total = (pendingCounts?.pending_qna ?? 0) + (pendingCounts?.pending_review ?? 0)
+          const hasPending = total > 0
+          return (
+            <Link
+              to="/counselor/mypage/customer-qnas"
+              className={`block rounded-[16px] border p-4 ${hasPending ? 'border-rose-300 bg-rose-50/60' : 'border-amber-200 bg-amber-50/40'}`}
+            >
+              <div className="flex items-center justify-between">
+                <span className={`text-[13px] font-semibold inline-flex items-center gap-1.5 ${hasPending ? 'text-rose-700' : 'text-amber-900'}`}>
+                  {hasPending ? '🔔 답변 대기 중' : '✅ 처리할 일 없어요'}
+                </span>
+                <span className={`text-[11px] font-medium ${hasPending ? 'text-rose-600' : 'text-amber-700'}`}>
+                  새 후기·문의 답변 대기 {total}건
+                </span>
+              </div>
+              {hasPending && (
+                <p className="mt-1 text-[12px] text-rose-500">
+                  {pendingCounts!.pending_qna > 0 && `문의 ${pendingCounts!.pending_qna}건`}
+                  {pendingCounts!.pending_qna > 0 && pendingCounts!.pending_review > 0 && ' · '}
+                  {pendingCounts!.pending_review > 0 && `후기 ${pendingCounts!.pending_review}건`}
+                  {' '}답변을 기다리고 있습니다.
+                </p>
+              )}
+            </Link>
+          )
+        })()}
 
         {/* ④ 📊 이번달 상담 현황 — 0건이어도 표시 (신규 상담사 동기부여) */}
         <section className="rounded-[16px] border border-[#F3F4F6] bg-white p-4">
@@ -434,13 +486,18 @@ export default function CounselorMyPage() {
           )}
         </section>
 
-        {/* ⑤ 📊 등급/단가 — 등급 단가 + 다음 등급 진척바 */}
+        {/* ⑤ 📊 등급/단가 — 당월 실시간 진척바 + 승급 이력 */}
         {grade && (
           <section className="rounded-[16px] border border-[#F3F4F6] bg-white p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[13px] font-semibold text-[#364153]">📊 등급 / 단가</span>
+              <span className="text-[11px] text-[#9CA3AF]">{grade.grade_label}</span>
             </div>
-            <NextGradeProgress grade={grade.grade} seconds={grade.last_month_seconds} />
+            {/* 당월 실시간 프로그레스 바 */}
+            {gradeProgress
+              ? <RealtimeGradeProgress progress={gradeProgress} />
+              : <NextGradeProgress grade={grade.grade} seconds={grade.last_month_seconds} />
+            }
 
             {/* 신규 가입자 단가 안내 (2026-05-22) — 기본값 1000원일 때 노출.
                 상담사가 본인 단가로 수정하도록 안내. */}
@@ -587,7 +644,77 @@ export default function CounselorMyPage() {
 }
 
 /**
- * 다음 등급까지 진척바.
+ * 당월 실시간 상담시간 프로그레스 바 (2026-06-07 신설).
+ * API /user/counselor-mypage/grade/progress 데이터 기반.
+ */
+function RealtimeGradeProgress({ progress }: { progress: GradeProgressInfo }) {
+  const { total_hours, next_grade_label, next_threshold_hours, progress_pct, realtime_upgrades_this_month } = progress
+
+  return (
+    <div className="mt-1">
+      {/* 진척바 */}
+      {next_grade_label && next_threshold_hours ? (
+        <>
+          <div className="flex items-center justify-between text-[12px] text-[#6A7282]">
+            <span>
+              이번달{' '}
+              <span className="font-semibold text-[#8259F5] tabular-nums">{total_hours.toFixed(1)}h</span>
+            </span>
+            <span>
+              {next_grade_label}까지{' '}
+              <span className="font-semibold tabular-nums">
+                {Math.max(0, next_threshold_hours - total_hours).toFixed(1)}h
+              </span>
+            </span>
+          </div>
+          <div className="mt-1.5 h-2 rounded-full bg-[#F3F4F6] overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[#8259F5] to-[#9b7af7] transition-all"
+              style={{ width: `${progress_pct}%` }}
+            />
+          </div>
+          <p className="mt-1 text-[11px] text-[#9CA3AF]">이번 달 누적 (매월 1일 초기화)</p>
+        </>
+      ) : (
+        <div className="mt-1">
+          <p className="text-[12px] text-[#6A7282]">
+            최고 등급 · 이번달 누적{' '}
+            <span className="font-semibold text-[#8259F5] tabular-nums">{total_hours.toFixed(1)}시간</span>
+          </p>
+        </div>
+      )}
+
+      {/* 이번 달 실시간 승급 이력 */}
+      {realtime_upgrades_this_month.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-[#F3F4F6]">
+          <p className="text-[11px] font-medium text-[#6A7282] mb-2">🎉 이번 달 승급 이력</p>
+          <div className="flex flex-col gap-1.5">
+            {realtime_upgrades_this_month.map((u, i) => {
+              const LABEL: Record<string, string> = {
+                preliminary: '예비파트너', partner1: '파트너1', partner2: '파트너2',
+                partner3: '파트너3', partner4: '파트너4', partner5: '파트너5',
+              }
+              const d = new Date(u.changed_at)
+              const dateStr = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+              return (
+                <div key={i} className="flex items-center gap-2 text-[11.5px]">
+                  <span className="text-[#9CA3AF]">{dateStr}</span>
+                  <span className="text-[#6A7282]">{LABEL[u.grade_before] ?? u.grade_before}</span>
+                  <span className="text-[#D1D5DB]">→</span>
+                  <span className="font-semibold text-[#8259F5]">{LABEL[u.grade_after] ?? u.grade_after}</span>
+                  <span className="text-[#9CA3AF]">({u.hours_at_upgrade}h 달성)</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * 다음 등급까지 진척바 (폴백용 — API 로드 전 표시).
  * 임계값 하드코딩 (시드 정책과 동일):
  *   partner1=20h, partner2=40h, partner3=70h, partner4=90h, partner5=120h
  * 어드민에서 임계값 바뀌면 이 컴포넌트도 같이 수정 필요 (서버에서 받아오는 방식 고려).

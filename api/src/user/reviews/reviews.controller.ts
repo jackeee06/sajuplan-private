@@ -27,7 +27,10 @@ const REVIEW_FILE_DIR = join(process.cwd(), 'uploads', 'review');
 mkdirSync(REVIEW_FILE_DIR, { recursive: true });
 
 const REVIEW_IMG_EXTS = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-const REVIEW_IMG_MAX_BYTES = 5 * 1024 * 1024;
+// [2026-06-10] 5MB → 30MB. 모바일 카메라 원본(3~8MB+)이 413 으로 거부되던 문제 해결.
+//   counselor-apply 와 동일 한도. 서버가 webp(maxDimension 1024)로 자동 축소하므로
+//   원본이 커도 저장/표시 용량은 작다. 프론트 resizeImage 는 네트워크 절약용 1차 축소.
+const REVIEW_IMG_MAX_BYTES = 30 * 1024 * 1024;
 
 /**
  * 사용자 메인 페이지 후기 탭 (sample tab06).
@@ -107,7 +110,9 @@ export class UserReviewsController {
     if (!file) throw new BadRequestException('파일이 없습니다.');
     // 후기 사진은 jpg/png/gif 업로드라도 동일 디렉토리에 .webp 사이블링을 함께 생성한다.
     // 응답은 원본/webp 둘 다 내려주고, 프론트에서 <picture> 로 webp 우선 노출.
-    const { webpFilename } = await convertImageToWebp(file.path);
+    // [2026-06-10] maxDimension 1024 추가 — 모바일 원본(4032×3024 등)을 적정 크기로 축소.
+    //   counselor-apply 와 동일 정책 (용량 최적화). 원본 자체도 프론트 resizeImage 로 줄여 올라옴.
+    const { webpFilename } = await convertImageToWebp(file.path, { maxDimension: 1024, quality: 80 });
     const url = `/uploads/review/${file.filename}`;
     const url_webp = webpFilename ? `/uploads/review/${webpFilename}` : null;
     return { url, url_webp };

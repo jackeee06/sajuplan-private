@@ -28,31 +28,9 @@ const MEMBER_PAGES = [
 
 test.describe('회원 영역 (e2e_member)', () => {
   test.beforeEach(async ({ page }) => {
-    if (process.env.TARGET === 'prod') test.skip()
+    // TEST 서버 폐기(2026-05-29) → prod 단일. storageState 로 세션 보장.
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-
-    // [세션 안정성] cookies 만으로는 만료된 JWT 검출 못 함.
-    //   me() 직접 검사 → 만료/401 이면 e2e_member 재로그인 (429 throttle 회피 위해 me() 우선).
-    const apiBase = 'https://api.sajumoon.kr'
-    const result = await page.evaluate(async (base) => {
-      try {
-        const me0 = await fetch(`${base}/api/user/auth/me`, { credentials: 'include' })
-        if (me0.ok) {
-          const j = await me0.json().catch(() => null)
-          if (j?.ok === true || j?.member) return { ok: true, source: 'cached' }
-        }
-        const login = await fetch(`${base}/api/user/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mb_id: 'e2e_member', password: 'e2e_test_2026' }),
-          credentials: 'include',
-        })
-        return { ok: login.ok, status: login.status, source: 'relogin' }
-      } catch (e) {
-        return { ok: false, error: (e as Error).message }
-      }
-    }, apiBase)
-    if (!result.ok) test.skip(true, `e2e_member 인증 실패 (${JSON.stringify(result).slice(0, 80)})`)
+    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {})
   })
 
   for (const { path, name, heading } of MEMBER_PAGES) {

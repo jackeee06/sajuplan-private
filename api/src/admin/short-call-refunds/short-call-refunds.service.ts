@@ -79,7 +79,7 @@ export class AdminShortCallRefundsService {
         LEFT JOIN member m   ON m.id   = c.member_id
        WHERE c.refund_status = 'short_call_refund'
          AND c.created_at >= ${from}::date
-         AND c.created_at <  ${to}::date
+         AND c.created_at <  (${to}::date + INTERVAL '1 day')
        ORDER BY c.created_at DESC, c.id DESC
        LIMIT ${limit} OFFSET ${offset}
     `;
@@ -90,7 +90,7 @@ export class AdminShortCallRefundsService {
         FROM consultation
        WHERE refund_status = 'short_call_refund'
          AND created_at >= ${from}::date
-         AND created_at <  ${to}::date
+         AND created_at <  (${to}::date + INTERVAL '1 day')
     `;
 
     return {

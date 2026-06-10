@@ -205,8 +205,9 @@ export class SmsService {
       message: string;
       primary_btn_name: string | null;
       primary_btn_url: string | null;
+      primary_btn_type: string | null;
     }[]>`
-      SELECT template_code, message, primary_btn_name, primary_btn_url
+      SELECT template_code, message, primary_btn_name, primary_btn_url, primary_btn_type
         FROM alimtalk_template
        WHERE template_code = ${templateCode} AND is_active = true
        LIMIT 1
@@ -230,6 +231,7 @@ export class SmsService {
     // primary_btn_url 의 #{url} 같은 변수도 vars 로 치환.
     const btnUrl = tpl.primary_btn_url ? substitute(tpl.primary_btn_url) : '';
     const btnName = tpl.primary_btn_name ?? '';
+    const btnType = tpl.primary_btn_type ?? 'WL';
 
     if (!this.bizmEnabled) {
       this.logger.log(
@@ -257,14 +259,25 @@ export class SmsService {
       payload.smsSender = this.aligoSender;
       payload.smsLmsTit = smsTitle || '사주플랜 알림';
     }
-    // 버튼 — BizM v2 표준: button1 = { name, type, url_mobile, url_pc }
+    // 버튼 — BizM v2 표준.
+    // WL(웹링크): url_mobile + url_pc  /  AL(앱링크): url_android + url_ios
     if (btnName && btnUrl) {
-      payload.button1 = {
-        name: btnName,
-        type: 'WL', // 웹링크
-        url_mobile: btnUrl,
-        url_pc: btnUrl,
-      };
+      if (btnType === 'AL') {
+        // BizM AL(앱링크) 필드명: scheme_android / scheme_ios (url_android 아님 — PHP sample 확인)
+        payload.button1 = {
+          name: btnName,
+          type: 'AL',
+          scheme_android: btnUrl,
+          scheme_ios: btnUrl,
+        };
+      } else {
+        payload.button1 = {
+          name: btnName,
+          type: 'WL',
+          url_mobile: btnUrl,
+          url_pc: btnUrl,
+        };
+      }
     }
     const body = [payload];
     try {

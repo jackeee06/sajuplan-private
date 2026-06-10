@@ -134,7 +134,7 @@ export default function ChargeAmounts() {
           <Th align="center">#</Th>
           <Th align="left">상품명</Th>
           <Th align="right">결제금액(VAT 별도)</Th>
-          <Th align="right">보너스 적립</Th>
+          <Th align="right">보너스 적립 %</Th>
           <Th align="right">총 지급 포인트</Th>
           <Th align="left">문구</Th>
           <Th align="center">노출</Th>

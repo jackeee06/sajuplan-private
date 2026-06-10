@@ -89,6 +89,9 @@ export interface ConsultationRow {
   refunded_amount?: number;
   refund_status?: string | null;
   counselor_unit_cost: number | null; // mb_4
+  // 차단 여부 (counselor_block)
+  is_blocked: boolean;
+  block_reason: string | null;
   // 수익 분해 (2026-06-02)
   counselor_grade?: string | null;
   counselor_revenue_rate?: number | null;
@@ -221,10 +224,14 @@ export class ConsultationsService {
            FROM setting s
           WHERE s.namespace='grade' AND s.key = 'revenue_rate.' || COALESCE(c.grade,'')
           LIMIT 1
-        ) AS counselor_revenue_rate
+        ) AS counselor_revenue_rate,
+        -- 차단 여부
+        (cb.id IS NOT NULL) AS is_blocked,
+        cb.reason AS block_reason
       FROM consultation cs
       LEFT JOIN member m ON m.id = cs.member_id
       LEFT JOIN member c ON c.id = cs.counselor_id
+      LEFT JOIN counselor_block cb ON cb.counselor_id = cs.counselor_id AND cb.member_id = cs.member_id
       ${whereClause}
       ORDER BY cs.created_at DESC, cs.id DESC
       LIMIT ${limit} OFFSET ${offset}

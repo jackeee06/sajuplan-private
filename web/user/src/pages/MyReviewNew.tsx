@@ -2,6 +2,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import { ApiError, reviewsApi } from '../lib/api'
+import { resizeImage } from '../lib/image-resize'
 
 /**
  * 상담 후기 작성 (마이페이지에서 진입) — Figma 147:12530
@@ -69,7 +70,16 @@ export default function MyReviewNew() {
     setPhotoUploading(true)
     setError(null)
     try {
-      const r = await reviewsApi.uploadImage(file)
+      // [2026-06-10] 업로드 전 클라이언트 리사이즈 — 모바일 원본(5~10MB)을 1024px/1MB 미만으로 축소.
+      //   counselor-apply 와 동일 정책. 서버는 추가로 webp(maxDimension 1024) 사이블링 생성.
+      //   ★ 리사이즈 실패(특정 포맷/WebView canvas 제한)해도 원본으로 업로드 — 서버 multer 30MB 가 받아줌.
+      let toUpload = file
+      try {
+        toUpload = await resizeImage(file, 1024)
+      } catch {
+        /* 리사이즈 실패 시 원본 그대로 업로드 (서버가 webp 변환) */
+      }
+      const r = await reviewsApi.uploadImage(toUpload)
       setUploadedUrl(r.url)
       setUploadedWebpUrl(r.url_webp)
     } catch (e) {

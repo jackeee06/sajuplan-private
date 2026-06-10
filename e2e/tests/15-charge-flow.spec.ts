@@ -18,35 +18,14 @@ test.use({ storageState: 'user_member_storage.json' })
 
 test.describe('충전 흐름 (단일 직렬)', () => {
   test('전체 시나리오 — 충전 페이지 UI 일관', async ({ page }) => {
-    if (process.env.TARGET === 'prod') test.skip()
+    // TEST 서버 폐기(2026-05-29) → prod 단일. storageState 로 세션 보장.
     test.setTimeout(60_000)
-
-    // ── 0. 인증 (me() 우선, 만료시만 로그인 — 429 회피)
-    const apiBase = 'https://api.sajumoon.kr'
     await page.goto('/', { waitUntil: 'domcontentloaded' })
-    const result = await page.evaluate(async (base) => {
-      try {
-        const me0 = await fetch(`${base}/api/user/auth/me`, { credentials: 'include' })
-        if (me0.ok) {
-          const j = await me0.json().catch(() => null)
-          if (j?.ok === true || j?.member) return { ok: true, source: 'cached' }
-        }
-        const login = await fetch(`${base}/api/user/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mb_id: 'e2e_member', password: 'e2e_test_2026' }),
-          credentials: 'include',
-        })
-        return { ok: login.ok, status: login.status, source: 'relogin' }
-      } catch (e) {
-        return { ok: false, error: (e as Error).message }
-      }
-    }, apiBase)
-    if (!result.ok) test.skip(true, `e2e_member 인증 실패 (${JSON.stringify(result).slice(0, 80)})`)
+    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {})
 
     // ── 1. 충전 페이지 로드 + 핵심 섹션
     await page.goto('/mypage/charge')
-    await page.waitForLoadState('networkidle', { timeout: 15_000 })
+    await page.waitForLoadState('networkidle', { timeout: 12_000 }).catch(() => {})
     await expect(
       page.getByRole('heading', { name: '코인 충전' }),
       '시나리오1: "코인 충전" 헤더',

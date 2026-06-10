@@ -222,12 +222,12 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
                       : 'border-gray-200 text-amber-700 dark:border-gray-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20'
                   }`}
                 >
-                  수익포인트
+                  수익금
                 </button>
               </div>
               {kind === 'earning' && (
                 <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
-                  ⚠️ 수익포인트는 상담사 적립금. 회원 표면 잔액 무관.
+                  ⚠️ 수익금는 상담사 적립금. 회원 표면 잔액 무관.
                 </p>
               )}
             </div>

@@ -5,6 +5,7 @@ import { LikeProvider } from './lib/like-context'
 import { LoginPromptProvider } from './lib/login-prompt-context'
 import NativeBackBridge from './components/NativeBackBridge'
 import AttendanceToast from './components/AttendanceToast'
+import GradeUpgradeToast from './components/GradeUpgradeToast'
 import ModeIndicator from './components/ModeIndicator'
 import PullToRefresh from './components/PullToRefresh'
 import GlobalAlerts from './components/GlobalAlerts'
@@ -54,6 +55,7 @@ import CounselorMyPage from './pages/CounselorMyPage'
 import CounselorMyReferral from './pages/CounselorMyReferral'
 import CounselorMyBank from './pages/CounselorMyBank'
 import CounselorMyStyle from './pages/CounselorMyStyle'
+import CounselorMyIntro from './pages/CounselorMyIntro'
 import CounselorMyPayout from './pages/CounselorMyPayout'
 import CounselorMyTips from './pages/CounselorMyTips'
 import CounselorMyTipDetail from './pages/CounselorMyTipDetail'
@@ -105,6 +107,7 @@ export default function App() {
       <ScrollToTop />
       <NativeBackBridge />
       <AttendanceToast />
+      <GradeUpgradeToast />
       <CounselorIncomingChatWatcher />
       <ModeIndicator />
       <PullToRefresh />
@@ -160,6 +163,7 @@ export default function App() {
         <Route path="/counselor/mypage/referral" element={<CounselorMyReferral />} />
         <Route path="/counselor/mypage/bank" element={<CounselorMyBank />} />
         <Route path="/counselor/mypage/style" element={<CounselorMyStyle />} />
+        <Route path="/counselor/mypage/intro" element={<CounselorMyIntro />} />
         <Route path="/counselor/mypage/payout" element={<CounselorMyPayout />} />
         <Route path="/counselor/mypage/tips" element={<CounselorMyTips />} />
         <Route path="/counselor/mypage/tips/:id" element={<CounselorMyTipDetail />} />

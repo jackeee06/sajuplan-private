@@ -84,7 +84,7 @@ export default function PopupLayerForm() {
   ): Promise<{ image_url: string | null; image_url_webp: string | null }> => {
     const fd = new FormData()
     fd.append('file', file)
-    const res = await fetch(`${API_BASE}/api/admin/popup-layers/${popupId}/image`, {
+    const res = await fetch(`${API_BASE}/admin/popup-layers/${popupId}/image`, {
       method: 'POST',
       credentials: 'include',
       body: fd,

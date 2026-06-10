@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { SmsService } from '../sms/sms.service';
+import { M2netService } from '../../shared/m2net/m2net.service';
 
 export interface PublicRecentReview {
   id: number;
@@ -37,6 +38,7 @@ export class UserReviewsService {
   constructor(
     @Inject(SQL) private readonly sql: Sql,
     private readonly sms: SmsService,
+    private readonly m2net: M2netService,
   ) {}
 
   async recent(params: {
@@ -155,6 +157,8 @@ export class UserReviewsService {
       is_secret: boolean;
       is_best: boolean;
       best_at: Date | null;
+      is_admin_best: boolean;
+      admin_best_at: Date | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
     };
@@ -162,12 +166,13 @@ export class UserReviewsService {
     const [rows, totalRows] = await Promise.all([
       this.sql<Row[]>`
         SELECT r.id, r.title, r.content, r.rating, r.created_at, r.is_secret,
-               r.is_best, r.best_at,
+               r.is_best, r.best_at, r.is_admin_best, r.admin_best_at,
                rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id
           FROM post_review r
           LEFT JOIN member rm ON rm.id = r.member_id
          WHERE r.counselor_id = ${params.counselorId}
-         ORDER BY r.is_best DESC, r.best_at DESC NULLS LAST, r.created_at DESC
+         ORDER BY r.is_admin_best DESC, r.admin_best_at DESC NULLS LAST,
+                  r.is_best DESC, r.best_at DESC NULLS LAST, r.created_at DESC
          LIMIT ${limit} OFFSET ${offset}
       `,
       this.sql<{ count: string }[]>`
@@ -180,13 +185,18 @@ export class UserReviewsService {
     const items: PublicCounselorReview[] = rows.map((r) => ({
       id: r.id,
       title: r.title,
-      content: r.content ?? '', // 정책: 후기는 모두에게 공개
+      content: r.content ?? '',
       is_secret: r.is_secret,
       is_best: r.is_best,
       best_at:
         r.best_at instanceof Date
           ? r.best_at.toISOString()
           : r.best_at === null ? null : String(r.best_at),
+      is_admin_best: r.is_admin_best,
+      admin_best_at:
+        r.admin_best_at instanceof Date
+          ? r.admin_best_at.toISOString()
+          : r.admin_best_at === null ? null : String(r.admin_best_at),
       rating: r.rating,
       created_at:
         r.created_at instanceof Date
@@ -462,14 +472,10 @@ export class UserReviewsService {
     if (!content) throw new BadRequestException('후기 내용을 입력해주세요.');
     if (!input.counselor_id) throw new BadRequestException('상담사 정보가 없습니다.');
 
-    // 상담사 존재 검증
-    const cs = await this.sql<{ id: number; role: string | null }[]>`
-      SELECT id, role FROM member WHERE id = ${input.counselor_id} LIMIT 1
-    `;
-    if (cs.length === 0) throw new NotFoundException('상담사를 찾을 수 없습니다.');
-    if (cs[0].role !== 'counselor') {
-      throw new BadRequestException('해당 회원은 상담사가 아닙니다.');
-    }
+    // [BUG FIX 2026-06-10] 상담사 role 검증을 consultation 기반 resolvedCounselorId 확정 "이후"로 이동.
+    //   기존: 프론트가 보낸 input.counselor_id 로 먼저 role 검증 → 듀얼역할자(상담사가 회원에게 상담해준 건)
+    //         상담내역에서 후기 시도 시, peer(=회원)를 counselor_id 로 보내 "상담사가 아닙니다" 오류가 났음.
+    //   수정: consultation.counselor_id(정답)로 교정한 뒤 검증 (아래 consultation 블록 끝에서 수행).
 
     // 본인 작성자 정보
     const me = await this.sql<{ id: number; mb_id: string | null }[]>`
@@ -535,11 +541,31 @@ export class UserReviewsService {
         resolvedCounselorId = c.counselor_id;
       }
 
+      // [BUG FIX 2026-06-10] resolvedCounselorId(=consultation 정답) 기준 상담사 검증.
+      //   본인 상담(member_id=memberId)임은 위에서 확인됨. 그 상담의 상담사가 실제 counselor 인지 확인.
+      const cs = await this.sql<{ id: number; role: string | null }[]>`
+        SELECT id, role FROM member WHERE id = ${resolvedCounselorId} LIMIT 1
+      `;
+      if (cs.length === 0) throw new NotFoundException('상담사를 찾을 수 없습니다.');
+      if (cs[0].role !== 'counselor') {
+        throw new BadRequestException('해당 상담은 후기 작성 대상이 아닙니다.');
+      }
+
       // 동일 consultation 후기 중복 차단
+      // [BUG FIX 2026-06-10] extras 가 이중 인코딩(jsonb 안에 JSON 문자열)으로 저장된
+      //   레거시 데이터가 있어 `extras ->> 'consultation_id'` 가 항상 빈값 → 중복 차단 실패 →
+      //   코인 이중 지급 가능 버그. `(extras #>> '{}')::jsonb` 로 한 겹 풀면
+      //   이중 인코딩 데이터와 정상 jsonb 객체 양쪽 모두 매칭된다.
       const dup = await this.sql<{ id: number }[]>`
         SELECT id FROM post_review
          WHERE member_id = ${memberId}
-           AND (extras ->> 'consultation_id')::text = ${String(input.consultation_id)}
+           AND (
+             (extras ->> 'consultation_id') = ${String(input.consultation_id)}
+             OR (
+               jsonb_typeof(extras) = 'string'
+               AND ((extras #>> '{}')::jsonb ->> 'consultation_id') = ${String(input.consultation_id)}
+             )
+           )
          LIMIT 1
       `;
       if (dup.length > 0) {
@@ -570,7 +596,7 @@ export class UserReviewsService {
         ${memberId}, ${me[0].mb_id}, ${resolvedCounselorId},
         ${title}, ${content}, ${rating},
         ${!!input.is_secret}, ${!!input.photo_url},
-        ${JSON.stringify(extras)}::jsonb
+        ${this.sql.json(extras as never)}
       )
       RETURNING id
     `;
@@ -585,10 +611,10 @@ export class UserReviewsService {
     // 후기 작성 포인트 지급 (best-effort — 실패해도 후기 작성은 성공으로 본다).
     //  - setting.review.payout_enabled === '1' 이어야 함
     //  - amount > 0 이어야 함
+    //  - 사진 첨부 시 payout_photo_bonus 추가 지급
     //  - consultation_id 가 있고 consultation.amt >= payout_min_used 이어야 함
-    //    (payout_min_used 가 0 이면 사용 포인트 조건 없음)
     try {
-      await this.maybeCreditReviewPoint(memberId, inserted[0].id, consultationAmt);
+      await this.maybeCreditReviewPoint(memberId, inserted[0].id, consultationAmt, !!input.photo_url);
     } catch {
       /* 지급 실패는 응답에 노출하지 않음 — 후기 자체는 정상 저장됨 */
     }
@@ -639,6 +665,7 @@ export class UserReviewsService {
     memberId: number,
     reviewId: number,
     consultationAmt: number,
+    hasPhoto: boolean = false,
   ): Promise<void> {
     const settings = await this.sql<{ key: string; value: string | null }[]>`
       SELECT key, value FROM setting WHERE namespace = 'review'
@@ -647,15 +674,20 @@ export class UserReviewsService {
     for (const r of settings) map.set(r.key, r.value ?? '');
     const enabled = map.get('payout_enabled') === '1';
     if (!enabled) return;
-    const amount = Math.max(0, Math.trunc(Number(map.get('payout_amount') ?? '0')));
-    if (amount <= 0) return;
+    const baseAmount = Math.max(0, Math.trunc(Number(map.get('payout_amount') ?? '0')));
+    if (baseAmount <= 0) return;
+    const photoBonus = hasPhoto
+      ? Math.max(0, Math.trunc(Number(map.get('payout_photo_bonus') ?? '0')))
+      : 0;
+    const amount = baseAmount + photoBonus;
     const minUsed = Math.max(0, Math.trunc(Number(map.get('payout_min_used') ?? '0')));
-    // 사용포인트 조건: minUsed 가 0보다 크면 consultationAmt 가 그 이상이어야 한다.
-    // (상담 내역 없이 직접 작성된 후기는 consultationAmt=0 이라 minUsed>0 일 때 자연 차단)
     if (minUsed > 0 && consultationAmt < minUsed) return;
 
+    const content = hasPhoto && photoBonus > 0
+      ? `후기 작성 적립 (사진 포함 +${photoBonus.toLocaleString()}코인)`
+      : '후기 작성 적립';
+
     await this.sql.begin(async (tx) => {
-      // 만료일 — member.point_term 정책 따라
       const termRows = await tx<{ value: string | null }[]>`
         SELECT value FROM setting WHERE namespace = 'member' AND key = 'point_term' LIMIT 1
       `;
@@ -667,7 +699,6 @@ export class UserReviewsService {
         expireDate = dt.toISOString().slice(0, 10);
       }
 
-      // point row 보장 + 잠금
       let ptRows = await tx<{ free_balance: number; paid_balance: number }[]>`
         SELECT free_balance, paid_balance FROM point WHERE member_id = ${memberId} FOR UPDATE
       `;
@@ -690,11 +721,10 @@ export class UserReviewsService {
           member_id, content, earn_point, use_point, balance_after,
           is_paid, is_expired, expire_date, rel_action, actor_type
         ) VALUES (
-          ${memberId}, ${'후기 작성 적립'}, ${amount}, 0, ${balanceAfter},
+          ${memberId}, ${content}, ${amount}, 0, ${balanceAfter},
           false, false, ${expireDate}, ${`review:${reviewId}`}, 'system'
         )
       `;
-
       await tx`
         UPDATE point SET
           free_balance = free_balance + ${amount},
@@ -704,15 +734,111 @@ export class UserReviewsService {
       `;
       await tx`UPDATE member SET point = point + ${amount}, updated_at = now() WHERE id = ${memberId}`;
     });
+
+    // m2net 잔액 동기화 (트랜잭션 커밋 후) — 실패해도 후기 적립은 유지
+    this.syncM2netForMember(memberId, amount).catch(() => {});
+  }
+
+  /** m2net 잔액 동기화 헬퍼 — 회원 m2net_membid 조회 후 fill 호출 */
+  private async syncM2netForMember(memberId: number, delta: number): Promise<void> {
+    if (delta <= 0) return;
+    const rows = await this.sql<{ m2net_membid: string | null }[]>`
+      SELECT m2net_membid FROM member WHERE id = ${memberId} LIMIT 1
+    `;
+    const mb1 = rows[0]?.m2net_membid;
+    if (!mb1) return;
+    const sync = await this.m2net.addMemberCoin(mb1, delta);
+    if (!sync.ok) {
+      this.logger.warn(`[review.m2net] sync 실패 memberId=${memberId} mb1=${mb1} delta=${delta} err=${sync.error}`);
+    } else {
+      this.logger.log(`[review.m2net] sync 완료 memberId=${memberId} mb1=${mb1} +${delta}`);
+    }
+  }
+
+  /**
+   * 관리자 베스트 후기 토글 (2026-06-05).
+   *  - 관리자만 호출 가능 (컨트롤러에서 AdminAuthGuard 적용)
+   *  - true 로 선정 시: is_admin_best=true, admin_best_at=now(), 작성자에게 10,000코인 지급
+   *  - false 로 해제 시: is_admin_best=false, admin_best_at=NULL (코인 환수 없음)
+   */
+  async adminToggleBest(reviewId: number, isBest: boolean): Promise<{ ok: true; is_admin_best: boolean }> {
+    const rows = await this.sql<{ id: number; member_id: number | null; is_admin_best: boolean }[]>`
+      SELECT id, member_id, is_admin_best FROM post_review WHERE id = ${reviewId} LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('후기를 찾을 수 없습니다.');
+    const r = rows[0];
+    if (r.is_admin_best === isBest) return { ok: true, is_admin_best: isBest };
+
+    const bestAt = isBest ? new Date() : null;
+    await this.sql`
+      UPDATE post_review
+         SET is_admin_best = ${isBest}, admin_best_at = ${bestAt}
+       WHERE id = ${reviewId}
+    `;
+
+    // 선정 시 작성자에게 10,000코인 지급 + m2net 동기화 (1회만 — 멱등)
+    // DB UNIQUE INDEX uq_point_history_review_best (member_id, rel_action WHERE LIKE 'review_best:%')
+    // 가 race condition 을 원천 차단. ON CONFLICT DO NOTHING → inserted.length=0 이면 tx 롤백.
+    if (isBest && r.member_id) {
+      const BEST_COIN = 10000;
+      const memberId = r.member_id;
+      try {
+        await this.sql.begin(async (tx) => {
+          const termRows = await tx<{ value: string | null }[]>`
+            SELECT value FROM setting WHERE namespace = 'member' AND key = 'point_term' LIMIT 1
+          `;
+          const term = Number(termRows[0]?.value ?? 0) || 0;
+          let expireDate: string | null = null;
+          if (term > 0) {
+            const dt = new Date();
+            dt.setDate(dt.getDate() + term - 1);
+            expireDate = dt.toISOString().slice(0, 10);
+          }
+          let ptRows = await tx<{ free_balance: number; paid_balance: number }[]>`
+            SELECT free_balance, paid_balance FROM point WHERE member_id = ${memberId} FOR UPDATE
+          `;
+          if (ptRows.length === 0) {
+            await tx`INSERT INTO point (member_id, free_balance, paid_balance, total_earned, total_used) VALUES (${memberId}, 0, 0, 0, 0) ON CONFLICT (member_id) DO NOTHING`;
+            ptRows = await tx<{ free_balance: number; paid_balance: number }[]>`SELECT free_balance, paid_balance FROM point WHERE member_id = ${memberId} FOR UPDATE`;
+          }
+          const balanceAfter = Number(ptRows[0].free_balance) + Number(ptRows[0].paid_balance) + BEST_COIN;
+          // ON CONFLICT DO NOTHING — DB UNIQUE 제약으로 중복 원천 차단 (race condition 완전 방지)
+          const inserted = await tx<{ id: number }[]>`
+            INSERT INTO point_history (member_id, content, earn_point, use_point, balance_after, is_paid, is_expired, expire_date, rel_action, actor_type)
+            VALUES (${memberId}, '베스트 후기 선정 적립', ${BEST_COIN}, 0, ${balanceAfter}, false, false, ${expireDate}, ${`review_best:${reviewId}`}, 'system')
+            ON CONFLICT (member_id, rel_action) WHERE rel_action LIKE 'review_best:%' DO NOTHING
+            RETURNING id
+          `;
+          if (inserted.length === 0) {
+            // 이미 지급됨 — tx 롤백으로 point/member 업데이트도 방지
+            throw Object.assign(new Error('already_paid'), { isAlreadyPaid: true });
+          }
+          await tx`UPDATE point SET free_balance=free_balance+${BEST_COIN}, total_earned=total_earned+${BEST_COIN}, updated_at=now() WHERE member_id=${memberId}`;
+          await tx`UPDATE member SET point=point+${BEST_COIN}, updated_at=now() WHERE id=${memberId}`;
+        });
+        // m2net 동기화
+        this.syncM2netForMember(memberId, BEST_COIN).catch(() => {});
+        this.logger.log(`[adminToggleBest] ${BEST_COIN}코인 지급 완료 memberId=${memberId} reviewId=${reviewId}`);
+      } catch (e: any) {
+        if (e?.isAlreadyPaid) {
+          this.logger.log(`[adminToggleBest] 이미 지급됨 — skip memberId=${memberId} reviewId=${reviewId}`);
+        } else {
+          this.logger.warn(`[adminToggleBest] 코인 지급 실패 reviewId=${reviewId}: ${e}`);
+        }
+      }
+    }
+
+    return { ok: true, is_admin_best: isBest };
   }
 
   /** 본인 후기 삭제 — 작성 후 5분 이내 + 상담사 답변 없을 때만. */
   async deleteMine(id: number, memberId: number): Promise<void> {
-    const rows = await this.sql<{ member_id: number | null; created_at: Date }[]>`
-      SELECT member_id, created_at FROM post_review WHERE id = ${id} LIMIT 1
+    const rows = await this.sql<{ member_id: number | null; created_at: Date; counselor_id: number | null }[]>`
+      SELECT member_id, created_at, counselor_id FROM post_review WHERE id = ${id} LIMIT 1
     `;
     if (rows.length === 0) throw new NotFoundException('후기를 찾을 수 없습니다.');
-    if (Number(rows[0].member_id) !== memberId) throw new ForbiddenException('본인이 작성한 후기만 삭제할 수 있습니다.');
+    // Number() 양쪽 적용 — postgres.js BigInt → string 반환 + JWT sub 혼합 타입 대응
+    if (Number(rows[0].member_id) !== Number(memberId)) throw new ForbiddenException('본인이 작성한 후기만 삭제할 수 있습니다.');
 
     // 5분(300초) 이내만 삭제 가능
     const created = rows[0].created_at instanceof Date ? rows[0].created_at : new Date(rows[0].created_at as unknown as string);
@@ -725,10 +851,51 @@ export class UserReviewsService {
     `;
     if (reply.length > 0) throw new ForbiddenException('상담사가 답변한 후기는 삭제할 수 없습니다.');
 
-    const counselorRow = await this.sql<{ counselor_id: number | null }[]>`
-      SELECT counselor_id FROM post_review WHERE id = ${id} LIMIT 1
+    const counselorId = rows[0].counselor_id;
+
+    // 지급됐던 코인 회수 (후기 작성 시 지급된 free_balance 차감)
+    const paidHistory = await this.sql<{ earn_point: number }[]>`
+      SELECT earn_point FROM point_history
+       WHERE rel_action = ${'review:' + id}
+         AND member_id = ${Number(memberId)}
+       LIMIT 1
     `;
-    const counselorId = counselorRow[0]?.counselor_id;
+    if (paidHistory.length > 0) {
+      const refundAmt = Number(paidHistory[0].earn_point);
+      if (refundAmt > 0) {
+        try {
+          await this.sql.begin(async (tx) => {
+            await tx`
+              UPDATE point
+                 SET free_balance = GREATEST(0, free_balance - ${refundAmt}),
+                     total_earned  = GREATEST(0, total_earned  - ${refundAmt}),
+                     updated_at    = now()
+               WHERE member_id = ${Number(memberId)}
+            `;
+            await tx`
+              UPDATE member SET point = GREATEST(0, point - ${refundAmt}), updated_at = now()
+               WHERE id = ${Number(memberId)}
+            `;
+            await tx`
+              INSERT INTO point_history
+                (member_id, content, earn_point, use_point, balance_after, is_paid, is_expired, rel_action, actor_type)
+              SELECT
+                ${Number(memberId)},
+                '후기 삭제 코인 회수',
+                0,
+                ${refundAmt},
+                GREATEST(0, (SELECT free_balance + paid_balance FROM point WHERE member_id = ${Number(memberId)})),
+                false, false,
+                ${'review_deleted:' + id},
+                'system'
+            `;
+          });
+          this.logger.log(`[deleteMine] 코인 회수 ${refundAmt} memberId=${memberId} reviewId=${id}`);
+        } catch (e) {
+          this.logger.warn(`[deleteMine] 코인 회수 실패 reviewId=${id}: ${e}`);
+        }
+      }
+    }
 
     await this.sql`DELETE FROM post_review WHERE id = ${id}`;
 
@@ -869,8 +1036,10 @@ export interface PublicCounselorReview {
   is_secret: boolean;
   /** 베스트 후기 여부 (상담사가 선정) */
   is_best: boolean;
-  /** 베스트 선정 시각 — 정렬용. 해제 시 null */
   best_at: string | null;
+  /** 관리자 베스트 여부 (2026-06-05 신설) — 상담사 선정보다 상위 노출 */
+  is_admin_best: boolean;
+  admin_best_at: string | null;
   rating: number | null;
   created_at: string;
   /** 마스킹된 작성자명 (예: '김*객') */

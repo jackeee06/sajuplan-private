@@ -180,8 +180,17 @@ export default function CounselorMyCustomerQnaDetail() {
           </button>
           <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">고객 문의 관리</h1>
         </header>
-        <div className="flex items-center justify-center min-h-[50vh] text-[#6A7282] text-[14px]">
-          {error || '문의를 찾을 수 없습니다.'}
+        <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 px-6">
+          <p className="text-[14px] text-[#6A7282] text-center">
+            {error || '문의를 찾을 수 없습니다.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/counselor/mypage/customer-qnas')}
+            className="px-6 h-11 rounded-full bg-[#9b7af7] text-white text-[14px] font-semibold"
+          >
+            목록으로 돌아가기
+          </button>
         </div>
       </div>
     )

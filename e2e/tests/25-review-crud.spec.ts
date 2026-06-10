@@ -18,8 +18,8 @@ import * as path from 'node:path'
  *  Cleanup: afterAll 에서 후기 + consultation DB 직접 삭제
  */
 
-const API = (process.env.TARGET ?? 'test') === 'prod' ? 'api.sajuplan.com' : 'api.sajumoon.kr'
-const DOMAIN = (process.env.TARGET ?? 'test') === 'prod' ? 'sajuplan.com' : 'sajumoon.kr'
+const API = (process.env.TARGET ?? 'prod') === 'prod' ? 'api.sajuplan.com' : 'api.sajumoon.kr'
+const DOMAIN = (process.env.TARGET ?? 'prod') === 'prod' ? 'sajuplan.com' : 'sajumoon.kr'
 const DB_SCRIPT = path.resolve(__dirname, '../setup/db_consult.py')
 
 const MEMBER_ID = 140

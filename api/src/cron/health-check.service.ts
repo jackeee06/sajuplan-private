@@ -408,6 +408,32 @@ export class HealthCheckService {
       detail: c22[0].sample ?? undefined,
     });
 
+    // C-23: BizM 알림톡 템플릿 버튼 타입 무결성
+    // AL(앱링크) 타입이어야 하는 템플릿이 WL(웹링크)로 바뀌면 K108 오류로 발송 중단.
+    // BizM 콘솔과의 계약값 — AI 포함 누구도 임의 변경 금지 (_INFRA_LOCKED.md 참조).
+    const AL_TEMPLATES = [
+      'chat_request_to_counselor',
+      'counselor_request_v1',
+      'qa_ask_v2',
+      'qa_answer_v2',
+      'review_for_counselor_v2',
+      'review_req_v2',
+    ];
+    const c23 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG(template_code, ', ' ORDER BY template_code) AS sample
+        FROM alimtalk_template
+       WHERE template_code = ANY(${AL_TEMPLATES})
+         AND (primary_btn_type != 'AL' OR primary_btn_url NOT LIKE 'sajuplan://%')
+    `;
+    checks.push({
+      id: 'C-23',
+      name: 'BizM 알림톡 AL 버튼 타입 훼손 (K108 발송 중단)',
+      severity: 'critical',
+      violations: Number(c23[0].cnt),
+      detail: c23[0].sample ?? undefined,
+    });
+
     // 종합
     const critical = checks.filter((c) => c.severity === 'critical' && c.violations > 0);
     const warning = checks.filter((c) => c.severity === 'warning' && c.violations > 0);
@@ -433,6 +459,7 @@ export class HealthCheckService {
       'C-20': '관리자 > 선지급 > 지급 완료인데 정산 미차감 건 확인',
       'C-21': '관리자 > 선지급 > 30일 이상 방치된 신청 건 처리',
       'C-22': '관리자 > 상담사 > m2net 미등록 상담사 재등록 필요',
+      'C-23': 'DB alimtalk_template 즉시 확인 — BizM 콘솔 버튼 타입(AL)·URL(sajuplan://) 대조 후 수복. _INFRA_LOCKED.md 참조',
     };
 
     let alerted = false;

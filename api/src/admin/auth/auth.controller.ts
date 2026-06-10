@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AdminAuthService } from './auth.service';
 import { AdminAuthGuard, type AuthedRequest } from './admin-auth.guard';
@@ -61,6 +61,7 @@ export class AdminAuthController {
 
   @Get('me')
   @UseGuards(AdminAuthGuard)
+  @SkipThrottle()
   me(@Req() req: AuthedRequest) {
     return {
       id: req.admin.sub,

@@ -1,8 +1,18 @@
-# [AI 전용] incoming 채팅 3단 안전망 — 기술 상세
+# [AI 전용] incoming 채팅 4단 안전망 — 기술 상세
 
 ## 정책 박제
 
 `_PREPAID_CHAT_POLICY.md` §15.
+
+## FCM 푸시 (2026-06-08 추가) — 폴링 한계 보완
+
+`notifyCounselorChatRequest()` 안에서 알림톡과 함께 FCM 푸시 발송.
+- 파일: `consult.service.ts` `notifyCounselorChatRequest()` (startChat 에서 `void` 호출)
+- **알림톡(phone 없어도 push 시도) + FCM 푸시를 분리 실행** — 각각 try/catch 독립
+- FCM payload: `{ type:'chat_request', counselor_id, chat_room_id, link:'/chat/{id}' }`
+- 토큰 조회: `member_push_token WHERE member_id=상담사 AND is_active=true`
+- **인앱 모달(아래 1번)은 앱 포그라운드 폴링 한정 → 앱 백그라운드/종료 시 푸시가 유일 도달 경로**
+- 전화 요청(`counselors.service.ts requestConsult`)과 동일 패턴 (그쪽은 2026-05-25부터 적용, 채팅은 누락됐다가 06-08 추가)
 
 ## 3가지 UI 컴포넌트
 

@@ -52,6 +52,7 @@ import PopupLayerForm from './pages/PopupLayerForm'
 import PushNotifications from './pages/PushNotifications'
 import PushGuide from './pages/PushGuide'
 import AlertGuide from './pages/AlertGuide'
+import CouponCoinGuide from './pages/CouponCoinGuide'
 import PopupLayerList from './pages/PopupLayerList'
 
 import SearchKeywords from './pages/SearchKeywords'
@@ -178,6 +179,7 @@ export default function App() {
               <Route path="/push-notifications" element={<PushNotifications />} />
               <Route path="/push-guide" element={<PushGuide />} />
               <Route path="/alert-guide" element={<AlertGuide />} />
+              <Route path="/coupon-coin-guide" element={<CouponCoinGuide />} />
               <Route path="/alimtalk-templates" element={<AlimtalkTemplates />} />
 
               {/* 통계 */}

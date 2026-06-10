@@ -27,32 +27,24 @@ const WEB_BASE: Record<string, string> = {
   test: 'https://sajumoon.kr',
   prod: 'https://sajuplan.com',
 }
-const TARGET = process.env.TARGET ?? 'test'
+const TARGET = process.env.TARGET ?? 'prod'
 const BASE = API_BASE[TARGET] ?? API_BASE.test
 const WEB = WEB_BASE[TARGET] ?? WEB_BASE.test
 
 test.describe(`후기 5분 정책 회귀 방지 (${TARGET})`, () => {
+  test.use({ storageState: 'user_member_storage.json' })
+
   test('1) consultation_id 없는 후기 작성 → 400 (상담 내역 필수)', async ({ page }) => {
-    if (TARGET === 'prod') test.skip()
-    // test 서버 e2e_member 인증
+    // TEST 서버 폐기(2026-05-29) → prod 단일. storageState 세션 사용.
     await page.goto(`${WEB}/`, { waitUntil: 'domcontentloaded' })
-    const loginOk = await page.evaluate(async (base) => {
-      const r = await fetch(`${base}/api/user/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mb_id: 'e2e_member', password: 'e2e_test_2026' }),
-        credentials: 'include',
-      })
-      return r.ok
-    }, BASE)
-    test.skip(!loginOk, 'e2e_member 로그인 실패 — test 서버 down')
+    await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {})
 
     const result = await page.evaluate(async (base) => {
       const r = await fetch(`${base}/api/user/reviews`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          counselor_id: 1,
+          counselor_id: 102,  // prod에 존재하는 dummy_01 상담사 ID
           title: '테스트',
           content: '테스트 본문',
           // consultation_id 의도적 누락
@@ -77,7 +69,8 @@ test.describe(`후기 5분 정책 회귀 방지 (${TARGET})`, () => {
   })
 
   test('3) 프론트 빌드 산출물 — "5분 이상 상담 후" 안내 텍스트 존재', async ({ page }) => {
-    await page.goto(`${WEB}/`, { waitUntil: 'networkidle' })
+    await page.goto(`${WEB}/`, { waitUntil: 'domcontentloaded' })
+    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {})
     const allScripts = await page.evaluate(async () => {
       const scripts = Array.from(document.querySelectorAll('script[src]'))
         .map((s) => (s as HTMLScriptElement).src)

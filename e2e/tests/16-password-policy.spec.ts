@@ -22,7 +22,7 @@ const API_BASE: Record<string, string> = {
   test: 'https://api.sajumoon.kr',
   prod: 'https://api.sajuplan.com',
 }
-const TARGET = process.env.TARGET ?? 'test'
+const TARGET = process.env.TARGET ?? 'prod'
 const BASE = API_BASE[TARGET] ?? API_BASE.test
 
 // 가입 페이로드 — password 만 변경하면서 검증.
@@ -41,9 +41,9 @@ function payload(password: string) {
 }
 
 test.describe(`비밀번호 정책 (${TARGET})`, () => {
-  test.beforeAll(() => {
-    if (TARGET === 'prod') test.skip(true, 'prod 가입 시도 위험 → skip')
-  })
+  // TEST 서버 폐기(2026-05-29) → prod 단일. 비번 정책 검증은 유효하지 않은 비번 → 400만 보므로 안전.
+  // test 4는 유효 비번이지만 phone=01000000000 으로 다른 이유로 실패 → 계정 생성 X.
+
 
   test('너무 짧음 (3자리) → 400 + 정책 메시지', async () => {
     const ctx = await request.newContext()

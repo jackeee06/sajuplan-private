@@ -141,7 +141,6 @@ export default function CounselorMyCustomerQnas() {
                     <span className="flex-1 text-[15px] font-semibold text-[#030712] truncate">
                       {q.title}
                     </span>
-                    <MoreIcon />
                   </div>
                   <p className="mt-1 text-[14px] leading-[140%] text-[#6A7282] line-clamp-2">
                     {q.content}
@@ -169,9 +168,7 @@ export default function CounselorMyCustomerQnas() {
 function MoreIcon() {
   return (
     <svg viewBox="0 0 24 24" className="w-5 h-5 shrink-0" fill="none" aria-hidden>
-      <circle cx="12" cy="6" r="1.4" fill="#6A7282" />
-      <circle cx="12" cy="12" r="1.4" fill="#6A7282" />
-      <circle cx="12" cy="18" r="1.4" fill="#6A7282" />
+      <path d="M9 18l6-6-6-6" stroke="#9CA3AF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

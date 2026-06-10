@@ -21,7 +21,7 @@ export function Th({ children, align = 'left' }: { children: ReactNode; align?: 
   const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
   return (
     <th
-      className={`px-3 py-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap ${alignCls}`}
+      className={`px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap ${alignCls}`}
     >
       {children}
     </th>
@@ -38,7 +38,7 @@ export function Td({
   className?: string
 }) {
   const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
-  return <td className={`px-3 py-1.5 whitespace-nowrap ${alignCls} ${className ?? ''}`}>{children}</td>
+  return <td className={`px-2 py-1 whitespace-nowrap ${alignCls} ${className ?? ''}`}>{children}</td>
 }
 
 export function THead({ children, sticky }: { children: ReactNode; sticky?: boolean }) {
@@ -53,7 +53,7 @@ export function TableShell({ children, minWidth, maxHeight }: { children: ReactN
   return (
     <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden w-fit max-w-full">
       <div className={`overflow-x-auto ${maxHeight ?? ''}`}>
-        <table className={`text-sm w-auto ${minWidth ?? ''}`}>{children}</table>
+        <table className={`text-xs w-auto ${minWidth ?? ''}`}>{children}</table>
       </div>
     </div>
   )

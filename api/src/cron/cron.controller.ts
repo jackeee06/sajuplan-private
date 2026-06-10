@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Inject, Post, Query, UseGuards } from '@nestjs/common';
 import { ResetService } from './reset.service';
 import { SettlementCronService } from './settlement-cron.service';
 import { GradeCronService } from './grade-cron.service';
@@ -10,6 +10,8 @@ import { UserConsultService } from '../user/consult/consult.service';
 import { UserChatService } from '../user/chat/chat.service';
 import { M2netPushService } from '../pg-callbacks/m2net-push.service';
 import { DailySummaryService } from './daily-summary.service';
+import { PushService } from '../shared/push/push.service';
+import { SQL, type Sql } from '../shared/db/db.module';
 
 /**
  * 외부 cron 진입점.
@@ -38,6 +40,8 @@ export class CronController {
     private readonly chat: UserChatService,
     private readonly m2netPush: M2netPushService,
     private readonly dailySummary: DailySummaryService,
+    private readonly push: PushService,
+    @Inject(SQL) private readonly sql: Sql,
   ) {}
 
   // [2026-05-29] 매일 09:00 KST — 어제 활동 요약 사장님 카톡 발송.
@@ -139,6 +143,59 @@ export class CronController {
     return { ok: true, result: r };
   }
 
+  // 실시간 승급 인앱 알림 테스트 — mb_id 회원에게 "미확인 승급" row 1건 주입.
+  //   GET /api/cron/test-inapp-alert?mb_id=jackee&token=...
+  //   [2026-06-07] 메모리 큐 → 출석 토스트 방식 전환. member_grade_history 에 notified_at=NULL
+  //   가짜 승급 row 를 넣으면, 상담사가 화면 진입 시 GradeUpgradeToast 가 조회해 1회 팝업.
+  //   ※ member.grade 는 건드리지 않음 (실제 등급 영향 0). cleanup=1 이면 테스트 row 삭제.
+  @Get('test-inapp-alert')
+  async testInappAlert(
+    @Query('mb_id') mbId?: string,
+    @Query('cleanup') cleanup?: string,
+  ) {
+    if (!mbId) throw new BadRequestException('mb_id 필수');
+    const rows = await this.sql<{ id: number; nickname: string | null; grade: string }[]>`
+      SELECT id, nickname, grade FROM member WHERE mb_id = ${mbId} LIMIT 1
+    `;
+    if (rows.length === 0) throw new BadRequestException('회원 없음');
+    const m = rows[0];
+
+    if (cleanup === '1') {
+      const del = await this.sql`
+        DELETE FROM member_grade_history
+         WHERE member_id = ${m.id} AND changed_by = 'realtime' AND reason LIKE '[TEST]%'
+      `;
+      return { ok: true, cleaned: del.count, mb_id: mbId };
+    }
+
+    // 가짜 미확인 승급 row INSERT (파트너5, 당월 120.3h). notified_at NULL = 알림 대기.
+    await this.sql`
+      INSERT INTO member_grade_history
+        (member_id, grade_before, grade_after, last_month_seconds, change_type, changed_by, reason)
+      VALUES
+        (${m.id}, 'partner4', 'partner5', ${Math.round(120.3 * 3600)},
+         'promote', 'realtime', '[TEST] 인앱 알림 검증용')
+    `;
+
+    // FCM 포그라운드 인앱 배너 즉시 발송 — 앱이 켜져 있으면 바로 표시
+    const tokenRows = await this.sql<{ token: string }[]>`
+      SELECT token FROM member_push_token WHERE member_id = ${m.id} AND token IS NOT NULL LIMIT 10
+    `;
+    let fcmSent = 0;
+    if (tokenRows.length > 0) {
+      await this.push.sendToTokens(
+        tokenRows.map((r) => r.token),
+        {
+          title: '🎉 파트너5로 승급되었습니다!',
+          body: '당월 120.3시간 달성으로 즉시 승급됐어요. 단가를 변경하세요.',
+          data: { event_url: '/counselor/mypage', type: 'grade_upgraded', new_grade: 'partner5' },
+        },
+      );
+      fcmSent = tokenRows.length;
+    }
+    return { ok: true, memberId: m.id, mb_id: mbId, nickname: m.nickname, fcmSent };
+  }
+
   // [Audit C-#9] 채팅 정산 재시도 — M2NET 일시 장애로 미정산된 chat_room 처리.
   //   GET /api/cron/retry/chat-settle
   //   crontab 예 (10분 간격): '0,10,20,30,40,50 * * * * curl ...retry/chat-settle?token=...'
@@ -172,10 +229,18 @@ export class CronController {
     @Query('month') month?: string,
     @Query('test') test?: string,
     @Query('mb_id') mbId?: string,
+    @Query('reset_recalc') resetRecalc?: string,
   ) {
     const monthArg = month && /^\d{4}-\d{2}$/.test(month) ? month : undefined;
     const testOnly = test === '1' || test === 'true';
     const mbIdArg = mbId && /^[A-Za-z0-9._-]{1,100}$/.test(mbId) ? mbId : undefined;
+    // reset_recalc=1: 멱등성 우회 — E2E 테스트 전용 (mb_id 지정 시만 허용)
+    const doResetRecalc = resetRecalc === '1' && !!mbIdArg;
+    if (doResetRecalc && mbIdArg) {
+      await this.sql`
+        UPDATE member SET grade_recalculated_at = NULL WHERE mb_id = ${mbIdArg} AND role = 'counselor'
+      `;
+    }
     try {
       return await this.grade.recalculate(monthArg, testOnly, mbIdArg);
     } catch (e) {
