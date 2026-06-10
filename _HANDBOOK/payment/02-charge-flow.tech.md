@@ -7,6 +7,28 @@
 - callback 엔드포인트: `POST /api/pg/ag9/callback`
 - 정산: AG9 측 별도 (사주플랜 결제일 ↔ AG9 입금일 차이)
 
+## 충전 금액 정책 (2026-06-10 갱신)
+
+- `charge.service.ts` `prepareCharge()`:
+  ```typescript
+  const payAmount = Math.round(pkg.amount * 1.1); // VAT 가산
+  // sample/coin_fill.php 라인 70: 최소 결제 금액 30,000원.
+  if (payAmount < 30000) {
+    throw new BadRequestException('최소 결제 금액은 30,000원입니다.');
+  }
+  ```
+- 과거 테스트용으로 `payAmount < 10`(10원)까지 허용하도록 임시 완화돼 있던 것을 **30,000원으로 복구**.
+- prod DB `account_setting` 의 `id=23` "(가상계좌) 10원 테스트" 패키지(`amount=9`)를 **`is_active=FALSE`** 로 비활성화 (실 사용자 9원 결제 차단).
+- 활성 패키지: 3만 / 5만 / 10만 / 20만 / 30만 (`account_setting.is_active=TRUE`). 10만 이상은 보너스 코인 포함. 모두 `amount × 1.1` 결제.
+
+```sql
+-- 활성 충전 패키지 확인
+SELECT id, name, amount, is_active
+FROM account_setting
+WHERE type='charge'  -- 충전 패키지
+ORDER BY amount;
+```
+
 ## 충전 흐름 (코드)
 
 ```typescript

@@ -11,7 +11,7 @@ sftp = ssh.open_sftp()
 remote_root = "/data/wwwroot/api.sajumoon.co.kr/_HANDBOOK"
 
 # 디렉토리 생성
-for d in ["admin","alert","auth","board","chat","counselor","member","payment","promotion","stats","system"]:
+for d in ["admin","alert","auth","board","chat","counselor","member","payment","promotion","stats","system","user"]:
     ssh.exec_command(f"mkdir -p {remote_root}/{d}")[1].channel.recv_exit_status()
 
 files = glob.glob("_HANDBOOK/**/*", recursive=True)

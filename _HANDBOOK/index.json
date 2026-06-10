@@ -24,8 +24,8 @@
         { "slug": "payment/02-charge-flow", "title": "충전 흐름 (PG·m2net 이중 적립 + 안전망)", "tags": ["충전", "PG", "AG9", "이중적립", "정정", "결제", "코인충전", "이중충전방어", "correctM2netDoubleFill"] },
         { "slug": "payment/03-coin-system", "title": "코인 구조 (소비·적립·수익금)", "tags": ["코인", "포인트", "소비", "적립", "수익금", "free", "paid", "earning", "free_balance", "paid_balance", "earning_balance", "유료코인", "무료코인", "코인구조"] },
         { "slug": "payment/04-refund", "title": "환불 정책 (G·고객보호비용)", "tags": ["환불", "G정책", "5초", "고객보호비용", "short_call_refund", "환불처리", "결제취소", "코인환불", "30초미만"] },
-        { "slug": "payment/05-settlement", "title": "상담사 정산 (단가·등급·원천세)", "tags": ["정산", "단가", "등급", "원천세", "3.3%", "월정산", "정산률", "공급가", "부가세", "회선비", "실수령", "추천수당", "이월음수", "선지급차감"] },
-        { "slug": "payment/06-payout", "title": "선지급 정책 (수수료·가용·한도)", "tags": ["선지급", "수수료", "가용", "payout", "원천징수", "가불", "조기정산", "수수료5%", "가용70%", "일1회", "즉시입금", "은행이체"] },
+        { "slug": "payment/05-settlement", "title": "상담사 정산 (수익금 합산·원천세 3.3% — 전환중·cron차단)", "tags": ["정산", "수익금", "earning_balance", "원천세", "3.3%", "월정산", "실지급액", "정산예상금액", "선지급차감", "정산하기버튼", "settleOne", "markPaid", "cron차단", "정산단순화", "전환중", "부가세제거", "회선비제거"] },
+        { "slug": "payment/06-payout", "title": "선지급 정책 (수익금70%·수수료5%·원천세3.3%·최소3만원)", "tags": ["선지급", "수수료", "가용", "payout", "원천징수", "가불", "조기정산", "수수료5%", "가용70%", "수익금70%", "earning_balance", "일1회", "최소3만원", "30000원", "즉시입금", "은행이체", "settled_at", "미정산선지급", "정산제외", "이중지급방지", "정산연동", "prod0건"] },
         { "slug": "payment/07-auto-charge", "title": "사주플랜페이 자동충전", "tags": ["자동충전", "사주플랜페이", "카드", "빌링키", "AG9", "자동결제", "카드등록", "잔액부족", "자동입금"] },
         { "slug": "payment/08-coupon-coin-policy", "title": "쿠폰 & 무료코인 정책 (2026-06-07 확정)", "tags": ["쿠폰", "무료코인", "free_balance", "회원가입코인", "출석코인", "후기코인", "쿠폰정책", "이중지급금지", "관리자수동발급", "코드입력쿠폰", "쿠폰함", "즉시지급"] },
         { "slug": "payment/09-postpaid-consultation", "title": "후불 상담 시스템 (미완성·개발보류 2026-06-08)", "tags": ["후불", "후불상담", "060", "후불결제", "통화후청구", "선불비교", "POSTPAID_ENABLED", "5000878", "060계약", "미수금", "결제방식미결정", "후불탭숨김", "개발보류", "m2net후불", "통신사수수료"] }
@@ -37,7 +37,7 @@
       "icon": "🔐",
       "order": 3,
       "items": [
-        { "slug": "auth/01-signup-auth", "title": "사용자 인증 (가입·로그인·OAuth·비번찾기)", "tags": ["가입", "로그인", "OAuth", "카카오", "네이버", "비번찾기", "인증번호", "SMS인증", "소셜로그인", "회원가입", "로그인실패"] }
+        { "slug": "auth/01-signup-auth", "title": "사용자 인증 (가입·로그인·OAuth·비번찾기)", "tags": ["가입", "로그인", "OAuth", "카카오", "네이버", "비번찾기", "인증번호", "SMS인증", "소셜로그인", "회원가입", "로그인실패", "회원가입코인", "register_point", "가입보상", "회원가입쿠폰폐지", "소셜가입코인"] }
       ]
     },
     {
@@ -46,7 +46,7 @@
       "icon": "👤",
       "order": 4,
       "items": [
-        { "slug": "member/01-signup", "title": "회원 가입 흐름 (m2net 등록 포함)", "tags": ["가입", "회원가입", "m2net_membid", "신규회원", "가입흐름"] },
+        { "slug": "member/01-signup", "title": "회원 가입 흐름 (m2net 등록 포함)", "tags": ["가입", "회원가입", "m2net_membid", "신규회원", "가입흐름", "회원가입코인", "register_point", "가입보상", "소셜가입코인"] },
         { "slug": "member/02-roles", "title": "역할 (member · counselor · admin)", "tags": ["역할", "role", "권한", "회원", "상담사", "관리자", "듀얼계정"] },
         { "slug": "member/03-attendance", "title": "출석 보상 시스템 (일일100코인·연속보너스·30일쿠폰)", "tags": ["출석", "보상", "free_balance", "출석보상", "연속출석", "연속보너스", "30일쿠폰", "출석코인", "무료코인출석", "5일", "10일", "15일", "20일", "30일"] },
         { "slug": "member/04-dual-account", "title": "회원↔상담사 모드 전환", "tags": ["듀얼", "모드 전환", "ModeIndicator", "회원모드", "상담사모드", "계정전환"] },
@@ -55,10 +55,26 @@
       ]
     },
     {
+      "key": "user",
+      "title": "사용자 화면",
+      "icon": "📱",
+      "order": 5,
+      "items": [
+        { "slug": "user/01-signup-login", "title": "회원가입/로그인/비밀번호찾기 (B-1)", "tags": ["가입", "회원가입", "로그인", "비밀번호찾기", "비번찾기", "SMS인증", "휴대폰인증", "비밀번호정책", "8자", "영문숫자", "아이디중복확인", "check-mb-id", "로그인실패", "계정노출방지", "find-phone", "find-email", "임시비밀번호", "비밀번호재설정", "JWT", "sub정규화", "소셜로그인", "카카오", "네이버", "B-1"] },
+        { "slug": "user/02-counselor-browse", "title": "상담사 목록/필터/검색 (B-2)", "tags": ["상담사목록", "상담사리스트", "필터", "검색", "인기검색어", "분야칩", "카테고리탭", "사주", "타로", "신점", "심리", "상담가능만", "이벤트상담사", "재회", "정렬", "상담중", "부재", "상담요청하기", "더보기", "페이지네이션", "해시태그검색", "FilterDropdown", "CounselorCard", "뱃지색", "단골하트", "counselor_category", "popular-keywords", "search_log", "search_keyword_pin", "핀고정", "filter-options"] },
+        { "slug": "user/03-counselor-detail", "title": "상담사 상세 (탭·공지·후기·문의)", "tags": ["상담사상세", "상세페이지", "탭", "소개탭", "후기탭", "문의탭", "공지사항", "sticky", "탭스크롤", "dangerouslySetInnerHTML", "sanitizeIntroHtml", "공지HTML", "원시태그", "카테고리뱃지", "BADGE_BG", "전속파트너", "단골하트", "전화상담", "채팅상담", "후기더보기", "PAGE_SIZE", "404", "찾을수없습니다", "CounselorDetail", "CounselorDetailLayout", "tab=reviews", "tab=qna", "BADGE", "히어로이미지", "OG메타"] },
+        { "slug": "user/04-favorites", "title": "B-4 단골(즐겨찾기) 사용자 흐름 (추가·조회·제거·본인차단)", "tags": ["단골", "즐겨찾기", "favorites", "하트", "좋아요", "fan_count", "팬수", "단골추가", "단골해제", "단골목록", "멱등", "본인차단", "self차단", "403", "비로그인401", "로그인모달", "접속중단골", "단골배너", "B-4", "member_favorite_counselor", "like", "toggleLike"] },
+        { "slug": "user/05-review", "title": "후기 CRUD + 비즈룰 (작성·5분룰·답변후잠금) (B-5)", "tags": ["후기", "리뷰", "후기작성", "후기수정", "후기삭제", "consultation_id", "상담내역필수", "5분", "300초", "7일", "1상담1후기", "중복후기", "409", "답변후수정불가", "본인상담만", "후기코인", "500코인", "사진후기", "베스트후기", "10000코인", "후기신고", "공개강제", "B-5"] },
+        { "slug": "user/06-qna", "title": "문의(QnA) CRUD + 비즈룰 (하루5개·본인페이지금지·비공개) (B-6)", "tags": ["문의", "QnA", "1:1문의", "문의작성", "문의수정", "문의삭제", "하루5개", "본인페이지금지", "self문의", "403", "비공개", "제3자비밀", "답변후잠금", "문의신고", "JWT sub버그", "Number정규화", "B-6"] },
+        { "slug": "user/07-my-history", "title": "내 상담 내역 (전화·채팅) (B-7)", "tags": ["상담내역", "내상담", "전화상담내역", "채팅상담내역", "mypage-calls", "mypage-chats", "사용시간", "사용코인", "연결실패숨김", "counselor_id NULL", "0초0원", "self상담차단", "후기버튼", "B-7"] },
+        { "slug": "user/08-mypage", "title": "마이페이지 전체 탭 (B-8)", "tags": ["마이페이지", "mypage", "회원정보", "회원정보수정", "쿠폰함", "결제내역", "코인내역", "포인트내역", "충전", "앱설정", "공지", "이벤트", "보호라우트", "비로그인리다이렉트", "코인용어", "MyPageEntry", "B-8"] }
+      ]
+    },
+    {
       "key": "counselor",
       "title": "상담사 운영",
       "icon": "🎧",
-      "order": 5,
+      "order": 6,
       "items": [
         { "slug": "counselor/01-apply", "title": "상담사 신청 + 승인 흐름", "tags": ["신청", "승인", "counselor_apply", "상담사등록", "신청서", "심사", "반려", "승인절차"] },
         { "slug": "counselor/02-grade-pricing", "title": "등급별 단가 시스템 (예비~파트너5·정산률·실시간승급·FCM알림)", "tags": ["등급", "단가", "마진", "정산률", "예비파트너", "파트너1", "파트너2", "파트너3", "파트너4", "파트너5", "임계값", "당월누적상담시간", "실시간승급", "즉시승급", "승급알림", "강등", "재산정", "월1일", "등급분포", "프로그레스바", "grade_at_session", "구간정산", "FCM승급알림", "인앱승급모달", "GradeUpgradeToast", "counselor_grade_upgraded"] },
@@ -71,11 +87,11 @@
       "key": "alert",
       "title": "알림 (BizM · FCM · 인앱)",
       "icon": "🔔",
-      "order": 6,
+      "order": 7,
       "items": [
         { "slug": "alert/01-channels", "title": "알림 채널 정책 (알림톡·인앱·푸시)", "tags": ["알림", "채널", "BizM", "FCM", "알림톡", "인앱알림", "푸시알림", "채널정책", "알림전략"] },
         { "slug": "alert/02-bizm-templates", "title": "BizM 알림톡 템플릿 (전수)", "tags": ["BizM", "템플릿", "알림톡", "카카오알림톡", "알림톡템플릿", "BizM검수", "v1", "v2"] },
-        { "slug": "alert/03-fcm-push", "title": "FCM 푸시 시스템 (data.event_url)", "tags": ["FCM", "푸시", "deep link", "앱푸시", "푸시알림", "event_url", "FCM토큰"] },
+        { "slug": "alert/03-fcm-push", "title": "FCM 푸시 시스템 (토픽구조·딥링크·키갱신)", "tags": ["FCM", "푸시", "deep link", "앱푸시", "푸시알림", "event_url", "FCM토큰", "chl_5", "chl_2", "chl_all", "토픽구독", "서비스계정키", "invalid_grant", "키만료", "키갱신", "sajummon-5a4c0", "onNotificationOpen", "getInitialNotification", "sendToTokens", "sendToTopic", "딥링크", "푸시안옴", "푸시글자깨짐", "브로드캐스트버그", "push-test"] },
         { "slug": "alert/04-ops-alert", "title": "운영 알림 (OpsAlert 28건)", "tags": ["운영 알림", "OpsAlert", "ops_admin_alert", "이상감지", "알림톡수신", "운영자알림", "28건"] },
         { "slug": "alert/05-bulk-alimtalk", "title": "알림톡 일괄 발송 (alimtalk-bulk)", "tags": ["일괄 발송", "마케팅", "공지", "알림톡발송", "대량발송", "카카오일괄"] },
         { "slug": "alert/06-inapp-notifications", "title": "인앱 알림 시스템 (notifications)", "tags": ["인앱 알림", "종모양", "읽음", "인앱", "알림뱃지", "알림읽음처리"] }
@@ -85,7 +101,7 @@
       "key": "promotion",
       "title": "추천수익금·쿠폰",
       "icon": "🎁",
-      "order": 7,
+      "order": 8,
       "items": [
         { "slug": "promotion/01-coupon", "title": "쿠폰 시스템 (발급·사용·쿠폰존)", "tags": ["쿠폰", "발급", "쿠폰존", "할인", "코드쿠폰", "다운로드쿠폰", "가입쿠폰", "쿠폰캠페인", "할인코드", "프로모코드", "무료코인쿠폰", "쿠폰사용", "쿠폰만료"] },
         { "slug": "promotion/02-referral", "title": "추천인 시스템 v2 (CSR코드·수수료·6개월)", "tags": ["추천", "추천인", "referral", "보상", "추천코드", "CSR코드", "인센티브", "추천자", "피추천자", "추천수익", "6개월", "2%", "1%", "매월지급", "추천관계", "추천수당"] }
@@ -95,16 +111,16 @@
       "key": "board",
       "title": "게시판·콘텐츠",
       "icon": "📝",
-      "order": 8,
+      "order": 9,
       "items": [
-        { "slug": "board/01-overview", "title": "게시판 시스템 개요 (후기·문의·공지·이벤트·FAQ)", "tags": ["게시판", "후기", "문의", "공지", "이벤트", "FAQ", "신고", "베스트후기", "후기관리", "후기신고", "게시판신고", "인기검색어", "핀고정"] }
+        { "slug": "board/01-overview", "title": "게시판 시스템 개요 (후기·문의·공지·이벤트·FAQ)", "tags": ["게시판", "후기", "문의", "공지", "이벤트", "FAQ", "신고", "베스트후기", "후기관리", "후기신고", "게시판신고", "인기검색어", "핀고정", "후기코인", "후기사진", "사진업로드", "이중지급", "webp", "듀얼역할"] }
       ]
     },
     {
       "key": "stats",
       "title": "통계·KPI",
       "icon": "📊",
-      "order": 9,
+      "order": 10,
       "items": [
         { "slug": "stats/01-ops-kpi", "title": "운영 KPI (매출·MAU·정산)", "tags": ["KPI", "매출", "MAU", "통계", "방문자", "매출통계", "방문통계", "일별", "월별", "트래픽", "DAU", "매출추이", "핵심지표"] },
         { "slug": "stats/02-daily-summary", "title": "Daily Summary cron (매일 09시 운영 요약)", "tags": ["일일 요약", "daily-summary", "cron", "매일요약", "운영현황", "09시", "자동요약"] }
@@ -114,7 +130,7 @@
       "key": "admin",
       "title": "관리자 운영",
       "icon": "🛡️",
-      "order": 10,
+      "order": 11,
       "items": [
         { "slug": "admin/01-permissions", "title": "관리자 권한 (슈퍼·일반·가시성)", "tags": ["권한", "슈퍼", "일반관리자", "SuperOnlySection", "슈퍼관리자", "권한분리", "가시성", "빨강숨김", "노랑읽기전용"] },
         { "slug": "admin/02-memo", "title": "관리자 메모장", "tags": ["메모", "Toast UI", "관리자", "메모장", "운영메모", "기록"] },
@@ -128,7 +144,7 @@
       "key": "system",
       "title": "시스템·인프라",
       "icon": "⚙️",
-      "order": 11,
+      "order": 12,
       "items": [
         { "slug": "system/00-overview", "title": "🗺️ 플랫폼 전체 개요 (입문 필독)", "tags": ["입문", "개요", "전체구조", "아키텍처", "기술스택", "도메인", "배포", "돈흐름", "등급", "cron", "알림", "신규개발자", "온보딩", "blueprint", "설계도", "플랫폼이해"] },
         { "slug": "system/01-domains", "title": "도메인 매핑 (PROD · 옛 도메인)", "tags": ["도메인", "sajuplan.com", "sajumoon", "TEST", "배포경로", "nginx", "죽은폴더", "도메인구조"] },

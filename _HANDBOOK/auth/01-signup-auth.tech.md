@@ -18,6 +18,34 @@ password: string;
 - DB: `sms_auth (phone, auth_code, expires_at)`
 - 발송: BizM 알림톡 `register_num_v2` 우선 + 실패 시 알리고 SMS 폴백 (현재 미설정, 메모리 `[[alimtalk-bizm-only]]`)
 
+## 회원가입 코인 지급 (register_point)
+
+- 가입 완료 시 `creditRegisterPoint(memberId)` 호출 → `setting.member.register_point` 값(예: 10,000)을 코인으로 즉시 지급 + m2net 동기화. best-effort (실패해도 가입 진행).
+- **로컬 가입**: `auth.service.ts:createLocalMember()` 내부에서 `creditRegisterPoint()` 호출 (`auth.service.ts:535-537`).
+- **소셜 가입**: `auth.controller.ts:signup()` 의 소셜 분기에서 `creditRegisterPoint(created.id)` 호출 (`auth.controller.ts:1022`).
+
+```typescript
+// auth.service.ts
+async creditRegisterPoint(memberId: number): Promise<void> {
+  const rows = await this.sql`SELECT value FROM setting WHERE namespace='member' AND key='register_point' LIMIT 1`;
+  const amount = Math.max(0, Math.trunc(Number(rows[0]?.value ?? '0')));
+  if (amount <= 0) return;
+  await this.creditPointToMember(memberId, amount, '회원가입 적립', 'register_point');
+}
+```
+
+### [BUG FIX 2026-06-10] 소셜 가입 코인 누락
+
+- **증상**: 카카오/네이버 가입자가 회원가입 코인(10,000)을 못 받음. 로컬 가입자만 받음.
+- **원인**: 로컬 가입(`createLocalMember`)은 `creditRegisterPoint` 호출. 소셜 가입(`auth.controller.signup` 소셜 분기)은 폐지된 `issueSignupCoupon`(쿠폰)만 호출했고 쿠폰존도 비활성 → 0 지급.
+- **수정**: 소셜 분기에 `creditRegisterPoint(created.id)` 추가 + 폐지된 `issueSignupCoupon` 호출 제거(이중지급 방지).
+- **소급**: 기존 소셜 가입자 9명(카카오 3 + 네이버 6)에게 각 10,000 코인 수동 소급 지급 완료.
+
+### [정책 2026-06-07] 회원가입 쿠폰 폐지
+
+- `issueSignupCoupon()` 는 더 이상 가입 경로에서 호출하지 않음 (메서드 자체는 잔존하나 호출처 제거).
+- 가입 보상은 `register_point`(즉시 코인) 단일 경로로 통일 → 쿠폰+코인 이중지급 지뢰 제거.
+
 ## OAuth (카카오/네이버)
 
 ```
