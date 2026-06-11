@@ -6,8 +6,10 @@ import CounselorCard from '../components/CounselorCard'
 import CounselorIncomingBanner from '../components/CounselorIncomingBanner'
 import FavoriteCounselorBanner from '../components/FavoriteCounselorBanner'
 import MaintenanceBanner from '../components/MaintenanceBanner'
+import NotificationGreetBanner from '../components/NotificationGreetBanner'
 import ReviewCardMain from '../components/ReviewCardMain'
 import UploadedImage from '../components/UploadedImage'
+import TermsModal, { type TermsKind } from '../components/TermsModal'
 import { FILE_BASE } from '../lib/runtime-env'
 import {
   authApi,
@@ -203,6 +205,9 @@ export default function Home() {
 
       {/* 점검 안내 배너 — 어드민 설정 ON 시 모든 사용자에게 노출 (단골 배너보다 위, 긴급도 우선) */}
       <MaintenanceBanner />
+
+      {/* 새 알림 "마중" 배너 — 안 읽은 알림 N개 안내 (시안1 보라 그라데이션). 점검 다음 우선순위 */}
+      <NotificationGreetBanner />
 
       {/* [2026-05-30] 상담사 incoming 채팅 요청 배너 — 상담사 모드 + N>0 시 노출.
           _PREPAID_CHAT_POLICY.md §15 */}
@@ -617,6 +622,8 @@ function TabBtn({
  */
 function Footer({ initialSettings }: { initialSettings: PublicSettings | null }) {
   const [s, setS] = useState<PublicSettings>(initialSettings ?? {})
+  // [2026-06-11 버그수정] 푸터 이용약관/개인정보 링크가 href="#" 죽은 링크였다 → 모달 연결.
+  const [termsModal, setTermsModal] = useState<TermsKind | null>(null)
 
   // 부모(Home)가 settings 를 fetch 해서 props 로 내려주는 게 표준 경로 (2026-05-29).
   // 부모 fetch 가 실패해서 null 인 채 마운트되는 경우만 자체 fetch (안전망).
@@ -690,12 +697,12 @@ function Footer({ initialSettings }: { initialSettings: PublicSettings | null })
       </div>
       <div className="flex flex-col gap-4">
         <div className="flex items-center gap-4 flex-wrap">
-          <a href="#" className="text-[14px] font-medium text-[#364153] leading-[110%]">
+          <button type="button" onClick={() => setTermsModal('terms')} className="text-[14px] font-medium text-[#364153] leading-[110%]">
             이용약관
-          </a>
-          <a href="#" className="text-[14px] font-medium text-[#364153] leading-[110%]">
+          </button>
+          <button type="button" onClick={() => setTermsModal('privacy')} className="text-[14px] font-medium text-[#364153] leading-[110%]">
             개인정보취급방침
-          </a>
+          </button>
           {kakaoUrl && (
             <a
               href={kakaoUrl}
@@ -719,6 +726,7 @@ function Footer({ initialSettings }: { initialSettings: PublicSettings | null })
           (주) 오리진하우스는 통신판매중개자로서 통신판매의 당사자가 아니며, 각 판매자(상담사)가 등록한 정보 및 거래에 대한 책임은 각 판매자(상담사)에게 있으며, (주)오리진하우스는 책임을 지지 않습니다.
         </p>
       </div>
+      <TermsModal kind={termsModal} onClose={() => setTermsModal(null)} />
     </footer>
   )
 }

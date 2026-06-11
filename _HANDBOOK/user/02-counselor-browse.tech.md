@@ -56,6 +56,29 @@
   - API 래퍼: `web/user/src/lib/api.ts` → `counselorsApi`
   - 매퍼: `web/user/src/lib/counselor-mapper.ts` → `mapPublicCounselorToCard`
 
+## 상담사 번호 칩 (dtmfno + 150, 2026-06-11)
+
+- 백엔드 `list()` 응답에 `csrid`(m2net 상담사ID) + `dtmfno`(상담사연결번호) 이미 포함 (counselors.service.ts **L737-738**). 백엔드 수정 불필요.
+- 매퍼 `mapPublicCounselorToCard` (counselor-mapper.ts):
+  ```ts
+  const dno = c.dtmfno != null ? Number(c.dtmfno) : NaN
+  // 원본 1~999(정상 순번)만 표시 + 150. 90001~ 더미/미등록은 null(미표시).
+  const counselorNo = Number.isFinite(dno) && dno > 0 && dno < 1000 ? dno + 150 : null
+  // 연동용 code 는 원본 dtmfno 유지: code: c.dtmfno || c.csrid || String(id).padStart(6,'0')
+  ```
+- `CounselorCard.tsx`: prop `Counselor.counselorNo?: number|null`. 이름 옆(이름 → **번호칩** → NEW 순):
+  ```tsx
+  {counselorNo != null && (
+    <span className="border border-[#ec4899]/35 rounded-full px-2 py-[2px] inline-flex items-baseline gap-px">
+      <span className="text-[15px] font-extrabold text-[#111827]">{counselorNo}</span>
+      <span className="text-[10px] font-bold text-[#9ca3af]">번</span>
+    </span>
+  )}
+  ```
+- ⚠️ **표시(+150)와 연동(원본 dtmfno)을 분리**: `counselorNo`=화면표시용, `code`=m2net 통화/채팅 연결용. +150 은 절대 연동에 쓰지 말 것(연결 깨짐).
+- 디자인 변천(사장님 피드백 누적): 연보라 칩 → 진보라 배경(눈시림) → 배경제거 핑크숫자 → **얇은 핑크 테두리 + 검은 숫자(크게) + 연한 "번"** 확정.
+- m2net 매핑: 화면 `153번` = m2net 상담사연결번호 `3번` (−150). 운영자 조회 시 −150.
+
 ## 정렬 (list)
 
 state set: `IDLE/ABSE/CONN/RESV/CRDY/RDCH/RDVC/CNCH`

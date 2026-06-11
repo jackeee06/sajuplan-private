@@ -21,6 +21,7 @@ import Home from './pages/Home'
 import Search from './pages/Search'
 import SearchResult from './pages/SearchResult'
 import Notifications from './pages/Notifications'
+import NotificationDetail from './pages/NotificationDetail'
 import CounselorList from './pages/CounselorList'
 import CounselorDetail from './pages/CounselorDetail'
 import CounselorQnaDetail from './pages/CounselorQnaDetail'
@@ -122,6 +123,7 @@ export default function App() {
         <Route path="/search" element={<Search />} />
         <Route path="/search/result" element={<SearchResult />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/notifications/:id" element={<NotificationDetail />} />
         <Route path="/counselors" element={<CounselorList />} />
         <Route path="/counselors/:id" element={<CounselorDetail />} />
         {/* 구 URL 하위호환 — 동일 페이지 ?tab= 방식으로 리다이렉트 */}

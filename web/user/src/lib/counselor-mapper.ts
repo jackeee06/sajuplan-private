@@ -60,11 +60,17 @@ export function deriveChatState(c: PublicCounselor): Counselor['chatState'] {
 }
 
 export function mapPublicCounselorToCard(c: PublicCounselor): Counselor {
+  // 회원 노출용 상담사번호 — m2net 자동번호(dtmfno) + 150 (자동번호가 너무 작아 보기 좋게 가산).
+  //   ※ 표시용만 +150. 전화/채팅 연동(code 필드)은 원본 dtmfno 를 쓰므로 연결엔 영향 없음.
+  //   원본 1~999(정상 순번)만 표시 → 90001~ 더미/미등록은 숨김(null).
+  const dno = c.dtmfno != null ? Number(c.dtmfno) : NaN
+  const counselorNo = Number.isFinite(dno) && dno > 0 && dno < 1000 ? dno + 150 : null
   return {
     id: c.id,
     name: c.nickname || c.name,
     // 회원에게 노출되는 "상담사 번호" 는 dtmfno (ARS 연결번호) — csrid 는 내부 식별자라 노출 X
     code: c.dtmfno || c.csrid || String(c.id).padStart(6, '0'),
+    counselorNo,
     badge: c.category === '기타' ? undefined : c.category,
     tagline: c.headline ?? c.title ?? '',
     pricePerSec: c.unit_cost ?? 0,

@@ -12,6 +12,8 @@ export interface Counselor {
   badge?: '신점' | '사주' | '타로' | string
   /** 4자리 ~ 6자리 ID */
   code: string
+  /** 회원 노출용 상담사 연결번호(m2net dtmfno, 1~999). 미등록/더미는 null → 미표시 */
+  counselorNo?: number | null
   tagline: string
   pricePerSec: number
   /** 'available' | 'busy' | 'offline' */
@@ -67,7 +69,7 @@ const BADGE_BG: Record<string, string> = {
  */
 export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Props) {
   // rating 은 데이터 미정착으로 UI 노출 제거 (2026-05-15) — 매퍼에서는 계속 받음, destructure 만 생략
-  const { id, name, badge, code, tagline, pricePerSec, phoneState, chatState, hashtags, reviewCount, liked: likedProp, isNew, imgUrl, imgUrlWebp, isOffline, isRequested: isRequestedProp } = counselor
+  const { id, name, badge, code, counselorNo, tagline, pricePerSec, phoneState, chatState, hashtags, reviewCount, liked: likedProp, isNew, imgUrl, imgUrlWebp, isOffline, isRequested: isRequestedProp } = counselor
   const badgeBg = (badge && BADGE_BG[badge]) || '#ec4899'
   const { openConsult } = useConsultModal()
   const { toggleLike } = useLikeAction()
@@ -178,11 +180,17 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
           {/* Frame 459 — 이름줄 + 한줄소개 (column gap 4) */}
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
-              <Link to={`/counselors/${id}`} className="flex items-baseline gap-2 min-w-0 flex-1">
+              <Link to={`/counselors/${id}`} className="flex items-center gap-1.5 min-w-0 flex-1">
                 <span className="text-[16px] leading-[130%] font-semibold text-[#030712] truncate">
                   {name}
                 </span>
-                {/* 2026-05-25: ARS 단축번호(dtmfno) 노출 제거 — 앱 안에서 사용 안 함, 회원에게 의미 없음 */}
+                {/* m2net 상담사 연결번호(dtmfno) — 회원이 보고 기억하는 번호(경쟁사 "253번"과 동일 체계). 1~999만 노출 */}
+                {counselorNo != null && (
+                  <span className="inline-flex items-baseline gap-px border border-[#ec4899]/35 rounded-full px-2 py-[2px] shrink-0">
+                    <span className="text-[15px] leading-none font-extrabold text-[#111827]">{counselorNo}</span>
+                    <span className="text-[10px] leading-none font-bold text-[#9ca3af]">번</span>
+                  </span>
+                )}
                 {isNew && (
                   <span
                     className="text-[10px] leading-none font-bold text-white px-1.5 py-0.5 rounded-full bg-[#FF6467] shrink-0"
