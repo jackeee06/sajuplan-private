@@ -178,16 +178,52 @@ export class SmsService {
     return rows.length > 0;
   }
 
+  /**
+   * [2026-06-11 iOS 크래시 임시조치] 수신자 기기 OS 판정 (member_push_token.platform 기준).
+   * 아이폰+안드 둘 다 보유 → 'ios'(크래시 회피 우선). 토큰 없음 → 'unknown'(발송=안드 취급).
+   * 상세: PLAN/_NEXT_SESSION_iOS크래시_알림톡임시조치.md
+   */
+  private async getRecipientPlatform(
+    memberId: number,
+  ): Promise<'ios' | 'android' | 'unknown'> {
+    if (!memberId) return 'unknown';
+    const rows = await this.sql<{ platform: string | null }[]>`
+      SELECT platform FROM member_push_token
+       WHERE member_id = ${memberId} AND token IS NOT NULL
+    `;
+    if (rows.some((r) => r.platform === 'ios')) return 'ios';
+    if (rows.some((r) => r.platform === 'android')) return 'android';
+    return 'unknown';
+  }
+
   async sendAlimtalkByCode(
     templateCode: string,
     rawPhone: string,
     vars: Record<string, string | number>,
     smsTitle?: string,
+    opts?: { recipientMemberId?: number; iosSkip?: boolean },
   ): Promise<{ ok: boolean; reason?: string; raw?: string }> {
     const phone = this.normalize(rawPhone);
     if (!phone) {
       void this.logToAlimtalkLog(templateCode, rawPhone, vars, false, null, null, 'phone_invalid', null);
       return { ok: false, reason: 'phone_invalid' };
+    }
+
+    // [2026-06-11 iOS 크래시 임시조치] iOS 수신자 + iosSkip 대상 알림톡은 skip.
+    //   iOS 앱이 sajuplan:// 버튼 수신 시 크래시(application:openURL:options: unrecognized selector).
+    //   앱 재빌드 전까지 임시. FCM 푸시는 이 함수와 별개로 발송되므로 그대로 유지됨(상담사 진입로).
+    //   상세: PLAN/_NEXT_SESSION_iOS크래시_알림톡임시조치.md
+    if (opts?.iosSkip && opts?.recipientMemberId) {
+      const platform = await this.getRecipientPlatform(opts.recipientMemberId).catch(
+        () => 'unknown' as const,
+      );
+      if (platform === 'ios') {
+        this.logger.log(
+          `[ALIMTALK skip:ios_crash] tpl=${templateCode} member=${opts.recipientMemberId}`,
+        );
+        void this.logToAlimtalkLog(templateCode, phone, vars, false, null, null, 'ios_crash_skip', null);
+        return { ok: false, reason: 'ios_crash_skip' };
+      }
     }
 
     // 채팅중 차단 — 화이트리스트 외 모든 알림톡 drop.
@@ -264,6 +300,13 @@ export class SmsService {
     if (btnName && btnUrl) {
       if (btnType === 'AL') {
         // BizM AL(앱링크) 필드명: scheme_android / scheme_ios (url_android 아님 — PHP sample 확인)
+        // [2026-06-11] iOS 는 sajuplan:// 수신 시 앱 크래시(application:openURL:options:
+        //   unrecognized selector — 크래시로그 확정, URL 형식 무관). 앱 빌드 수정 전 임시 대응:
+        //   [실증] BizM 은 발송 버튼이 카카오 승인 템플릿 버튼과 일치해야 함:
+        //     scheme_ios 를 sajuplan:// 외 값(더미 K108 / 빈값 K208)으로 바꾸면 발송 거부.
+        //     → 버튼으로는 iOS 크래시 회피 불가(sajuplan:// 강제 = 크래시 / 다른 값 = 발송거부).
+        //     해결은 ① 버튼없는 새 템플릿(카카오 재검수) 또는 ② 앱 openURL 빌드 수정뿐.
+        //   현재: scheme_android = scheme_ios = sajuplan:// (템플릿 일치, 발송 정상). iOS 클릭은 크래시.
         payload.button1 = {
           name: btnName,
           type: 'AL',

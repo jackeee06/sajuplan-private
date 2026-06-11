@@ -204,6 +204,8 @@ export class UserCounselorsService {
           counselor.phone,
           { member_nickname: requesterNick, url: 'mypage' },
           `[사주플랜] ${requesterNick} 님이 상담을 요청했습니다.`,
+          // [iOS 크래시 임시조치] iOS 상담사는 알림톡 skip (FCM 푸시로 받음). 검수통과 후 _v2 전환 예정.
+          { recipientMemberId: params.counselorId, iosSkip: true },
         );
         alimtalkOk = !!r.ok;
         if (!r.ok) lastError = `alimtalk: ${r.reason ?? 'unknown'}`;

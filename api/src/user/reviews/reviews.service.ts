@@ -649,6 +649,8 @@ export class UserReviewsService {
       c.phone,
       { 상담사명: displayName, url: `counselor-mypage/reviews/${reviewId}` },
       '새 후기 알림',
+      // [iOS 크래시 임시조치] iOS 상담사는 후기 알림톡 skip (긴급 아님).
+      { recipientMemberId: counselorId, iosSkip: true },
     );
     if (!r.ok) {
       this.logger.warn(`[notifyCounselorOfReview] BizM 거부 reason=${r.reason ?? '?'} counselorId=${counselorId} reviewId=${reviewId}`);

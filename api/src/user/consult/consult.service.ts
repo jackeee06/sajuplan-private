@@ -544,6 +544,8 @@ export class UserConsultService {
           csr.phone,
           { 상담사닉네임: displayName, url: `chat/${chatRoomId}` },
           '채팅 상담 요청 알림',
+          // [iOS 크래시 임시조치] iOS 상담사는 알림톡 skip (FCM 푸시로 받음). 검수통과 후 _v2 전환 예정.
+          { recipientMemberId: counselorId, iosSkip: true },
         );
         if (!r.ok) {
           this.logger.warn(

@@ -927,6 +927,8 @@ export class UserCounselorQnaService {
         r.counselor_phone,
         { 상담사명: counselorName, 고객명: customerName, url: `/counselor/mypage/customer-qnas/${qnaId}` },
         '사주플랜 상담 문의 도착 안내',
+        // [iOS 크래시 임시조치] iOS 상담사는 문의도착 알림톡 skip (FCM 푸시로 받음).
+        { recipientMemberId: counselorId, iosSkip: true },
       );
       if (!res.ok) {
         this.logger.warn(`qa_ask2 거부 counselor=${counselorId} reason=${res.reason} raw=${res.raw ?? ''}`);
@@ -967,6 +969,7 @@ export class UserCounselorQnaService {
   private async notifyQaAnswer(qnaId: number, counselorId: number): Promise<void> {
     try {
       const rows = await this.sql<{
+        member_id: number | null;
         member_phone: string | null;
         member_name: string | null;
         member_nickname: string | null;
@@ -974,6 +977,7 @@ export class UserCounselorQnaService {
         counselor_nickname: string | null;
       }[]>`
         SELECT
+          m.id        AS member_id,
           m.phone     AS member_phone,
           m.name      AS member_name,
           m.nickname  AS member_nickname,
@@ -992,10 +996,9 @@ export class UserCounselorQnaService {
       }
       const customerName = r.member_nickname || r.member_name || '';
       const counselorName = r.counselor_nickname || r.counselor_name || '';
-      // 앱 전용 서비스 — 본문 링크는 군더더기(아래 AL 버튼이 앱 진입 담당).
-      // 승인된 템플릿이라 본문 줄은 못 빼므로 임시로 #{문의링크}=공백 처리.
-      // (정식: 본문 링크 줄 없는 qa_answer_v3 등록 후 교체 예정.)
-      // 버튼(AL `sajuplan://#{url}`)용 url 만 전달.
+      // [2026-06-11 iOS 크래시 임시조치] iOS 고객은 답변 알림톡 skip(아래 opts) — 버튼 크래시 회피.
+      //   따라서 알림톡은 안드 고객만 받고 버튼(sajuplan://#{url})으로 정상 진입 → 본문 안내문구는 빈값.
+      //   (앱 재빌드 후 이 분기 제거하면 안드/iOS 통일 복귀)
       const qnaPath = `/mypage/my-qnas/${qnaId}`;
       const res = await this.sms.sendAlimtalkByCode(
         'qa_answer_v2',
@@ -1007,6 +1010,7 @@ export class UserCounselorQnaService {
           url: qnaPath,
         },
         '사주플랜 문의글 답변 안내',
+        { recipientMemberId: r.member_id ?? undefined, iosSkip: true },
       );
       if (!res.ok) {
         this.logger.warn(`qa_answer2 거부 qna=${qnaId} reason=${res.reason} raw=${res.raw ?? ''}`);
