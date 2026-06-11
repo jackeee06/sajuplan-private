@@ -213,14 +213,25 @@ export class UserCounselorsService {
       }
     }
 
+    // [2026-06-11] 버그수정: chl_5 토픽은 전체 상담사 브로드캐스트 → 다른 상담사에게도
+    //   엉뚱한 요청 알림이 감. 해당 상담사 토큰만 골라 1:1 발송 (채팅 요청과 동일 패턴).
     try {
-      const r = await this.push.sendToTopic('chl_5', {
-        title: '상담 요청이 도착했습니다',
-        body: `${requesterNick} 님이 상담을 요청했습니다. 지금 접속해주세요.`,
-        data: { type: 'counselor_request', counselor_id: String(params.counselorId), event_url: '/counselor' },
-      });
-      pushOk = r.ok;
-      if (!r.ok && r.error) lastError = `${lastError} | push: ${r.error}`.trim();
+      const tokenRows = await this.sql<{ token: string }[]>`
+        SELECT token FROM member_push_token
+         WHERE member_id = ${params.counselorId}
+           AND is_active = TRUE
+           AND token IS NOT NULL AND token <> ''
+         LIMIT 10
+      `;
+      if (tokenRows.length > 0) {
+        const r = await this.push.sendToTokens(tokenRows.map((t) => t.token), {
+          title: '상담 요청이 도착했습니다',
+          body: `${requesterNick} 님이 상담을 요청했습니다. 지금 접속해주세요.`,
+          data: { type: 'counselor_request', counselor_id: String(params.counselorId), event_url: '/counselor' },
+        });
+        pushOk = r.ok && r.success > 0;
+        if (!r.ok && r.error) lastError = `${lastError} | push: ${r.error}`.trim();
+      }
     } catch (e) {
       this.logger.warn(`[requestConsult] FCM 실패 counselorId=${params.counselorId}: ${e instanceof Error ? e.message : String(e)}`);
     }

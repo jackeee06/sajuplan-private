@@ -936,12 +936,22 @@ export class UserCounselorQnaService {
     }
 
     // FCM 푸시 — 앱 백그라운드/종료 상태 대비
+    // [2026-06-11] 버그수정: chl_5 토픽(전체 상담사 브로드캐스트) → 해당 상담사 토큰만 1:1 발송.
     try {
-      await this.push.sendToTopic('chl_5', {
-        title: '새 문의가 도착했습니다',
-        body: '상담 문의가 접수되었습니다. 확인 후 답변을 남겨주세요.',
-        data: { type: 'qa_ask', counselor_id: String(counselorId), qna_id: String(qnaId), link: `/counselor/mypage/customer-qnas/${qnaId}` },
-      });
+      const tokenRows = await this.sql<{ token: string }[]>`
+        SELECT token FROM member_push_token
+         WHERE member_id = ${counselorId}
+           AND is_active = TRUE
+           AND token IS NOT NULL AND token <> ''
+         LIMIT 10
+      `;
+      if (tokenRows.length > 0) {
+        await this.push.sendToTokens(tokenRows.map((t) => t.token), {
+          title: '새 문의가 도착했습니다',
+          body: '상담 문의가 접수되었습니다. 확인 후 답변을 남겨주세요.',
+          data: { type: 'qa_ask', counselor_id: String(counselorId), qna_id: String(qnaId), link: `/counselor/mypage/customer-qnas/${qnaId}` },
+        });
+      }
     } catch (e) {
       this.logger.warn(`qa_ask FCM 예외 counselor=${counselorId}: ${(e as Error).message}`);
     }
@@ -982,10 +992,20 @@ export class UserCounselorQnaService {
       }
       const customerName = r.member_nickname || r.member_name || '';
       const counselorName = r.counselor_nickname || r.counselor_name || '';
+      // 앱 전용 서비스 — 본문 링크는 군더더기(아래 AL 버튼이 앱 진입 담당).
+      // 승인된 템플릿이라 본문 줄은 못 빼므로 임시로 #{문의링크}=공백 처리.
+      // (정식: 본문 링크 줄 없는 qa_answer_v3 등록 후 교체 예정.)
+      // 버튼(AL `sajuplan://#{url}`)용 url 만 전달.
+      const qnaPath = `/mypage/my-qnas/${qnaId}`;
       const res = await this.sms.sendAlimtalkByCode(
         'qa_answer_v2',
         r.member_phone,
-        { 고객명: customerName, 상담사명: counselorName, 문의링크: `/mypage/my-qnas/${qnaId}` },
+        {
+          고객명: customerName,
+          상담사명: counselorName,
+          문의링크: '',
+          url: qnaPath,
+        },
         '사주플랜 문의글 답변 안내',
       );
       if (!res.ok) {

@@ -37,7 +37,9 @@ test.describe('듀얼 역할자 모드 일관성', () => {
     await page.goto('/mypage')
     await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
 
-    await expect(page.getByText(/👤?\s*회원 모드|회원 모드로/)).toBeVisible({ timeout: 10_000 })
+    // 배너만 매칭 ($ 앵커) — 전환 토스트("회원 모드로 전환됨")와의 strict-mode 충돌 회피.
+    //   배너="👤 회원 모드"(모드로 끝), 토스트="회원 모드로 전환됨"(전환됨으로 끝).
+    await expect(page.getByText(/회원 모드$/)).toBeVisible({ timeout: 10_000 })
 
     const fourthLabel = page.locator('nav').getByText(/^(코인충전|수익금)$/).first()
     await expect(fourthLabel).toContainText('코인충전')
@@ -47,7 +49,8 @@ test.describe('듀얼 역할자 모드 일관성', () => {
     await page.goto('/counselor/mypage')
     await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {})
 
-    await expect(page.getByText(/💼?\s*상담사 모드|상담사 모드로/)).toBeVisible({ timeout: 10_000 })
+    // 배너만 매칭 ($ 앵커) — 전환 토스트("상담사 모드로 전환됨")와의 strict-mode 충돌 회피.
+    await expect(page.getByText(/상담사 모드$/)).toBeVisible({ timeout: 10_000 })
 
     const fourthLabel = page.locator('nav').getByText(/^(코인충전|수익금)$/).first()
     await expect(fourthLabel).toContainText('수익금')
@@ -59,7 +62,7 @@ test.describe('듀얼 역할자 모드 일관성', () => {
 
     expect(new URL(page.url()).pathname).toBe('/counselor/mypage/settlement/history')
 
-    await expect(page.getByText(/💼?\s*상담사 모드|상담사 모드로/)).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText(/상담사 모드$/)).toBeVisible({ timeout: 10_000 })
 
     const fourthLabel = page.locator('nav').getByText(/^(코인충전|수익금)$/).first()
     await expect(fourthLabel).toContainText('수익금')
@@ -101,13 +104,13 @@ test.describe('듀얼 역할자 모드 일관성', () => {
     if (await dismissBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await dismissBtn.click()
 
-      await expect(page.getByText(/👤?\s*회원 모드/)).toBeHidden({ timeout: 3_000 })
+      await expect(page.getByText(/회원 모드$/)).toBeHidden({ timeout: 3_000 })
 
       const dot = page.getByRole('button', { name: /모드 표시줄 다시 보이기/ }).first()
       await expect(dot).toBeVisible({ timeout: 3_000 })
 
       await dot.click()
-      await expect(page.getByText(/👤?\s*회원 모드/)).toBeVisible({ timeout: 3_000 })
+      await expect(page.getByText(/회원 모드$/)).toBeVisible({ timeout: 3_000 })
     }
   })
 })

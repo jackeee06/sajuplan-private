@@ -254,14 +254,14 @@ function IncomeTab() {
           type="date"
           value={fromDate}
           onChange={(e) => setFromDate(e.target.value)}
-          className="flex-1 h-11 px-3 rounded-[12px] bg-[#F9FAFB] border border-[#F3F4F6] text-[13px] text-[#1E2939] focus:outline-none focus:border-[#8259F5]"
+          className="flex-1 min-w-0 h-11 px-3 rounded-[12px] bg-[#F9FAFB] border border-[#F3F4F6] text-[13px] text-[#1E2939] focus:outline-none focus:border-[#8259F5]"
         />
-        <span className="text-[#99A1AF]">~</span>
+        <span className="shrink-0 text-[#99A1AF]">~</span>
         <input
           type="date"
           value={toDate}
           onChange={(e) => setToDate(e.target.value)}
-          className="flex-1 h-11 px-3 rounded-[12px] bg-[#F9FAFB] border border-[#F3F4F6] text-[13px] text-[#1E2939] focus:outline-none focus:border-[#8259F5]"
+          className="flex-1 min-w-0 h-11 px-3 rounded-[12px] bg-[#F9FAFB] border border-[#F3F4F6] text-[13px] text-[#1E2939] focus:outline-none focus:border-[#8259F5]"
         />
         <button
           type="button"
@@ -270,7 +270,7 @@ function IncomeTab() {
             setAppliedTo(toDate)
             setPage(1)
           }}
-          className="h-11 px-4 rounded-[12px] bg-[#1E2939] text-white text-[13px] font-medium"
+          className="shrink-0 h-11 px-4 rounded-[12px] bg-[#1E2939] text-white text-[13px] font-medium"
         >
           검색
         </button>

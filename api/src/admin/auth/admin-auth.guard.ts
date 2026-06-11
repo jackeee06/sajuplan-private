@@ -39,7 +39,14 @@ export class AdminAuthGuard implements CanActivate {
       if (payload.role !== 'admin') {
         throw new UnauthorizedException();
       }
-      req.admin = payload;
+      // [2026-06-11 근본수정] JWT sub 는 런타임에 문자열로 들어온다. user-auth.guard 와 동일하게
+      //   진입점에서 number 로 정규화해, 향후 권한/소유 비교(=== 숫자 id)에서 타입 불일치로
+      //   조용히 무력화되는 버그를 원천 차단한다. NaN 이면 세션 거부.
+      const sub = Number(payload.sub);
+      if (!Number.isFinite(sub)) {
+        throw new UnauthorizedException();
+      }
+      req.admin = { ...payload, sub };
       return true;
     } catch {
       throw new UnauthorizedException('세션이 만료되었거나 유효하지 않습니다.');

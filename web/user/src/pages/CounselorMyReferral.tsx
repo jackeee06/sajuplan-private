@@ -120,7 +120,7 @@ export default function CounselorMyReferral() {
                 onClick={shareKakao}
                 className="mt-3 w-full h-11 rounded-xl bg-[#FEE500] text-[#3A1D1D] text-[14px] font-semibold flex items-center justify-center gap-2"
               >
-                <img src="/img/kakao_logo.png" alt="카카오" className="w-5 h-5" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                <img src="/img/icon-kakao.svg" alt="카카오" className="w-5 h-5" onError={(e) => (e.currentTarget.style.display = 'none')} />
                 카카오로 공유하기
               </button>
             </>

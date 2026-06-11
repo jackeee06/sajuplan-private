@@ -155,7 +155,8 @@
         { "slug": "system/06-external-vendors", "title": "외부 서비스 협의 가이드 (BizM·AG9·m2net·FCM)", "tags": ["외부 서비스", "BizM", "AG9", "m2net", "FCM", "협의", "PG", "PassCall", "카카오비즈엠"] },
         { "slug": "system/07-handbook-ai", "title": "운영 바이블 AI 동작 원리 (RAG·SQL Tool)", "tags": ["AI", "RAG", "Agent", "Anthropic", "Claude", "API 키", "Tool Use", "SQL Tool", "운영바이블AI", "자연어검색", "스마트검색"] },
         { "slug": "system/08-e2e-verification", "title": "E2E 엄격검증 전체 결과 (2026-06-06)", "tags": ["E2E", "Playwright", "검증", "테스트", "엄격검증", "Phase1", "Phase2", "Phase3", "Phase4", "Phase5", "자동화테스트", "베스트후기", "멱등성", "단골", "출석", "정산", "운영바이블"] },
-        { "slug": "system/09-backup-recovery", "title": "백업 & 복구 가이드 (DB·코드·로컬PC·구글드라이브)", "tags": ["백업", "복구", "구글드라이브", "GitHub", "로컬백업", "DB백업", "rclone", "소스코드백업", "PC교체", "새PC작업환경", "복구방법", "롤백", "jackeee06", "sajuplan-private", "F드라이브", "자동백업", "10일보관", "7일보관", "30일보관"] }
+        { "slug": "system/09-backup-recovery", "title": "백업 & 복구 가이드 (DB·코드·로컬PC·구글드라이브)", "tags": ["백업", "복구", "구글드라이브", "GitHub", "로컬백업", "DB백업", "rclone", "소스코드백업", "PC교체", "새PC작업환경", "복구방법", "롤백", "jackeee06", "sajuplan-private", "F드라이브", "자동백업", "10일보관", "7일보관", "30일보관"] },
+        { "slug": "system/10-auth-guard-hardening", "title": "권한 가드 하드닝 — JWT sub 타입 함정 (2026-06-11)", "tags": ["권한", "가드", "JWT", "sub", "토큰", "소유권", "self차단", "본인차단", "정규화", "Number", "admin-auth", "user-auth", "401", "403", "적대적검증", "보안점검", "상담사권한", "관리자권한", "정산권한", "선지급권한", "단가권한"] }
       ]
     }
   ]
