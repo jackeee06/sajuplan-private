@@ -1,10 +1,12 @@
 ﻿import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 import FloatingActions from './FloatingActions'
 import ShareBottomSheet from './ShareBottomSheet'
 import { BADGE_BG, type CounselorDetailData } from '../data/counselorDetails'
 import { useConsultModal } from '../lib/consult-context'
 import { useLikeAction } from '../lib/like-context'
+import { formatCounselorNo } from '../lib/counselor-mapper'
 
 /**
  * 상담사 상세 공통 레이아웃 — Figma 76:4852 / 84:4721 / 92:4694 공유 골격
@@ -147,9 +149,11 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
                   <span className="text-[18px] leading-[130%] font-semibold text-[#030712] truncate">
                     {data.name}
                   </span>
-                  <span className="text-[18px] leading-[130%] font-semibold text-[#ec4899]">
-                    {data.code}
-                  </span>
+                  {formatCounselorNo(data.code) != null && (
+                    <span className="text-[18px] leading-[130%] font-semibold text-[#ec4899]">
+                      {formatCounselorNo(data.code)}번
+                    </span>
+                  )}
                 </div>
               </div>
               <p className="text-[15px] leading-[140%] text-[#6A7282]">{data.tagline}</p>
@@ -248,7 +252,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
           </div>
           <div
             className="counselor-intro text-[14px] leading-[150%] text-[#4A5565]"
-            dangerouslySetInnerHTML={{ __html: data.noticeContent }}
+            dangerouslySetInnerHTML={{ __html: sanitizeIntroHtml(data.noticeContent ?? '') }}
           />
         </section>
       </div>
@@ -283,7 +287,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
         onClose={() => setShareOpen(false)}
         shareUrl={shareUrl}
         title={`${data.name} 선생님`}
-        description={`${data.badge} · ${data.code}번 · ${data.pricePerHalfMin.toLocaleString()}원/30초`}
+        description={`${data.badge}${formatCounselorNo(data.code) != null ? ` · ${formatCounselorNo(data.code)}번` : ''} · ${data.pricePerHalfMin.toLocaleString()}원/30초`}
         imageUrl={data.heroImg}
       />
     </div>

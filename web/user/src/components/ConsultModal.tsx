@@ -2,6 +2,7 @@
 import { useNavigate } from 'react-router-dom'
 import UploadedImage from './UploadedImage'
 import { ApiError, consultApi } from '../lib/api'
+import { formatCounselorNo } from '../lib/counselor-mapper'
 import { useAuth } from '../lib/auth-context'
 import { useLoginPrompt } from '../lib/login-prompt-context'
 import { useDismissOnBack } from '../lib/use-dismiss-on-back'
@@ -238,9 +239,11 @@ export default function ConsultModal({ open, onClose, variant, counselor }: Prop
                 <span className="text-[16px] leading-[120%] font-semibold text-[#030712]">
                   {counselor.name}
                 </span>
-                <span className="text-[16px] leading-[120%] font-semibold text-[#ec4899]">
-                  {counselor.code}
-                </span>
+                {formatCounselorNo(counselor.code) != null && (
+                  <span className="text-[16px] leading-[120%] font-semibold text-[#ec4899]">
+                    {formatCounselorNo(counselor.code)}번
+                  </span>
+                )}
               </div>
               <div className="flex items-baseline gap-1">
                 <span className="text-[16px] leading-[110%] font-semibold text-[#030712]">

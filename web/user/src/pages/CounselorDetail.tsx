@@ -5,6 +5,7 @@ import CounselorReviewsTab from './CounselorReviewsTab'
 import CounselorQnaTab from './CounselorQnaTab'
 import type { Badge, CounselorDetailData } from '../data/counselorDetails'
 import { counselorsApi, type PublicCounselorDetail, ApiError } from '../lib/api'
+import { formatCounselorNo } from '../lib/counselor-mapper'
 import { FILE_BASE } from '../lib/runtime-env'
 
 type ActiveTab = 'intro' | 'reviews' | 'qna'
@@ -135,7 +136,7 @@ export default function CounselorDetail() {
     const tags: Array<[string, string]> = [
       ['og:type', 'website'],
       ['og:title', `${data.name} 선생님 | 사주플랜`],
-      ['og:description', `${data.badge} · ${data.code}번 · ${data.pricePerHalfMin.toLocaleString()}원/30초`],
+      ['og:description', `${data.badge}${formatCounselorNo(data.code) != null ? ` · ${formatCounselorNo(data.code)}번` : ''} · ${data.pricePerHalfMin.toLocaleString()}원/30초`],
       ['og:image', abs(data.heroImg)],
       ['og:url', window.location.href],
       ['og:site_name', '사주플랜'],

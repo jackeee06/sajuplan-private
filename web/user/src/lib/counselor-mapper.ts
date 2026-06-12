@@ -59,12 +59,21 @@ export function deriveChatState(c: PublicCounselor): Counselor['chatState'] {
   }
 }
 
+/**
+ * 회원 노출용 상담사 번호 — m2net 자동번호(dtmfno) + 150 (자동번호가 너무 작아 보기 좋게 가산).
+ * 원본 1~999(정상 순번)만 표시, 그 외(90001~ 더미·미등록, csrid, padded id)는 null → 미표시.
+ *
+ * ⚠️ 표시 전용 규칙. 전화/채팅 연동(code 필드)은 원본 dtmfno 를 쓰므로 연결엔 영향 없음.
+ * 모든 화면이 이 함수 하나로 번호를 표기해야 "리스트 154 / 상세 4" 같은 불일치가 안 생긴다.
+ * (백엔드 내역·후기·문의 쿼리는 SQL 에서 동일 규칙으로 +150 포맷 — counselor_code)
+ */
+export function formatCounselorNo(dtmfno: string | number | null | undefined): number | null {
+  const n = dtmfno == null ? NaN : Number(dtmfno)
+  return Number.isFinite(n) && n > 0 && n < 1000 ? n + 150 : null
+}
+
 export function mapPublicCounselorToCard(c: PublicCounselor): Counselor {
-  // 회원 노출용 상담사번호 — m2net 자동번호(dtmfno) + 150 (자동번호가 너무 작아 보기 좋게 가산).
-  //   ※ 표시용만 +150. 전화/채팅 연동(code 필드)은 원본 dtmfno 를 쓰므로 연결엔 영향 없음.
-  //   원본 1~999(정상 순번)만 표시 → 90001~ 더미/미등록은 숨김(null).
-  const dno = c.dtmfno != null ? Number(c.dtmfno) : NaN
-  const counselorNo = Number.isFinite(dno) && dno > 0 && dno < 1000 ? dno + 150 : null
+  const counselorNo = formatCounselorNo(c.dtmfno)
   return {
     id: c.id,
     name: c.nickname || c.name,

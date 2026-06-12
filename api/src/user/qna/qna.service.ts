@@ -324,7 +324,8 @@ export class UserCounselorQnaService {
       this.sql<Row[]>`
         SELECT q.id, q.counselor_id, q.title, q.content, q.is_secret, q.created_at,
                c.name AS counselor_name, c.nickname AS counselor_nickname,
-               c.dtmfno AS counselor_code,
+               CASE WHEN c.dtmfno ~ '^[0-9]+$' AND c.dtmfno::int BETWEEN 1 AND 999
+                    THEN (c.dtmfno::int + 150)::text END AS counselor_code,
                r.id AS reply_id,
                m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
           FROM counselor_qna q
@@ -388,7 +389,8 @@ export class UserCounselorQnaService {
     const rows = await this.sql<QnaRow[]>`
       SELECT q.id, q.counselor_id, q.member_id, q.title, q.content, q.is_secret, q.created_at,
              c.name AS counselor_name, c.nickname AS counselor_nickname,
-             c.dtmfno AS counselor_code,
+             CASE WHEN c.dtmfno ~ '^[0-9]+$' AND c.dtmfno::int BETWEEN 1 AND 999
+                  THEN (c.dtmfno::int + 150)::text END AS counselor_code,
              m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
         FROM counselor_qna q
         LEFT JOIN member c ON c.id = q.counselor_id

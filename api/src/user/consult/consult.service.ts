@@ -891,7 +891,9 @@ export class UserConsultService {
                  pm.id                        AS counselor_id,
                  pm.name                      AS counselor_name,
                  pm.nickname                  AS counselor_nickname,
-                 pm.csrid                     AS counselor_code,
+                 -- 회원 노출용 상담사 번호 = dtmfno+150 (1~999만). 프론트 formatCounselorNo 와 동일 규칙.
+                 CASE WHEN pm.dtmfno ~ '^[0-9]+$' AND pm.dtmfno::int BETWEEN 1 AND 999
+                      THEN (pm.dtmfno::int + 150)::text END AS counselor_code,
                  (SELECT mf.stored_name      FROM member_file mf
                    WHERE mf.member_id = pm.id AND mf.kind = 'profile'
                    ORDER BY mf.id DESC LIMIT 1) AS counselor_profile_image,
@@ -930,7 +932,9 @@ export class UserConsultService {
                pm.id                         AS counselor_id,
                pm.name                       AS counselor_name,
                pm.nickname                   AS counselor_nickname,
-               pm.csrid                      AS counselor_code,
+               -- 회원 노출용 상담사 번호 = dtmfno+150 (1~999만). 프론트 formatCounselorNo 와 동일 규칙.
+               CASE WHEN pm.dtmfno ~ '^[0-9]+$' AND pm.dtmfno::int BETWEEN 1 AND 999
+                    THEN (pm.dtmfno::int + 150)::text END AS counselor_code,
                (SELECT mf.stored_name      FROM member_file mf
                  WHERE mf.member_id = pm.id AND mf.kind = 'profile'
                  ORDER BY mf.id DESC LIMIT 1) AS counselor_profile_image,

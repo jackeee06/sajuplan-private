@@ -1,5 +1,10 @@
 # [AI 전용] 채팅 상태 머신 — 기술 상세
 
+> ⚠️ **두 개의 다른 머신을 혼동하지 말 것.**
+> - **`chat_room.status`** (이 문서) = 채팅방 1건의 진행 상태 (STAY/CNCH/DISCONNECT).
+> - **`member.state`** = 상담사의 접속/가능 상태 (IDLE/RDCH/RDVC/CONN/CNCH/ABSE/RESV). → [counselor/03-absent](counselor/03-absent) 참조.
+> 둘 다 'CNCH'를 쓰지만 의미·테이블이 다르다. 상담사가 채팅 중이면 member.state='CNCH' **이고** 그 방의 chat_room.status='CNCH'.
+
 ## 상태값
 
 `chat_room.status` VARCHAR — 3가지:

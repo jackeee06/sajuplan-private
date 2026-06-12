@@ -61,7 +61,7 @@
       "order": 5,
       "items": [
         { "slug": "user/01-signup-login", "title": "회원가입/로그인/비밀번호찾기 (B-1)", "tags": ["가입", "회원가입", "로그인", "비밀번호찾기", "비번찾기", "SMS인증", "휴대폰인증", "비밀번호정책", "8자", "영문숫자", "아이디중복확인", "check-mb-id", "로그인실패", "계정노출방지", "find-phone", "find-email", "임시비밀번호", "비밀번호재설정", "JWT", "sub정규화", "소셜로그인", "카카오", "네이버", "B-1"] },
-        { "slug": "user/02-counselor-browse", "title": "상담사 목록/필터/검색 (B-2)", "tags": ["상담사목록", "상담사리스트", "필터", "검색", "인기검색어", "분야칩", "카테고리탭", "사주", "타로", "신점", "심리", "상담가능만", "이벤트상담사", "재회", "정렬", "상담중", "부재", "상담요청하기", "더보기", "페이지네이션", "해시태그검색", "FilterDropdown", "CounselorCard", "뱃지색", "단골하트", "counselor_category", "popular-keywords", "search_log", "search_keyword_pin", "핀고정", "filter-options", "상담사번호", "153번", "dtmfno", "상담사연결번호", "번호칩", "counselorNo", "m2net번호", "150가산", "연결번호"] },
+        { "slug": "user/02-counselor-browse", "title": "상담사 목록/필터/검색 (B-2)", "tags": ["상담사목록", "상담사리스트", "필터", "검색", "인기검색어", "분야칩", "카테고리탭", "사주", "타로", "신점", "심리", "상담가능만", "이벤트상담사", "재회", "정렬", "랭킹", "리스팅순서", "상담중", "방금끝남", "30분", "last_consult_ended_at", "추천핀", "is_recommended", "is_rising", "statePriority", "부재", "상담요청하기", "더보기", "페이지네이션", "해시태그검색", "FilterDropdown", "CounselorCard", "뱃지색", "단골하트", "counselor_category", "popular-keywords", "search_log", "search_keyword_pin", "핀고정", "filter-options", "상담사번호", "153번", "dtmfno", "상담사연결번호", "번호칩", "counselorNo", "m2net번호", "150가산", "연결번호"] },
         { "slug": "user/03-counselor-detail", "title": "상담사 상세 (탭·공지·후기·문의)", "tags": ["상담사상세", "상세페이지", "탭", "소개탭", "후기탭", "문의탭", "공지사항", "sticky", "탭스크롤", "dangerouslySetInnerHTML", "sanitizeIntroHtml", "공지HTML", "원시태그", "카테고리뱃지", "BADGE_BG", "전속파트너", "단골하트", "전화상담", "채팅상담", "후기더보기", "PAGE_SIZE", "404", "찾을수없습니다", "CounselorDetail", "CounselorDetailLayout", "tab=reviews", "tab=qna", "BADGE", "히어로이미지", "OG메타"] },
         { "slug": "user/04-favorites", "title": "B-4 단골(즐겨찾기) 사용자 흐름 (추가·조회·제거·본인차단)", "tags": ["단골", "즐겨찾기", "favorites", "하트", "좋아요", "fan_count", "팬수", "단골추가", "단골해제", "단골목록", "멱등", "본인차단", "self차단", "403", "비로그인401", "로그인모달", "접속중단골", "단골배너", "B-4", "member_favorite_counselor", "like", "toggleLike"] },
         { "slug": "user/05-review", "title": "후기 CRUD + 비즈룰 (작성·5분룰·답변후잠금) (B-5)", "tags": ["후기", "리뷰", "후기작성", "후기수정", "후기삭제", "consultation_id", "상담내역필수", "5분", "300초", "7일", "1상담1후기", "중복후기", "409", "답변후수정불가", "본인상담만", "후기코인", "500코인", "사진후기", "베스트후기", "10000코인", "후기신고", "공개강제", "B-5"] },
@@ -78,9 +78,10 @@
       "items": [
         { "slug": "counselor/01-apply", "title": "상담사 신청 + 승인 흐름", "tags": ["신청", "승인", "counselor_apply", "상담사등록", "신청서", "심사", "반려", "승인절차"] },
         { "slug": "counselor/02-grade-pricing", "title": "등급별 단가 시스템 (예비~파트너5·정산률·실시간승급·FCM알림)", "tags": ["등급", "단가", "마진", "정산률", "예비파트너", "파트너1", "파트너2", "파트너3", "파트너4", "파트너5", "임계값", "당월누적상담시간", "실시간승급", "즉시승급", "승급알림", "강등", "재산정", "월1일", "등급분포", "프로그레스바", "grade_at_session", "구간정산", "FCM승급알림", "인앱승급모달", "GradeUpgradeToast", "counselor_grade_upgraded"] },
-        { "slug": "counselor/03-absent", "title": "자동 부재중 전환 (counselor_auto_absent)", "tags": ["부재중", "자동", "auto_absent", "오프라인", "자동부재", "상담가능", "상담불가"] },
+        { "slug": "counselor/03-absent", "title": "상담사 상담가능 상태 & 부재 처리 (member.state · 자동오프라인 없음)", "tags": ["상담가능", "부재중", "상담불가", "오프라인", "member.state", "IDLE", "RDCH", "RDVC", "CONN", "CNCH", "ABSE", "RESV", "상담가능토글", "전화상담토글", "채팅상담토글", "setMyAvailability", "앱종료", "앱끔", "자동오프라인없음", "자동부재없음", "하트비트없음", "presence", "접속상태", "last_login_at", "computeReadyState", "available인데앱꺼둠", "수동토글", "m2net상태푸시", "handleStatePush", "24시간자동부재미구현", "derivePhoneState", "deriveChatState"] },
         { "slug": "counselor/04-event", "title": "이벤트 상담사 시스템 (계획)", "tags": ["이벤트", "신규", "프로모션", "이벤트상담사", "특별상담사"] },
-        { "slug": "counselor/05-block", "title": "상담사 회원 차단 (블랙리스트)", "tags": ["차단", "블랙", "블랙리스트", "차단회원", "회원차단", "상담사차단", "차단해제", "차단관리", "숨김", "노출제어", "목록제외", "counselor_block", "부적절회원", "괴롭힘", "욕설대응"] }
+        { "slug": "counselor/05-block", "title": "상담사 회원 차단 (블랙리스트)", "tags": ["차단", "블랙", "블랙리스트", "차단회원", "회원차단", "상담사차단", "차단해제", "차단관리", "숨김", "노출제어", "목록제외", "counselor_block", "부적절회원", "괴롭힘", "욕설대응"] },
+        { "slug": "counselor/06-mypage", "title": "상담사 마이페이지 전체 탭 (C-5)", "tags": ["상담사마이페이지", "마이페이지", "counselor mypage", "상담가능토글", "전화상담토글", "채팅상담토글", "통화내역", "채팅내역", "상담통계", "consult-stats", "받은후기", "후기답변", "고객문의", "customer-qnas", "수신대기", "incoming", "나만의메모장", "메모장", "memo", "추천현황", "referral", "선지급탭", "payout", "정산이력", "settlement", "정산계좌", "bank", "소개편집", "intro", "상담스타일", "style", "공지작성", "notice-edit", "운영팁", "tips", "메모404", "API_BASE", "가드레이스", "인증로딩", "오버플로우", "수익금용어"] }
       ]
     },
     {
@@ -114,7 +115,7 @@
       "icon": "📝",
       "order": 9,
       "items": [
-        { "slug": "board/01-overview", "title": "게시판 시스템 개요 (후기·문의·공지·이벤트·FAQ)", "tags": ["게시판", "후기", "문의", "공지", "이벤트", "FAQ", "신고", "베스트후기", "후기관리", "후기신고", "게시판신고", "인기검색어", "핀고정", "후기코인", "후기사진", "사진업로드", "이중지급", "webp", "듀얼역할"] }
+        { "slug": "board/01-overview", "title": "게시판 시스템 개요 (후기·문의·공지·이벤트·FAQ)", "tags": ["게시판", "후기", "문의", "공지", "이벤트", "FAQ", "신고", "베스트후기", "후기관리", "후기신고", "게시판신고", "인기검색어", "핀고정", "후기코인", "후기사진", "사진업로드", "이중지급", "webp", "듀얼역할", "공지비공개", "임시저장", "is_secret", "비공개공지", "초안", "공지숨김"] }
       ]
     },
     {
@@ -137,7 +138,7 @@
         { "slug": "admin/02-memo", "title": "관리자 메모장", "tags": ["메모", "Toast UI", "관리자", "메모장", "운영메모", "기록"] },
         { "slug": "admin/03-profit-simulator", "title": "영업이익 시뮬레이터 (슈퍼 전용)", "tags": ["시뮬레이터", "영업이익", "BEP", "슈퍼", "손익분기", "마진시뮬", "매출시뮬", "재무"] },
         { "slug": "admin/04-member-ops", "title": "회원·상담사 운영 도구 (정지·강제로그아웃·포인트정정)", "tags": ["회원 관리", "정지", "로그아웃", "모니터링", "강제로그아웃", "포인트정정", "회원정지", "코인조정", "수동지급"] },
-        { "slug": "admin/05-banners-popups", "title": "배너·팝업 관리", "tags": ["배너", "팝업", "마케팅", "메인배너", "공지팝업", "배너관리"] },
+        { "slug": "admin/05-banners-popups", "title": "배너·팝업 관리", "tags": ["배너", "팝업", "마케팅", "메인배너", "공지팝업", "배너관리", "팝업레이어", "팝업노출", "사용자팝업", "팝업대상", "전체", "회원만", "상담사만", "audience", "팝업에디터", "팝업본문", "오늘하루보지않기", "popup_notice", "이미지업로드"] },
         { "slug": "admin/06-settings-contents", "title": "환경설정 · 약관·처리방침 · 무료코인설정", "tags": ["환경설정", "약관", "처리방침", "settings", "contents", "후기포인트설정", "출석보상설정", "가입포인트", "로그인포인트", "등급단가설정", "선지급설정", "운영알림설정"] }
       ]
     },
@@ -152,12 +153,13 @@
         { "slug": "system/02-deploy", "title": "배포 흐름 (외과 패치 · fast패치)", "tags": ["배포", "deploy", "외과 패치", "fast패치", "SFTP", "dist", "_patch_frontend_fast", "배포명령"] },
         { "slug": "system/03-incident", "title": "사고 매뉴얼 (DB · 결제 · m2net)", "tags": ["사고", "incident", "장애", "DB사고", "결제장애", "m2net장애", "긴급대응"] },
         { "slug": "system/04-cron-jobs", "title": "cron 잡 전수 (정산·자동취소·재시도·health-check·일일요약)", "tags": ["cron", "스케줄러", "자동화", "정산cron", "자동취소", "재시도", "health-check", "일일요약", "등급재산정", "자동작업"] },
-        { "slug": "system/05-webview", "title": "RN WebView 특수 처리 (외부 URL·캐시·visibilitychange)", "tags": ["WebView", "RN", "외부 URL", "캐시", "visibilitychange", "앱", "모바일", "WebView캐시"] },
+        { "slug": "system/05-webview", "title": "RN WebView 특수 처리 (외부 URL·캐시·visibilitychange·웹앱게이트)", "tags": ["WebView", "RN", "외부 URL", "캐시", "visibilitychange", "앱", "모바일", "WebView캐시", "웹앱게이트", "앱에서이용", "브라우저차단", "일반브라우저", "스토어링크", "QR코드", "앱설치유도", "WebAppGate", "navigator.webdriver"] },
         { "slug": "system/06-external-vendors", "title": "외부 서비스 협의 가이드 (BizM·AG9·m2net·FCM)", "tags": ["외부 서비스", "BizM", "AG9", "m2net", "FCM", "협의", "PG", "PassCall", "카카오비즈엠"] },
         { "slug": "system/07-handbook-ai", "title": "운영 바이블 AI 동작 원리 (RAG·SQL Tool)", "tags": ["AI", "RAG", "Agent", "Anthropic", "Claude", "API 키", "Tool Use", "SQL Tool", "운영바이블AI", "자연어검색", "스마트검색"] },
         { "slug": "system/08-e2e-verification", "title": "E2E 엄격검증 전체 결과 (2026-06-06)", "tags": ["E2E", "Playwright", "검증", "테스트", "엄격검증", "Phase1", "Phase2", "Phase3", "Phase4", "Phase5", "자동화테스트", "베스트후기", "멱등성", "단골", "출석", "정산", "운영바이블"] },
         { "slug": "system/09-backup-recovery", "title": "백업 & 복구 가이드 (DB·코드·로컬PC·구글드라이브)", "tags": ["백업", "복구", "구글드라이브", "GitHub", "로컬백업", "DB백업", "rclone", "소스코드백업", "PC교체", "새PC작업환경", "복구방법", "롤백", "jackeee06", "sajuplan-private", "F드라이브", "자동백업", "10일보관", "7일보관", "30일보관"] },
-        { "slug": "system/10-auth-guard-hardening", "title": "권한 가드 하드닝 — JWT sub 타입 함정 (2026-06-11)", "tags": ["권한", "가드", "JWT", "sub", "토큰", "소유권", "self차단", "본인차단", "정규화", "Number", "admin-auth", "user-auth", "401", "403", "적대적검증", "보안점검", "상담사권한", "관리자권한", "정산권한", "선지급권한", "단가권한"] }
+        { "slug": "system/10-auth-guard-hardening", "title": "권한 가드 하드닝 — JWT sub 타입 함정 (2026-06-11)", "tags": ["권한", "가드", "JWT", "sub", "토큰", "소유권", "self차단", "본인차단", "정규화", "Number", "admin-auth", "user-auth", "401", "403", "적대적검증", "보안점검", "상담사권한", "관리자권한", "정산권한", "선지급권한", "단가권한"] },
+        { "slug": "system/11-content-sanitization", "title": "콘텐츠 XSS 정화 (DOMPurify · 채팅 악성HTML 차단 2026-06-12)", "tags": ["XSS", "DOMPurify", "정화", "sanitize", "sanitizeIntroHtml", "악성코드", "악성HTML", "스크립트차단", "채팅XSS", "저장형XSS", "onerror", "dangerouslySetInnerHTML", "message_type", "보안", "공지정화", "이벤트정화", "팝업정화", "소개글정화", "화이트리스트", "정화전환", "웹앱게이트"] }
       ]
     }
   ]

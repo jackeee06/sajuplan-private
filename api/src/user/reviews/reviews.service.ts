@@ -87,7 +87,8 @@ export class UserReviewsService {
              c.id        AS counselor_id,
              c.nickname  AS counselor_nickname,
              c.name      AS counselor_name,
-             c.csrid     AS counselor_code,
+             CASE WHEN c.dtmfno ~ '^[0-9]+$' AND c.dtmfno::int BETWEEN 1 AND 999
+                  THEN (c.dtmfno::int + 150)::text END AS counselor_code,
              (SELECT mf.stored_name      FROM member_file mf
                WHERE mf.member_id = c.id AND mf.kind = 'profile'
                ORDER BY mf.id DESC LIMIT 1) AS counselor_profile_image,
@@ -265,7 +266,8 @@ export class UserReviewsService {
              c.id        AS counselor_id,
              c.name      AS counselor_name,
              c.nickname  AS counselor_nickname,
-             c.csrid     AS counselor_code,
+             CASE WHEN c.dtmfno ~ '^[0-9]+$' AND c.dtmfno::int BETWEEN 1 AND 999
+                  THEN (c.dtmfno::int + 150)::text END AS counselor_code,
              (SELECT mf.stored_name      FROM member_file mf
                WHERE mf.member_id = c.id AND mf.kind = 'profile'
                ORDER BY mf.id DESC LIMIT 1) AS counselor_profile_image,
@@ -351,7 +353,8 @@ export class UserReviewsService {
              c.id        AS counselor_id,
              c.name      AS counselor_name,
              c.nickname  AS counselor_nickname,
-             c.csrid     AS counselor_code,
+             CASE WHEN c.dtmfno ~ '^[0-9]+$' AND c.dtmfno::int BETWEEN 1 AND 999
+                  THEN (c.dtmfno::int + 150)::text END AS counselor_code,
              (SELECT mf.stored_name FROM member_file mf
                WHERE mf.member_id = c.id AND mf.kind = 'profile'
                ORDER BY mf.id DESC LIMIT 1) AS counselor_profile_image,

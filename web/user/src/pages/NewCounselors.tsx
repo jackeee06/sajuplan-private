@@ -6,6 +6,7 @@ import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
 import UploadedImage from '../components/UploadedImage'
 import { ApiError, counselorsApi, type PublicCounselor } from '../lib/api'
+import { formatCounselorNo } from '../lib/counselor-mapper'
 
 const PAGE_SIZE = 8
 
@@ -203,9 +204,9 @@ export default function NewCounselors() {
                           <span className="text-[14px] leading-[140%] font-bold text-[#030712]">
                             {c.nickname || c.name}
                           </span>
-                          {(c.dtmfno || c.csrid) && (
+                          {formatCounselorNo(c.dtmfno) != null && (
                             <span className="text-[12px] leading-[140%] text-[#99A1AF]">
-                              {c.dtmfno || c.csrid}
+                              {formatCounselorNo(c.dtmfno)}번
                             </span>
                           )}
                         </div>
