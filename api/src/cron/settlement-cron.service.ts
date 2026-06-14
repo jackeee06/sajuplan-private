@@ -1,3 +1,9 @@
+// ════════════════════════════════════════════════════════════════════════════
+// ⚠️  MONEY-CRITICAL — 상담사 정산(수익금 합산·원천세). 실수=정산 오지급 사고.
+//   · 변경 전 정독: _HANDBOOK/payment/05-settlement.tech.md + CLAUDE.md "돈 불변식"
+//   · 변경 후 필수: `python tools/_verify_money_integrity.py` → PASS(exit 0) 확인
+//   · 정산은 수익금(earning_balance) − 원천세 3.3% 만. 부가세·회선비는 옛 잔재(제거됨).
+// ════════════════════════════════════════════════════════════════════════════
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SQL, type Sql } from '../shared/db/db.module';
 import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';

@@ -1,3 +1,9 @@
+// ════════════════════════════════════════════════════════════════════════════
+// ⚠️  MONEY-CRITICAL — 환불(코인 회수/복원 + 상담사 earning 회수 + PG 취소).
+//   · 변경 전 정독: _HANDBOOK/payment/04-refund.tech.md + CLAUDE.md "돈 불변식"
+//   · 변경 후 필수: `python tools/_verify_money_integrity.py` → PASS(exit 0) 확인
+//   · short_call_refund(단기통화 자동환불)은 수동환불 화면에서 차단. 상담사 적립은 보존(회사 부담).
+// ════════════════════════════════════════════════════════════════════════════
 import {
   BadRequestException,
   Inject,
@@ -13,7 +19,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  *   회원이 상담 후 분쟁 제기 (예: 사기 상담사, 통화 품질 문제)
  *   → 어드민이 ConsultationDetail 에서 환불 처리
  *   → 회원에게 포인트 환원 + consultation.refunded_amount 누적
- *   → 정산 cron 이 refunded_amount 만큼 차감해 상담사 정산에서 빠짐
+ *   → [2026-06-12] 상담사 earning 도 환불 비율만큼 즉시 회수 (회사 이중손실 방지)
  *
  * 안전장치:
  *   - 트랜잭션 + advisory lock (consultation_id 기준 직렬화)
@@ -22,10 +28,10 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  *   - amount_free / amount_pro 분리 — free 가 먼저 차감 시 free 우선 환원
  *   - 멱등성 제공 안 함 — 어드민이 의도적으로 부분 환불 가능
  *
- * 정산 연동:
- *   - consultation.refunded_amount 컬럼만 갱신
- *   - settlement-cron 이 (amt_free - refunded_free) + (amt_pro - refunded_pro) 으로 계산하도록 별도 PR 필요
- *   - 단, MVP 에선 refunded_amount 전체를 amt 에서 차감
+ * 정산 연동 (2026-06-12 갱신):
+ *   - 회원 환원 + consultation.refunded_amount 누적 + **상담사 earning 비례 회수**(step 9)를 한 트랜잭션에서 처리.
+ *   - earning 회수액 = 상담사에게 이 상담으로 적립된 earning × (환불액/상담총액). balance_kind='earning', is_settled=false 로 기록 → 추후 정산 합산에 자동 반영.
+ *   - 정산 단순화 후 cron 은 refunded_amount 를 보지 않으므로(earning 원장 기준), 환불 시점 직접 회수가 정답.
  */
 @Injectable()
 export class AdminRefundsService {
@@ -214,6 +220,59 @@ export class AdminRefundsService {
         RETURNING id
       `;
 
+      // 9. [2026-06-12 fix] 상담사 수익금(earning) 비례 회수 — 환불된 상담은 상담사 몫도 차감해야
+      //    회사 이중손실을 막는다. (정산 단순화로 cron 이 refunded_amount 를 더이상 반영하지 않으므로
+      //    환불 시점에 직접 회수. 정산 도메인 재설계와 독립적으로 안전.)
+      //    회수액 = 상담사에게 이 상담으로 적립된 earning × (이번 환불액 / 상담 총액). 비례·가산적.
+      let counselorEarningReversed = 0;
+      if (cs.counselor_id && (cs.amt ?? 0) > 0) {
+        const credRows = await tx<{ credited: string }[]>`
+          SELECT COALESCE(SUM(earn_point), 0)::text AS credited
+            FROM point_history
+           WHERE member_id = ${cs.counselor_id}
+             AND balance_kind = 'earning'
+             AND rel_table = 'consultation'
+             AND rel_id = ${String(consultationId)}
+             AND earn_point > 0
+        `;
+        const credited = Number(credRows[0].credited);
+        const reverse = credited > 0 ? Math.floor((credited * amount) / cs.amt) : 0;
+        if (reverse > 0) {
+          const eptRows = await tx<{ earning_balance: number }[]>`
+            SELECT earning_balance FROM point WHERE member_id = ${cs.counselor_id} FOR UPDATE
+          `;
+          const earnBefore = Number(eptRows[0]?.earning_balance ?? 0);
+          const earnAfter = Math.max(0, earnBefore - reverse);
+          const applied = earnBefore - earnAfter; // 음수 클램프 반영한 실제 차감액
+          if (applied > 0) {
+            await tx`
+              UPDATE point
+                 SET earning_balance = ${earnAfter},
+                     total_used = total_used + ${applied},
+                     updated_at = now()
+               WHERE member_id = ${cs.counselor_id}
+            `;
+            await tx`
+              INSERT INTO point_history (
+                member_id, content, earn_point, use_point, balance_after,
+                rel_table, rel_id, rel_action,
+                is_paid, actor_admin_id, actor_type, balance_kind, is_settled
+              ) VALUES (
+                ${cs.counselor_id},
+                ${`상담 환불에 따른 수익금 회수 (consultation #${consultationId})`},
+                0, ${applied}, ${earnAfter},
+                'consultation', ${String(consultationId)}, ${`refund_earning_reversal@${phId}`},
+                false, ${adminId}, 'admin', 'earning', false
+              )
+              ON CONFLICT (rel_table, rel_id, rel_action)
+                WHERE rel_table IN ('payment','payment_autopay','consultation')
+                DO NOTHING
+            `;
+            counselorEarningReversed = applied;
+          }
+        }
+      }
+
       return {
         ok: true,
         refund_id: rrRow[0].id,
@@ -223,6 +282,7 @@ export class AdminRefundsService {
         amount_pro: refundPro,
         new_balance: newTotal,
         refund_status: newStatus,
+        counselor_earning_reversed: counselorEarningReversed,
       };
     });
   }

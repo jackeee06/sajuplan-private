@@ -1,3 +1,9 @@
+// ════════════════════════════════════════════════════════════════════════════
+// ⚠️  MONEY-CRITICAL — 상담사 선지급(가불·실제 통장 입금). 실수=실제 돈 오송금.
+//   · 변경 전 정독: _HANDBOOK/payment/06-payout.tech.md + CLAUDE.md "돈 불변식"
+//   · 변경 후 필수: `python tools/_verify_money_integrity.py` → PASS(exit 0) 확인
+//   · 수익금70%·수수료5%·원천세3.3%·최소3만원·일1회. 정산과 이중지급 방지 연동.
+// ════════════════════════════════════════════════════════════════════════════
 import {
   BadRequestException,
   ForbiddenException,

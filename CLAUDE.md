@@ -2,6 +2,32 @@
 
 퍼블리싱 작업 전 `publishing_guide.md`를 반드시 읽는다. 상세 규칙은 해당 파일 기준.
 
+## 🔒 돈 불변식 (MONEY INVARIANTS — 절대 규칙, 2026-06-14)
+
+> 돈이 직접 움직이는 코드를 만지면 **이 불변식을 절대 깨면 안 된다.** 깨지면 실고객 손실/이중차감 사고.
+> AI/사람 모두: 아래 파일을 만질 땐 먼저 해당 핸드북을 읽고, 작업 후 검증 스크립트로 확인할 것.
+
+### 머니크리티컬 파일 (상단에 ⚠️ 배너 박혀 있음 — 보이면 즉시 경계)
+- `api/src/pg-callbacks/m2net-push.service.ts` — m2net push 핸들러(차감·적립의 심장)
+- `api/src/cron/settlement-cron.service.ts` — 상담사 정산
+- `api/src/admin/payouts/payouts.service.ts` — 선지급(실 통장 입금)
+- `api/src/user/charge/charge.service.ts` — 코인 충전(실 PG 결제)
+- `api/src/admin/refunds/refunds.service.ts` — 환불
+
+### 절대 불변식 (하나라도 깨지면 사고)
+1. **음수 잔액 없음** — `free_balance/paid_balance/earning_balance >= 0`
+2. **`member.point == point.free_balance + point.paid_balance`** (회원 표면 잔액 = 미러)
+3. **선결제 채팅 = `consultation.amt` 0** — START_CHAT 에서 1회 선결제 차감만. END 추가차감 금지. **amt=0 을 버그로 오해 금지.**
+4. **`earning_balance == Σ(point_history earning earn−use)`** (상담사 수익금 원장 일치)
+5. **상담사 적립 = m2net 실과금 × 수익률** (회사 마진 보존, 수익률 못구하면 안전 fallback 0.4 — 100% 적립 금지)
+6. **멱등** — 같은 push 재전송돼도 이중 정산 없음 (`rel_table+rel_id+rel_action` UNIQUE, consultation ON CONFLICT)
+
+### 검증 (코드리뷰·빌드성공만으론 완료 보고 금지)
+```bash
+python tools/_verify_money_integrity.py     # 위 5대 불변식 자동 점검 → PASS(exit 0) 여야 함
+```
+> 충전(`payment`)은 별도 진실원장이라 소비자 잔액 vs `point_history` 합계는 검증 안 함(정상). 상세: `_HANDBOOK/payment/01-m2net-relation.tech.md`.
+
 ## 💰 돈 관련 용어 사전 (사용자 화면 통일 정책 — 2026-05-25)
 
 사주플랜은 **두 가지 단어만** 사용. 다른 표현은 헷갈림.

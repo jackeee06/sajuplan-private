@@ -6,6 +6,11 @@ import {
   Wrench,
 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { api } from '../lib/api'
+
+/** _HANDBOOK/index.json (GET /admin/handbook/index) — 전체메뉴 용어 자동 동기화 소스 */
+interface HbItem { slug: string; title: string; tags: string[] }
+interface HbIndex { categories: { items: HbItem[] }[] }
 
 /**
  * 전체 메뉴 — 관리자 페이지의 모든 기능을 한 화면에 나열한 인덱스.
@@ -125,9 +130,11 @@ const GROUPS: MenuGroup[] = [
           '수동지급', '이벤트보상', '관리자지급', '코인이력', '적립내역', '코인지급이력'],
         subFeatures: ['포인트 이력', '개별회원 포인트 증감 설정', '무료 코인 이력', '후기 작성 보상', '출석 보상', '베스트 후기 선정 10,000코인', '관리자 수동 지급'] },
       { label: '정산 이력', path: '/settlements',
-        aliases: ['정산', '부가세', 'VAT', '회선비', '원천세', '월정산', '월별 정산',
-          '공급가', '실수령', '추천수당', '3.3%', '10%', '선지급차감', '이월음수', '정산비'],
-        subFeatures: ['총건수', '총정산금액', '공급가', '부가세(10%)', '원천세(3.3%)', '회선비', '추천 수당 반영', '선지급 차감액', '이월 음수', '실수령액'] },
+        aliases: ['정산', '원천세', '월정산', '월별 정산', '실수령', '실지급', '3.3%', '선지급차감',
+          '정산예상', '정산하기', '무효화', '미정산', 'earning', '수익금정산',
+          // (옛 용어 — 검색 호환용. 정산단순화로 실제 화면에선 제거됨)
+          '부가세', 'VAT', '회선비', '공급가', '이월음수', '추천수당'],
+        subFeatures: ['총건수', '정산예상금액(미정산 earning 합)', '미정산 선지급 차감', '원천세 3.3%', '실지급액', '정산하기/무효화 버튼', '※자동 cron 비활성(정산단순화 전환중)'] },
       { label: '선지급 관리', path: '/payouts', star: true,
         aliases: ['선지급', '가불', '미리 지급', '수수료', '원천세',
           '수수료5%', '가용잔액70%', '일1회한도', '원천징수3.3%', '조기정산', '즉시입금', '입금신청', '은행이체', '정산전입금'],
@@ -158,6 +165,9 @@ const GROUPS: MenuGroup[] = [
         aliases: ['쿠폰', '코드쿠폰', '다운로드쿠폰', '쿠폰발급', '가입쿠폰', '이벤트쿠폰',
           '쿠폰캠페인', '할인코드', '프로모코드', '무료코인쿠폰', '쿠폰정책', '쿠폰존'],
         subFeatures: ['다운로드 쿠폰 (직접 발급)', '코드입력 쿠폰 (SNS 배포)', '회원가입 자동 쿠폰', '만료일 설정', '발급 이력 확인'] },
+      { label: '🪙 쿠폰·코인 정책 가이드', path: '/coupon-coin-guide',
+        aliases: ['쿠폰코인', '무료코인정책', '코인정책', '쿠폰가이드', '코인가이드', '이중지급', '가입코인', '출석코인', '후기코인', '즉시지급'],
+        subFeatures: ['즉시 코인 vs 쿠폰 구분', '회원가입 코인', '출석 코인', '후기 코인', '이중지급 금지 정책'] },
     ],
   },
   {
@@ -215,6 +225,9 @@ const GROUPS: MenuGroup[] = [
           '결정 기준 8가지',
           '읽는 법 안내',
         ] },
+      { label: '📋 알림 이력', path: '/alert-logs', star: true,
+        aliases: ['알림 이력', '발송 이력', '알림 기록', '시스템 점검', 'health-check', '헬스체크', '일일요약', '점검결과', '발송기록', '안심', '무해', 'alimtalk_log'],
+        subFeatures: ['발송 이력 전체 조회', '시스템 점검 상세 (C-1/C-8/C-17)', '테스트 추정 판별', '실패만 보기 필터'] },
       { label: '📱 푸시 가이드 (카드)', path: '/push-guide',
         aliases: ['푸시 가이드', '푸시 카탈로그', '푸시 종류', 'FCM 종류', 'push catalog', '푸시목록', '알림종류'],
         subFeatures: ['30+ 푸시 종류', '카테고리별 그리드', '상태 칩 (완료/예정/안함)'] },
@@ -261,7 +274,9 @@ const GROUPS: MenuGroup[] = [
       { label: '상담문의', path: '/posts/qa',
         aliases: ['1:1 문의', '고객 문의', '문의 게시판', '고객센터', '회원문의', '고객문의처리'] },
       { label: '1:1문의(상담사)', path: '/posts/qa_counselor',
-        aliases: ['상담사문의', '상담사 1:1', '상담사 문의', '상담사 고객센터', '상담사QA'] },
+        aliases: ['상담사문의', '상담사 1:1', '상담사 문의', '상담사QA'] },
+      { label: '상담사 고객센터 문의', path: '/counselor-inquiries',
+        aliases: ['상담사 고객센터', '상담사 운영문의', '상담사 문의하기', '운영팀 문의', '정산문의', '이용안내 문의'] },
     ],
   },
   {
@@ -336,9 +351,67 @@ const GROUPS: MenuGroup[] = [
       { label: '🔒 인프라 잠금 정보', path: '/infra-info', superOnly: true,
         aliases: ['인프라', '서버경로', '잠금', '변경불가', '죽은폴더', 'nginx', '배포경로', '서버설정', '고정경로'],
         subFeatures: ['변경 금지 경로 목록', '외부 서비스 등록 URL', '죽은 폴더 주의사항'] },
+      { label: '🤖 AI 설정 (슈퍼)', path: '/handbook-config', superOnly: true,
+        aliases: ['AI설정', 'AI키', 'API키', 'Claude설정', 'max_tokens', '모델설정', '바이블AI설정', 'Anthropic', 'AI활성화'],
+        subFeatures: ['API 키 입력', '모델 선택 (Sonnet/Haiku)', 'max_tokens 조정', '활성화 토글'] },
     ],
   },
 ]
+
+/**
+ * 메뉴 → 운영 바이블(_HANDBOOK) 문서 매핑 (deep-link).
+ * slug 는 _HANDBOOK/index.json 기준. 항목 위에 마우스 올리면 📖 로 해당 정책 문서 바로가기.
+ * 새 기능/문서 추가 시 여기 한 줄만 추가하면 메뉴↔바이블이 연결된다.
+ */
+const HANDBOOK_MAP: Record<string, string> = {
+  '/members/customers': 'admin/04-member-ops',
+  '/members/counselors': 'admin/04-member-ops',
+  '/members/counselor-apply': 'counselor/01-apply',
+  '/attendance': 'member/03-attendance',
+  '/grade': 'counselor/02-grade-pricing',
+  '/consultations': 'payment/01-m2net-relation',
+  '/chat-history': 'chat/02-state-machine',
+  '/refunds': 'payment/04-refund',
+  '/short-call-refunds': 'payment/04-refund',
+  '/payments': 'payment/02-charge-flow',
+  '/charge-amounts': 'payment/02-charge-flow',
+  '/points/history': 'payment/03-coin-system',
+  '/settlements': 'payment/05-settlement',
+  '/payouts': 'payment/06-payout',
+  '/referrals': 'promotion/02-referral',
+  '/coupon-zones': 'promotion/01-coupon',
+  '/coupon-coin-guide': 'payment/08-coupon-coin-policy',
+  '/posts/review': 'user/05-review',
+  '/posts/qa': 'user/06-qna',
+  '/posts/qa_counselor': 'user/06-qna',
+  '/posts-overview': 'board/01-overview',
+  '/post-reports': 'board/01-overview',
+  '/review-reports': 'user/05-review',
+  '/search-popular': 'user/02-counselor-browse',
+  '/stats': 'stats/01-ops-kpi',
+  '/settings': 'admin/06-settings-contents',
+  '/banners': 'admin/05-banners-popups',
+  '/popup-layers': 'admin/05-banners-popups',
+  '/contents': 'admin/06-settings-contents',
+  '/notices': 'board/01-overview',
+  '/events': 'board/01-overview',
+  '/faqs': 'board/01-overview',
+  '/alimtalk-templates': 'alert/02-bizm-templates',
+  '/alimtalk-bulk': 'alert/05-bulk-alimtalk',
+  '/push-notifications': 'alert/03-fcm-push',
+  '/push-guide': 'alert/03-fcm-push',
+  '/alert-guide': 'alert/01-channels',
+  '/alert-logs': 'alert/08-alert-logs',
+  '/admin-users': 'admin/01-permissions',
+  '/profit-simulator': 'admin/03-profit-simulator',
+  '/memo': 'admin/02-memo',
+  '/ops-kpi': 'stats/01-ops-kpi',
+  '/dashboard': 'system/00-overview',
+  '/infra-info': 'system/01-domains',
+  '/handbook-config': 'system/07-handbook-ai',
+  '/handbook-ai': 'system/07-handbook-ai',
+  '/search-keywords': 'user/02-counselor-browse',
+}
 
 const FAV_KEY = 'mng_favorite_menus'
 
@@ -401,6 +474,26 @@ export default function AllMenus() {
   }
   const [favs, setFavs] = useState<string[]>(() => readFavs())
 
+  // [2026-06-13] _HANDBOOK/index.json 자동 동기화 — 바이블에 등록된 모든 용어(tags)를
+  //   전체메뉴 검색에 자동 포함. 바이블에 tag 추가하면 여기 손 안 대도 검색됨(누락 0).
+  const [hbItems, setHbItems] = useState<HbItem[]>([])
+  useEffect(() => {
+    api<HbIndex>('/admin/handbook/index')
+      .then((r) => setHbItems(r.categories.flatMap((c) => c.items)))
+      .catch(() => setHbItems([]))
+  }, [])
+
+  // HANDBOOK_MAP(path→slug) 역방향: slug → 연결된 메뉴 path[]
+  const slugToPaths = useMemo(() => {
+    const m = new Map<string, string[]>()
+    for (const [path, slug] of Object.entries(HANDBOOK_MAP)) {
+      const arr = m.get(slug) ?? []
+      arr.push(path)
+      m.set(slug, arr)
+    }
+    return m
+  }, [])
+
   useEffect(() => {
     writeFavs(favs)
   }, [favs])
@@ -438,6 +531,18 @@ export default function AllMenus() {
     if (!isSearching) return 0
     return filteredGroups.reduce((s, g) => s + g.items.reduce((a, it) => a + (it as MenuItem & { _subHits: string[] })._subHits.length, 0), 0)
   }, [filteredGroups, isSearching])
+
+  // 바이블 용어(tags) 매칭 — 검색 시 q 와 매칭되는 _HANDBOOK 문서들. (메뉴에 직접 안 적힌 용어도 여기서 잡힘)
+  const hbMatches = useMemo(() => {
+    if (!isSearching) return [] as { slug: string; title: string; tagHits: string[] }[]
+    const out: { slug: string; title: string; tagHits: string[] }[] = []
+    for (const it of hbItems) {
+      const tagHits = it.tags.filter((t) => t.toLowerCase().includes(q))
+      const titleHit = it.title.toLowerCase().includes(q)
+      if (tagHits.length || titleHit) out.push({ slug: it.slug, title: it.title, tagHits })
+    }
+    return out
+  }, [q, isSearching, hbItems])
 
   const favItems = favs
     .map((path) => {
@@ -483,6 +588,7 @@ export default function AllMenus() {
         <div className="text-xs text-gray-500">
           검색 결과: 메뉴 {filteredGroups.reduce((s, g) => s + g.items.length, 0)}개
           {totalSubHits > 0 && ` · 페이지 내부 항목 ${totalSubHits}개`}
+          {hbMatches.length > 0 && ` · 📖 바이블 용어 ${hbMatches.length}개`}
         </div>
       )}
 
@@ -558,6 +664,15 @@ export default function AllMenus() {
                           {it.star && <span className="text-amber-500 mr-1">⭐</span>}
                           <span dangerouslySetInnerHTML={{ __html: highlight(it.label, q) }} />
                         </Link>
+                        {HANDBOOK_MAP[it.path] && (
+                          <Link
+                            to={`/handbook?slug=${HANDBOOK_MAP[it.path]}`}
+                            title="운영 바이블에서 이 기능의 정책·구조 보기"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-[11px] text-violet-400 hover:text-violet-600 mr-1 shrink-0"
+                          >
+                            📖
+                          </Link>
+                        )}
                         <button
                           onClick={() => toggleFav(it.path)}
                           className={`opacity-0 group-hover:opacity-100 transition-opacity ${isFav ? 'opacity-100' : ''}`}
@@ -605,7 +720,50 @@ export default function AllMenus() {
         })}
       </div>
 
-      {filteredGroups.length === 0 && (
+      {/* 📖 운영 바이블 용어 매칭 — 메뉴 라벨/별칭에 없어도 바이블 tag 로 잡아 위치 안내 (자동 동기화) */}
+      {isSearching && hbMatches.length > 0 && (
+        <section className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-2">
+          <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2 flex items-center gap-1">
+            📖 운영 바이블 용어 <span className="text-[11px] text-gray-400">({hbMatches.length})</span>
+          </h2>
+          <div className="space-y-2">
+            {hbMatches.map((it) => {
+              const paths = slugToPaths.get(it.slug) ?? []
+              return (
+                <div key={it.slug} className="text-xs rounded border border-gray-100 dark:border-gray-700 px-3 py-2">
+                  <div className="flex flex-wrap items-baseline gap-2">
+                    <span className="font-medium text-gray-800 dark:text-gray-100">{it.title}</span>
+                    {it.tagHits.length > 0 && (
+                      <span className="text-[11px] text-gray-400">
+                        용어: <span dangerouslySetInnerHTML={{ __html: it.tagHits.map((t) => highlight(t, q)).join(', ') }} />
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                    {paths.length > 0 ? (
+                      paths.map((p) => {
+                        const info = indexByPath.get(p)
+                        return info ? (
+                          <Link key={p} to={p} className="text-violet-600 dark:text-violet-300 hover:underline">
+                            → {info.label} <span className="text-gray-400">({info.groupTitle})</span>
+                          </Link>
+                        ) : null
+                      })
+                    ) : (
+                      <span className="text-gray-400">연결 메뉴 없음 (정책 문서)</span>
+                    )}
+                    <Link to={`/handbook?slug=${it.slug}`} className="text-violet-400 hover:underline ml-auto">
+                      📖 바이블 보기
+                    </Link>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {filteredGroups.length === 0 && hbMatches.length === 0 && (
         <div className="text-sm text-gray-400 text-center py-8">
           "{query}" 검색 결과 없음. 다른 단어로 시도해 보세요.
         </div>

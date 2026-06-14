@@ -1,3 +1,12 @@
+// ════════════════════════════════════════════════════════════════════════════
+// ⚠️  MONEY-CRITICAL — 돈이 직접 움직이는 코드. 실수=실고객 손실/이중차감 사고.
+//   · 변경 전 정독: _HANDBOOK/payment/01-m2net-relation.tech.md + CLAUDE.md "돈 불변식"
+//   · 변경 후 필수: `python tools/_verify_money_integrity.py` → PASS(exit 0) 확인
+//   · 절대 깨면 안 되는 불변식:
+//       ① 음수 잔액 0  ② member.point == free+paid  ③ 선결제 채팅 = consultation.amt 0
+//       ④ earning_balance == earning 원장합  ⑤ 멱등(push 재전송해도 이중 정산 X)
+//   · m2net = 단방향 push·항상 실과금. amt 가 진실원천. roomid 는 `__c_<id>` 꼬리표 주의.
+// ════════════════════════════════════════════════════════════════════════════
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SQL, type Sql, type TxSql } from '../shared/db/db.module';
 import { M2netService } from '../shared/m2net/m2net.service';

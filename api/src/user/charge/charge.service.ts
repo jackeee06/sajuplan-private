@@ -1,3 +1,9 @@
+// ════════════════════════════════════════════════════════════════════════════
+// ⚠️  MONEY-CRITICAL — 코인 충전(실제 PG 결제 → paid_balance + m2net 양쪽 적립).
+//   · 변경 전 정독: _HANDBOOK/payment/02-charge-flow.tech.md + CLAUDE.md "돈 불변식"
+//   · 변경 후 필수: `python tools/_verify_money_integrity.py` → PASS(exit 0) 확인
+//   · `payment` 가 충전 진실원장. PG 직통+사주플랜 양쪽 fill 이중적립 사고 이력 → 자동정정 안전망.
+// ════════════════════════════════════════════════════════════════════════════
 import {
   BadGatewayException,
   BadRequestException,
