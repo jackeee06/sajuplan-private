@@ -774,14 +774,14 @@ export class MembersService {
         earn_point: number; use_point: number; balance_after: number | null;
         rel_table: string | null; consult_id: number | null;
         reason: string | null; usetm: number | null;
-        customer_mb_id: string | null; customer_nickname: string | null;
+        customer_mb_id: string | null; customer_nickname: string | null; customer_name: string | null;
         m2net_amt: number | null;
       }[]>`
         SELECT ph.id, ph.created_at, ph.content,
                ph.earn_point, ph.use_point, ph.balance_after,
                ph.rel_table,
                c.id AS consult_id, c.reason, c.usetm,
-               cm.mb_id AS customer_mb_id, cm.nickname AS customer_nickname,
+               cm.mb_id AS customer_mb_id, cm.nickname AS customer_nickname, cm.name AS customer_name,
                NULLIF(c.mrtn::json->>'amt','')::int AS m2net_amt
           FROM point_history ph
           LEFT JOIN consultation c
