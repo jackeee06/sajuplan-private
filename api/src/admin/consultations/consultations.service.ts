@@ -92,12 +92,16 @@ export interface ConsultationRow {
   // 차단 여부 (counselor_block)
   is_blocked: boolean;
   block_reason: string | null;
-  // 수익 분해 (2026-06-02)
+  // 수익 분해 (2026-06-02 / 2026-06-14 선결제 정확화)
   counselor_grade?: string | null;
   counselor_revenue_rate?: number | null;
   counselor_earning?: number;
-  m2net_deduction?: number;      // amt × (통신사% + 통신료%) — m2net 변동비
-  sajuplan_revenue?: number;     // amt - m2net_deduction - counselor_earning
+  m2net_deduction?: number;      // baseAmt × (통신사% + 통신료%) — m2net 변동비
+  sajuplan_revenue?: number;     // baseAmt × 영업이익률
+  // [2026-06-14] 선결제(amt=0) 정확화. baseAmt = 종량제는 amt, 선결제는 m2net 실시간 실과금(mrtn).
+  m2net_charge?: number | null;  // m2net 실시간 실과금 (mrtn.amt). 선결제 수익 계산 기준값.
+  customer_paid?: number;        // 고객 지출 코인 (baseAmt) — 선결제는 실사용 m2net 과금 기준
+  real_earning?: number | null;  // 내부 계산용 — point_history 실제 적립액
 }
 
 export type View = 'all' | 'call' | 'chat';
@@ -225,6 +229,13 @@ export class ConsultationsService {
           WHERE s.namespace='grade' AND s.key = 'revenue_rate.' || COALESCE(c.grade,'')
           LIMIT 1
         ) AS counselor_revenue_rate,
+        -- [2026-06-14] m2net 실시간 실과금 (선결제는 consultation.amt=0 이라 이 값이 진짜 기준)
+        NULLIF(cs.mrtn::json->>'amt','')::int AS m2net_charge,
+        -- [2026-06-14] 실제 적립된 상담사 수익금 (point_history 원장 — 선결제도 정확)
+        (SELECT COALESCE(SUM(ph.earn_point - ph.use_point), 0)
+           FROM point_history ph
+          WHERE ph.rel_table='consultation' AND ph.rel_id = cs.id::text AND ph.balance_kind='earning'
+        ) AS real_earning,
         -- 차단 여부
         (cb.id IS NOT NULL) AS is_blocked,
         cb.reason AS block_reason
@@ -242,16 +253,26 @@ export class ConsultationsService {
     const SAJUPLAN_OPERATING_RATE = 0.23;
     const enriched = items.map((row) => {
       const amt = Number(row.amt);  // BigInt/string 등 안전 변환
+      // [2026-06-14] baseAmt = 기준 과금액. 종량제는 amt, 선결제(amt=0)는 m2net 실시간 실과금(mrtn).
+      //   → 선결제도 종량제와 동일 공식으로 수익금/m2net차감/매출이 0 이 아닌 실제값으로 계산됨.
+      const m2netCharge = row.m2net_charge != null ? Number(row.m2net_charge) : 0;
+      const baseAmt = amt > 0 ? amt : (m2netCharge > 0 ? m2netCharge : 0);
       const rate = row.counselor_revenue_rate != null ? Number(row.counselor_revenue_rate) : null;
-      const m2netDeduction = amt > 0 ? Math.floor(amt * m2netRate) : 0;
-      const earning = rate != null && amt > 0 ? Math.floor(amt * rate) : null;
-      const sajuplanRev = amt > 0 ? Math.floor(amt * SAJUPLAN_OPERATING_RATE) : undefined;
+      const m2netDeduction = baseAmt > 0 ? Math.floor(baseAmt * m2netRate) : 0;
+      // 상담사 수익금: 실제 적립(point_history) 우선 — 선결제 정확. 적립 없으면 baseAmt×요율 근사.
+      const realEarn = row.real_earning != null ? Number(row.real_earning) : 0;
+      const earning = realEarn > 0
+        ? realEarn
+        : (rate != null && baseAmt > 0 ? Math.floor(baseAmt * rate) : null);
+      const sajuplanRev = baseAmt > 0 ? Math.floor(baseAmt * SAJUPLAN_OPERATING_RATE) : undefined;
       return {
         ...row,
         counselor_revenue_rate: rate,
         counselor_earning: earning ?? undefined,
-        m2net_deduction: amt > 0 ? m2netDeduction : undefined,
+        m2net_deduction: baseAmt > 0 ? m2netDeduction : undefined,
         sajuplan_revenue: sajuplanRev,
+        m2net_charge: m2netCharge > 0 ? m2netCharge : null,
+        customer_paid: baseAmt > 0 ? baseAmt : undefined,
       };
     });
 

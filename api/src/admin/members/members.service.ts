@@ -759,7 +759,15 @@ export class MembersService {
     const p = Math.max(1, Math.trunc(page));
     const lim = Math.min(100, Math.max(1, Math.trunc(limit)));
     const offset = (p - 1) * lim;
-    const [items, cnt] = await Promise.all([
+    // 사용(상담)내역 화면과 동일한 수익 분해 상수 (consultations.service 와 일치)
+    const M2NET_RATE = 0.15;            // 통신사 10% + 통신료 5%
+    const SAJUPLAN_OPERATING_RATE = 0.23;
+    const [rateRow, rows, cnt] = await Promise.all([
+      this.sql<{ rate: string | null }[]>`
+        SELECT (SELECT NULLIF(s.value,'')::numeric FROM setting s
+                 WHERE s.namespace='grade' AND s.key='revenue_rate.'||COALESCE(m.grade,'') LIMIT 1) AS rate
+          FROM member m WHERE m.id = ${counselorId} LIMIT 1
+      `,
       this.sql<{
         id: number; created_at: string; content: string | null;
         earn_point: number; use_point: number; balance_after: number | null;
@@ -787,6 +795,21 @@ export class MembersService {
          WHERE member_id = ${counselorId} AND balance_kind = 'earning'
       `,
     ]);
+    const rate = rateRow[0]?.rate != null ? Number(rateRow[0].rate) : null;
+    // 사용(상담)내역과 동일 수익 분해. baseAmt = m2net 실시간 실과금(mrtn) — 선결제도 정확.
+    const items = rows.map((r) => {
+      const baseAmt = r.m2net_amt != null && Number(r.m2net_amt) > 0 ? Number(r.m2net_amt) : 0;
+      const isConsult = r.rel_table === 'consultation' && baseAmt > 0;
+      return {
+        ...r,
+        counselor_revenue_rate: rate,
+        customer_paid: isConsult ? baseAmt : undefined,
+        m2net_deduction: isConsult ? Math.floor(baseAmt * M2NET_RATE) : undefined,
+        sajuplan_revenue: isConsult ? Math.floor(baseAmt * SAJUPLAN_OPERATING_RATE) : undefined,
+        // 상담사수익금 = 실제 적립(원장). 선결제도 정확.
+        counselor_earning: r.earn_point - r.use_point,
+      };
+    });
     return { items, total: Number(cnt[0]?.count ?? 0), page: p, limit: lim };
   }
 

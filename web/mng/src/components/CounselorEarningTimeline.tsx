@@ -24,6 +24,12 @@ interface Row {
   customer_mb_id: string | null
   customer_nickname: string | null
   m2net_amt: number | null
+  // 사용(상담)내역과 동일 수익 분해 (선결제도 baseAmt=mrtn 기준 정확)
+  counselor_revenue_rate?: number | null
+  customer_paid?: number
+  m2net_deduction?: number
+  sajuplan_revenue?: number
+  counselor_earning?: number
 }
 interface Resp { items: Row[]; total: number; page: number; limit: number }
 
@@ -95,34 +101,50 @@ export default function CounselorEarningTimeline({ counselorId }: { counselorId:
                 <span className="font-semibold text-amber-700">{totalEarn.toLocaleString()}원</span>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-[12.5px] border-collapse">
+                <table className="w-full text-[12.5px] border-collapse whitespace-nowrap">
                   <thead>
                     <tr className="bg-amber-100/60 dark:bg-amber-900/30 text-left text-amber-800 dark:text-amber-300">
-                      <th className="px-2 py-1.5 font-semibold whitespace-nowrap">날짜</th>
+                      <th className="px-2 py-1.5 font-semibold">날짜</th>
                       <th className="px-2 py-1.5 font-semibold">유형</th>
-                      <th className="px-2 py-1.5 font-semibold whitespace-nowrap">상담시간</th>
+                      <th className="px-2 py-1.5 font-semibold text-right">상담시간</th>
                       <th className="px-2 py-1.5 font-semibold">대상 고객</th>
-                      <th className="px-2 py-1.5 font-semibold text-right whitespace-nowrap">m2net 실과금</th>
-                      <th className="px-2 py-1.5 font-semibold text-right whitespace-nowrap">적립</th>
+                      <th className="px-2 py-1.5 font-semibold text-center">요율</th>
+                      <th className="px-2 py-1.5 font-semibold text-right">고객지출</th>
+                      <th className="px-2 py-1.5 font-semibold text-right">m2net차감</th>
+                      <th className="px-2 py-1.5 font-semibold text-right">상담사수익금</th>
+                      <th className="px-2 py-1.5 font-semibold text-right">사주플랜매출</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.items.map((r) => {
                       const t = typeLabel(r)
-                      const net = r.earn_point - r.use_point
+                      const net = r.counselor_earning ?? (r.earn_point - r.use_point)
+                      const isConsult = r.rel_table === 'consultation' && (r.customer_paid ?? 0) > 0
                       return (
                         <tr key={r.id} className="border-b border-amber-100 dark:border-amber-800/30 hover:bg-amber-50/60">
-                          <td className="px-2 py-1.5 whitespace-nowrap text-gray-600 dark:text-gray-300">{fmtDate(r.created_at)}</td>
+                          <td className="px-2 py-1.5 text-gray-600 dark:text-gray-300">{fmtDate(r.created_at)}</td>
                           <td className="px-2 py-1.5"><span className={`px-1.5 py-0.5 rounded text-[11px] ${t.cls}`}>{t.label}</span></td>
-                          <td className="px-2 py-1.5 whitespace-nowrap tabular-nums">{fmtDur(r.usetm)}</td>
+                          <td className="px-2 py-1.5 text-right tabular-nums">{fmtDur(r.usetm)}</td>
                           <td className="px-2 py-1.5 text-gray-600 dark:text-gray-300">
                             {r.customer_nickname || r.customer_mb_id || <span className="text-gray-300">-</span>}
                           </td>
-                          <td className="px-2 py-1.5 text-right tabular-nums text-gray-500">
-                            {r.m2net_amt != null ? `${r.m2net_amt.toLocaleString()}원` : '-'}
+                          <td className="px-2 py-1.5 text-center tabular-nums text-gray-500">
+                            {r.counselor_revenue_rate != null ? `${Math.round(r.counselor_revenue_rate * 100)}%` : '-'}
                           </td>
-                          <td className={`px-2 py-1.5 text-right tabular-nums font-medium ${net >= 0 ? 'text-amber-700' : 'text-red-500'}`}>
-                            {net >= 0 ? '+' : ''}{net.toLocaleString()}원
+                          <td className="px-2 py-1.5 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                            {isConsult ? r.customer_paid!.toLocaleString() : '-'}
+                            {isConsult && (r.rel_table === 'consultation') && (r.reason === 'END_CHAT' || r.reason === 'END_CHAT_LOCAL') && (r.customer_paid ?? 0) > 0 && r.m2net_amt != null && (
+                              <span className="ml-1 text-[10px] text-pink-500" title="선결제: m2net 실시간 실과금 기준">선</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-orange-500">
+                            {r.m2net_deduction != null ? r.m2net_deduction.toLocaleString() : '-'}
+                          </td>
+                          <td className={`px-2 py-1.5 text-right tabular-nums font-semibold ${net >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+                            {net.toLocaleString()}
+                          </td>
+                          <td className="px-2 py-1.5 text-right tabular-nums text-emerald-700">
+                            {r.sajuplan_revenue != null ? r.sajuplan_revenue.toLocaleString() : '-'}
                           </td>
                         </tr>
                       )
@@ -140,7 +162,7 @@ export default function CounselorEarningTimeline({ counselorId }: { counselorId:
                 </button>
               )}
               <p className="mt-2 text-[11px] text-gray-400">
-                ※ 선결제 채팅은 상담 금액(amt)이 0이라도 m2net 실시간 과금 기준으로 적립됩니다. 위 "적립"이 실제 수익금입니다.
+                ※ 사용(상담)내역과 동일 포맷(상담사 필터). 선결제 채팅은 상담 금액이 0이라도 m2net 실시간 과금 기준으로 정확히 계산됩니다. "상담사수익금"이 실제 적립액입니다.
               </p>
             </>
           )}

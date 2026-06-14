@@ -68,6 +68,8 @@ interface Consultation {
   counselor_earning?: number
   m2net_deduction?: number
   sajuplan_revenue?: number
+  m2net_charge?: number | null
+  customer_paid?: number
   is_blocked: boolean
   block_reason: string | null
 }
@@ -352,7 +354,12 @@ function ConsultationRow({ c, onOpen }: { c: Consultation; onOpen: () => void })
 
   const unitCost = c.counselor_unit_cost ?? 0
   const isRefunded = c.amt <= unitCost && c.usetm < 30 && !isChat
-  const pointCell = isRefunded ? '0(환불)' : c.amt.toLocaleString()
+  // [2026-06-14] 고객 지출 = customer_paid(baseAmt). 선결제(amt=0)는 m2net 실시간 실과금 기준.
+  const paid = c.customer_paid ?? c.amt
+  const isPrepaid = c.amt <= 0 && (c.customer_paid ?? 0) > 0
+  const pointCell = isRefunded ? '0(환불)' : paid.toLocaleString()
+  // 수익 분해 표시 여부 — baseAmt(customer_paid)가 있으면 종량제·선결제 모두 표시
+  const hasMoney = (c.customer_paid ?? 0) > 0
 
   return (
     <Tr onClick={onOpen}>
@@ -365,12 +372,13 @@ function ConsultationRow({ c, onOpen }: { c: Consultation; onOpen: () => void })
           <Link
             to={`/members/customers/${c.member_id}`}
             onClick={(e) => e.stopPropagation()}
-            className="text-brand-600 hover:underline font-medium"
+            className="text-brand-600 hover:underline font-medium block max-w-[140px] truncate"
+            title={c.member_mb_id}
           >
             {c.member_mb_id}
           </Link>
         ) : (
-          <span className="text-gray-400">{memberIdCell}</span>
+          <span className="text-gray-400 block max-w-[140px] truncate" title={memberIdCell}>{memberIdCell}</span>
         )}
       </Td>
       <Td align="left">{memberNameCell}</Td>
@@ -379,7 +387,8 @@ function ConsultationRow({ c, onOpen }: { c: Consultation; onOpen: () => void })
           <Link
             to={`/members/counselors/${c.counselor_id}`}
             onClick={(e) => e.stopPropagation()}
-            className="text-brand-600 hover:underline font-medium"
+            className="text-brand-600 hover:underline font-medium block max-w-[140px] truncate"
+            title={c.counselor_mb_id}
           >
             {c.counselor_mb_id}
           </Link>
@@ -413,25 +422,26 @@ function ConsultationRow({ c, onOpen }: { c: Consultation; onOpen: () => void })
         className={`tabular-nums font-medium ${isRefunded ? 'text-rose-600' : 'text-gray-900 dark:text-gray-100'}`}
       >
         {pointCell}
+        {isPrepaid && <span className="ml-1 text-[10px] text-pink-500" title="선결제: m2net 실시간 실과금 기준">선</span>}
       </Td>
-      {/* 수익 분해 — 상담사% / m2net차감 / 상담사수익금 / 사주플랜매출 */}
+      {/* 수익 분해 — 상담사% / m2net차감 / 상담사수익금 / 사주플랜매출. 선결제(amt=0)도 baseAmt 기준 표시 */}
       <Td align="center" className="text-xs text-gray-500 tabular-nums">
         {c.counselor_revenue_rate != null
           ? `${Math.round(c.counselor_revenue_rate * 100)}%`
           : <span className="text-gray-300">-</span>}
       </Td>
       <Td align="right" className="tabular-nums text-orange-500 font-medium text-xs">
-        {c.m2net_deduction != null && c.amt > 0
+        {c.m2net_deduction != null && hasMoney
           ? c.m2net_deduction.toLocaleString()
           : <span className="text-gray-300">-</span>}
       </Td>
       <Td align="right" className="tabular-nums text-indigo-600 font-medium text-xs">
-        {c.counselor_earning != null && c.amt > 0
+        {c.counselor_earning != null && hasMoney
           ? c.counselor_earning.toLocaleString()
           : <span className="text-gray-300">-</span>}
       </Td>
       <Td align="right" className="tabular-nums text-emerald-700 font-medium text-xs">
-        {c.sajuplan_revenue != null && c.amt > 0
+        {c.sajuplan_revenue != null && hasMoney
           ? c.sajuplan_revenue.toLocaleString()
           : <span className="text-gray-300">-</span>}
       </Td>

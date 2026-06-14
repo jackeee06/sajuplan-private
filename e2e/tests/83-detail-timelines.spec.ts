@@ -27,11 +27,11 @@ test.describe('상세화면 코인/수익 타임라인', () => {
     await page.waitForTimeout(2000)
 
     expect(earningReqs.length, 'earning-history API 호출됨').toBeGreaterThan(0)
-    // 테이블 헤더 + 적립 컬럼
-    await expect(page.getByText('m2net 실과금', { exact: false }).first(), '실과금 컬럼').toBeVisible({ timeout: 6000 })
-    await expect(page.getByText('상담시간', { exact: false }).first(), '상담시간 컬럼').toBeVisible()
-    // 적립 금액(원) 행이 하나 이상
-    await expect(page.locator('text=/[+\\-][0-9,]+원/').first(), '건별 적립 금액 행').toBeVisible({ timeout: 6000 })
+    // 사용(상담)내역과 동일 포맷 컬럼
+    await expect(page.getByText('상담시간', { exact: false }).first(), '상담시간 컬럼').toBeVisible({ timeout: 6000 })
+    await expect(page.getByText('상담사수익금', { exact: false }).first(), '상담사수익금 컬럼').toBeVisible()
+    await expect(page.getByText('사주플랜매출', { exact: false }).first(), '사주플랜매출 컬럼').toBeVisible()
+    await expect(page.getByText('요율', { exact: false }).first(), '요율 컬럼').toBeVisible()
   })
 
   test('B) 고객 상세 — 코인 타임라인 펼침 + 증감/사유 렌더', async ({ page }) => {
