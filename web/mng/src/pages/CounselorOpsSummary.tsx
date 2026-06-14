@@ -28,12 +28,9 @@ interface OpsSummary {
   today: { consultations: number }
   month: {
     consultations: number
-    amt_free: number
-    amt_pro: number
     amt_total: number
     revenue_rate_pct: number
     est_price_tot: number
-    est_supply: number
     est_withholding: number
     est_payout: number
   }
@@ -148,29 +145,27 @@ export default function CounselorOpsSummary() {
           tone={data.today.consultations > 0 ? 'emerald' : 'default'}
         />
         <Kpi
-          label="이번달 정산 매출"
+          label="이번달 매출"
           value={won.format(data.month.amt_total)}
-          sub={`유료 ${won.format(data.month.amt_pro)} / 무료 ${won.format(data.month.amt_free)}`}
+          sub="고객 실지출 (선결제 포함)"
           tone="default"
         />
         <Kpi
           label="이번달 정산 예상"
           value={won.format(data.month.est_payout)}
-          sub={`정산률 ${data.month.revenue_rate_pct}% · VAT/원천징수 차감 후`}
+          sub={`원천세 3.3% 차감 후 · 상담사 화면과 동일`}
           tone={data.month.est_payout > 0 ? 'amber' : 'default'}
         />
       </div>
 
-      {/* 정산 산식 상세 */}
+      {/* 정산 산식 상세 — 2026-06-14 정산 단순화: 수익금 적립 − 원천세 3.3%만 (부가세·회선비 폐지) */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">📊 정산 산식 상세 (이번달)</h2>
         <table className="text-sm">
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            <Row label="정산 대상 매출 (amt_free + amt_pro)" value={won.format(data.month.amt_total)} />
-            <Row label={`× 정산률 ${data.month.revenue_rate_pct}% (등급: ${c.grade_label})`} value={won.format(data.month.est_price_tot)} hint="price_tot" />
-            <Row label="÷ 1.1 (VAT 제외)" value={won.format(data.month.est_supply)} hint="supply (공급가액)" />
-            <Row label="− 원천징수 3.3%" value={`-${won.format(data.month.est_withholding)}`} tone="rose" />
-            <Row label="실수령 예상" value={won.format(data.month.est_payout)} bold tone="brand" />
+            <Row label={`이번달 적립 수익금 (정산률 ${data.month.revenue_rate_pct}% 반영·선결제 포함)`} value={won.format(data.month.est_price_tot)} hint="point_history earning" />
+            <Row label="− 원천세 3.3%" value={`-${won.format(data.month.est_withholding)}`} tone="rose" />
+            <Row label="실수령 예상 (= 상담사 앱 '이번달 정산금액')" value={won.format(data.month.est_payout)} bold tone="brand" />
           </tbody>
         </table>
         <p className="text-[11px] text-gray-500 mt-3">

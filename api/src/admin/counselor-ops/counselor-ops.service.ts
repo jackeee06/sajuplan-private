@@ -1,5 +1,7 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
+import { UserSettlementsService } from '../../user/settlements/settlements.service';
+import { UserCounselorMypagePayoutService } from '../../user/counselor-mypage-payout/counselor-mypage-payout.service';
 
 /**
  * 어드민 — 상담사 운영 종합 (Ops Summary).
@@ -15,7 +17,12 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  */
 @Injectable()
 export class AdminCounselorOpsService {
-  constructor(@Inject(SQL) private readonly sql: Sql) {}
+  constructor(
+    @Inject(SQL) private readonly sql: Sql,
+    // 상담사 화면 미러용 — 상담사 마이페이지가 쓰는 바로 그 서비스(같은 계산)
+    private readonly userSettlements: UserSettlementsService,
+    private readonly userPayout: UserCounselorMypagePayoutService,
+  ) {}
 
   async summary(memberId: number): Promise<{
     counselor: {
@@ -43,12 +50,9 @@ export class AdminCounselorOpsService {
     today: { consultations: number };
     month: {
       consultations: number;
-      amt_free: number;
-      amt_pro: number;
       amt_total: number;
       revenue_rate_pct: number;
       est_price_tot: number;
-      est_supply: number;
       est_withholding: number;
       est_payout: number;
     };
@@ -61,6 +65,19 @@ export class AdminCounselorOpsService {
       rel_id: string;
       created_at: string;
     }>;
+    /**
+     * 상담사 화면 미러 — 상담사 마이페이지(/counselor/mypage)에 보이는 숫자 그대로.
+     * 통화 응대 시 관리자가 상담사와 같은 숫자를 보기 위함. (같은 서비스 호출 = 드리프트 0)
+     */
+    mirror: {
+      balance: number;          // 내 수익금 (총잔여 = earning_balance)
+      this_month_net: number;   // 당월 적립 중 (순액)
+      pending_settle: number;   // 이번 정산 예정 (전월까지)
+      after_tax: number;        // 세후 입금 예상 (약)
+      payout_available: number; // 선지급 가능
+      payout_blocked: boolean;
+      payout_block_reason: string | null;
+    };
   }> {
     // 1. 상담사 기본
     const m = await this.sql<{
@@ -109,11 +126,14 @@ export class AdminCounselorOpsService {
          AND reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
     `;
 
-    // 4. 이번달 정산 대상 + 산식 모의 (preliminary 기본 40%, grade 시드 기준)
-    const month = await this.sql<{ cnt: string; sf: string; sp: string }[]>`
+    // 4. 이번달 매출 — 고객 실지출(선결제 포함). 종량제는 amt, 선결제(amt=0)는 m2net 실시간 실과금(mrtn).
+    //    [2026-06-14] 기존 amt_free/amt_pro 합은 선결제(amt=0)를 누락 → 실매출 과소집계라 mrtn 기반으로 교정.
+    const month = await this.sql<{ cnt: string; sales: string }[]>`
       SELECT COUNT(*)::text AS cnt,
-             COALESCE(SUM(amt_free), 0)::text AS sf,
-             COALESCE(SUM(amt_pro), 0)::text AS sp
+             COALESCE(SUM(
+               CASE WHEN c.amt > 0 THEN c.amt
+                    ELSE COALESCE(NULLIF(c.mrtn::json->>'amt','')::int, 0) END
+             ), 0)::text AS sales
         FROM consultation c
        WHERE c.counselor_id = ${memberId}
          AND c.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
@@ -127,8 +147,7 @@ export class AdminCounselorOpsService {
          )
     `;
     const monthCnt = Number(month[0]?.cnt ?? 0);
-    const sf = Number(month[0]?.sf ?? 0);
-    const sp = Number(month[0]?.sp ?? 0);
+    const monthSales = Number(month[0]?.sales ?? 0);
 
     let revenueRatePct = 0;
     if (c.grade) {
@@ -142,11 +161,6 @@ export class AdminCounselorOpsService {
         if (Number.isFinite(r) && r >= 0 && r <= 1) revenueRatePct = Math.round(r * 100);
       }
     }
-    const estPriceTot = Math.floor(sf * revenueRatePct / 100) + Math.floor(sp * revenueRatePct / 100);
-    const estSupply = Math.floor(estPriceTot / 1.1);
-    const estWithholding = Math.floor(estSupply * 0.033);
-    const estReplyFee = estPriceTot >= 50000 ? 20000 : 0;
-    const estPayout = estSupply - estWithholding - estReplyFee;
 
     // 5. 최근 적립 이력 5건
     type CreditRow = {
@@ -176,6 +190,31 @@ export class AdminCounselorOpsService {
       partner5: '파트너5',
     };
 
+    // 6. 상담사 화면 미러 — 상담사 마이페이지와 '같은 함수'로 계산 (숫자 절대 안 어긋남).
+    const s = await this.userSettlements.summary(memberId);
+    const p = await this.userPayout.getMine(memberId).catch(() => null);
+    const balanceMirror = Number(s.balance ?? 0);
+    const thisMonthNet =
+      Number(s.this_month ?? 0) + Number(s.referral_earn ?? 0) - Number(s.referral_deduct ?? 0);
+    const pendingSettle = Math.max(0, balanceMirror - thisMonthNet);
+
+    // [2026-06-14] 이번달 정산 예상 — 상담사앱과 100% 동일 (estimated_payout = 상담사앱 '이번달 정산금액').
+    //   옛 공식(매출×정산률÷1.1 부가세 − 회선비, base=consultation.amt 라 선결제 누락) 폐기.
+    //   새 공식: 이번달 적립 수익금(thisMonthNet, 선결제 포함) − 원천세 3.3%만.
+    const estPriceTot = thisMonthNet;                       // 이번달 적립 수익금(세전)
+    const estPayout = Number(s.estimated_payout ?? Math.max(0, thisMonthNet - Math.floor(thisMonthNet * 0.033)));
+    const estWithholding = Math.max(0, estPriceTot - estPayout); // 원천세(3.3%)
+    const afterTax = Math.max(0, balanceMirror - Math.floor(balanceMirror * 0.033));
+    const mirror = {
+      balance: balanceMirror,
+      this_month_net: thisMonthNet,
+      pending_settle: pendingSettle,
+      after_tax: afterTax,
+      payout_available: p ? Number(p.available_amount) : 0,
+      payout_blocked: p ? !!p.is_blocked : false,
+      payout_block_reason: p ? p.block_reason : null,
+    };
+
     return {
       counselor: {
         id: Number(c.id),
@@ -202,14 +241,11 @@ export class AdminCounselorOpsService {
       today: { consultations: Number(today[0]?.cnt ?? 0) },
       month: {
         consultations: monthCnt,
-        amt_free: sf,
-        amt_pro: sp,
-        amt_total: sf + sp,
+        amt_total: monthSales,                 // 이번달 매출 = 고객 실지출(선결제 포함)
         revenue_rate_pct: revenueRatePct,
-        est_price_tot: estPriceTot,
-        est_supply: estSupply,
-        est_withholding: estWithholding,
-        est_payout: Math.max(0, estPayout),
+        est_price_tot: estPriceTot,            // 이번달 적립 수익금(세전)
+        est_withholding: estWithholding,       // 원천세 3.3%
+        est_payout: Math.max(0, estPayout),    // 세후 실수령 예상 (= 상담사앱 '이번달 정산금액')
       },
       recent_credits: credits.map((r) => ({
         id: Number(r.id),
@@ -220,6 +256,7 @@ export class AdminCounselorOpsService {
         rel_id: r.rel_id,
         created_at: r.created_at.toISOString(),
       })),
+      mirror,
     };
   }
 }
