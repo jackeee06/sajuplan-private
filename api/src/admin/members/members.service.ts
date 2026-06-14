@@ -763,9 +763,10 @@ export class MembersService {
     const M2NET_RATE = 0.15;            // 통신사 10% + 통신료 5%
     const SAJUPLAN_OPERATING_RATE = 0.23;
     const [rateRow, rows, cnt] = await Promise.all([
-      this.sql<{ rate: string | null }[]>`
+      this.sql<{ rate: string | null; earning_balance: number | null }[]>`
         SELECT (SELECT NULLIF(s.value,'')::numeric FROM setting s
-                 WHERE s.namespace='grade' AND s.key='revenue_rate.'||COALESCE(m.grade,'') LIMIT 1) AS rate
+                 WHERE s.namespace='grade' AND s.key='revenue_rate.'||COALESCE(m.grade,'') LIMIT 1) AS rate,
+               (SELECT earning_balance FROM point WHERE member_id = m.id) AS earning_balance
           FROM member m WHERE m.id = ${counselorId} LIMIT 1
       `,
       this.sql<{
@@ -810,7 +811,15 @@ export class MembersService {
         counselor_earning: r.earn_point - r.use_point,
       };
     });
-    return { items, total: Number(cnt[0]?.count ?? 0), page: p, limit: lim };
+    return {
+      items,
+      total: Number(cnt[0]?.count ?? 0),
+      page: p,
+      limit: lim,
+      // [2026-06-14] 현재 받을 수 있는 총 수익금 = 라이브 earning_balance (정산 차감 반영, 페이지네이션 무관).
+      //   "표시 건 합계"는 오해를 부르므로 헤드라인은 이 값을 쓴다.
+      earning_balance: rateRow[0]?.earning_balance != null ? Number(rateRow[0].earning_balance) : 0,
+    };
   }
 
   // ─────────────────────────────────────────────

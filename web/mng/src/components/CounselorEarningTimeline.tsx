@@ -31,7 +31,7 @@ interface Row {
   sajuplan_revenue?: number
   counselor_earning?: number
 }
-interface Resp { items: Row[]; total: number; page: number; limit: number }
+interface Resp { items: Row[]; total: number; page: number; limit: number; earning_balance: number }
 
 function fmtDate(s: string): string {
   const d = new Date(s)
@@ -72,7 +72,6 @@ export default function CounselorEarningTimeline({ counselorId }: { counselorId:
       .finally(() => setLoading(false))
   }, [open, counselorId, limit])
 
-  const totalEarn = data?.items.reduce((a, r) => a + (r.earn_point - r.use_point), 0) ?? 0
 
   return (
     <section className="rounded-xl border border-amber-200 bg-amber-50/40 dark:bg-amber-900/10 dark:border-amber-800/40 overflow-hidden">
@@ -96,9 +95,14 @@ export default function CounselorEarningTimeline({ counselorId }: { counselorId:
             <div className="py-6 text-center text-sm text-gray-400">수익금 내역이 없습니다.</div>
           ) : (
             <>
-              <div className="text-xs text-gray-500 mb-2">
-                총 {data.total.toLocaleString()}건 · 표시 {data.items.length}건 합계{' '}
-                <span className="font-semibold text-amber-700">{totalEarn.toLocaleString()}원</span>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-2">
+                <span className="text-sm font-semibold text-amber-800">
+                  현재 받을 수 있는 총 수익금{' '}
+                  <span className="text-amber-700 text-base">{data.earning_balance.toLocaleString()}원</span>
+                </span>
+                <span className="text-[11px] text-gray-400">
+                  (라이브 잔액 · 정산 시 차감 반영) · 총 {data.total.toLocaleString()}건 표시 {data.items.length}건
+                </span>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-[12.5px] border-collapse whitespace-nowrap">
