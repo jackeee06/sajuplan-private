@@ -112,7 +112,6 @@ export default function CounselorEarningTimeline({ counselorId }: { counselorId:
                       <th className="px-2 py-1.5 font-semibold">유형</th>
                       <th className="px-2 py-1.5 font-semibold text-right">상담시간</th>
                       <th className="px-2 py-1.5 font-semibold">대상 고객</th>
-                      <th className="px-2 py-1.5 font-semibold text-center">요율</th>
                       <th className="px-2 py-1.5 font-semibold text-right">고객지출</th>
                       <th className="px-2 py-1.5 font-semibold text-right">m2net차감</th>
                       <th className="px-2 py-1.5 font-semibold text-right">상담사수익금</th>
@@ -130,10 +129,9 @@ export default function CounselorEarningTimeline({ counselorId }: { counselorId:
                           <td className="px-2 py-1.5"><span className={`px-1.5 py-0.5 rounded text-[11px] ${t.cls}`}>{t.label}</span></td>
                           <td className="px-2 py-1.5 text-right tabular-nums">{fmtDur(r.usetm)}</td>
                           <td className="px-2 py-1.5 text-gray-600 dark:text-gray-300">
-                            {r.customer_nickname || r.customer_mb_id || <span className="text-gray-300">-</span>}
-                          </td>
-                          <td className="px-2 py-1.5 text-center tabular-nums text-gray-500">
-                            {r.counselor_revenue_rate != null ? `${Math.round(r.counselor_revenue_rate * 100)}%` : '-'}
+                            {r.rel_table === 'settlement_monthly'
+                              ? <span className="text-gray-500">{r.content || '정산'}</span>
+                              : (r.customer_nickname || r.customer_mb_id || <span className="text-gray-300">-</span>)}
                           </td>
                           <td className="px-2 py-1.5 text-right tabular-nums text-gray-700 dark:text-gray-300">
                             {isConsult ? r.customer_paid!.toLocaleString() : '-'}

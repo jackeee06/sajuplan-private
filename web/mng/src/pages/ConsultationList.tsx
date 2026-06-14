@@ -304,7 +304,6 @@ export default function ConsultationList() {
           <Th align="right">진행시간</Th>
           <Th align="center">유·무료</Th>
           <Th align="right">사용포인트</Th>
-          <Th align="center">상담사%</Th>
           <Th align="right">m2net차감</Th>
           <Th align="right">상담사수익금</Th>
           <Th align="right">영업이익(≈23%)</Th>
@@ -313,9 +312,9 @@ export default function ConsultationList() {
         </THead>
         <TBody>
           {loading && !data ? (
-            <EmptyRow colSpan={14} loading />
+            <EmptyRow colSpan={13} loading />
           ) : !data || data.items.length === 0 ? (
-            <EmptyRow colSpan={14} />
+            <EmptyRow colSpan={13} />
           ) : (
             data.items.map((c) => (
               <ConsultationRow key={c.id} c={c} onOpen={() => navigate(`/consultations/${c.id}`)} />
@@ -424,12 +423,8 @@ function ConsultationRow({ c, onOpen }: { c: Consultation; onOpen: () => void })
         {pointCell}
         {isPrepaid && <span className="ml-1 text-[10px] text-pink-500" title="선결제: m2net 실시간 실과금 기준">선</span>}
       </Td>
-      {/* 수익 분해 — 상담사% / m2net차감 / 상담사수익금 / 사주플랜매출. 선결제(amt=0)도 baseAmt 기준 표시 */}
-      <Td align="center" className="text-xs text-gray-500 tabular-nums">
-        {c.counselor_revenue_rate != null
-          ? `${Math.round(c.counselor_revenue_rate * 100)}%`
-          : <span className="text-gray-300">-</span>}
-      </Td>
+      {/* 수익 분해 — m2net차감 / 상담사수익금 / 사주플랜매출. 선결제(amt=0)도 baseAmt 기준 표시.
+          ※ 요율은 월중 여러 번 바뀔 수 있어 단일 표기가 오해를 줘서 컬럼 제외 (수익금은 실제 적립이라 정확). */}
       <Td align="right" className="tabular-nums text-orange-500 font-medium text-xs">
         {c.m2net_deduction != null && hasMoney
           ? c.m2net_deduction.toLocaleString()
