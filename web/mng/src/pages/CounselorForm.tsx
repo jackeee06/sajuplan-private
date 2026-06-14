@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import HtmlEditor, { type HtmlEditorHandle } from '../components/HtmlEditor'
 import UploadedImage from '../components/UploadedImage'
 import CounselorOpsCompact from '../components/CounselorOpsCompact'
+import CounselorEarningTimeline from '../components/CounselorEarningTimeline'
 import { API_BASE, FILE_BASE as FILE_ORIGIN } from '../lib/runtime-env'
 
 // 한국 주요 은행 — 사용자 측 PayoutBankModal.tsx 와 동일 리스트
@@ -233,9 +234,19 @@ export default function CounselorForm() {
         }))
         setFiles(Array.isArray(r.files) ? (r.files as CounselorFile[]) : [])
       })
-      .catch((e) => setError(e.message))
+      .catch(async (e) => {
+        // 상담사로 못 찾으면 — 일반회원 계정(듀얼)일 수 있으니 실제 role 확인 후 올바른 화면으로 이동.
+        try {
+          const who = await api<{ found: boolean; role: string | null }>(`/admin/members/whois/${id}`)
+          if (who.found && who.role === 'user') {
+            navigate(`/members/customers/${id}`, { replace: true })
+            return
+          }
+        } catch { /* whois 실패 시 원래 에러 노출 */ }
+        setError(e.message)
+      })
       .finally(() => setLoading(false))
-  }, [id, isNew])
+  }, [id, isNew, navigate])
 
   const set = <K extends keyof CounselorPayload>(k: K, v: CounselorPayload[K]) => {
     setData((d) => ({ ...d, [k]: v }))
@@ -521,6 +532,9 @@ export default function CounselorForm() {
         </div>
       )}
 
+      {/* 0) 💰 수익금 타임라인 — 상단 요약줄 바로 아래. 문의 대응 시 펼쳐서 건별 확인. (수정 모드만) */}
+      {!isNew && id && <CounselorEarningTimeline counselorId={Number(id)} />}
+
       {/* 1) 계정 정보 — 신규 등록 시만 별도 섹션. 수정 모드는 헤더 우측에 비밀번호 입력 흡수됨. */}
       {isNew && (
       <Section title="계정 정보" subtitle="로그인 ID와 비밀번호" icon={<KeyRound className="w-5 h-5" />}>
@@ -775,14 +789,10 @@ export default function CounselorForm() {
         {/* ─── 우: 요금/정산 ─── */}
         <div className="space-y-3 xl:pl-10">
         {/* 단위시간 그룹 — 전화 / 채팅 + 프리셋 (30·60초) */}
-        <Row label="단위시간 (초)" hint="회원에게 차감되는 단위 (M2NET dectm)">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-              전화 <NumInput value={data.call_unit_seconds} onChange={(v) => set('call_unit_seconds', v)} className={inputW.xs} />
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-              채팅 <NumInput value={data.chat_unit_seconds} onChange={(v) => set('chat_unit_seconds', v)} className={inputW.xs} />
-            </label>
+        <Row label="단위시간 (초)" hint="30초 고정 — 변경 불가 (2026-06-12 정책)">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <span className="px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-800 font-medium">전화·채팅 모두 30초 고정</span>
+            <span className="text-[11px] text-gray-400">사용자 화면이 “30초당 단가”로 표시되어 30초로 고정합니다.</span>
           </div>
         </Row>
         {/* 단가 그룹 — 070 / 060 / 채팅 한 줄 */}

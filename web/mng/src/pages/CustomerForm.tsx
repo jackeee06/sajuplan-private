@@ -4,6 +4,7 @@ import { ArrowLeft, MapPin } from 'lucide-react'
 import { api } from '../lib/api'
 import { openPostcode } from '../lib/daumPostcode'
 import PointAdjustPanel from '../components/PointAdjustPanel'
+import MemberCoinTimeline from '../components/MemberCoinTimeline'
 
 interface CustomerPayload {
   mb_id: string
@@ -70,9 +71,19 @@ export default function CustomerForm() {
           addr_jibeon: String(r.addr_jibeon ?? ''),
         }))
       })
-      .catch((e) => setError(e.message))
+      .catch(async (e) => {
+        // 고객으로 못 찾으면 — 상담사 계정(듀얼)일 수 있으니 실제 role 확인 후 올바른 화면으로 이동.
+        try {
+          const who = await api<{ found: boolean; role: string | null }>(`/admin/members/whois/${id}`)
+          if (who.found && who.role === 'counselor') {
+            navigate(`/members/counselors/${id}`, { replace: true })
+            return
+          }
+        } catch { /* whois 실패 시 원래 에러 노출 */ }
+        setError(e.message)
+      })
       .finally(() => setLoading(false))
-  }, [id, isNew])
+  }, [id, isNew, navigate])
 
   const set = <K extends keyof CustomerPayload>(k: K, v: CustomerPayload[K]) =>
     setData((d) => ({ ...d, [k]: v }))
@@ -203,6 +214,9 @@ export default function CustomerForm() {
           <input type="text" value={data.acquisition_source} onChange={(e) => set('acquisition_source', e.target.value)} className={inputCls} />
         </Row>
       </Section>
+
+      {/* 💰 코인 타임라인 — 문의 대응 시 펼쳐서 증감·사유·잔액 확인. (수정 모드만) */}
+      {!isNew && id && <MemberCoinTimeline memberId={Number(id)} />}
 
       <Section title="주소" cols={3}>
         <Row label="우편번호" hint="다음 우편번호 검색으로 자동 입력" fullWidth>

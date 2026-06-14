@@ -90,6 +90,16 @@ export class MembersController {
     return this.membersService.findCustomers(parseFilter(q), canShowPhone(req, q));
   }
 
+  /**
+   * 회원 역할 조회 (role 필터 없이) — 듀얼계정 링크 폴백용.
+   * GET /admin/members/whois/:id → { found, id, role, nickname, name }
+   * 고객/상담사 상세 화면에서 "못 찾음" 시 실제 role 을 확인해 올바른 화면으로 리다이렉트.
+   */
+  @Get('whois/:id')
+  whois(@Param('id', ParseIntPipe) id: number) {
+    return this.membersService.whois(id);
+  }
+
   /** 고객 단건: GET /admin/members/customers/:id */
   @Get('customers/:id')
   customerDetail(
@@ -129,6 +139,20 @@ export class MembersController {
     @Req() req: AuthedRequest,
   ) {
     return this.membersService.getCounselorDetail(id, canShowPhone(req, q));
+  }
+
+  /** 상담사 수익금 타임라인: GET /admin/members/counselors/:id/earning-history */
+  @Get('counselors/:id/earning-history')
+  counselorEarningHistory(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.membersService.getCounselorEarningHistory(
+      id,
+      page ? Number(page) : undefined,
+      limit ? Number(limit) : undefined,
+    );
   }
 
   /** 상담사 생성 + m2net 연동: POST /admin/members/counselors */
@@ -267,10 +291,13 @@ export class MembersController {
  *   → 일반관리자는 슈퍼가 설정한 시간 제한 토글 활성 시만 평문.
  */
 function canShowPhone(req: AuthedRequest, q: Record<string, string>): boolean {
-  // 슈퍼관리자: 평소 항상 평문 (정책)
-  if (req.admin?.is_super) return true;
-  // 일반관리자: 토글 ON 시만 평문
-  return q.show_phone === '1';
+  // [2026-06-11 보안 hardening] 일반관리자 ?show_phone=1 쿼리 신뢰 제거.
+  //   기존: 쿼리스트링만 보고 평문 반환 → 일반관리자가 파라미터 한 줄로 전 회원 평문 PII 열람 가능.
+  //   서버측에 "슈퍼가 켠 시간제한 토글" 검증이 전무했음(토글 자체 미구현).
+  //   → fail-closed: 슈퍼관리자만 평문. 일반관리자는 항상 마스킹.
+  //   (시간제한 토글은 setting 기반 슈퍼 전용 기능으로 추후 별도 구현 — 운영바이블 08 참조)
+  void q;
+  return !!req.admin?.is_super;
 }
 
 function parseFilter(q: Record<string, string>): ListFilter {

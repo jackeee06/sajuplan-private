@@ -134,10 +134,10 @@ export interface CounselorRow {
   // 집계
   total_consult: string;
   total_usetm: string;
-  this_month_070: string;
-  this_month_060: string;
+  this_month_070: string;   // 전화(roomid 없음, 후불 060 흡수)
+  this_month_chat: string;  // 채팅(roomid 있음)
   last_month_070: string;
-  last_month_060: string;
+  last_month_chat: string;
 }
 
 export interface ListFilter {
@@ -489,16 +489,18 @@ export class MembersService {
     const items = await this.sql<CounselorRow[]>`
       WITH this_m AS (
         SELECT counselor_id,
-               SUM(CASE WHEN preflag = 'Y' THEN amt ELSE 0 END) AS amt_070,
-               SUM(CASE WHEN preflag IS NULL OR preflag <> 'Y' THEN amt ELSE 0 END) AS amt_060
+               -- roomid 기준 분리(2026-06-12): 전화(roomid 없음 — 후불 060 흡수) / 채팅(roomid 있음).
+               --   이전엔 preflag 기준이라 채팅이 전화(070)에 섞이는 문제가 있었음.
+               SUM(CASE WHEN roomid IS NULL THEN amt ELSE 0 END) AS amt_call,
+               SUM(CASE WHEN roomid IS NOT NULL THEN amt ELSE 0 END) AS amt_chat
           FROM consultation
          WHERE ended_at >= date_trunc('month', CURRENT_DATE)
          GROUP BY counselor_id
       ),
       last_m AS (
         SELECT counselor_id,
-               SUM(CASE WHEN preflag = 'Y' THEN amt ELSE 0 END) AS amt_070,
-               SUM(CASE WHEN preflag IS NULL OR preflag <> 'Y' THEN amt ELSE 0 END) AS amt_060
+               SUM(CASE WHEN roomid IS NULL THEN amt ELSE 0 END) AS amt_call,
+               SUM(CASE WHEN roomid IS NOT NULL THEN amt ELSE 0 END) AS amt_chat
           FROM consultation
          WHERE ended_at >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
            AND ended_at <  date_trunc('month', CURRENT_DATE)
@@ -519,10 +521,10 @@ export class MembersService {
         COALESCE(p.earning_balance, 0) AS earning_balance,
         COALESCE(tc.cnt, 0)        AS total_consult,
         COALESCE(tc.total_sec, 0)  AS total_usetm,
-        COALESCE(tm.amt_070, 0)    AS this_month_070,
-        COALESCE(tm.amt_060, 0)    AS this_month_060,
-        COALESCE(lm.amt_070, 0)    AS last_month_070,
-        COALESCE(lm.amt_060, 0)    AS last_month_060,
+        COALESCE(tm.amt_call, 0)   AS this_month_070,
+        COALESCE(tm.amt_chat, 0)   AS this_month_chat,
+        COALESCE(lm.amt_call, 0)   AS last_month_070,
+        COALESCE(lm.amt_chat, 0)   AS last_month_chat,
         -- 2026-05-25: 빠른 필터 (데이터 미완성 / 이벤트 / 환불) 용 보조 필드
         (pc.id IS NOT NULL) AS has_profile,
         (COALESCE(pc.hashtag1,'') <> '' OR COALESCE(pc.hashtag2,'') <> '') AS has_hashtag,
@@ -593,6 +595,18 @@ export class MembersService {
       },
       by_category,
     };
+  }
+
+  /**
+   * 회원 역할 조회 (role 필터 없이) — 듀얼계정 폴백 리다이렉트용.
+   * 고객/상담사 상세 화면이 "못 찾음" 일 때 이 id 의 실제 role 을 확인한다.
+   */
+  async whois(id: number): Promise<{ found: boolean; id: number; role: string | null; nickname: string | null; name: string | null }> {
+    const rows = await this.sql<{ id: number; role: string | null; nickname: string | null; name: string | null }[]>`
+      SELECT id, role, nickname, name FROM member WHERE id = ${id} LIMIT 1
+    `;
+    if (rows.length === 0) return { found: false, id, role: null, nickname: null, name: null };
+    return { found: true, id: rows[0].id, role: rows[0].role, nickname: rows[0].nickname, name: rows[0].name };
   }
 
   // ─────────────────────────────────────────────
@@ -725,14 +739,55 @@ export class MembersService {
                '[]'::json
              ) AS files,
              0::bigint AS total_consult, 0::bigint AS total_usetm,
-             0::bigint AS this_month_070, 0::bigint AS this_month_060,
-             0::bigint AS last_month_070, 0::bigint AS last_month_060
+             0::bigint AS this_month_070, 0::bigint AS this_month_chat,
+             0::bigint AS last_month_070, 0::bigint AS last_month_chat
         FROM member m
    LEFT JOIN post_counselor p ON p.member_id = m.id
        WHERE m.id = ${id} AND m.role = 'counselor'
     `;
     if (rows.length === 0) throw new NotFoundException('상담사를 찾을 수 없습니다.');
     return applyPhoneMask(rows[0], showPhone);
+  }
+
+  /**
+   * 상담사 수익금 타임라인 — point_history(earning) 기준.
+   *   문의 대응용: 건별 날짜·상담시간·대상고객·m2net 실과금·실제 적립을 한 화면에.
+   *   ⚠️ 선결제 채팅은 consultation.amt=0 이지만 실제 적립(earn_point)은 m2net 실과금×정산률로 정상 발생 →
+   *      반드시 point_history.earn_point(실제 적립) 기준으로 보여준다 (amt×rate 계산은 선결제에서 0 이 되어 틀림).
+   */
+  async getCounselorEarningHistory(counselorId: number, page = 1, limit = 30) {
+    const p = Math.max(1, Math.trunc(page));
+    const lim = Math.min(100, Math.max(1, Math.trunc(limit)));
+    const offset = (p - 1) * lim;
+    const [items, cnt] = await Promise.all([
+      this.sql<{
+        id: number; created_at: string; content: string | null;
+        earn_point: number; use_point: number; balance_after: number | null;
+        rel_table: string | null; consult_id: number | null;
+        reason: string | null; usetm: number | null;
+        customer_mb_id: string | null; customer_nickname: string | null;
+        m2net_amt: number | null;
+      }[]>`
+        SELECT ph.id, ph.created_at, ph.content,
+               ph.earn_point, ph.use_point, ph.balance_after,
+               ph.rel_table,
+               c.id AS consult_id, c.reason, c.usetm,
+               cm.mb_id AS customer_mb_id, cm.nickname AS customer_nickname,
+               NULLIF(c.mrtn::json->>'amt','')::int AS m2net_amt
+          FROM point_history ph
+          LEFT JOIN consultation c
+                 ON ph.rel_table = 'consultation' AND c.id::text = ph.rel_id
+          LEFT JOIN member cm ON cm.id = c.member_id
+         WHERE ph.member_id = ${counselorId} AND ph.balance_kind = 'earning'
+         ORDER BY ph.created_at DESC, ph.id DESC
+         LIMIT ${lim} OFFSET ${offset}
+      `,
+      this.sql<{ count: string }[]>`
+        SELECT COUNT(*) AS count FROM point_history
+         WHERE member_id = ${counselorId} AND balance_kind = 'earning'
+      `,
+    ]);
+    return { items, total: Number(cnt[0]?.count ?? 0), page: p, limit: lim };
   }
 
   // ─────────────────────────────────────────────
@@ -940,8 +995,8 @@ export class MembersService {
         ${input.email ?? null}, ${phone}, ${input.gender ?? null},
         'counselor', 5, ${stateValue}, ${input.counselor_category ?? null},
         ${dtmfnoFinal}, ${telno}, ${input.counselor_priority ?? null},
-        ${input.call_unit_seconds ?? 30}, ${input.call_070_unit_cost ?? 0}, ${input.call_060_unit_cost ?? 0},
-        ${input.chat_unit_seconds ?? 30}, ${input.chat_unit_cost ?? 0}, ${input.preflag ?? 'P'},
+        30, ${input.call_070_unit_cost ?? 0}, ${input.call_060_unit_cost ?? 0},
+        30, ${input.chat_unit_cost ?? 0}, ${input.preflag ?? 'P'},
         ${input.paid_royalty_pct ?? null}, ${input.free_royalty_pct ?? null},
         ${input.bank_name ?? null}, ${input.bank_holder ?? null}, ${input.bank_account ?? null},
         ${usePhone}, ${useChat}, ${input.is_rising ?? false}
@@ -961,10 +1016,10 @@ export class MembersService {
         sortno: input.counselor_priority ?? 1,
         dtmfno: dtmfnoFinal,
         telno: telno ?? '',
-        dectm: input.call_unit_seconds ?? 30,
+        dectm: 30,
         decamt: input.call_070_unit_cost ?? 0,
         preflag: (input.preflag ?? 'P') as 'P' | 'Y' | '',
-        chatdectm: input.chat_unit_seconds ?? 30,
+        chatdectm: 30,
         chatdecamt: input.chat_unit_cost ?? 0,
       });
       m2netStatus = { ok: result.ok, error: result.error ?? '' };
@@ -1241,11 +1296,13 @@ export class MembersService {
     }
     setIf('csrid');
     setIf('counselor_priority');
-    setIf('call_unit_seconds');
+    // ★ unit_seconds 는 30초 고정 정책 (2026-06-12). 입력값 무시하고 항상 30 강제 —
+    //   사용자 화면이 단가를 "30초당 N원"으로 표시(unit_seconds 미사용)하므로 30 외 값이면 표시가 어긋난다.
     setIf('call_070_unit_cost');
     setIf('call_060_unit_cost');
-    setIf('chat_unit_seconds');
     setIf('chat_unit_cost');
+    updates.call_unit_seconds = 30;
+    updates.chat_unit_seconds = 30;
     setIf('preflag');
     setIf('paid_royalty_pct');
     setIf('free_royalty_pct');
@@ -1257,8 +1314,29 @@ export class MembersService {
     setIf('is_rising');
     setIf('is_recommended');
     setIf('admin_memo');
-    if (input.phone !== undefined) updates.phone = input.phone ? input.phone.replace(/[^0-9]/g, '') : null;
-    if (input.telno !== undefined) updates.telno = input.telno ? input.telno.replace(/[^0-9]/g, '') : null;
+    // [2026-06-12 긴급] 마스킹 방어 — 상담사 수정 경로에도 회원 수정(680~688)과 동일 가드 추가.
+    //   누락 시 마스킹값(010-****-3004)이 \D 제거되어 phone 7자리(0103004)로 영구 손실 → m2net
+    //   상담사 연결번호까지 손상되어 전화 라우팅 전면 장애가 발생했다(상담사 13명 손상 사고).
+    if (input.phone !== undefined) {
+      if (input.phone && input.phone.includes('*')) {
+        throw new BadRequestException('전화번호 마스킹 값입니다. 평문 표시 권한이 필요합니다.');
+      }
+      const pd = input.phone ? input.phone.replace(/[^0-9]/g, '') : '';
+      if (input.phone && pd.length > 0 && pd.length < 10) {
+        throw new BadRequestException(`전화번호는 10~11자리여야 합니다 (현재 ${pd.length}자리).`);
+      }
+      updates.phone = input.phone ? pd : null;
+    }
+    if (input.telno !== undefined) {
+      if (input.telno && input.telno.includes('*')) {
+        throw new BadRequestException('연결번호 마스킹 값입니다. 평문 표시 권한이 필요합니다.');
+      }
+      const td = input.telno ? input.telno.replace(/[^0-9]/g, '') : '';
+      if (input.telno && td.length > 0 && td.length < 10) {
+        throw new BadRequestException(`연결번호는 10~11자리여야 합니다 (현재 ${td.length}자리).`);
+      }
+      updates.telno = input.telno ? td : null;
+    }
     if (input.password) updates.password = await bcrypt.hash(input.password, 10);
 
     // ── state 결정: sample/adm/member_form_update.php:14-22, 169-199 동등 ──
