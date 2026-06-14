@@ -294,8 +294,15 @@ export class M2netPushService {
     //   _PREPAID_CHAT_POLICY.md §2 / §6 참조.
     let prepaidChatRoomChargeMinutes: number | null = null;
     if (isChat && roomid) {
+      // [2026-06-14 fix] chat_room.roomid 는 `__c_<id>` suffix 변형을 가질 수 있는데,
+      //   END 푸시의 base roomid 와 정확히 안 맞으면 선결제 무시가 안 걸려 → consultation 차감까지
+      //   발생 = 회원 이중차감 사고. base roomid + suffix 변형 모두 매칭해서 선결제 chat_room 을 찾는다.
+      const baseRoomid = roomid.replace(/__c_\d+$/, '');
       const cr = await this.sql<{ charge_minutes: number | null }[]>`
-        SELECT charge_minutes FROM chat_room WHERE roomid = ${roomid} LIMIT 1
+        SELECT charge_minutes FROM chat_room
+         WHERE (roomid = ${baseRoomid} OR roomid LIKE ${baseRoomid + '\\_\\_c\\_%'} ESCAPE '\\')
+           AND charge_minutes IS NOT NULL AND charge_minutes > 0
+         ORDER BY id DESC LIMIT 1
       `;
       if (cr[0]?.charge_minutes != null && Number(cr[0].charge_minutes) > 0) {
         prepaidChatRoomChargeMinutes = Number(cr[0].charge_minutes);
@@ -488,7 +495,14 @@ export class M2netPushService {
 
       if (csrid) {
         const readyState = computeReadyState(counselorUsePhone, counselorUseChat);
-        await this.sql`UPDATE member SET state = ${readyState} WHERE csrid = ${csrid}`;
+        // [2026-06-12] 실제 상담 종료(통화 DISCONNECT / 채팅 END_CHAT)면 last_consult_ended_at=now()
+        //   → 상담사 리스팅에서 "방금 상담 끝남(30분)" 2순위로 노출. NO_ANSWER_CSR(미응답)은 제외.
+        const isRealConsultEnd = reason === 'DISCONNECT' || reason === 'END_CHAT';
+        if (isRealConsultEnd) {
+          await this.sql`UPDATE member SET state = ${readyState}, last_consult_ended_at = now() WHERE csrid = ${csrid}`;
+        } else {
+          await this.sql`UPDATE member SET state = ${readyState} WHERE csrid = ${csrid}`;
+        }
 
         // 채팅 종료 — m2net chat-mgr 외부 상태도 동기화 (sample 의 set_crs_status_chg)
         if (reason === 'END_CHAT') {
@@ -797,12 +811,18 @@ export class M2netPushService {
           isCall && endsHere && usetm < SHORT_CALL_SEC
           && amt > 0 && !!snapUnitCost && amt <= snapUnitCost;
 
+        // [2026-06-14] 상담사 적립 기준액.
+        //   선결제 채팅은 회원을 START 에서 이미 차감했으므로 END 에서 amt=0(이중차감 방지)이지만,
+        //   상담사 적립은 m2net 실제 과금(rawAmt) 기준으로 정상 발생해야 한다 (안 그러면 상담사 과소적립).
+        //   종량제(비선결제)는 기존대로 amt 기준.
+        const counselorEarnAmt = (prepaidChatRoomChargeMinutes != null && endsHere) ? rawAmt : amt;
+
         if (endsHere && amt > 0) {
           this.logger.log(
             `[handleCallPush] 차감 svc=${svcType} memberId=${memberId} counselorId=${counselorId} membid=${membid} pushAmt=${amt} reason=${reason} usetm=${usetm} refundEligible=${refundEligible} shortCallRefund=${shortCallRefund} isPostpaid=${isPostpaid}`,
           );
 
-          // 회원 차감 — 트랜잭션 내부 호출. 실패 시 throw → 전체 롤백.
+          // 회원 차감 — 선결제(amt=0)는 여기 진입 안 함 → consultation 차감 없음 = 이중차감 방지.
           if (!refundEligible && !shortCallRefund && !isPostpaid && memberId !== null) {
             await this.deductMemberPointInTx(
               tx,
@@ -814,24 +834,7 @@ export class M2netPushService {
             );
           }
 
-          // 상담사 적립 — 동일 트랜잭션. 실패 시 회원 차감/consultation 모두 롤백.
-          //   단기통화환불 시에도 상담사 적립은 **정상 발생** (사장님 정책 2026-05-22 재확인).
-          //   회원 차감/m2net 잔액은 복구하되 상담사 보호 — 손실은 회사(사주플랜)가 부담.
-          //   settlement-cron 의 단기통화 NOT 제외 조건도 함께 제거됨.
-          if (counselorId !== null) {
-            await this.creditCounselorPointInTx(
-              tx,
-              counselorId, amt,
-              `${svcType}상담코인 증가`,
-              consultationId,
-              `${consultationId}@상담코인 증가@${eventtm}`,
-              isPaid,
-            );
-          }
-
           // 단기통화환불 메타 기록 — 회계/m2net 정산 추적용 (2026-05-22 추가).
-          //   사주플랜이 m2net 측에 추가 prepaid 한 손해 금액(=amt)을 영구적으로 기록.
-          //   어드민 대시보드의 월별 단기환불 합계 카드 + 향후 m2net 청구서 대조용.
           //   refund_status='short_call_refund' 는 어드민 수동 환불 화면에서 차단됨.
           if (shortCallRefund && consultationId > 0) {
             await tx`
@@ -841,6 +844,19 @@ export class M2netPushService {
                WHERE id = ${consultationId}
             `;
           }
+        }
+
+        // 상담사 적립 — 종량제(amt) + 선결제(rawAmt) 모두. m2net 실제 과금 기준, 동일 트랜잭션.
+        //   단기통화환불 시에도 적립은 **정상 발생** (상담사 보호, 사장님 정책 2026-05-22). 멱등(rel_action UNIQUE).
+        if (endsHere && counselorEarnAmt > 0 && counselorId !== null) {
+          await this.creditCounselorPointInTx(
+            tx,
+            counselorId, counselorEarnAmt,
+            `${svcType}상담코인 증가`,
+            consultationId,
+            `${consultationId}@상담코인 증가@${eventtm}`,
+            counselorEarnAmt >= 10000,
+          );
         }
 
         return { dup: false, consultationId, shortCallRefund };
@@ -1575,7 +1591,11 @@ export class M2netPushService {
     const gradeRow = await tx<{ grade: string | null; free_royalty_pct: number | null; paid_royalty_pct: number | null }[]>`
       SELECT grade, free_royalty_pct, paid_royalty_pct FROM member WHERE id = ${counselorId} LIMIT 1
     `;
-    let revenueRate = 1.0; // fallback — 등급 미설정 시 전액 (운영 정책 미결정 케이스)
+    // [2026-06-12 안전화] 정산률을 못 구하면 100%(회사 마진 0%) 적립하던 위험 fallback 제거.
+    //   등급은 있는데 setting(grade/revenue_rate.<grade>)이 누락/오류면 보수적 기본값(예비등급 0.4) 적용 + 에러 로그.
+    //   → 설정 실수가 곧바로 "상담사 전액 적립" 사고로 이어지던 구멍 차단.
+    const SAFE_FALLBACK_REVENUE_RATE = 0.4;
+    let revenueRate: number | null = null;
     if (gradeRow.length > 0) {
       const g = gradeRow[0];
       if (g.grade) {
@@ -1591,6 +1611,13 @@ export class M2netPushService {
       } else if (!isPaid && g.free_royalty_pct != null) {
         revenueRate = Number(g.free_royalty_pct) / 100;
       }
+    }
+    if (revenueRate == null || !Number.isFinite(revenueRate) || revenueRate < 0 || revenueRate > 1) {
+      this.logger.error(
+        `[creditCounselorPoint] 정산률 미해결 — counselorId=${counselorId} grade=${gradeRow[0]?.grade ?? 'none'} ` +
+        `→ 안전 기본값 ${SAFE_FALLBACK_REVENUE_RATE} 적용. setting grade/revenue_rate.<등급> 확인 필요.`,
+      );
+      revenueRate = SAFE_FALLBACK_REVENUE_RATE;
     }
     // 상담사 실수익 = 고객결제액 × 수익률 (회사 마진 제외)
     const effectiveAmt = Math.floor(amt * revenueRate);
