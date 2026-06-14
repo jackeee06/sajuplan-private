@@ -100,11 +100,6 @@ export default function CounselorOpsCompact({ memberId }: { memberId: number }) 
               <span className="text-gray-500">당월 적립중</span>
               <span className="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{num.format(data.mirror.this_month_net)}원</span>
             </span>
-            <span className="inline-flex items-center gap-1" title="상담사 앱 '이번달 정산금액'과 동일한 값 (이번달 적립 − 원천세 3.3%)">
-              <span className="text-gray-500">📱 이번달 정산예상</span>
-              <span className="font-semibold text-pink-600 tabular-nums">{won.format(data.month.est_payout)}</span>
-              <span className="text-[11px] text-gray-400">(세후·상담사앱과 동일)</span>
-            </span>
             <span className="inline-flex items-center gap-1">
               <span className="text-gray-500">선지급</span>
               <span className={`font-semibold tabular-nums ${data.mirror.payout_available > 0 ? 'text-emerald-600' : 'text-gray-400'}`}>
