@@ -309,7 +309,11 @@ export default function ConsultationList() {
           <Th align="right">사용포인트</Th>
           <Th align="right">m2net차감</Th>
           <Th align="right">상담사수익금</Th>
-          {isSuper && <Th align="right">영업이익(≈23%)</Th>}
+          {isSuper && (
+            <Th align="right" className="border-l-2 border-r-2 border-t-2 border-rose-400 bg-rose-100/70 dark:bg-rose-900/30 dark:border-rose-700 text-rose-600">
+              🔒 영업이익(≈23%)<br /><span className="text-[8px] normal-case font-normal text-rose-500">슈퍼 전용·일반 안 보임</span>
+            </Th>
+          )}
           <Th align="center">채팅내역</Th>
           <Th align="center">차단</Th>
         </THead>
@@ -439,7 +443,7 @@ function ConsultationRow({ c, isSuper, onOpen }: { c: Consultation; isSuper: boo
           : <span className="text-gray-300">-</span>}
       </Td>
       {isSuper && (
-        <Td align="right" className="tabular-nums text-emerald-700 font-medium text-xs">
+        <Td align="right" className="tabular-nums text-emerald-700 font-medium text-xs border-l-2 border-r-2 border-rose-400 bg-rose-100/40 dark:bg-rose-900/20 dark:border-rose-700">
           {c.sajuplan_revenue != null && hasMoney
             ? c.sajuplan_revenue.toLocaleString()
             : <span className="text-gray-300">-</span>}

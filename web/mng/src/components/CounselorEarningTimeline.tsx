@@ -118,7 +118,12 @@ export default function CounselorEarningTimeline({ counselorId }: { counselorId:
                       <th className="px-2 py-1.5 font-semibold text-right">고객지출</th>
                       <th className="px-2 py-1.5 font-semibold text-right">m2net차감</th>
                       <th className="px-2 py-1.5 font-semibold text-right">상담사수익금</th>
-                      {isSuper && <th className="px-2 py-1.5 font-semibold text-right">사주플랜매출</th>}
+                      {isSuper && (
+                        <th className="px-2 py-1.5 font-semibold text-right border-l-2 border-r-2 border-t-2 border-rose-400 bg-rose-100/70 dark:bg-rose-900/30 dark:border-rose-700">
+                          🔒 사주플랜매출
+                          <div className="text-[9px] font-normal text-rose-500">슈퍼 전용 · 일반 안 보임</div>
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -149,7 +154,7 @@ export default function CounselorEarningTimeline({ counselorId }: { counselorId:
                             {net.toLocaleString()}
                           </td>
                           {isSuper && (
-                            <td className="px-2 py-1.5 text-right tabular-nums text-emerald-700">
+                            <td className="px-2 py-1.5 text-right tabular-nums text-emerald-700 border-l-2 border-r-2 border-rose-400 bg-rose-100/40 dark:bg-rose-900/20 dark:border-rose-700">
                               {r.sajuplan_revenue != null ? r.sajuplan_revenue.toLocaleString() : '-'}
                             </td>
                           )}

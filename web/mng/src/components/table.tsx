@@ -17,11 +17,11 @@ export const inputCls =
 
 export type Align = 'left' | 'right' | 'center'
 
-export function Th({ children, align = 'left' }: { children: ReactNode; align?: Align }) {
+export function Th({ children, align = 'left', className }: { children: ReactNode; align?: Align; className?: string }) {
   const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
   return (
     <th
-      className={`px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap ${alignCls}`}
+      className={`px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap ${alignCls} ${className ?? ''}`}
     >
       {children}
     </th>
