@@ -145,6 +145,7 @@ export class MembersController {
   @Get('counselors/:id/earning-history')
   counselorEarningHistory(
     @Param('id', ParseIntPipe) id: number,
+    @Req() req: AuthedRequest,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -152,6 +153,7 @@ export class MembersController {
       id,
       page ? Number(page) : undefined,
       limit ? Number(limit) : undefined,
+      !!req.admin?.is_super, // 사주플랜매출은 슈퍼관리자만
     );
   }
 

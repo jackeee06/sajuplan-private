@@ -193,7 +193,7 @@ export class ConsultationsService {
     );
   }
 
-  async findAll(filter: ConsultationFilter) {
+  async findAll(filter: ConsultationFilter, isSuper = false) {
     const page = Math.max(1, Math.trunc(filter.page ?? 1));
     const limit = Math.min(200, Math.max(1, Math.trunc(filter.limit ?? 20)));
     const offset = (page - 1) * limit;
@@ -264,7 +264,8 @@ export class ConsultationsService {
       const earning = realEarn > 0
         ? realEarn
         : (rate != null && baseAmt > 0 ? Math.floor(baseAmt * rate) : null);
-      const sajuplanRev = baseAmt > 0 ? Math.floor(baseAmt * SAJUPLAN_OPERATING_RATE) : undefined;
+      // 사주플랜매출(회사 매출 = 비밀 수치)은 슈퍼관리자에게만 노출 (비-슈퍼는 아예 미전송).
+      const sajuplanRev = isSuper && baseAmt > 0 ? Math.floor(baseAmt * SAJUPLAN_OPERATING_RATE) : undefined;
       return {
         ...row,
         counselor_revenue_rate: rate,

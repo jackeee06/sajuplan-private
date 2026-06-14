@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 
 /**
  * 상담사 수익금 타임라인 — 상담사 상세화면 상단 요약줄 아래 접이식 섹션.
@@ -58,6 +59,8 @@ function typeLabel(r: Row): { label: string; cls: string } {
 }
 
 export default function CounselorEarningTimeline({ counselorId }: { counselorId: number }) {
+  const { admin } = useAuth()
+  const isSuper = !!admin?.is_super
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<Resp | null>(null)
@@ -115,7 +118,7 @@ export default function CounselorEarningTimeline({ counselorId }: { counselorId:
                       <th className="px-2 py-1.5 font-semibold text-right">고객지출</th>
                       <th className="px-2 py-1.5 font-semibold text-right">m2net차감</th>
                       <th className="px-2 py-1.5 font-semibold text-right">상담사수익금</th>
-                      <th className="px-2 py-1.5 font-semibold text-right">사주플랜매출</th>
+                      {isSuper && <th className="px-2 py-1.5 font-semibold text-right">사주플랜매출</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -145,9 +148,11 @@ export default function CounselorEarningTimeline({ counselorId }: { counselorId:
                           <td className={`px-2 py-1.5 text-right tabular-nums font-semibold ${net >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
                             {net.toLocaleString()}
                           </td>
-                          <td className="px-2 py-1.5 text-right tabular-nums text-emerald-700">
-                            {r.sajuplan_revenue != null ? r.sajuplan_revenue.toLocaleString() : '-'}
-                          </td>
+                          {isSuper && (
+                            <td className="px-2 py-1.5 text-right tabular-nums text-emerald-700">
+                              {r.sajuplan_revenue != null ? r.sajuplan_revenue.toLocaleString() : '-'}
+                            </td>
+                          )}
                         </tr>
                       )
                     })}

@@ -755,7 +755,7 @@ export class MembersService {
    *   ⚠️ 선결제 채팅은 consultation.amt=0 이지만 실제 적립(earn_point)은 m2net 실과금×정산률로 정상 발생 →
    *      반드시 point_history.earn_point(실제 적립) 기준으로 보여준다 (amt×rate 계산은 선결제에서 0 이 되어 틀림).
    */
-  async getCounselorEarningHistory(counselorId: number, page = 1, limit = 30) {
+  async getCounselorEarningHistory(counselorId: number, page = 1, limit = 30, isSuper = false) {
     const p = Math.max(1, Math.trunc(page));
     const lim = Math.min(100, Math.max(1, Math.trunc(limit)));
     const offset = (p - 1) * lim;
@@ -806,7 +806,8 @@ export class MembersService {
         counselor_revenue_rate: rate,
         customer_paid: isConsult ? baseAmt : undefined,
         m2net_deduction: isConsult ? Math.floor(baseAmt * M2NET_RATE) : undefined,
-        sajuplan_revenue: isConsult ? Math.floor(baseAmt * SAJUPLAN_OPERATING_RATE) : undefined,
+        // 사주플랜매출(회사 매출)은 슈퍼관리자만 — 비-슈퍼는 미전송.
+        sajuplan_revenue: isSuper && isConsult ? Math.floor(baseAmt * SAJUPLAN_OPERATING_RATE) : undefined,
         // 상담사수익금 = 실제 적립(원장). 선결제도 정확.
         counselor_earning: r.earn_point - r.use_point,
       };

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Download } from 'lucide-react'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
 import {
@@ -111,6 +112,8 @@ const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 20)
 
 export default function ConsultationList() {
   const navigate = useNavigate()
+  const { admin } = useAuth()
+  const isSuper = !!admin?.is_super
   // [2026-06-02 v2] 사장님 명시: 기본 활성 = 최근 7일
   const _init30 = defaultLast7Days()
   const [state, setState] = useState<QueryState>({
@@ -306,18 +309,18 @@ export default function ConsultationList() {
           <Th align="right">사용포인트</Th>
           <Th align="right">m2net차감</Th>
           <Th align="right">상담사수익금</Th>
-          <Th align="right">영업이익(≈23%)</Th>
+          {isSuper && <Th align="right">영업이익(≈23%)</Th>}
           <Th align="center">채팅내역</Th>
           <Th align="center">차단</Th>
         </THead>
         <TBody>
           {loading && !data ? (
-            <EmptyRow colSpan={13} loading />
+            <EmptyRow colSpan={isSuper ? 13 : 12} loading />
           ) : !data || data.items.length === 0 ? (
-            <EmptyRow colSpan={13} />
+            <EmptyRow colSpan={isSuper ? 13 : 12} />
           ) : (
             data.items.map((c) => (
-              <ConsultationRow key={c.id} c={c} onOpen={() => navigate(`/consultations/${c.id}`)} />
+              <ConsultationRow key={c.id} c={c} isSuper={isSuper} onOpen={() => navigate(`/consultations/${c.id}`)} />
             ))
           )}
         </TBody>
@@ -338,7 +341,7 @@ export default function ConsultationList() {
 }
 
 // ─── 행 ────────────────────────────────────────
-function ConsultationRow({ c, onOpen }: { c: Consultation; onOpen: () => void }) {
+function ConsultationRow({ c, isSuper, onOpen }: { c: Consultation; isSuper: boolean; onOpen: () => void }) {
   const [blockState, setBlockState] = useState<{ done: false } | { done: true; reason: string }>(
     c.is_blocked ? { done: true, reason: c.block_reason ?? '' } : { done: false }
   )
@@ -435,11 +438,13 @@ function ConsultationRow({ c, onOpen }: { c: Consultation; onOpen: () => void })
           ? c.counselor_earning.toLocaleString()
           : <span className="text-gray-300">-</span>}
       </Td>
-      <Td align="right" className="tabular-nums text-emerald-700 font-medium text-xs">
-        {c.sajuplan_revenue != null && hasMoney
-          ? c.sajuplan_revenue.toLocaleString()
-          : <span className="text-gray-300">-</span>}
-      </Td>
+      {isSuper && (
+        <Td align="right" className="tabular-nums text-emerald-700 font-medium text-xs">
+          {c.sajuplan_revenue != null && hasMoney
+            ? c.sajuplan_revenue.toLocaleString()
+            : <span className="text-gray-300">-</span>}
+        </Td>
+      )}
       <Td align="center">
         {isChat && c.roomid ? (
           <Link

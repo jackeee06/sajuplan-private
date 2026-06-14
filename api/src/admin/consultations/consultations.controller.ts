@@ -4,9 +4,10 @@ import {
   Param,
   ParseIntPipe,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { AdminAuthGuard } from '../auth/admin-auth.guard';
+import { AdminAuthGuard, type AuthedRequest } from '../auth/admin-auth.guard';
 import { ConsultationsService } from './consultations.service';
 import type { ConsultationFilter, Sfl, View } from './consultations.service';
 
@@ -22,7 +23,7 @@ export class ConsultationsController {
    *  - sample/adm/coin_counsel_history.php 화면과 동일 파라미터 지원
    */
   @Get()
-  list(@Query() q: Record<string, string>) {
+  list(@Query() q: Record<string, string>, @Req() req: AuthedRequest) {
     const view = ALLOWED_VIEWS.includes(q.view as View) ? (q.view as View) : 'all';
     const sfl = ALLOWED_SFLS.includes(q.sfl as Sfl) ? (q.sfl as Sfl) : undefined;
 
@@ -35,7 +36,8 @@ export class ConsultationsController {
       page: q.page ? Number(q.page) : undefined,
       limit: q.limit ? Number(q.limit) : undefined,
     };
-    return this.consultationsService.findAll(filter);
+    // 사주플랜매출(회사 매출 = 비밀 수치)은 슈퍼관리자만 노출.
+    return this.consultationsService.findAll(filter, !!req.admin?.is_super);
   }
 
   @Get(':id')

@@ -30,7 +30,8 @@ test.describe('상세화면 코인/수익 타임라인', () => {
     // 사용(상담)내역과 동일 포맷 컬럼
     await expect(page.getByText('상담시간', { exact: false }).first(), '상담시간 컬럼').toBeVisible({ timeout: 6000 })
     await expect(page.getByText('상담사수익금', { exact: false }).first(), '상담사수익금 컬럼').toBeVisible()
-    await expect(page.getByText('사주플랜매출', { exact: false }).first(), '사주플랜매출 컬럼').toBeVisible()
+    // 사주플랜매출(회사 매출)은 슈퍼관리자 전용 — E2E 는 비-슈퍼(admin_e2e)라 숨겨져야 함
+    await expect(page.getByText('사주플랜매출', { exact: false }), '비-슈퍼는 사주플랜매출 숨김').toHaveCount(0)
     // 헤드라인: 라이브 잔액 기반 "현재 받을 수 있는 총 수익금" (합계 아님 — 정산 후에도 정확)
     await expect(page.getByText('현재 받을 수 있는 총 수익금', { exact: false }).first(), '라이브 잔액 헤드라인').toBeVisible()
   })
