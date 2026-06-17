@@ -134,6 +134,7 @@ export class UserCounselorQnaService {
       title: string;
       content: string;
       is_secret: boolean;
+      reviewer_realname: string | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
       member_id: number | null;
@@ -144,7 +145,7 @@ export class UserCounselorQnaService {
     const [rows, totalRows] = await Promise.all([
       this.sql<Row[]>`
         SELECT q.id, q.title, q.content, q.is_secret, q.member_id, q.created_at,
-               m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id,
+               m.name AS reviewer_realname, m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id,
                r.id AS reply_id
           FROM counselor_qna q
           LEFT JOIN member m ON m.id = q.member_id
@@ -176,7 +177,7 @@ export class UserCounselorQnaService {
         is_secret: r.is_secret,
         has_reply,
         status: has_reply ? '답변완료' : '답변대기',
-        reviewer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id),
+        reviewer_name: displayReviewer(r.reviewer_realname, r.reviewer_nickname, r.reviewer_mb_id),
         created_at:
           r.created_at instanceof Date
             ? r.created_at.toISOString()
@@ -202,6 +203,7 @@ export class UserCounselorQnaService {
       content: string;
       is_secret: boolean;
       is_hidden: boolean;
+      reviewer_realname: string | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
       created_at: Date;
@@ -209,7 +211,7 @@ export class UserCounselorQnaService {
 
     const rows = await this.sql<QnaRow[]>`
       SELECT q.id, q.counselor_id, q.member_id, q.title, q.content, q.is_secret, q.is_hidden, q.created_at,
-             m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
+             m.name AS reviewer_realname, m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
         FROM counselor_qna q
         LEFT JOIN member m ON m.id = q.member_id
        WHERE q.id = ${params.qnaId}
@@ -284,7 +286,7 @@ export class UserCounselorQnaService {
       is_secret: q.is_secret,
       is_mine: isOwner,
       has_reply: reply !== null,
-      reviewer_name: displayReviewer(q.reviewer_nickname, q.reviewer_mb_id),
+      reviewer_name: displayReviewer(q.reviewer_realname, q.reviewer_nickname, q.reviewer_mb_id),
       created_at:
         q.created_at instanceof Date
           ? q.created_at.toISOString()
@@ -316,6 +318,7 @@ export class UserCounselorQnaService {
       is_secret: boolean;
       created_at: Date;
       reply_id: number | null;
+      reviewer_realname: string | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
     };
@@ -327,7 +330,7 @@ export class UserCounselorQnaService {
                CASE WHEN c.dtmfno ~ '^[0-9]+$' AND c.dtmfno::int BETWEEN 1 AND 999
                     THEN (c.dtmfno::int + 150)::text END AS counselor_code,
                r.id AS reply_id,
-               m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
+               m.name AS reviewer_realname, m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
           FROM counselor_qna q
           LEFT JOIN member c ON c.id = q.counselor_id
           LEFT JOIN member m ON m.id = q.member_id
@@ -355,7 +358,7 @@ export class UserCounselorQnaService {
         is_secret: r.is_secret,
         has_reply,
         status: has_reply ? '답변완료' : '답변대기',
-        reviewer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id),
+        reviewer_name: displayReviewer(r.reviewer_realname, r.reviewer_nickname, r.reviewer_mb_id),
         created_at:
           r.created_at instanceof Date
             ? r.created_at.toISOString()
@@ -381,6 +384,7 @@ export class UserCounselorQnaService {
       title: string;
       content: string;
       is_secret: boolean;
+      reviewer_realname: string | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
       created_at: Date;
@@ -391,7 +395,7 @@ export class UserCounselorQnaService {
              c.name AS counselor_name, c.nickname AS counselor_nickname,
              CASE WHEN c.dtmfno ~ '^[0-9]+$' AND c.dtmfno::int BETWEEN 1 AND 999
                   THEN (c.dtmfno::int + 150)::text END AS counselor_code,
-             m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
+             m.name AS reviewer_realname, m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
         FROM counselor_qna q
         LEFT JOIN member c ON c.id = q.counselor_id
         LEFT JOIN member m ON m.id = q.member_id
@@ -457,7 +461,7 @@ export class UserCounselorQnaService {
       title: q.title,
       content: q.content,
       is_secret: q.is_secret,
-      reviewer_name: displayReviewer(q.reviewer_nickname, q.reviewer_mb_id),
+      reviewer_name: displayReviewer(q.reviewer_realname, q.reviewer_nickname, q.reviewer_mb_id),
       created_at:
         q.created_at instanceof Date
           ? q.created_at.toISOString()
@@ -485,6 +489,7 @@ export class UserCounselorQnaService {
       is_secret: boolean;
       created_at: Date;
       reply_id: number | null;
+      reviewer_realname: string | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
     };
@@ -493,7 +498,7 @@ export class UserCounselorQnaService {
       this.sql<Row[]>`
         SELECT q.id, q.title, q.content, q.is_secret, q.created_at,
                r.id AS reply_id,
-               m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
+               m.name AS reviewer_realname, m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
           FROM counselor_qna q
           LEFT JOIN member m ON m.id = q.member_id
           LEFT JOIN counselor_qna_reply r ON r.qna_id = q.id
@@ -517,7 +522,7 @@ export class UserCounselorQnaService {
         is_secret: r.is_secret,
         has_reply,
         status: has_reply ? '답변완료' : '답변대기',
-        reviewer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id),
+        reviewer_name: displayReviewer(r.reviewer_realname, r.reviewer_nickname, r.reviewer_mb_id),
         created_at:
           r.created_at instanceof Date
             ? r.created_at.toISOString()
@@ -539,6 +544,7 @@ export class UserCounselorQnaService {
       title: string;
       content: string;
       is_secret: boolean;
+      reviewer_realname: string | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
       created_at: Date;
@@ -546,7 +552,7 @@ export class UserCounselorQnaService {
 
     const rows = await this.sql<QnaRow[]>`
       SELECT q.id, q.counselor_id, q.title, q.content, q.is_secret, q.created_at,
-             m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
+             m.name AS reviewer_realname, m.nickname AS reviewer_nickname, m.mb_id AS reviewer_mb_id
         FROM counselor_qna q
         LEFT JOIN member m ON m.id = q.member_id
        WHERE q.id = ${params.qnaId}
@@ -608,7 +614,7 @@ export class UserCounselorQnaService {
       title: q.title,
       content: q.content,
       is_secret: q.is_secret,
-      reviewer_name: displayReviewer(q.reviewer_nickname, q.reviewer_mb_id),
+      reviewer_name: displayReviewer(q.reviewer_realname, q.reviewer_nickname, q.reviewer_mb_id),
       created_at:
         q.created_at instanceof Date
           ? q.created_at.toISOString()
@@ -929,8 +935,8 @@ export class UserCounselorQnaService {
         r.counselor_phone,
         { 상담사명: counselorName, 고객명: customerName, url: `/counselor/mypage/customer-qnas/${qnaId}` },
         '사주플랜 상담 문의 도착 안내',
-        // [iOS 크래시 임시조치] iOS 상담사는 문의도착 알림톡 skip (FCM 푸시로 받음).
-        { recipientMemberId: counselorId, iosSkip: true },
+        // [2026-06-17] iOS 앱 크래시 수정 후 재개 — iOS도 안드와 동일 발송.
+        { recipientMemberId: counselorId, iosSkip: false },
       );
       if (!res.ok) {
         this.logger.warn(`qa_ask2 거부 counselor=${counselorId} reason=${res.reason} raw=${res.raw ?? ''}`);
@@ -1012,7 +1018,7 @@ export class UserCounselorQnaService {
           url: qnaPath,
         },
         '사주플랜 문의글 답변 안내',
-        { recipientMemberId: r.member_id ?? undefined, iosSkip: true },
+        { recipientMemberId: r.member_id ?? undefined, iosSkip: false },
       );
       if (!res.ok) {
         this.logger.warn(`qa_answer2 거부 qna=${qnaId} reason=${res.reason} raw=${res.raw ?? ''}`);
@@ -1039,8 +1045,16 @@ function maskMbId(mbId: string): string {
   return s.slice(0, 2) + '***' + s.slice(-2);
 }
 
-/** 작성자 표기 우선순위: nickname → mb_id(마스킹) → '익명'. 본명 노출 안 함 (2026-05-15). */
-function displayReviewer(nickname: string | null, mbId: string | null, fallback = '익명'): string {
+/**
+ * 작성자 표기 우선순위 (2026-06-14 정책 — 사장님 결정):
+ *   1) 실명(name) 중간 별표 마스킹 (예: 이심원 → 이*원) — 후기·문의 모두 이름 표기
+ *   2) 없으면 닉네임(마스킹)
+ *   3) 없으면 mb_id(마스킹)
+ *   4) 다 없으면 fallback
+ * 마스킹 수준이라 본명 전체는 노출 안 함(익명성 유지). 옛 정책(2026-05-15 닉네임 우선)에서 전환.
+ */
+function displayReviewer(name: string | null, nickname: string | null, mbId: string | null, fallback = '익명'): string {
+  if (name && name.trim()) return maskName(name);
   if (nickname && nickname.trim()) return maskName(nickname);
   if (mbId && mbId.trim()) return maskMbId(mbId);
   return fallback;

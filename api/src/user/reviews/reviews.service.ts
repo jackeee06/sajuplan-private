@@ -64,8 +64,10 @@ export class UserReviewsService {
       rating: number | null;
       created_at: Date;
       is_secret: boolean;
+      reviewer_realname: string | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
+      extras: unknown;
       counselor_id: number;
       counselor_nickname: string;
       counselor_name: string;
@@ -82,8 +84,8 @@ export class UserReviewsService {
     };
 
     const rows = await this.sql<Row[]>`
-      SELECT r.id, r.title, r.content, r.rating, r.created_at, r.is_secret,
-             rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id,
+      SELECT r.id, r.title, r.content, r.rating, r.created_at, r.is_secret, r.extras,
+             rm.name AS reviewer_realname, rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id,
              c.id        AS counselor_id,
              c.nickname  AS counselor_nickname,
              c.name      AS counselor_name,
@@ -120,7 +122,7 @@ export class UserReviewsService {
         r.created_at instanceof Date
           ? r.created_at.toISOString()
           : String(r.created_at),
-      reviewer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id),
+      reviewer_name: seedReviewerName(r.extras) ?? displayReviewer(r.reviewer_realname, r.reviewer_nickname, r.reviewer_mb_id),
       counselor_id: r.counselor_id,
       counselor_nickname: r.counselor_nickname || r.counselor_name,
       counselor_code: r.counselor_code,
@@ -160,15 +162,17 @@ export class UserReviewsService {
       best_at: Date | null;
       is_admin_best: boolean;
       admin_best_at: Date | null;
+      reviewer_realname: string | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
+      extras: unknown;
     };
 
     const [rows, totalRows] = await Promise.all([
       this.sql<Row[]>`
         SELECT r.id, r.title, r.content, r.rating, r.created_at, r.is_secret,
-               r.is_best, r.best_at, r.is_admin_best, r.admin_best_at,
-               rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id
+               r.is_best, r.best_at, r.is_admin_best, r.admin_best_at, r.extras,
+               rm.name AS reviewer_realname, rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id
           FROM post_review r
           LEFT JOIN member rm ON rm.id = r.member_id
          WHERE r.counselor_id = ${params.counselorId}
@@ -203,7 +207,7 @@ export class UserReviewsService {
         r.created_at instanceof Date
           ? r.created_at.toISOString()
           : String(r.created_at),
-      reviewer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id),
+      reviewer_name: seedReviewerName(r.extras) ?? displayReviewer(r.reviewer_realname, r.reviewer_nickname, r.reviewer_mb_id),
     }));
 
     return { items, total: Number(totalRows[0]?.count ?? 0) };
@@ -245,6 +249,7 @@ export class UserReviewsService {
       has_file: boolean;
       has_reply: boolean;
       extras: Record<string, unknown> | null;
+      reviewer_realname: string | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
       counselor_id: number;
@@ -262,7 +267,7 @@ export class UserReviewsService {
     const rows = await this.sql<Row[]>`
       SELECT r.id, r.title, r.content, r.rating, r.created_at, r.has_file, r.extras,
              (rp.id IS NOT NULL) AS has_reply,
-             rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id,
+             rm.name AS reviewer_realname, rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id,
              c.id        AS counselor_id,
              c.name      AS counselor_name,
              c.nickname  AS counselor_nickname,
@@ -314,7 +319,7 @@ export class UserReviewsService {
         consult_type: consultType,
         consult_date: consultDate,
         consult_duration: consultDuration,
-        customer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id, '고객'),
+        customer_name: displayReviewer(r.reviewer_realname, r.reviewer_nickname, r.reviewer_mb_id, '고객'),
         counselor_id: r.counselor_id,
         counselor_name: r.counselor_nickname || r.counselor_name,
         counselor_code: r.counselor_code ?? '',
@@ -346,6 +351,7 @@ export class UserReviewsService {
       hashtag1: string | null;
       hashtag2: string | null;
       specialty: string | null;
+      reviewer_realname: string | null;
       reviewer_nickname: string | null;
       reviewer_mb_id: string | null;
     }[]>`
@@ -359,7 +365,7 @@ export class UserReviewsService {
                WHERE mf.member_id = c.id AND mf.kind = 'profile'
                ORDER BY mf.id DESC LIMIT 1) AS counselor_profile_image,
              pc.hashtag1, pc.hashtag2, pc.specialty,
-             rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id
+             rm.name AS reviewer_realname, rm.nickname AS reviewer_nickname, rm.mb_id AS reviewer_mb_id
         FROM post_review r
         INNER JOIN member c ON c.id = r.counselor_id
         LEFT JOIN post_counselor pc ON pc.member_id = c.id
@@ -394,7 +400,7 @@ export class UserReviewsService {
       consult_type: consultType,
       consult_date: consultDate,
       consult_duration: consultDuration,
-      customer_name: displayReviewer(r.reviewer_nickname, r.reviewer_mb_id, '고객'),
+      customer_name: displayReviewer(r.reviewer_realname, r.reviewer_nickname, r.reviewer_mb_id, '고객'),
       counselor_id: r.counselor_id,
       counselor_name: r.counselor_nickname || r.counselor_name,
       counselor_code: r.counselor_code ?? '',
@@ -496,8 +502,41 @@ export class UserReviewsService {
     //  - consultation.counselor_id 가 있으면 그 값을 정답(source of truth)으로 사용.
     //    프론트에서 잘못된 counselor_id 를 보냈더라도(예: 상담사 변경/매핑 차이) consultation
     //    소유자가 본인 회원이라면 후기 작성을 허용한다 — "포인트 쓴 상담이면 후기 가능" 요건.
+    // [2026-06-14 fix] consultation_id 없이 진입한 경로(상담사 상세 "후기 작성하기" → counselor_id 만 전달) 구제.
+    //   회원이 폼을 다 채우고 제출했는데 "상담 내역이 있어야…" 로 거부당하던 UX 버그.
+    //   → 이 회원이 이 상담사와 한 "후기 가능한" 상담을 자동으로 찾아 연결한다.
+    //   조건: 본인 상담 · 종료됨 · usetm>=300(5분) · 7일 이내 · 아직 후기 안 쓴 상담 중 가장 최근 1건.
+    //   채워진 id 는 아래 기존 검증(본인/종료/5분/7일/중복)을 그대로 통과한다 (이중 안전).
     if (!input.consultation_id) {
-      throw new BadRequestException('상담 내역이 있어야 후기를 작성할 수 있습니다.');
+      if (!input.counselor_id) {
+        throw new BadRequestException('상담 내역이 있어야 후기를 작성할 수 있습니다.');
+      }
+      const cand = await this.sql<{ id: number }[]>`
+        SELECT c.id
+          FROM consultation c
+         WHERE c.member_id = ${memberId}
+           AND c.counselor_id = ${input.counselor_id}
+           AND c.ended_at IS NOT NULL
+           AND COALESCE(c.usetm, 0) >= 300
+           AND c.ended_at >= now() - interval '7 days'
+           AND NOT EXISTS (
+             SELECT 1 FROM post_review pr
+              WHERE pr.member_id = ${memberId}
+                AND (
+                  (pr.extras ->> 'consultation_id') = c.id::text
+                  OR (jsonb_typeof(pr.extras) = 'string'
+                      AND ((pr.extras #>> '{}')::jsonb ->> 'consultation_id') = c.id::text)
+                )
+           )
+         ORDER BY c.ended_at DESC
+         LIMIT 1
+      `;
+      if (cand.length === 0) {
+        throw new BadRequestException(
+          '후기를 작성할 수 있는 상담 내역이 없습니다. (5분 이상 진행한 상담을 종료 후 7일 이내에만 작성할 수 있어요)',
+        );
+      }
+      input.consultation_id = cand[0].id;
     }
     let resolvedCounselorId = input.counselor_id;
     /** 후기 작성 포인트 지급 판정에 쓰일 사용포인트 (consultation.amt). 0이면 조건 적용 안 함. */
@@ -633,6 +672,141 @@ export class UserReviewsService {
   }
 
   /**
+   * 관리자 시딩 후기 작성 (초기 상담사 가치 부여용 — 상담사와 합의된 마케팅).
+   *  - 일반 작성 검증(consultation_id / 5분 / 7일 / 본인상담 / 1상담1후기) 전부 우회.
+   *  - 부작용 차단: 회원 코인 지급 ❌, 상담사 알림톡 ❌ (review_count 증가만 ✅).
+   *  - 가짜 회원 행을 만들지 않는다 — member_id/mb_id 는 NULL, 표시명은 extras._seed_name 에 저장.
+   *  - extras._seed=true 로 박제 → 추후 식별/일괄삭제 가능.
+   *  - created_at 을 과거로 지정하면 후기 목록 정렬(created_at DESC)상 그 시점에 자연 배치된다.
+   */
+  async createSeed(input: {
+    counselor_id: number;
+    reviewer_name: string;
+    title: string;
+    content: string;
+    rating?: number | null;
+    created_at?: string | null;
+    consult_type?: string | null;        // '채팅' | '전화'
+    consult_duration_sec?: number | null;
+    photo_url?: string | null;
+    photo_url_webp?: string | null;
+  }): Promise<{ id: number }> {
+    const title = (input.title ?? '').trim();
+    const content = (input.content ?? '').trim();
+    const name = (input.reviewer_name ?? '').trim();
+    if (!input.counselor_id) throw new BadRequestException('상담사를 선택해주세요.');
+    if (!name) throw new BadRequestException('작성자 이름을 입력해주세요.');
+    if (!title) throw new BadRequestException('제목을 입력해주세요.');
+    if (!content) throw new BadRequestException('내용을 입력해주세요.');
+
+    const cs = await this.sql<{ id: number; role: string | null }[]>`
+      SELECT id, role FROM member WHERE id = ${input.counselor_id} LIMIT 1
+    `;
+    if (cs.length === 0) throw new NotFoundException('상담사를 찾을 수 없습니다.');
+    if (cs[0].role !== 'counselor') throw new BadRequestException('해당 회원은 상담사가 아닙니다.');
+
+    const rating = input.rating != null
+      ? Math.max(1, Math.min(5, Math.trunc(Number(input.rating))))
+      : null;
+
+    // 작성일 — 입력값 사용. 미래/유효하지 않으면 현재시각으로 보정.
+    let createdAt = new Date();
+    if (input.created_at) {
+      const d = new Date(input.created_at);
+      if (!Number.isNaN(d.getTime()) && d.getTime() <= Date.now()) createdAt = d;
+    }
+
+    const extras: Record<string, unknown> = { _seed: true, _seed_name: name };
+    if (input.consult_type) extras.consult_type = input.consult_type;
+    const sec = Math.trunc(Number(input.consult_duration_sec ?? 0));
+    if (sec > 0) {
+      extras.consult_duration = `${Math.floor(sec / 60)}분 ${sec % 60}초`;
+    }
+    if (input.photo_url) extras.photo_url = input.photo_url;
+    if (input.photo_url_webp) extras.photo_url_webp = input.photo_url_webp;
+
+    const inserted = await this.sql<{ id: number }[]>`
+      INSERT INTO post_review (
+        member_id, mb_id, counselor_id,
+        title, content, rating,
+        is_secret, has_file, extras, created_at
+      ) VALUES (
+        NULL, NULL, ${input.counselor_id},
+        ${title}, ${content}, ${rating},
+        false, ${!!input.photo_url},
+        ${this.sql.json(extras as never)}, ${createdAt}
+      )
+      RETURNING id
+    `;
+
+    // post_counselor.review_count 동기화 (best-effort). 코인/알림톡은 의도적으로 호출하지 않는다.
+    void this.sql`
+      UPDATE post_counselor SET review_count = (
+        SELECT COUNT(*) FROM post_review WHERE counselor_id = ${input.counselor_id}
+      ) WHERE member_id = ${input.counselor_id}
+    `.catch(() => {});
+
+    return { id: inserted[0].id };
+  }
+
+  /**
+   * 관리자 후기 수정.
+   *  - 시딩 후기(extras._seed): 제목·내용·작성자명(_seed_name)·작성일(created_at) 전부 수정.
+   *  - 진짜 후기(고객 글): 제목·내용만 수정 (작성자·날짜·별점은 불변 — 조작 방지).
+   */
+  async adminUpdate(
+    id: number,
+    input: { title?: string; content?: string; reviewer_name?: string; created_at?: string },
+  ): Promise<{ ok: true; is_seed: boolean }> {
+    const rows = await this.sql<{ id: number; extras: unknown }[]>`
+      SELECT id, extras FROM post_review WHERE id = ${id} LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('후기를 찾을 수 없습니다.');
+
+    // extras 파싱(이중 인코딩 레거시 대응) → 시딩 여부
+    let ex: Record<string, unknown> = {};
+    const raw = rows[0].extras;
+    if (typeof raw === 'string') { try { ex = JSON.parse(raw) as Record<string, unknown>; } catch { /* noop */ } }
+    else if (raw && typeof raw === 'object') ex = raw as Record<string, unknown>;
+    const isSeed = ex._seed === true;
+
+    const title = input.title?.trim();
+    const content = input.content?.trim();
+    if (title !== undefined && !title) throw new BadRequestException('제목을 입력해주세요.');
+    if (content !== undefined && !content) throw new BadRequestException('내용을 입력해주세요.');
+
+    if (isSeed) {
+      const newEx = { ...ex };
+      if (input.reviewer_name && input.reviewer_name.trim()) newEx._seed_name = input.reviewer_name.trim();
+      await this.sql`
+        UPDATE post_review SET
+          title = COALESCE(${title ?? null}, title),
+          content = COALESCE(${content ?? null}, content),
+          extras = ${this.sql.json(newEx as never)},
+          updated_at = now()
+        WHERE id = ${id}
+      `;
+      // 작성일 — 시딩만 변경 가능. 미래/유효하지 않으면 무시.
+      if (input.created_at) {
+        const d = new Date(input.created_at);
+        if (!Number.isNaN(d.getTime()) && d.getTime() <= Date.now()) {
+          await this.sql`UPDATE post_review SET created_at = ${d} WHERE id = ${id}`;
+        }
+      }
+    } else {
+      // 진짜 후기 — 제목·내용만
+      await this.sql`
+        UPDATE post_review SET
+          title = COALESCE(${title ?? null}, title),
+          content = COALESCE(${content ?? null}, content),
+          updated_at = now()
+        WHERE id = ${id}
+      `;
+    }
+    return { ok: true, is_seed: isSeed };
+  }
+
+  /**
    * 후기 작성 시 상담사에게 BizM 알림톡 발송.
    *  - 템플릿: review_for_counselor (BizM 콘솔 등록 필요)
    *  - 발송 실패는 흡수 (후기 작성 본 흐름에 영향 X)
@@ -652,8 +826,8 @@ export class UserReviewsService {
       c.phone,
       { 상담사명: displayName, url: `counselor-mypage/reviews/${reviewId}` },
       '새 후기 알림',
-      // [iOS 크래시 임시조치] iOS 상담사는 후기 알림톡 skip (긴급 아님).
-      { recipientMemberId: counselorId, iosSkip: true },
+      // [2026-06-17] iOS 앱 크래시 수정 후 재개 — iOS도 안드와 동일 발송.
+      { recipientMemberId: counselorId, iosSkip: false },
     );
     if (!r.ok) {
       this.logger.warn(`[notifyCounselorOfReview] BizM 거부 reason=${r.reason ?? '?'} counselorId=${counselorId} reviewId=${reviewId}`);
@@ -1096,16 +1270,36 @@ function maskMbId(mbId: string): string {
 }
 
 /**
- * 작성자 표기 우선순위 (2026-05-15 정책):
- *   1) 닉네임이 있으면 nickname (마스킹)
- *   2) 없으면 mb_id (마스킹)
- *   3) 둘 다 없으면 '익명' 폴백
- * 본명(name)은 절대 노출하지 않는다 — 고객 우려.
+ * 작성자 표기 우선순위 (2026-06-14 정책 — 사장님 결정):
+ *   1) 실명(name) 중간 별표 마스킹 (예: 이심원 → 이*원) — 후기·문의 모두 이름 표기
+ *   2) 없으면 닉네임(마스킹)
+ *   3) 없으면 mb_id(마스킹)
+ *   4) 다 없으면 fallback
+ * 마스킹 수준이라 본명 전체는 노출 안 함(익명성 유지). 옛 정책(2026-05-15 닉네임 우선)에서 전환.
  */
-function displayReviewer(nickname: string | null, mbId: string | null, fallback = '익명'): string {
+function displayReviewer(name: string | null, nickname: string | null, mbId: string | null, fallback = '익명'): string {
+  if (name && name.trim()) return maskName(name);
   if (nickname && nickname.trim()) return maskName(nickname);
   if (mbId && mbId.trim()) return maskMbId(mbId);
   return fallback;
+}
+
+/**
+ * 시딩(관리자 작성) 후기의 표시 이름.
+ *  - extras._seed_name 이 있으면 그 값을 그대로 사용한다(이미 "연*" 형태로 마스킹된 표시명).
+ *  - 일반 후기는 null 반환 → 호출처가 displayReviewer(nickname/mb_id) 로 폴백.
+ *  - extras 가 이중 인코딩(jsonb 안 JSON 문자열) 레거시여도 대응.
+ */
+function seedReviewerName(extras: unknown): string | null {
+  if (extras == null) return null;
+  let obj: Record<string, unknown> | null = null;
+  if (typeof extras === 'string') {
+    try { obj = JSON.parse(extras) as Record<string, unknown>; } catch { return null; }
+  } else if (typeof extras === 'object') {
+    obj = extras as Record<string, unknown>;
+  }
+  const n = obj?._seed_name;
+  return typeof n === 'string' && n.trim() ? n.trim() : null;
 }
 
 function inferCategory(

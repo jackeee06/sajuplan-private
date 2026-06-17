@@ -544,8 +544,8 @@ export class UserConsultService {
           csr.phone,
           { 상담사닉네임: displayName, url: `chat/${chatRoomId}` },
           '채팅 상담 요청 알림',
-          // [iOS 크래시 임시조치] iOS 상담사는 알림톡 skip (FCM 푸시로 받음). 검수통과 후 _v2 전환 예정.
-          { recipientMemberId: counselorId, iosSkip: true },
+          // [2026-06-17] iOS 앱 크래시 수정(앱스토어 1.2.0 출시) 후 재개 — iOS도 안드와 동일 버튼 알림톡 발송.
+          { recipientMemberId: counselorId, iosSkip: false },
         );
         if (!r.ok) {
           this.logger.warn(
@@ -838,6 +838,7 @@ export class UserConsultService {
       /** counselor 시점 — 상담사가 작성한 답변 id (없으면 null) */
       reply_id: number | null;
       sort_at: Date | null;
+      earning: number;
       total: string;
     };
 
@@ -851,6 +852,23 @@ export class UserConsultService {
     const peerCol = isCounselor ? this.sql`member_id` : this.sql`counselor_id`;
     const activeOwnerCol = isCounselor ? this.sql`counselor_id` : this.sql`member_id`;
     const activePeerCol = isCounselor ? this.sql`member_id` : this.sql`counselor_id`;
+
+    // owner 매칭.
+    //  - member 시점: 본인 통화/채팅 (member_id = me). 연결실패 행도 member_id 가 본인이라 그대로 잡힘.
+    //  - counselor 시점: 본인이 진행한 통화(counselor_id=me) + "놓친 연결"(상담사 연결 전 끊겨
+    //    counselor_id 가 NULL 이지만 같은 callid 의 시도행이 나를 향한 경우)도 포함 → 놓친 수익 기회 노출.
+    const ownerMatch = isCounselor
+      ? this.sql`(
+          c.counselor_id = ${params.memberId}
+          OR (
+            c.counselor_id IS NULL
+            AND EXISTS (
+              SELECT 1 FROM consultation s
+               WHERE s.callid = c.callid AND c.callid IS NOT NULL AND s.counselor_id = ${params.memberId}
+            )
+          )
+        )`
+      : this.sql`c.${ownerCol} = ${params.memberId}`;
 
     // review 매칭: chat_room 종료 후 작성된 회원 후기 1건 (review.member_id = 상담받은 회원).
     // counselor 시점이라도 후기는 회원(member_id) 이 작성한 것이므로 peer 가 회원 = 상담의 member_id.
@@ -903,6 +921,7 @@ export class UserConsultService {
                  pc.hashtag1, pc.hashtag2, pc.specialty,
                  NULL::bigint                 AS review_id,
                  ${replySelectActive}
+                 0                            AS earning,
                  COALESCE(cr.started_at, now()) AS sort_at
             FROM chat_room cr
             LEFT JOIN member pm           ON pm.id = cr.${activePeerCol}
@@ -944,10 +963,27 @@ export class UserConsultService {
                pc.hashtag1, pc.hashtag2, pc.specialty,
                pr.id                         AS review_id,
                ${replySelect}
+               -- 상담사 시점: 이 상담으로 번 수익(net, 원). earning 원장 합산. 회원 시점은 0.
+               (SELECT COALESCE(SUM(ph.earn_point - ph.use_point), 0)::int
+                  FROM point_history ph
+                 WHERE ph.rel_table = 'consultation' AND ph.rel_id = c.id::text
+                   AND ph.member_id = ${params.memberId} AND ph.balance_kind = 'earning') AS earning,
                c.created_at                  AS sort_at
           FROM consultation c
-          LEFT JOIN member pm           ON pm.id = c.${peerCol}
-          LEFT JOIN post_counselor pc   ON pc.member_id = c.counselor_id
+          -- 연결 실패 통화는 DISCONNECT 행의 counselor_id 가 NULL 이라, 같은 callid 의
+          -- 시도 행(TRY_OK 등)에서 상담사를 복구해 이름·번호를 보여준다.
+          LEFT JOIN member pm           ON pm.id = COALESCE(
+            c.${peerCol},
+            (SELECT s.${peerCol} FROM consultation s
+              WHERE s.callid = c.callid AND c.callid IS NOT NULL AND s.${peerCol} IS NOT NULL
+              ORDER BY s.id LIMIT 1)
+          )
+          LEFT JOIN post_counselor pc   ON pc.member_id = COALESCE(
+            c.counselor_id,
+            (SELECT s.counselor_id FROM consultation s
+              WHERE s.callid = c.callid AND c.callid IS NOT NULL AND s.counselor_id IS NOT NULL
+              ORDER BY s.id LIMIT 1)
+          )
           -- chat_room.roomid 는 종료 시 __c_id suffix 가 붙고 consultation.roomid 는
           -- m2net push 시점의 원본을 그대로 갖는 경우가 있어, suffix 를 정규화한 base
           -- roomid 로 매칭한다. 매칭 안 되면 (member, counselor, started_at) 근사 매칭으로 폴백.
@@ -1006,9 +1042,17 @@ export class UserConsultService {
              LIMIT 1
           ) pr ON TRUE
           ${replyJoin}
-         WHERE c.${ownerCol} = ${params.memberId}
+         WHERE ${ownerMatch}
            AND c.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
-           AND c.counselor_id IS NOT NULL
+           -- 상담사가 직접 기록됐거나(성공), 같은 callid 의 시도행에 상담사가 있으면(연결실패) 노출.
+           -- 둘 다 아니면(상담사 없는 노이즈 끊김) 제외 → 도배 방지.
+           AND (
+             c.counselor_id IS NOT NULL
+             OR EXISTS (
+               SELECT 1 FROM consultation s
+                WHERE s.callid = c.callid AND c.callid IS NOT NULL AND s.counselor_id IS NOT NULL
+             )
+           )
            -- 같은 상대와의 채팅방이 아직 진행 중(STAY/CNCH) 이면 ended 카드는 표시하지 않는다.
            -- 진행 중 방은 active_chat 분기로만 "채팅방 재입장하기" 카드 1개만 노출.
            -- 후기 작성하기는 채팅방이 완전히 종료된 후에만 가능해야 함.
@@ -1038,6 +1082,10 @@ export class UserConsultService {
       const isChat = isActiveChat || !!(r.roomid && r.roomid.trim().length > 0);
       const startedAt = r.started_at ?? r.created_at;
       const endedAt = r.ended_at;
+      // 연결 실패 통화 = 전화(roomid 없음) + DISCONNECT + 통화시간 0초 + 차감 0원.
+      // (상담사와 실제 연결 전 끊긴 시도. 같은 callid 의 시도행에서 상담사는 복구돼 이름은 보임.)
+      const isFailed =
+        !isChat && r.reason === 'DISCONNECT' && (Number(r.usetm) || 0) === 0 && (Number(r.amt) || 0) === 0;
       return {
         id: r.id,
         consult_type: isChat ? 'chat' : 'call',
@@ -1062,6 +1110,8 @@ export class UserConsultService {
         chat_room_id: r.chat_room_id ? Number(r.chat_room_id) : null,
         chat_status: r.chat_status,
         is_active_chat: isActiveChat,
+        is_failed: isFailed,
+        earning: Number(r.earning) || 0,
       };
     });
 
@@ -1203,8 +1253,8 @@ export class UserConsultService {
           ? this.sql`AND reason IN ('END_CHAT','END_CHAT_LOCAL')`
           : this.sql`AND reason IN ('DISCONNECT','END_CHAT','END_CHAT_LOCAL')`;
 
-    // 집계 1쿼리 (filtered count) + 리스트 1쿼리 — 병렬.
-    const [aggRows, items] = await Promise.all([
+    // 집계 1쿼리 (filtered count) + 수익금 합산 1쿼리 + 리스트 1쿼리 — 병렬.
+    const [aggRows, earnRows, items] = await Promise.all([
       this.sql<
         {
           total_count: string;
@@ -1221,6 +1271,22 @@ export class UserConsultService {
          WHERE counselor_id = ${params.counselorId}
            AND created_at >= ${fromTs}::timestamptz
            AND created_at <  (${toTsExcl}::timestamptz + INTERVAL '1 day')
+           ${typeWhere}
+      `,
+      // 기간 내 상담으로 번 수익금(net) — 해당 상담 건에 적립된 earning 원장 기준.
+      //   earn_point - use_point 로 추천수익금 차감(제로섬)까지 자동 반영.
+      //   (추천으로 받은 수익은 타인 상담 건에 묶이므로 "내 상담 통계" 범위에서 제외됨 — 의도된 스코프)
+      this.sql<{ total_earning: string }[]>`
+        SELECT COALESCE(SUM(ph.earn_point - ph.use_point), 0) AS total_earning
+          FROM consultation c
+          JOIN point_history ph
+            ON ph.rel_table = 'consultation'
+           AND ph.rel_id = c.id::text
+           AND ph.member_id = c.counselor_id
+           AND ph.balance_kind = 'earning'
+         WHERE c.counselor_id = ${params.counselorId}
+           AND c.created_at >= ${fromTs}::timestamptz
+           AND c.created_at <  (${toTsExcl}::timestamptz + INTERVAL '1 day')
            ${typeWhere}
       `,
       this.sql<
@@ -1260,6 +1326,7 @@ export class UserConsultService {
     const total = Number(aggRows[0]?.total_count ?? 0);
     const missed = Number(aggRows[0]?.missed_count ?? 0);
     const totalSec = Number(aggRows[0]?.total_seconds ?? 0);
+    const totalEarning = Math.max(0, Number(earnRows[0]?.total_earning ?? 0));
 
     // 일수: from~to 포함 일수 (최소 1)
     const dayMs = 24 * 60 * 60 * 1000;
@@ -1293,6 +1360,7 @@ export class UserConsultService {
       total_count: total,
       missed_count: missed,
       total_seconds: totalSec,
+      total_earning: totalEarning,
       avg_seconds: avgSec,
       daily_avg: dailyAvg,
       missed_rate_pct: missedRate,
@@ -1321,6 +1389,8 @@ export interface ConsultMyStats {
   total_count: number;
   missed_count: number;
   total_seconds: number;
+  /** 기간 내 상담으로 번 수익금(net, 원) — earning 원장 합산 */
+  total_earning: number;
   avg_seconds: number;
   daily_avg: number;
   missed_rate_pct: number;
@@ -1359,6 +1429,10 @@ export interface ConsultHistoryItem {
   chat_status: string | null;
   /** 진행 중인 채팅(STAY/CNCH) 인지. true 면 "채팅방 입장하기" 버튼 노출 대상 */
   is_active_chat: boolean;
+  /** 연결 실패 통화 (상담사와 연결 전 끊김 — 0초·0원·차감 없음). 전화 only. */
+  is_failed: boolean;
+  /** 상담사 시점: 이 상담으로 번 수익(net, 원). 회원 시점은 0. */
+  earning: number;
 }
 
 /** sample 의 gmdate("H:i:s", $usetm) 와 유사하지만 한국어 라벨로. */

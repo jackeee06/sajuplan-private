@@ -204,8 +204,8 @@ export class UserCounselorsService {
           counselor.phone,
           { member_nickname: requesterNick, url: 'mypage' },
           `[사주플랜] ${requesterNick} 님이 상담을 요청했습니다.`,
-          // [iOS 크래시 임시조치] iOS 상담사는 알림톡 skip (FCM 푸시로 받음). 검수통과 후 _v2 전환 예정.
-          { recipientMemberId: params.counselorId, iosSkip: true },
+          // [2026-06-17] iOS 앱 크래시 수정(앱스토어 1.2.0 출시) 후 재개 — iOS도 안드와 동일 버튼 알림톡 발송.
+          { recipientMemberId: params.counselorId, iosSkip: false },
         );
         alimtalkOk = !!r.ok;
         if (!r.ok) lastError = `alimtalk: ${r.reason ?? 'unknown'}`;
@@ -303,14 +303,22 @@ export class UserCounselorsService {
             ? 'RDCH'
             : 'ABSE';
 
-    await this.sql`
-      UPDATE member
-         SET use_phone = ${usePhone},
-             use_chat = ${useChat},
-             state = ${target},
-             updated_at = now()
-       WHERE id = ${counselorId}
-    `;
+    // [2026-06-12 어뷰징 가드] use_phone/use_chat/state 가 기존과 완전히 동일하면
+    //   UPDATE 자체를 건너뛴다. 같은 점수 그룹은 updated_at DESC 로 정렬되므로,
+    //   값을 바꾸지 않고 "저장"만 연타해 updated_at 을 갱신 → 새치기하는 걸 차단.
+    //   (실제로 상태가 바뀔 때만 updated_at 이 now() 로 찍혀 순위가 새로 매겨진다.)
+    const unchanged =
+      usePhone === c.use_phone && useChat === c.use_chat && target === c.state;
+    if (!unchanged) {
+      await this.sql`
+        UPDATE member
+           SET use_phone = ${usePhone},
+               use_chat = ${useChat},
+               state = ${target},
+               updated_at = now()
+         WHERE id = ${counselorId}
+      `;
+    }
 
     // m2net 외부 상태 동기화 — chat-mgr csrstat. 실패해도 DB 는 반영됨.
     if (c.csrid) {
@@ -474,7 +482,7 @@ export class UserCounselorsService {
     return { traits: rows[0]?.traits ?? [] };
   }
 
-  /** 상담사 본인 스타일(traits) 수정 — 최대 3개 */
+  /** 상담사 본인 스타일(traits) 수정 — 최대 5개 (2026-06-12: 스타일 단어 14개로 확대하며 3→5) */
   async setMyTraits(counselorId: number, traits: string[]): Promise<{ traits: string[] }> {
     const meRows = await this.sql<{ role: string }[]>`
       SELECT role FROM member WHERE id = ${counselorId} LIMIT 1
@@ -484,7 +492,7 @@ export class UserCounselorsService {
     }
     const sanitized = (Array.isArray(traits) ? traits : [])
       .filter((t) => typeof t === 'string' && t.trim().length > 0)
-      .slice(0, 3);
+      .slice(0, 5);
     const existing = await this.sql<{ id: number }[]>`
       SELECT id FROM post_counselor WHERE member_id = ${counselorId} LIMIT 1
     `;
@@ -559,23 +567,33 @@ export class UserCounselorsService {
     // 2026-05-22: 부재(ABSE/RESV) 도 리스트에 노출하되 정렬은 가장 뒤로.
     //   회원 입장에서 "지금 가능한 상담사" 가 위에, 부재 상담사는 아래.
     //   부재 카드에는 "상담요청하기" 버튼이 노출되어 회원이 호출 알림을 보낼 수 있다.
-    // 전체·인기 탭: 전화상담 ON/OFF 로 대기 상담사를 세분화
-    //   0 → 상담 중 (CONN/CNCH 5분 내)
-    //   1 → 대기 + 전화상담 ON
-    //   2 → 대기 + 전화상담 OFF (채팅 전용)
-    //   3 → 부재 (ABSE/RESV)
+    // [2026-06-12 랭킹 정책 재확정 — "상담 가능 폭" 기준 세분화]
+    //   추천핀(ORDER BY is_recommended DESC) → 상담중(0) → 방금끝남30분(1)
+    //   → 전화+채팅 둘 다 가능(2) → 둘 중 하나만 가능(3) → 부재(4)
+    //   변경 이유: 기존엔 use_phone=true 면 채팅 여부 무관 2점이라, 전화만 켠 상담사가
+    //     전화+채팅 둘 다 켠 상담사와 같은 칸에 섞여 헷갈렸다(채팅 오프라인인데 위에 뜸).
+    //     → "둘 다 가능"을 "하나만 가능"보다 위로 올려 가용 폭이 넓은 상담사를 우대.
+    //   - 상담중: 시간 제한 없이 상담 내내 최상단.
+    //   - 방금끝남: 상담 종료 후 30분 이내 + 대기상태일 때만. 종료 시 m2net-push 가
+    //     last_consult_ended_at=now() 로 찍는다. 쉬러 간(ABSE/RESV) 사람은 제외.
+    //   ⚠️ WHEN 판정 순서: 상담중 → 부재 → 방금끝남 → 둘다 → 하나.
+    //     부재를 방금끝남보다 먼저 판정해야 "끝나자마자 휴식(ABSE)" 이 1점으로 안 뜬다.
     const statePriority = this.sql`(CASE
-      WHEN m.state IN ('CONN','CNCH') AND m.updated_at >= now() - interval '5 minutes' THEN 0
-      WHEN m.state IN ('ABSE','RESV') THEN 3
-      WHEN m.use_phone = true THEN 1
-      ELSE 2
+      WHEN m.state IN ('CONN','CNCH') THEN 0
+      WHEN m.state IN ('ABSE','RESV') THEN 4
+      WHEN m.last_consult_ended_at >= now() - interval '30 minutes' THEN 1
+      WHEN m.use_phone = true AND m.use_chat = true THEN 2
+      ELSE 3
     END)`;
 
-    // 채팅 탭: 전화 ON/OFF 무관 — 채팅 가능 여부만 중요
+    // 채팅 탭(채팅 가능자만 노출): 상담중(0) → 방금끝남30분(1)
+    //   → 전화도 같이 가능(2) → 채팅만 가능(3) → 부재(4). 전체 탭과 동일 철학.
     const statePriorityChat = this.sql`(CASE
-      WHEN m.state IN ('CONN','CNCH') AND m.updated_at >= now() - interval '5 minutes' THEN 0
-      WHEN m.state IN ('ABSE','RESV') THEN 2
-      ELSE 1
+      WHEN m.state IN ('CONN','CNCH') THEN 0
+      WHEN m.state IN ('ABSE','RESV') THEN 4
+      WHEN m.last_consult_ended_at >= now() - interval '30 minutes' THEN 1
+      WHEN m.use_phone = true AND m.use_chat = true THEN 2
+      ELSE 3
     END)`;
 
     const orderBy = (() => {
@@ -596,7 +614,9 @@ export class UserCounselorsService {
       switch (tab) {
         case 'popular':
           // 부재(ABSE/RESV) 도 노출 — 회원이 "상담요청하기" 로 호출 가능 (2026-05-22).
-          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH','ABSE','RESV') AND (m.use_phone = true OR m.use_chat = true)`;
+          // [2026-06-17] 두 토글 모두 off(둘다 끔)인 상담사도 리스트 노출 — 사장님 지시.
+          //   목적: 후기 열람 + 상담요청(카톡/푸시 알림)으로 상담사 복귀 유도. (use_phone OR use_chat) 조건 제거.
+          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH','ABSE','RESV')`;
         case 'chat':
           // 채팅 가능 + 부재 모두 노출. 부재는 회원이 호출 알림 보낼 수 있게.
           return this.sql`AND m.use_chat = true AND m.state IN ('IDLE','RDCH','RDVC','CNCH','ABSE','RESV')`;
@@ -605,7 +625,8 @@ export class UserCounselorsService {
           return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH','ABSE','RESV') AND m.created_at >= now() - interval '90 days'`;
         default: // all
           // 2026-05-22 부재 노출 정책 — ABSE/RESV 포함. 부재는 statePriority 로 정렬에서 뒤로 빠짐.
-          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH','ABSE','RESV') AND (m.use_phone = true OR m.use_chat = true)`;
+          // [2026-06-17] 두 토글 모두 off 인 상담사도 노출 — 사장님 지시 (후기 열람 + 상담요청 유도).
+          return this.sql`AND m.state IN ('IDLE','RDCH','RDVC','CRDY','CONN','CNCH','ABSE','RESV')`;
       }
     })();
 
@@ -697,6 +718,7 @@ export class UserCounselorsService {
         LEFT JOIN post_counselor pc ON pc.member_id = m.id
        WHERE m.role = 'counselor'
          AND m.left_at IS NULL
+         AND COALESCE(m.mb_id, '') NOT LIKE 'e2e%'  -- E2E 자동테스트 계정(e2e_*) 사용자 목록 비노출
          ${tabWhere}
          ${categoryWhere}
          ${selfExclude}
@@ -1069,6 +1091,7 @@ export class UserCounselorsService {
         LEFT JOIN post_counselor pc ON pc.member_id = m.id
        WHERE m.role = 'counselor'
          AND m.left_at IS NULL
+         AND COALESCE(m.mb_id, '') NOT LIKE 'e2e%'  -- E2E 자동테스트 계정 검색 비노출
          ${selfExclude}
          ${blockExclude}
          AND (
