@@ -483,6 +483,8 @@ export interface ConsultMyStats {
   total_count: number
   missed_count: number
   total_seconds: number
+  /** 기간 내 상담으로 번 수익금(net, 원) */
+  total_earning: number
   avg_seconds: number
   daily_avg: number
   missed_rate_pct: number
@@ -725,6 +727,42 @@ export const bannersApi = {
 }
 
 // ─────────────────────────────────────────────
+// 팝업 레이어 (공지 팝업)
+// ─────────────────────────────────────────────
+
+export interface PublicPopup {
+  id: number
+  title: string
+  content: string
+  is_html: boolean
+  image_url: string | null
+  image_url_webp: string | null
+  link_url: string | null
+  disable_hours: number
+}
+
+export const popupsApi = {
+  /** 현재 노출 대상 팝업 (활성 + 기간 내). area=home(회원/전체) | counselor(상담사) */
+  list: (area: 'home' | 'counselor' = 'home') =>
+    api.get<{ items: PublicPopup[] }>(`/user/popups?area=${area}`),
+}
+
+// ─────────────────────────────────────────────
+// 앱 버전 / 스토어 링크 (setting namespace='app')
+// ─────────────────────────────────────────────
+
+export interface AppVersionInfo {
+  aos_store_url?: string
+  ios_store_url?: string
+  aos_latest_version?: string
+  ios_latest_version?: string
+}
+
+export const appVersionApi = {
+  get: () => api.get<AppVersionInfo>('/app/version'),
+}
+
+// ─────────────────────────────────────────────
 // 이벤트 상담사
 // ─────────────────────────────────────────────
 
@@ -846,9 +884,28 @@ export interface PendingUpgradeInfo {
   upgraded_at: string
 }
 
+/** 실시간 상담수수료 표 — 등급별 행 */
+export interface FeeScheduleRow {
+  grade: CounselorGrade
+  grade_label: string
+  /** 승급 임계값(당월 누적 시간). 예비파트너는 0 */
+  threshold_hours: number
+  /** 정산률 0~1 (예: 0.40) */
+  revenue_rate: number
+  /** 등급별 단가 옵션 (30초당 고객이용료 + 시간당 상담료) */
+  options: Array<{
+    /** 30초당 고객이용료(원) */
+    customer_fee: number
+    /** 시간당 상담료 = 고객이용료 × 120 × 정산률 */
+    hourly_earning: number
+  }>
+}
+
 export const counselorGradeApi = {
   /** 내 등급/단가/락 상태 */
   getMine: () => api.get<MyGradeInfo>('/user/counselor-mypage/grade'),
+  /** 실시간 상담수수료 표 (전 등급 정책) */
+  getFeeSchedule: () => api.get<FeeScheduleRow[]>('/user/counselor-mypage/grade/fee-schedule'),
   /** 당월 상담시간 진행상황 + 실시간 승급 이력 */
   getProgress: () => api.get<GradeProgressInfo>('/user/counselor-mypage/grade/progress'),
   /** 미확인 실시간 승급 1건 조회 + 즉시 마킹 (있으면 토스트 1회). 없으면 upgrade=null.
@@ -1506,6 +1563,10 @@ export interface ConsultHistoryItem {
   chat_status: string | null
   /** 진행 중인 채팅(STAY/CNCH)인지. true면 "채팅방 입장하기" 버튼 노출 */
   is_active_chat: boolean
+  /** 연결 실패 통화(상담사 연결 전 끊김 — 0초·0원). 전화 only. */
+  is_failed?: boolean
+  /** 상담사 시점: 이 상담으로 번 수익(net, 원). 회원 시점은 0. */
+  earning?: number
 }
 
 export const reviewsApi = {
@@ -1595,9 +1656,9 @@ export interface SettlementSummary {
   estimated_payout: number
   /** 정산 기준 월 (YYYY-MM) */
   month: string
-  /** 정산비전체 = 상담수익 + 기타정산비 (계산식 표시용) */
+  /** 정산비전체 = 상담수익 + 기타정산비(추천수당 차감 포함, 순액) */
   price_tot: number
-  /** 세금 공제 합계 = 부가세 + 원천징수 + 회선비 (계산식 표시용) */
+  /** 세금 공제 = 원천세 3.3% 하나뿐 (부가세·회선비는 2026-06-10 폐지 → 0). 추천수당은 price_tot 에 이미 반영 */
   tax_deduction: number
   referral_earn?: number
   referral_deduct?: number
@@ -1673,6 +1734,7 @@ export const settlementApi = {
       total: number
       page: number
       limit: number
+      monthly?: { month: string; count: number; earn: number }[]
     }>(`/user/settlements/income${q ? `?${q}` : ''}`)
   },
   /** 월별 정산 마감 — 등록된 정산 계좌 정보도 함께 반환. */
@@ -2154,5 +2216,67 @@ export const counselorApplyApi = {
       original_name: string
       size: number
     }
+  },
+}
+
+// ─────────────────────────────────────────────
+// 상담사 → 운영자 1:1 고객센터 문의 (상담사 마이페이지 "문의하기")
+// ─────────────────────────────────────────────
+export type CounselorInquiryCategory = '이용안내' | '상담' | '정산' | '서비스상품'
+
+export interface CounselorInquiryListItem {
+  id: number
+  category: string
+  title: string
+  content: string
+  status: 'pending' | 'answered'
+  photo_count: number
+  created_at: string
+  replied_at: string | null
+}
+
+export interface CounselorInquiryDetailDto {
+  id: number
+  category: string
+  title: string
+  content: string
+  status: 'pending' | 'answered'
+  photos: string[]
+  reply_content: string | null
+  reply_admin_name: string | null
+  replied_at: string | null
+  created_at: string
+}
+
+export const counselorInquiryApi = {
+  list: (params: { category?: string | null; keyword?: string; limit?: number; offset?: number } = {}) => {
+    const q = new URLSearchParams()
+    if (params.category) q.set('category', params.category)
+    if (params.keyword) q.set('keyword', params.keyword)
+    q.set('limit', String(params.limit ?? 10))
+    q.set('offset', String(params.offset ?? 0))
+    return api.get<{ items: CounselorInquiryListItem[]; total: number }>(
+      `/user/counselor-mypage/inquiry?${q.toString()}`,
+    )
+  },
+  detail: (id: number | string) =>
+    api.get<CounselorInquiryDetailDto>(`/user/counselor-mypage/inquiry/${id}`),
+  create: (body: { category: string; title: string; content: string; photos: string[] }) =>
+    api.post<{ id: number }>('/user/counselor-mypage/inquiry', body),
+  remove: (id: number | string) =>
+    api.delete<{ ok: true }>(`/user/counselor-mypage/inquiry/${id}`),
+  uploadPhoto: async (file: File): Promise<{ url: string }> => {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch(`${BASE}/user/counselor-mypage/inquiry/upload`, {
+      method: 'POST',
+      credentials: 'include',
+      body: fd,
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new ApiError(res.status, text || `업로드 실패 (${res.status})`)
+    }
+    return res.json() as Promise<{ url: string }>
   },
 }

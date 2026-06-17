@@ -6,6 +6,8 @@ import Pagination from '../components/Pagination'
 import {
   ApiError,
   settlementApi,
+  counselorPayoutApi,
+  type MyPayoutInfo,
   type SettlementIncomeItem,
   type SettlementSummary,
 } from '../lib/api'
@@ -30,7 +32,7 @@ import {
  *  ── 실시간 코인 정산 탭 ──
  *    월 셀렉트 (이전/다음)
  *    4분할 카드: 쿠폰상담 / 충전+후불 상담 / 기타정산비 / 정산비전체
- *    공제계 토글 (부가세 + 원천세 + 회선비)
+ *    공제계 토글 (원천세 3.3% + 추천인 수수료) — 부가세·회선비는 2026-06-10 정산 단순화로 폐지
  *    예상 실수령액 박스
  *    선/후불 칩 + 정산 대상 리스트 (consultation 매칭 row)
  */
@@ -48,6 +50,8 @@ export default function SettlementHistory() {
 
   /** 헤더 카드용 — 항상 현재 월 기준으로 1회 fetch. */
   const [headerSummary, setHeaderSummary] = useState<SettlementSummary | null>(null)
+  /** 헤더 "지금 당겨받기 가능(선지급)" 숫자 — 선지급 게이팅과 동일한 공식 값. */
+  const [payoutInfo, setPayoutInfo] = useState<MyPayoutInfo | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -55,6 +59,12 @@ export default function SettlementHistory() {
       if (mounted) setHeaderSummary(s)
     }).catch(() => {
       /* 헤더 카드 못 받아도 본 데이터는 표시 */
+    })
+    // 선지급 가능액 — 실패해도(권한/네트워크) 헤더의 나머지는 표시. null 이면 "—" 처리.
+    counselorPayoutApi.available().then((p) => {
+      if (mounted) setPayoutInfo(p)
+    }).catch(() => {
+      /* 선지급 칸만 비움 */
     })
     return () => { mounted = false }
   }, [])
@@ -105,61 +115,81 @@ export default function SettlementHistory() {
       </nav>
 
       <main className="flex-1 px-4 pt-3 flex flex-col gap-4">
-        {/* 누적 카드 — 시안의 "이번달 누적 코인 / 전달 / 이달" 그대로
-            [2026-05-28] 상담사 요청: 원천징수 3.3% 공제 안내 + 실수령 예상 같이 표시 */}
+        {/* ── 수익금 요약 카드 (2026-06-14 계층형 — 마이페이지 메인과 동일 모델) ──
+            "이번달 정산금액" 단일 숫자가 총잔여·당월·정산예상을 떠안아 혼란 → 행동 기준 분해.
+              총잔여(balance) = 이번 정산 예정(전월까지) + 당월 적립 중(순액)
+              · 모든 숫자는 순액(추천·정산 이미 반영). 추천수당은 "수익금 내역" 리스트에만 1회 기록.
+              · 세후 입금 예상 = 상담사가 제일 궁금한 "통장에 꽂히는 돈". */}
         <section className="rounded-[16px] bg-[#F9FAFB] px-5 py-4">
-          <p className="text-[14px] leading-[140%] text-[#6A7282]">이번달 누적 수익금</p>
-          <div className="mt-2 flex items-baseline gap-6">
-            <div className="flex items-baseline gap-2">
-              <span className="text-[13px] text-[#99A1AF]">전달</span>
-              <span className="text-[15px] font-semibold text-[#1E2939] tabular-nums">
-                {(headerSummary?.prev_month ?? 0).toLocaleString()}원
-              </span>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-[13px] text-[#99A1AF]">이달</span>
-              <span className="text-[15px] font-semibold text-[#1E2939] tabular-nums">
-                {(headerSummary?.this_month ?? 0).toLocaleString()}원
-              </span>
-            </div>
-          </div>
-          {/* 추천 수당 적립/차감 — 있을 때만 표시 */}
-          {(headerSummary as { referral_earn?: number; referral_deduct?: number } | null)?.referral_earn ? (
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-[12px] text-emerald-600">추천 수당</span>
-              <span className="text-[13px] font-semibold text-emerald-600 tabular-nums">
-                +{((headerSummary as { referral_earn?: number }).referral_earn ?? 0).toLocaleString()}원
-              </span>
-            </div>
-          ) : null}
-          {(headerSummary as { referral_deduct?: number } | null)?.referral_deduct ? (
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-[12px] text-rose-500">추천 수당 차감</span>
-              <span className="text-[13px] font-semibold text-rose-500 tabular-nums">
-                -{((headerSummary as { referral_deduct?: number }).referral_deduct ?? 0).toLocaleString()}원
-              </span>
-            </div>
-          ) : null}
           {(() => {
-            const estimatedPayout = Number(headerSummary?.estimated_payout ?? 0)
-            const priceTot = Number(headerSummary?.price_tot ?? 0)
-            const taxDeduction = Number(headerSummary?.tax_deduction ?? 0)
+            const balance = headerSummary?.balance ?? 0                                  // 총잔여
+            const thisMonthNet = (headerSummary?.this_month ?? 0)
+              + (headerSummary?.referral_earn ?? 0)
+              - (headerSummary?.referral_deduct ?? 0)                                      // 당월 적립 중 (순액)
+            const pendingSettle = Math.max(0, balance - thisMonthNet)                      // 이번 정산 예정 (전월까지)
+            const afterTax = Math.max(0, balance - Math.floor(balance * 0.033))            // 세후 입금 예상 (약)
             return (
               <>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-[13px] text-[#99A1AF]">실수령 예상</span>
-                  <span className="text-[15px] font-semibold text-[#8259F5] tabular-nums">
-                    {estimatedPayout.toLocaleString()}원
-                  </span>
-                </div>
-                {priceTot > 0 && (
-                  <p className="mt-[3px] text-[11px] text-[#B0B8C1] tabular-nums">
-                    정산비 {priceTot.toLocaleString()} − 공제 {taxDeduction.toLocaleString()}(부가세+원천징수) = {estimatedPayout.toLocaleString()}원
-                  </p>
-                )}
-                <p className="mt-2 text-[12px] leading-[150%] text-[#9CA3AF]">
-                  ※ 수익금 = 상담료 × 수익률 적용 후 원천징수(3.3%) 공제하여 입금됩니다.
+                {/* 메인: 내 수익금 (총 잔여) */}
+                <p className="text-[13px] leading-[140%] text-[#6A7282]">
+                  내 수익금 <span className="text-[#99A1AF]">(받을 수 있는 전체)</span>
                 </p>
+                <p className="mt-1 text-[26px] font-bold text-[#8259F5] tabular-nums leading-[118%]">
+                  {balance.toLocaleString()}원
+                </p>
+                <p className="mt-1 text-[11px] text-[#B0B8C1]">
+                  원천세 3.3% 공제 후 약 {afterTax.toLocaleString()}원 입금 예상
+                </p>
+
+                {/* 분해 2칸 — 합치면 위 총잔여 */}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <div className="rounded-[12px] bg-white border border-[#F3F4F6] px-3 py-2.5">
+                    <p className="text-[11px] text-[#6A7282]">이번 정산 예정</p>
+                    <p className="mt-0.5 text-[22px] font-bold text-[#1E2939] tabular-nums leading-tight">
+                      {pendingSettle.toLocaleString()}원
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-[#B0B8C1]">전월까지 · 곧 정산</p>
+                  </div>
+                  <div className="rounded-[12px] bg-white border border-[#F3F4F6] px-3 py-2.5">
+                    <p className="text-[11px] text-[#6A7282]">당월 적립 중</p>
+                    <p className="mt-0.5 text-[22px] font-bold text-[#1E2939] tabular-nums leading-tight">
+                      {thisMonthNet.toLocaleString()}원
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-[#B0B8C1]">이번 달 · 쌓이는 중</p>
+                  </div>
+                </div>
+
+                {/* 선지급 가능 — 차단 시 사유 표시 + 신청 막음, 정상 시 신청(탭→선지급 화면) */}
+                {payoutInfo?.is_blocked ? (
+                  <div className="mt-2 w-full rounded-[12px] bg-white border border-[#F3F4F6] px-3 py-2.5">
+                    <p className="text-[11px] text-[#6A7282]">선지급 가능 (지금 당겨받기)</p>
+                    <p className="mt-0.5 text-[22px] font-bold text-[#9CA3AF] tabular-nums leading-tight">
+                      {payoutInfo.available_amount.toLocaleString()}원
+                    </p>
+                    <p className="mt-1 text-[11px] text-[#9CA3AF] flex items-start gap-1">
+                      <span aria-hidden>🔒</span>
+                      <span>{payoutInfo.block_reason ?? '선지급 신청이 제한됩니다.'}</span>
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => navigate('/counselor/mypage/payout')}
+                    className="mt-2 w-full text-left rounded-[12px] bg-white border border-[#F3F4F6] px-3 py-2.5 flex items-center justify-between active:bg-[#F9FAFB]"
+                  >
+                    <div>
+                      <p className="text-[11px] text-[#6A7282]">선지급 가능 (지금 당겨받기)</p>
+                      <p className="mt-0.5 text-[22px] font-bold text-[#1E2939] tabular-nums leading-tight">
+                        {payoutInfo ? `${payoutInfo.available_amount.toLocaleString()}원` : '—'}
+                      </p>
+                    </div>
+                    {payoutInfo?.has_pending_request ? (
+                      <span className="text-[11px] px-2.5 h-8 rounded-full bg-[#FEF9C3] text-[#A16207] font-medium inline-flex items-center">처리 대기</span>
+                    ) : (
+                      <span className="px-3 h-8 rounded-full bg-[#8259F5] text-white text-[12px] font-medium inline-flex items-center">신청</span>
+                    )}
+                  </button>
+                )}
               </>
             )
           })()}
@@ -188,6 +218,7 @@ function IncomeTab() {
   const [page, setPage] = useState(1)
   const [items, setItems] = useState<SettlementIncomeItem[]>([])
   const [total, setTotal] = useState(0)
+  const [monthly, setMonthly] = useState<{ month: string; count: number; earn: number }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -207,6 +238,7 @@ function IncomeTab() {
         if (!mounted) return
         setItems(r.items)
         setTotal(r.total)
+        setMonthly(r.monthly ?? [])
       })
       .catch((e) => {
         if (!mounted) return
@@ -289,6 +321,22 @@ function IncomeTab() {
         >
           기간 초기화
         </button>
+      )}
+
+      {/* 월별 수익 소계 — 페이지와 무관하게 "전체" 기준. "5월 합 N원" 바로 확인 (정산 증빙) */}
+      {monthly.length > 0 && (
+        <section className="rounded-[12px] bg-[#f3f0ff] border border-[#e9d5ff] px-3.5 py-3 mb-1">
+          <p className="text-[12px] font-semibold text-[#7c3aed] mb-1.5">📅 월별 수익금 합계 (전체 기준)</p>
+          <ul className="flex flex-col gap-1">
+            {monthly.map((m) => (
+              <li key={m.month} className="flex items-center justify-between text-[13px]">
+                <span className="text-[#6A7282]">{m.month.replace('-', '년 ')}월 · {m.count}건</span>
+                <span className="font-bold text-[#1E2939] tabular-nums">{m.earn.toLocaleString()}원</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1.5 text-[11px] text-[#9CA3AF]">※ 각 달 합계 = 그 달 정산 대상 수익금 (아래 건별 내역의 월별 합과 동일)</p>
+        </section>
       )}
 
       {/* 리스트 — 시안의 열 구성 (일자/상담유형/고객명/구분/수익금) */}
@@ -475,7 +523,14 @@ function RealtimeTab() {
   }
 
   const bd = summary?.payout_breakdown
-  const deduction = (bd?.withholding_tax ?? 0) + (summary?.referral_deduct ?? 0)
+  // [공제계] = 원천세 3.3% 하나뿐. (2026-06-14 정리 — 사장님 합의)
+  //   ▸ 정산비전체(price_tot)는 이미 추천수당 차감(기타정산비)이 반영된 순액이다.
+  //     그래서 공제계에 추천수당을 또 넣으면 "정산비전체 − 공제계 ≠ 실수령" 4원 착시가 났다.
+  //     (옛 표기: 공제계 = 원천세 329 + 추천 4 = 333 → 9,996−333=9,663 ≠ 실수령 9,667)
+  //   ▸ 공제계 = 원천세만(329) 으로 두면 9,996 − 329 = 9,667 로 화면이 산수적으로 맞아떨어진다.
+  //     추천수당은 위 4분할 "기타정산비(-)" 와 헤더 카드에서 별도 표시하므로 정보 손실 없음.
+  //   ▸ 실제 입금액(estimated_payout)은 API 가 price_tot − 원천세 로 계산 — 변동 없음(표시만 정리).
+  const deduction = bd?.withholding_tax ?? 0
   const today = new Date().toISOString().slice(0, 7)
   const isCurrent = month === today
 
@@ -560,10 +615,8 @@ function RealtimeTab() {
             </div>
             {deductionOpen && (
               <div className="px-5 pb-3 flex gap-4 text-[12px]">
+                {/* 공제계 = 원천세만. 추천수당은 위 "기타정산비(-)" 로 이미 반영되어 여기 넣지 않음. */}
                 <DeductionItem label="원천세(3.3%)" value={bd.withholding_tax} />
-                {(summary?.referral_deduct ?? 0) > 0 && (
-                  <DeductionItem label="추천인 수수료" value={summary!.referral_deduct!} />
-                )}
               </div>
             )}
             <div className="border-t border-[#F3F4F6] px-5 py-3 flex items-center justify-end">
@@ -578,8 +631,9 @@ function RealtimeTab() {
             </div>
             {formulaOpen && (
               <div className="px-5 pb-4 text-[12px] leading-[190%] text-[#4A5565]">
-                <p>· 원천세(3.3%) 법적 원천징수</p>
-                <p>· 추천인 수수료는 해당자에 한해 차감됩니다</p>
+                <p>· 정산비전체 − 원천세(3.3%) = 예상 실수령액</p>
+                <p>· 원천세(3.3%)는 법적 원천징수입니다</p>
+                <p>· 추천 수당은 "기타정산비"에 이미 반영됩니다 (세금 아님)</p>
               </div>
             )}
           </section>
@@ -713,6 +767,9 @@ function formatDateTime(iso: string): string {
 //  [2026-05-28] 상담사 영역 용어 통일 — "코인" 단어 제거, "수익금"/"환불" 로 표기.
 function shortContent(s: string | null | undefined): string {
   if (!s) return '-'
+  // 실시간 추천수익금 — 상담별 적립(+)/차감(−). 핸드북 promotion/02-referral.
+  if (s.includes('추천수익금 차감')) return '추천수익금 차감'
+  if (s.includes('추천수익금')) return '추천수익금 적립'
   return s
     .replace('상담코인 증가', '수익금')
     .replace('상담코인 차감', '환불')

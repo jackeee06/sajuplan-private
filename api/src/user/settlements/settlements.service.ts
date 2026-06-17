@@ -39,9 +39,13 @@ export interface SettlementSummary {
   referral_earn: number;
   /** 피추천 수당 차감액 (이번달, 없으면 0) */
   referral_deduct: number;
-  /** 정산비전체 (계산식 표시용 최상위 필드) */
+  /** 정산비전체 (계산식 표시용 최상위 필드) — 이미 추천수당 차감(price_other)이 반영된 순액 */
   price_tot: number;
-  /** 세금 공제 합계 = 부가세 + 원천징수 + 회선비 (계산식 표시용) */
+  /**
+   * 세금 공제 = 원천세 3.3% 하나뿐. (부가세·회선비는 2026-06-10 정산 단순화로 폐지 → vat/replyFee=0)
+   * ⚠️ 추천수당은 여기 포함 안 됨 — 이미 price_tot 안에 (−)로 빠져 있어 이중차감 방지.
+   *    실수령(estimated_payout) = price_tot − tax_deduction.
+   */
   tax_deduction: number;
 }
 
@@ -172,12 +176,17 @@ export class UserSettlementsService {
         (SELECT COALESCE(SUM(earn_point), 0) FROM point_history
           WHERE member_id = ${memberId}
             AND earn_point > 0
+            -- [2026-06-12 fix] 상담사 정산 수익(earning)만. balance_kind 미필터 시 회원용 무료코인
+            --   (출석/가입 적립 = consumer)까지 기타정산비로 끌려와 정산금액이 부풀려지는 버그.
+            AND balance_kind = 'earning'
             AND (rel_table IS NULL OR rel_table NOT IN ('consultation','member','@member','@thesaju_consulting','@platform_consulting'))
             AND to_char(created_at, 'YYYY-MM') = ${targetMonth}
         )::text AS other_plus,
         (SELECT COALESCE(SUM(use_point), 0) FROM point_history
           WHERE member_id = ${memberId}
             AND use_point > 0
+            -- [2026-06-12 fix] other_plus 와 동일 — 상담사 정산 수익(earning) 차감분만.
+            AND balance_kind = 'earning'
             AND (rel_table IS NULL OR rel_table NOT IN ('consultation','member','@member','@thesaju_consulting','@platform_consulting'))
             AND to_char(created_at, 'YYYY-MM') = ${targetMonth}
         )::text AS other_minus,
@@ -209,11 +218,14 @@ export class UserSettlementsService {
     // 기타정산비: 수익률 적용 기준이 불명확하므로 그대로 합산
     const priceOther = otherPlus - otherMinus;
     const priceTot = thisMonthEarning + priceOther;
-    const supplyPrice = Math.floor(priceTot / 1.1);
-    const vatAmount = priceTot - supplyPrice;
-    const withholdingTax = Math.floor(supplyPrice * 0.033);
-    const replyFee = priceTot >= 50000 ? 20000 : 0;
-    const estimatedPayout = Math.max(0, supplyPrice - withholdingTax - replyFee);
+    // [2026-06-12] 마이페이지 정산금액 미리보기를 실제 정산(settlement-cron, 2026-06-10 단순화)과 일치시킴.
+    //   실제 정산 = 수익금 − 원천세 3.3% 만. (부가세 ÷1.1 · 회선비는 사장님 지시로 이미 폐지됨)
+    //   기존 미리보기는 ÷1.1·회선비를 더 깎아 카드가 실수령보다 ~9% 적게 표시되는 버그였음.
+    const withholdingTax = Math.floor(priceTot * 0.033); // 원천세 3.3% 만
+    const estimatedPayout = Math.max(0, priceTot - withholdingTax);
+    const supplyPrice = priceTot; // 부가세 분리 폐지 → 공급가 = 원금
+    const vatAmount = 0;
+    const replyFee = 0;
     // 하위 호환용 (breakdown UI 표시용 — 실제 정산은 cron 기준)
     const amtFree = Number(r.amt_free ?? 0);
     const amtPro = Number(r.amt_pro ?? 0);
@@ -262,7 +274,7 @@ export class UserSettlementsService {
     md?: 'Y' | 'N' | null;
     fromDate?: string | null;  // YYYY-MM-DD
     toDate?: string | null;
-  }): Promise<{ items: IncomeItem[]; total: number; page: number; limit: number }> {
+  }): Promise<{ items: IncomeItem[]; total: number; page: number; limit: number; monthly: { month: string; count: number; earn: number }[] }> {
     const page = Math.max(1, Math.trunc(params.page ?? 1));
     const limit = Math.min(50, Math.max(1, Math.trunc(params.limit ?? 15)));
     const offset = (page - 1) * limit;
@@ -275,6 +287,23 @@ export class UserSettlementsService {
     const mdFilter = params.md === 'Y' || params.md === 'N'
       ? this.sql`AND c.preflag = ${params.md}`
       : this.sql``;
+
+    // [2026-06-14] 추천수익금 표시 정책 (handbook promotion/02-referral: 상담할 때마다 실시간 적립/차감).
+    //   · 실시간 추천(적립/차감)은 rel_table='consultation' + rel_id=상담ID 라 그 상담에 묶임
+    //     → 그 상담의 preflag(선불/후불) 로 자연히 분류됨. mdFilter 를 그대로 적용해 전화/채팅 칸에 정확히 표시.
+    //   · 옛 월합산 추천(rel_table='counselor_referral')은 한 달치를 한 줄로 몰아 특정 상담ID가 없음.
+    //     → 그래도 "그 달에 그 유형(선불/후불) 상담이 있었으면 그 탭에 노출"하도록 추론한다.
+    //       (content 의 'YYYY-MM' = 추천 대상 월. 그 달 해당 상담사의 preflag=md 상담이 존재하면 그 탭에 표시.)
+    //       예) 5월 상담이 전부 선불인 상담사 → 선불 탭엔 보이고 후불 탭엔 안 보임. '전체'는 항상 표시.
+    //       양쪽 유형이 섞인 달이면 양 탭에 다 보임(근사) — 정밀 분류는 실시간 행이 담당.
+    const legacyReferralBranch = (params.md === 'Y' || params.md === 'N')
+      ? this.sql`(ph.rel_table = 'counselor_referral' AND EXISTS (
+          SELECT 1 FROM consultation cc
+           WHERE cc.counselor_id = ph.member_id
+             AND to_char(cc.created_at, 'YYYY-MM') = substring(ph.content from '[0-9]{4}-[0-9]{2}')
+             AND cc.preflag = ${params.md}
+        ))`
+      : this.sql`ph.rel_table = 'counselor_referral'`;
 
     type Row = {
       id: number;
@@ -314,8 +343,13 @@ export class UserSettlementsService {
             AND ph.content LIKE '%상담코인 증가%'
             ${mdFilter})
            OR
-           -- 추천 수당 적립/차감 (2026-06-04 추가)
-           ph.rel_table = 'counselor_referral'
+           -- 실시간 추천수익금 (적립 +/차감 −) — 상담에 묶여 같은 선불/후불로 분류 (2026-06-14)
+           (ph.rel_table = 'consultation'
+            AND ph.content LIKE '%추천수익금%'
+            ${mdFilter})
+           OR
+           -- 옛 월합산 추천수당 (counselor_referral) — 분류 없음 → '전체' 탭에서만
+           (${legacyReferralBranch})
          )
          ${dateFilter}
        ORDER BY ph.created_at DESC, ph.id DESC
@@ -339,7 +373,26 @@ export class UserSettlementsService {
         rel_table: r.rel_table ?? null,  // 추천 수당 구분용
       };
     });
-    return { items, total, page, limit };
+
+    // [2026-06-17] 월별 소계 — 페이지네이션과 무관하게 "전체" 기준 월별 적립 합(순액).
+    //   상담사 본인 정산 증빙: "5월 합 N원" 이 바로 보이게 (관리자 타임라인 월소계와 동일 개념).
+    //   balance_kind='earning' 전체(상담수익+추천±) 순액 = 그 달 정산 대상액. KST 기준 월.
+    const monthlyRows = await this.sql<{ month: string; cnt: string; earn: string }[]>`
+      SELECT to_char(created_at AT TIME ZONE 'Asia/Seoul', 'YYYY-MM') AS month,
+             COUNT(*)::text AS cnt,
+             COALESCE(SUM(earn_point - use_point), 0)::text AS earn
+        FROM point_history
+       WHERE member_id = ${params.memberId} AND balance_kind = 'earning'
+       GROUP BY 1
+       ORDER BY 1 DESC
+    `;
+    const monthly = monthlyRows.map((m) => ({
+      month: m.month,
+      count: Number(m.cnt),
+      earn: Number(m.earn),
+    }));
+
+    return { items, total, page, limit, monthly };
   }
 
   /**
