@@ -532,7 +532,8 @@ export class UserCounselorMypagePayoutService {
   }): Promise<{ ok: true; bank_locked_until: string | null }> {
     const { memberId, actorIp } = params;
     const bankName = (params.bank_name ?? '').trim();
-    const bankHolder = (params.bank_holder ?? '').trim();
+    // 예금주는 NFC 정규화 — 아이폰 분해형(NFD) 한글이 와도 합쳐서 검증/저장 (안 하면 한글 검증 실패)
+    const bankHolder = (params.bank_holder ?? '').normalize('NFC').trim();
     // 계좌번호는 숫자/하이픈만
     const bankAccount = (params.bank_account ?? '').replace(/[^0-9-]/g, '');
     if (!bankName || !bankHolder || !bankAccount) {

@@ -371,6 +371,42 @@ FROM consultation WHERE id = 12345;
 
 ---
 
+## 🔴 2026-06-12 사고: 상담사 전화번호 손상 → 전화 연결 전면 장애
+
+> **재발은 코드로 막아둠(아래 예방 참조). 이 기록은 "만에 하나" 또 발생 시 빠른 복구용.**
+
+### 증상
+- 회원이 특정 상담사에게 전화 → 그 상담사에게 안 가고 **연결 실패 / ARS("번호 누르세요") / 엉뚱한 사람**.
+- m2net 통화내역(passcall 상담상세)에서 **"상담사ID" 공란** + 짧은 통화(10~30초).
+
+### 원인
+상담사 **전화번호(member.phone)가 7자리로 손상**됨 (`010 + 끝4자리`, 예 `01030323004`→`0103004`).
+- 관리자 화면은 일반관리자에게 phone 을 `010-****-3004` 로 **마스킹** 표시하는데, 그 값으로 상담사 정보를 저장하면 별표가 빠져 7자리로 영구 손실.
+- 이 손상번호가 m2net `csr-mgr` telno 로 동기화 → **m2net 상담사 연결번호까지 깨져** 전화 라우팅 실패.
+
+### 진단 SQL / 화면
+```sql
+-- 손상된 상담사 (정상은 10~11자리)
+SELECT id, nickname, csrid, phone, char_length(phone) FROM member WHERE char_length(phone)=7;
+```
+- m2net `상담-원부관리 → 상담사원부` 에서 **"상담사실연결번호"** 가 7자리면 손상.
+
+### 복구 (DB + m2net 둘 다)
+1. **원본 번호 확보**: 매일 03:30 백업 `/data/backup/db/sajumoon_YYYYMMDD_0330.sql.gz` (손상 전).
+   - ⚠️ **당일 신규가입/번호변경 상담사는 백업에 없거나 옛 번호** → m2net 통화내역 "상담사실연결번호"(끝4 일치 확인) 또는 본인에게 확인.
+   - 검증: 손상값 끝4자리 == 원본 끝4자리 여야 같은 번호.
+2. **DB 복구**: `UPDATE member SET phone='01012345678', updated_at=now() WHERE id=X AND char_length(phone)=7;`
+3. **m2net 복구**: `csr-mgr` 부분 PUT `{telno}`(숫자만). 화면 직접수정은 "로그인ID 중복"으로 막히므로 **반드시 API**.
+   - `PUT {M2NET_API_URL}/csr-mgr/{csrid}` body `{telno:"01012345678"}`, header `Authorization: {M2NET_HEADER_KEY}`.
+   - 코드: `api/src/shared/m2net/m2net.service.ts` `updateCounselorFull(csrid, {telno})`.
+
+### 예방 (이미 적용 — 절대 제거 금지)
+- `api/src/admin/members/members.service.ts` 상담사 update 에 **phone/telno 마스킹(`*`) 차단 + 10~11자리 검증** 가드 추가(2026-06-12 배포).
+- ⚠️ **앞으로 phone/telno 를 저장하는 어떤 코드든, 마스킹 값(`*` 포함)·비정상 길이는 반드시 거부할 것.** 조회만 마스킹하고 저장 방어를 빠뜨리면 또 손상된다.
+
+---
+
 작성: 2026-05-17 (audit 종료 후 자율 진행)
 2026-05-29 추가: 운영 시작 직전 안전망 (정산 마킹 / carry_over / alimtalk_log / DB 백업 / chat_room / counselor_auto_absent)
+2026-06-12 추가: 상담사 전화번호 손상 사고 + 복구 절차
 업데이트 권장: 매년 1월 + 새 사고 카테고리 발생 시

@@ -2,6 +2,13 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SQL, type Sql } from '../shared/db/db.module';
 import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
 
+/** health-check 점검 코드 → 사람이 읽는 설명 (일일요약·알림이력 공용) */
+export const HEALTH_CHECK_LABEL: Record<string, string> = {
+  'C-1 음수': '코인 잔액이 마이너스인 회원',
+  'C-8 drift': '코인 표시값과 실제 코인이 안 맞는 회원',
+  'C-17 m2net_failed': '채팅 종료 시 m2net 차감전송이 실패한 채팅방',
+};
+
 /**
  * 매일 09:00 KST — 어제 24시간 운영 활동 요약 + 사장님 카톡 발송.
  * 2026-05-29 신설 (운영 시작 안전망).
@@ -79,6 +86,10 @@ export class DailySummaryService {
         SELECT COUNT(*)::text AS cnt
           FROM alimtalk_log
          WHERE template_code='ops_admin_alert_v2'
+           -- [2026-06-17] 일일요약 자기 자신(category='일일 운영 요약')은 제외.
+           --   안 그러면 매일 일일요약 1건×수신자 2명=2건이 자기를 세어 "2건 ⚠️" 가 상시 표시됨(무의미).
+           --   이제 실제 운영 사고(관리자 문의톡)만 카운트.
+           AND (vars->>'category') IS DISTINCT FROM '일일 운영 요약'
            AND sent_at >= (NOW() AT TIME ZONE 'Asia/Seoul')::date - INTERVAL '1 day'
            AND sent_at <  (NOW() AT TIME ZONE 'Asia/Seoul')::date
       `,
@@ -120,17 +131,19 @@ export class DailySummaryService {
     lines.push(`상담 ${s.consultation_cnt}건${s.short_call_cnt > 0 ? ` (짧은통화 ${s.short_call_cnt})` : ''}`);
     if (s.refund_cnt > 0) lines.push(`환불 신청 ${s.refund_cnt}건 ⚠️`);
     lines.push(`신규 회원 ${s.new_member_cnt}명`);
-    lines.push(`OpsAlert 발송 ${s.ops_alert_yesterday}건${s.ops_alert_yesterday > 0 ? ' ⚠️' : ''}`);
+    lines.push(`관리자 문의톡 ${s.ops_alert_yesterday}건${s.ops_alert_yesterday > 0 ? ' ⚠️' : ''}`);
     lines.push('');
-    lines.push(`[현재 상태]`);
+    lines.push(`[시스템 점검]`);
     if (s.health_violations.length === 0) {
-      lines.push(`health-check ✅ 모두 정상`);
+      lines.push(`✅ 모두 정상`);
     } else {
-      lines.push(`health-check ⚠️ 위반:`);
-      for (const v of s.health_violations) lines.push(`  · ${v.check}: ${v.cnt}건`);
-    }
-    if (s.m2net_failed_total >= 10) {
-      lines.push(`chat_room m2net_failed ⚠️ ${s.m2net_failed_total}건 (10건 이상 누적)`);
+      lines.push(`⚠️ 확인 필요:`);
+      for (const v of s.health_violations) {
+        const label = HEALTH_CHECK_LABEL[v.check] ?? v.check;
+        lines.push(`  · ${label} ${v.cnt}건`);
+      }
+      lines.push('');
+      lines.push(`※ 자세한 내용은 관리자 > 알림 이력에서 확인하세요.`);
     }
     return lines.join('\n');
   }

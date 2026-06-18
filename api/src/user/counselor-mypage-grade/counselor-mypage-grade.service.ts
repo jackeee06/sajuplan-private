@@ -52,6 +52,64 @@ export interface MyGradeInfo {
   days_until_unlock: number | null;
 }
 
+/** 실시간 상담수수료 표 — 등급 1행 (단가 옵션별 시간당 상담료 포함) */
+export interface FeeScheduleRow {
+  grade: Grade;
+  grade_label: string;
+  /** 승급 임계값(당월 누적 시간). 예비파트너는 0 */
+  threshold_hours: number;
+  /** 정산률 0~1 (예: 0.40) */
+  revenue_rate: number;
+  /** 해당 등급에서 선택 가능한 30초당 고객이용료 옵션 + 시간당 상담료(상담사 수익) */
+  options: Array<{
+    /** 30초당 고객이용료(원) */
+    customer_fee: number;
+    /** 시간당 상담료 = 고객이용료 × 120(30초/시간) × 정산률, 반올림 */
+    hourly_earning: number;
+  }>;
+}
+
+/** 등급별 기본 임계값(시간) — setting 누락 시 폴백 */
+const DEFAULT_THRESHOLDS: Record<Exclude<Grade, 'preliminary'>, number> = {
+  partner1: 20,
+  partner2: 40,
+  partner3: 70,
+  partner4: 90,
+  partner5: 120,
+};
+
+/** 등급별 기본 정산률 — setting 누락 시 폴백 (handbook counselor/02-grade-pricing 기준) */
+const DEFAULT_REVENUE_RATE: Record<Grade, number> = {
+  preliminary: 0.4,
+  partner1: 0.52,
+  partner2: 0.56,
+  partner3: 0.6,
+  partner4: 0.63,
+  partner5: 0.7,
+};
+
+/** 등급별 기본 단가 옵션 — setting 누락 시 폴백 */
+const DEFAULT_OPTIONS: Record<Grade, number[]> = {
+  preliminary: [800, 1000],
+  partner1: [800, 1000],
+  partner2: [1000, 1200],
+  partner3: [1000, 1200, 1300, 1400],
+  partner4: [1000, 1200, 1300, 1400, 1500],
+  partner5: [1200, 1300, 1400, 1500, 1800, 2000],
+};
+
+const GRADE_ORDER: Grade[] = [
+  'preliminary',
+  'partner1',
+  'partner2',
+  'partner3',
+  'partner4',
+  'partner5',
+];
+
+/** 1시간 = 30초 단위 120개 */
+const UNITS_PER_HOUR = 120;
+
 @Injectable()
 export class UserCounselorMypageGradeService {
   constructor(@Inject(SQL) private readonly sql: Sql) {}
@@ -201,6 +259,55 @@ export class UserCounselorMypageGradeService {
         ok: true as const,
         new_unit_cost: newUnitCost,
         next_changeable_at: nextChangeableAt,
+      };
+    });
+  }
+
+  /**
+   * 실시간 상담수수료 표 — 전 등급 정책을 한 번에 조회.
+   *
+   * setting(namespace='grade')의 thresholds.*, options.<grade>, revenue_rate.<grade>
+   * 를 모두 읽어 등급별 표를 구성한다. 누락 시 핸드북 기준 폴백값 사용.
+   *
+   * 시간당 상담료(상담사 수익) = 고객이용료(30초당) × 120 × 정산률.
+   * 로그인한 사용자라면 누구나 조회 가능 (공개 정보).
+   */
+  async getFeeSchedule(): Promise<FeeScheduleRow[]> {
+    const rows = await this.sql<{ key: string; value: string }[]>`
+      SELECT key, value FROM setting WHERE namespace = 'grade'
+    `;
+    const map = new Map(rows.map((r) => [r.key, r.value]));
+
+    return GRADE_ORDER.map((grade) => {
+      // 임계값 (예비파트너는 0)
+      const threshold =
+        grade === 'preliminary'
+          ? 0
+          : Number(
+              map.get(`thresholds.${grade}`) ??
+                DEFAULT_THRESHOLDS[grade as Exclude<Grade, 'preliminary'>],
+            );
+
+      // 정산률 — 0~1 범위 검증, 벗어나면 폴백
+      const rawRate = Number(map.get(`revenue_rate.${grade}`));
+      const revenueRate =
+        Number.isFinite(rawRate) && rawRate >= 0 && rawRate <= 1
+          ? rawRate
+          : DEFAULT_REVENUE_RATE[grade];
+
+      // 단가 옵션 — 없으면 폴백
+      const parsed = this.parseOptions(map.get(`options.${grade}`));
+      const options = parsed.length > 0 ? parsed : DEFAULT_OPTIONS[grade];
+
+      return {
+        grade,
+        grade_label: GRADE_LABEL[grade],
+        threshold_hours: Number.isFinite(threshold) ? threshold : 0,
+        revenue_rate: revenueRate,
+        options: options.map((customerFee) => ({
+          customer_fee: customerFee,
+          hourly_earning: Math.round(customerFee * UNITS_PER_HOUR * revenueRate),
+        })),
       };
     });
   }

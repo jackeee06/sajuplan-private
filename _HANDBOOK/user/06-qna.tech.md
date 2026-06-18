@@ -106,13 +106,16 @@ req.user = { ...payload, sub };
 ## 알림톡 (BizM)
 
 - `qa_ask_v2` — 상담사에게. 변수 `상담사명/고객명/url`(`/counselor/mypage/customer-qnas/:id`). `notifyQaAsk` + FCM topic `chl_5`.
-- `qa_answer_v2` — 고객에게. 변수 `고객명/상담사명/문의링크(sajuplan://...)/url`(`/mypage/my-qnas/:id`). 앱 전용 서비스라 웹 URL 금지, `sajuplan://` 앱스킴 통일. `notifyQaAnswer`.
+- `qa_answer_v2` — 고객에게. 변수 `고객명/상담사명/url`(`/mypage/my-qnas/:id`). `notifyQaAnswer`.
+  - 카카오 알림톡 클릭 시 앱 이동 = 푸시/FCM 이동 방식이며 **안드로이드·iOS 모두 정상 등록·구현**됨. 앱이 꺼져 있어도 켜지고 정확한 페이지로 이동. BizM 설정(`sajuplan://#{url}`)·서버·사주플랜 코드 변경 0 = 정상, **변경 불필요**.
+  - 일부 아이폰 에러 제보는 iOS 기능 자체는 등록돼 있으므로 그 단말의 **앱 미설치/구버전 등 환경 가능성** (단정 금지).
 - 모두 fire-and-forget(`void`), 실패해도 본문 작성/답변 저장은 성공.
 
 ## 작성자 마스킹 (`displayReviewer`)
 
-- 우선순위: `nickname`(maskName) → `mb_id`(maskMbId) → '익명'. 본명(`name`)은 노출 안 함(2026-05-15).
-- `maskName('김민지')='김*지'`, `maskMbId('ubuub1234')='ub***34'`.
+- 우선순위 **(2026-06-14 정책 전환 — 사장님 결정)**: `name`(maskName) → `nickname`(maskName) → `mb_id`(maskMbId) → '익명'. **실명 중간 별표로 표기**(후기·문의 공통). 닉네임(예: '감자튀김')이 아니라 실명 마스킹(예: '이심원'→'이\*원')을 노출.
+- `maskName('김민지')='김*지'`, `maskName('이심원')='이*원'`, `maskMbId('ubuub1234')='ub***34'`.
+- ⚠️ 옛 정책(2026-05-15 "본명 노출 안 함, 닉네임 우선")에서 전환됨. 마스킹 수준이라 익명성은 유지.
 
 ## 핵심 코드 위치
 

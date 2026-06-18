@@ -4,6 +4,7 @@ import MobileHeader from '../components/MobileHeader'
 import BottomNav from '../components/BottomNav'
 import { ApiError, notificationsApi, type PublicNotificationItem } from '../lib/api'
 import { API_BASE } from '../lib/runtime-env'
+import { useAlert } from '../lib/use-alert'
 
 /**
  * 알림 내역 — Figma node 163:23156 (있음), 163:27007 (비어있음)
@@ -17,6 +18,7 @@ import { API_BASE } from '../lib/runtime-env'
  */
 export default function Notifications() {
   const navigate = useNavigate()
+  const { showAlert, alertUI } = useAlert()
   const [items, setItems] = useState<PublicNotificationItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
@@ -50,7 +52,7 @@ export default function Notifications() {
       setItems((prev) => (prev ? prev.map((n) => ({ ...n, read: true })) : prev))
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : '처리에 실패했습니다.'
-      alert(msg)
+      void showAlert(msg)
     }
   }
 
@@ -139,6 +141,7 @@ export default function Notifications() {
         )}
       </main>
       <BottomNav />
+      {alertUI}
       </div>
   )
 }

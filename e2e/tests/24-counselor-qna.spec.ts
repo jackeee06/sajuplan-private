@@ -203,8 +203,12 @@ test.describe.serial('상담사 문의 답변 CRUD', () => {
       .or(page.locator('button').filter({ hasText: '⋮' }))
     await kebab.first().click()
 
-    page.once('dialog', (d) => d.accept())
+    // 케밥 메뉴 '삭제' 클릭 → 인앱 확인창(ConfirmModal) 노출 → '삭제' 확정
+    // (구: window.confirm 네이티브 다이얼로그 → 신: 인앱 모달, 앱 WebView 대응)
     await page.getByText('삭제').click()
+    const confirmDialog = page.getByRole('dialog')
+    await expect(confirmDialog).toBeVisible()
+    await confirmDialog.getByRole('button', { name: '삭제' }).click()
 
     await page.waitForTimeout(1500)
     await page.reload()

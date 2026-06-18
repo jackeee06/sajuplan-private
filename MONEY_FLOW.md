@@ -246,12 +246,19 @@ m2net.addMemberCoin(+amt) 로 회원 잔액 복구
 
 ## 6. 정산 흐름
 
-### 6.1 정산 주기
+> 🔴 **현재 상태 (2026-06-10~): 정산 방식 전환 중 — 자동 정산 cron 꺼둠.**
+> 정산을 **"수익금에서 원천세 3.3%만 떼는 단순 구조"** 로 바꾸는 작업이 진행 중이고,
+> 과지급(추천수익금 실시간 적립 ↔ 옛 cron 이중계산) 방지를 위해 **매월 자동 정산을 막아둔 상태**.
+> 새 방식 원장은 핸드북 [`_HANDBOOK/payment/05-settlement.md`](_HANDBOOK/payment/05-settlement.md), 진행상황은 [`PLAN/_NEXT_SESSION_정산단순화.md`](PLAN/_NEXT_SESSION_정산단순화.md).
+> ⚠️ 아래 §6.3 의 옛 산식(부가세 분리·회선비·등급 재계산)은 **폐기됨** — 새 방식으로 교체했다.
 
-- **매월 1일 자정** — `settlement-cron` 이 전월(예: 5월 1일 실행 → 4월분) 정산 수행
-- 단위: 상담사 1인 × 1개월 = settlement_monthly 1행
-- 멱등성: `(member_id, month)` UNIQUE — 재실행해도 UPDATE 만 (point 차감 스킵)
-- 파일: [api/src/cron/settlement-cron.service.ts](api/src/cron/settlement-cron.service.ts)
+### 6.1 정산 주기 (새 방식)
+
+- **개별 정산** — 상담사 1명씩 어드민 정산이력에서 **[정산하기] 버튼** 클릭 → 그 사람 수익금만 차감 + 정산 처리
+- 옛 "매월 1일 자정 자동 cron" 은 전환 작업 중이라 **의도적으로 꺼둠**. 송금 안 한 상담사는 버튼 안 누르면 수익금이 그대로 남아 다음 달에 자연 누적
+- 단위: 상담사 1인 × 1회 정산 = settlement_monthly 1행
+- 멱등성: `(member_id, month)` UNIQUE — 재실행해도 중복 차감 없음
+- 파일: [api/src/cron/settlement-cron.service.ts](api/src/cron/settlement-cron.service.ts) (cron 비활성), 어드민 [정산하기] = `settlements.service.ts settleOne()`
 
 ### 6.2 정산 대상 상담
 
@@ -261,56 +268,49 @@ m2net.addMemberCoin(+amt) 로 회원 잔액 복구
 - 해당 consultation 의 point_history 기록 존재 (미지급 건 제외)
 - ★ 2026-05-22 정책: `refund_status='short_call_refund'` 도 **정산 포함** (회원 차감만 스킵, 상담사 적립은 정상)
 
-### 6.3 정산 계산식
+### 6.3 정산 계산식 (새 방식 — 수익금 − 원천세 3.3%만)
 
 ```
-[상담사별 월 합산]
-sum_amt_free        = SUM(consultation.amt_free)
-sum_amt_pro         = SUM(consultation.amt_pro)
-sum_amt_other_plus  = SUM(기타 +포인트)  // 어드민 조정 등
-sum_amt_other_minus = SUM(기타 -포인트)
-
-[로열티 적용 — member.grade 별 setting.revenue_rate.<grade>]
-price_free  = floor(sum_amt_free × free_royalty_pct / 100)
-price_paid  = floor(sum_amt_pro × paid_royalty_pct / 100)
-price_other = floor(sum_amt_other_plus × royalty_pct / 100) + sum_amt_other_minus
-price_tot   = price_free + price_paid + price_other
-
-[세금 분리]
-supply      = floor(price_tot / 1.1)            // 공급가 (부가세 분리)
-vat         = price_tot - supply                // 부가세 10%
-withholding = floor(supply × 0.033)             // 원천징수 3.3%
-reply_fee   = (price_tot >= 50000) ? 20000 : 0  // 회선비 (5만원 이상에만 2만)
-
-[실 지급액]
-price = supply - withholding - reply_fee
+[상담사별 미정산 수익금 합산]
+gross = 미정산 earning_balance (상담수익 + 추천수익금 모두 이미 포함)
+  ※ 등급별 정산률은 상담 종료 시점에 이미 earning 에 반영됨 → 정산 때 재계산 안 함
+  ※ 추천수익금도 상담 종료 시점 실시간 적립 → 따로 합산 불필요 (이미 포함)
 
 [선지급 차감]
-early_payout_total = SUM(payout_request WHERE status='paid' AND settlement_month=이번달)
+early_payout_total = SUM(payout_request WHERE status='paid' AND 미정산분)
 prev_carry_over    = settlement_monthly.carry_over_negative (이전 달)
-final_payout_amount = max(0, price - early_payout_total - prev_carry_over)
+base = max(0, gross - early_payout_total - prev_carry_over)
+
+[세금 — 떼는 건 원천세 하나뿐]
+withholding = floor(base × 0.033)   // 원천세 3.3% (소득세 3% + 지방세 0.3%)
+
+[실 지급액]
+price = base - withholding
 
 [음수 이월]
-음수 발생 시 carry_over_negative 에 박제 → 다음 달 자동 차감
+음수 발생 시 carry_over_negative 에 박제 → 다음 달 자동 차감 (회사 임시 메움, 회수 X)
 ```
+
+> ⚠️ **폐기된 옛 계산 (2026-06-10 이전 / 절대 부활 금지)**:
+> `공급가 = price ÷ 1.1` (부가세 10% 분리) · `회선비 5만원↑ → 2만원 차감` · 정산 시점 등급률 재계산(`× royalty_pct`).
+> → 모두 **사장님 지시 아닌 옛 php 잔재**라 제거됨. 떼는 것은 **원천세 3.3% 하나뿐**.
+> 사장님께 "부가세·회선비" 단어 꺼내지 말 것 (메모리 `feedback_settlement_only_withholding`).
 
 ### 6.4 정산 후 처리
 
 ```sql
-INSERT INTO settlement_monthly (member_id, mb_id, month, status='calculated',
-  amt_free, amt_pro, amt_other_plus, amt_other_minus,
-  price_free, price_paid, price_other, price_tot,
-  supply_price, vat_amount, withholding_tax, reply_fee, price,
-  early_payout_total, carry_over_negative, final_payout_amount,
-  -- 정책 스냅샷 (재계산 가능)
-  free_royalty_pct, paid_royalty_pct, vat_rate, withholding_rate,
-  line_fee_threshold, line_fee, calculated_by_id, calculated_at);
+-- 상담사 1명 [정산하기] 실행 시
+INSERT INTO settlement_monthly (member_id, mb_id, month,
+  price (= 실지급액), withholding_tax, early_payout_total,
+  carry_over_negative, final_payout_amount, ...);
 
-UPDATE point SET earning_balance -= price WHERE member_id = 상담사;
-INSERT INTO point_history (..., rel_action='settlement', use_point=price);
+UPDATE point SET earning_balance -= base WHERE member_id = 상담사;  -- 정산한 수익금 차감
+INSERT INTO point_history (..., rel_action='settlement', use_point=base);
 ```
 
-이후 사장님이 어드민에서 결과 확인 → 통장에서 송금 → "지급완료" 마킹:
+> ⚠️ settlement_monthly 실제 schema 는 `supply_price`/`vat_amount`/`reply_fee`/`price_free`/`price_paid`/`amt_*` 같은 옛 회계 컬럼이 **없거나 미사용**. 새 방식은 `price`(실지급) + `withholding_tax` + 선지급/이월만 사용. 정확한 컬럼은 §9 참조.
+
+이후 사장님이 통장에서 송금 → 어드민에서 "지급완료" 마킹:
 ```sql
 UPDATE settlement_monthly SET status='paid', paid_by_id=admin_id, paid_at=NOW();
 ```
@@ -475,16 +475,17 @@ payout_request.status='paid', paid_at=NOW()
 
 | 항목 | 값 | 위치 (코드/설정) | 변경 시 영향 |
 |---|---|---|---|
-| 부가세 | 10% (price_tot / 1.1) | `settlement-cron.service.ts` 하드코딩 | 정산 공급가 |
-| 원천징수 | 3.3% | `settlement-cron.service.ts` 하드코딩 | 정산 + 선지급 |
-| 회선비 | 50,000원 이상 시 20,000원 차감 | `settlement-cron.service.ts` 하드코딩 | 정산 |
-| 정산률 (등급별) | grade.revenue_rate.<grade> | `setting` 테이블 namespace='grade' | 정산 |
-| 등급 임계값 | grade.thresholds.partner1~5 | `setting` 테이블 | 자동 등급 인상 |
+| 원천징수 | 3.3% (소득세 3% + 지방세 0.3%) | `settlement-cron.service.ts` 하드코딩 | **정산에서 떼는 유일한 세금** + 선지급 |
+| ~~부가세~~ | ~~10%~~ → **폐기 (2026-06-10)** | — | 새 정산은 부가세 안 뗌 (옛 php 잔재) |
+| ~~회선비~~ | ~~5만원↑ 시 2만원~~ → **폐기 (2026-06-10)** | — | 새 정산은 회선비 안 뗌 (옛 php 잔재) |
+| 정산률 (등급별) | grade.revenue_rate.<grade> | `setting` 테이블 namespace='grade' | **상담 종료 시점에 earning 에 선반영** (정산 때 재계산 X). 미해결 시 fallback 0.4 |
+| 등급 임계값 | grade.thresholds.partner1~5 | `setting` 테이블 | 실시간 자동 승급 (2026-06-07) |
+| 추천수익금 요율 | 1% / 3개월 (스냅샷 고정) | 추천 적립 로직 | 상담 종료 시 실시간 적립 (제로섬, 2026-06-10) |
 | 선지급 가용율 | 70% | `payout.service.ts` 상수 | 가용 한도 |
 | 선지급 수수료 | 5% | `payout.service.ts` 상수 | 실 지급액 |
 | 선지급 최소액 | 30,000원 | `payout.service.ts` 상수 | 신청 가능 여부 |
 | 단기통화 환불 기준 | usetm<30초 AND amt<=단가 | `m2net-push.service.ts` | 회원 보호 |
-| 정산 시점 (월) | 매월 1일 자정 | `settlement-cron` cron expression | 결과 가시화 시점 |
+| 정산 시점 | 개별 [정산하기] 버튼 (자동 cron 꺼둠) | 어드민 `settlements.service.ts` | 전환 중 |
 | 정산 기준일 (대정리) | 2026-03-01 이전 포인트는 0 처리 | PHP 레거시 `get_point_sum()` | 마이그레이션 컷오프 |
 | **신규 상담사 최소 활동 기간** | 14일 | settlement-cron.service.ts `COUNSELOR_MIN_ACTIVE_DAYS` (2026-05-29 신설) | 가입 14일 미만 상담사 정산 제외 |
 | **carry_over 임계값 알림** | 1,000,000원 | settlement-cron.service.ts `CARRY_OVER_ALERT_THRESHOLD` (2026-05-29 신설) | 초과 시 OpsAlert 발송 |
@@ -822,6 +823,12 @@ payout_request.status='paid', paid_at=NOW()
 ---
 
 ## 📅 변경 이력 상세
+
+### 2026-06-13 — 정산 산식 드리프트 교정 (문서만)
+- §6.1/§6.3/§6.4/§11 의 옛 정산 산식(부가세 10% 분리 · 회선비 2만 · 정산 시점 등급률 재계산 · 매월 1일 자동 cron)을 **현재 진실로 교체**.
+- 현재 정책: **미정산 수익금 합산 − 선지급 − 원천세 3.3%만** / 등급률·추천수익은 상담 종료 시점에 이미 earning 반영 / 자동 cron 꺼두고 개별 [정산하기] 버튼.
+- 근거: 핸드북 `_HANDBOOK/payment/05-settlement.md`, 메모리 `feedback_settlement_only_withholding`. system/00-overview.md 도 동일 교정.
+- ⚠️ 코드/정산 로직 변경 아님 — 문서 설명만 현재 운영과 일치시킴.
 
 ### 2026-05-29 — 운영 시작 전 안전망 대규모 작업
 

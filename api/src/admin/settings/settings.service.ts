@@ -17,6 +17,13 @@ const SUPER_ONLY_SETTING_KEYS: ReadonlySet<string> = new Set([
   // 선지급 (기존)
   'payout.fee_rate',
   'payout.withholding_rate',
+  // 선지급 정책 — 매출직결 + 사기방지 레버 (2026-06-12 추가, 일반관리자 변경 차단)
+  'payout.enabled',                    // 선지급 마스터 kill switch
+  'payout.available_ratio',            // 가용 비율(기본 0.7) — 즉시 인출 한도
+  'payout.max_per_day_per_counselor',  // 일 신청 횟수(사기 방지)
+  'payout.bank_lock_days',             // 계좌변경 후 잠금일(사기 방지)
+  'payout.min_amount',                 // 최소 신청액
+  'payout.block_preliminary',          // 예비등급 차단 여부
   // 등급 단가 옵션 (6등급)
   'grade.options.preliminary',
   'grade.options.partner1',
@@ -50,6 +57,23 @@ export function isSuperOnlySetting(namespace: string, key: string): boolean {
   return SUPER_ONLY_SETTING_KEYS.has(`${namespace}.${key}`);
 }
 
+/**
+ * [2026-06-11 보안] 시크릿 키 마스킹.
+ *   admin/settings GET 이 setting 테이블 전체를 평문 반환해 OAuth/보안 시크릿
+ *   (kakao_client_secret, naver_secret, apple_private_key, recaptcha_secret 등) 이
+ *   인증된 아무 관리자에게나 노출되던 문제 차단.
+ *   - 조회 시: 시크릿 키이고 값이 있으면 SECRET_MASK 로 치환해 반환.
+ *   - 저장 시: 들어온 값이 SECRET_MASK 면 무시(기존 시크릿 보존) → 폼 일괄저장 라운드트립 안전.
+ */
+const SECRET_KEY_PATTERN = /(secret|private_key|password|passwd)/i;
+export const SECRET_MASK = '********';
+export function isSecretSettingKey(key: string): boolean {
+  return SECRET_KEY_PATTERN.test(key);
+}
+function maskSecret(key: string, value: string): string {
+  return isSecretSettingKey(key) && value !== '' ? SECRET_MASK : value;
+}
+
 export interface SettingRow {
   namespace: string;
   key: string;
@@ -75,7 +99,7 @@ export class SettingsService {
     const grouped: SettingsByNamespace = {};
     for (const r of rows) {
       if (!grouped[r.namespace]) grouped[r.namespace] = {};
-      grouped[r.namespace][r.key] = r.value ?? '';
+      grouped[r.namespace][r.key] = maskSecret(r.key, r.value ?? '');
     }
     return grouped;
   }
@@ -86,7 +110,7 @@ export class SettingsService {
       SELECT key, value FROM setting WHERE namespace = ${namespace}
     `;
     const out: Record<string, string> = {};
-    for (const r of rows) out[r.key] = r.value ?? '';
+    for (const r of rows) out[r.key] = maskSecret(r.key, r.value ?? '');
     return out;
   }
 
@@ -105,7 +129,11 @@ export class SettingsService {
     const flat: { namespace: string; key: string; value: string }[] = [];
     for (const ns of Object.keys(payload)) {
       for (const k of Object.keys(payload[ns])) {
-        flat.push({ namespace: ns, key: k, value: String(payload[ns][k] ?? '') });
+        const value = String(payload[ns][k] ?? '');
+        // [2026-06-11 보안] 마스킹된 시크릿 값이 폼 일괄저장으로 되돌아온 경우 → 무시(기존값 보존).
+        //   안 막으면 GET 에서 받은 '********' 가 실제 시크릿을 덮어써 인증 깨짐.
+        if (isSecretSettingKey(k) && value === SECRET_MASK) continue;
+        flat.push({ namespace: ns, key: k, value });
       }
     }
     if (flat.length === 0) return { updated: 0 };

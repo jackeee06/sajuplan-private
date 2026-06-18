@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Copy, Check } from 'lucide-react'
 import { api } from '../lib/api'
 import BottomNav from '../components/BottomNav'
+import { useAlert } from '../lib/use-alert'
 
 interface ReferralItem {
   id: number
@@ -52,6 +53,7 @@ export default function CounselorMyReferral() {
   const [data, setData] = useState<ReferralData | null>(null)
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
+  const { showAlert, alertUI } = useAlert()
 
   useEffect(() => {
     api.get<ReferralData>('/user/settlements/referral')
@@ -74,7 +76,7 @@ export default function CounselorMyReferral() {
       Share: { sendDefault: (o: unknown) => void }
     } | undefined
     if (!Kakao?.isInitialized()) {
-      alert('카카오 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.')
+      void showAlert('카카오 SDK 로딩 중입니다. 잠시 후 다시 시도해주세요.')
       return
     }
     Kakao.Share.sendDefault({
@@ -233,6 +235,7 @@ export default function CounselorMyReferral() {
       </div>
 
       <BottomNav />
+      {alertUI}
     </div>
   )
 }

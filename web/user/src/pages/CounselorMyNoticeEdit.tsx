@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import { useAuth } from '../lib/auth-context'
 import { counselorMypageApi } from '../lib/api'
+import { useConfirm } from '../lib/use-confirm'
 
 const MAX_LEN = 2000
 
@@ -22,6 +23,13 @@ export default function CounselorMyNoticeEdit() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const { confirm, confirmUI } = useConfirm()
+
+  const handleClearNotice = async () => {
+    if (!(await confirm({ message: '공지사항을 삭제하시겠습니까?', actionLabel: '삭제', tone: 'danger' }))) return
+    setNotice('')
+    setSaved(false)
+  }
 
   useEffect(() => {
     if (!member || member.role !== 'counselor') return
@@ -144,12 +152,7 @@ export default function CounselorMyNoticeEdit() {
         {notice.trim() && (
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm('공지사항을 삭제하시겠습니까?')) {
-                setNotice('')
-                setSaved(false)
-              }
-            }}
+            onClick={() => void handleClearNotice()}
             className="w-full h-10 rounded-full border border-[#E5E7EB] text-[14px] text-[#6A7282]"
           >
             공지 지우기
@@ -165,6 +168,7 @@ export default function CounselorMyNoticeEdit() {
       )}
 
       <BottomNav myHref="/counselor/mypage" />
+      {confirmUI}
     </div>
   )
 }

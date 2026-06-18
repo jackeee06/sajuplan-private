@@ -18,6 +18,7 @@ export interface PopupLayerRow {
   image_url_webp: string | null;
   link_url: string | null;
   is_active: boolean;
+  audience: string; // 'all' | 'member' | 'counselor'
   created_at: Date;
   updated_at: Date;
 }
@@ -38,6 +39,7 @@ export interface PopupLayerInput {
   image_url_webp?: string | null;
   link_url?: string | null;
   is_active?: boolean;
+  audience?: string; // 'all' | 'member' | 'counselor'
 }
 
 @Injectable()
@@ -48,7 +50,7 @@ export class PopupLayersService {
     return this.sql<PopupLayerRow[]>`
       SELECT id, device, starts_at, ends_at, disable_hours,
              pos_left, pos_top, size_width, size_height,
-             title, content, is_html, image_url, image_url_webp, link_url, is_active,
+             title, content, is_html, image_url, image_url_webp, link_url, is_active, audience,
              created_at, updated_at
         FROM popup_notice
        ORDER BY id DESC
@@ -59,7 +61,7 @@ export class PopupLayersService {
     const rows = await this.sql<PopupLayerRow[]>`
       SELECT id, device, starts_at, ends_at, disable_hours,
              pos_left, pos_top, size_width, size_height,
-             title, content, is_html, image_url, image_url_webp, link_url, is_active,
+             title, content, is_html, image_url, image_url_webp, link_url, is_active, audience,
              created_at, updated_at
         FROM popup_notice
        WHERE id = ${id}
@@ -73,7 +75,7 @@ export class PopupLayersService {
       INSERT INTO popup_notice (
         device, starts_at, ends_at, disable_hours,
         pos_left, pos_top, size_width, size_height,
-        title, content, is_html, image_url, image_url_webp, link_url, is_active
+        title, content, is_html, image_url, image_url_webp, link_url, is_active, audience
       ) VALUES (
         ${input.device ?? 'both'},
         ${input.starts_at}::timestamptz,
@@ -89,7 +91,8 @@ export class PopupLayersService {
         ${input.image_url ?? null},
         ${input.image_url_webp ?? null},
         ${input.link_url ?? null},
-        ${input.is_active ?? true}
+        ${input.is_active ?? true},
+        ${input.audience ?? 'all'}
       )
       RETURNING id
     `;
@@ -115,6 +118,7 @@ export class PopupLayersService {
     if (input.image_url_webp !== undefined) updates.image_url_webp = input.image_url_webp;
     if (input.link_url !== undefined) updates.link_url = input.link_url;
     if (input.is_active !== undefined) updates.is_active = input.is_active;
+    if (input.audience !== undefined) updates.audience = input.audience;
 
     if (Object.keys(updates).length > 0) {
       await this.sql`

@@ -67,7 +67,7 @@ ORDER BY cr.started_at ASC;
 `chat_request_to_counselor` BizM 템플릿:
 - 발송: `consult.service.ts:471-525` `notifyCounselorChatRequest()`
 - 채팅 중 화이트리스트 통과 (`SmsService.IN_CHAT_PASS_THROUGH`)
-- APK scheme 등록 후 → 클릭 시 앱 자동 호출
+- 카카오 알림톡 클릭 시 앱 이동 = 푸시/FCM 이동 방식 (안드로이드·iOS 모두 정상 등록). 앱 꺼져 있어도 켜지고 정확한 페이지로 이동. BizM·서버 변경 불필요
 
 ## 운영 SQL
 
@@ -90,4 +90,4 @@ ORDER BY response_rate DESC;
 
 - `[[prepaid-chat-plan]]` §15 (incoming 3단)
 - `[[counselor-path-matching]]` (상담사 경로 매칭 함정)
-- `[[mobile-deep-link-status]]` (APK scheme)
+- `[[mobile-deep-link-status]]` (앱 이동=푸시/FCM 이동 방식 / 안드로이드·iOS 모두 정상 등록)

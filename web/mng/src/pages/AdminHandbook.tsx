@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { BookOpen, Search, ChevronRight } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -56,12 +57,19 @@ export default function AdminHandbook() {
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
   const [hits, setHits] = useState<SearchHit[] | null>(null)
+  const [searchParams] = useSearchParams()
 
   // 인덱스 로딩
   useEffect(() => {
     api<HandbookIndex>('/admin/handbook/index')
       .then((data) => {
         setIndex(data)
+        // [2026-06-12] AllMenus 등에서 ?slug= 로 깊은 링크 진입 시 해당 문서 우선 선택
+        const urlSlug = searchParams.get('slug')
+        if (urlSlug) {
+          setSelectedSlug(urlSlug)
+          return
+        }
         // 첫 "available" 항목 자동 선택 (콘텐츠 작성된 것만)
         for (const cat of data.categories) {
           const ready = cat.items.find((it) => it.available !== false)
@@ -74,7 +82,7 @@ export default function AdminHandbook() {
       .catch(() => {
         setIndex({ categories: [] })
       })
-  }, [])
+  }, [searchParams])
 
   // 본문 로딩
   useEffect(() => {

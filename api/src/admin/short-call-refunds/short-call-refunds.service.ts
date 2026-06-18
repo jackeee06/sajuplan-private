@@ -2,11 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
 
 /**
- * 고객보호비용(매몰비용) 조회 — 30초 미만 자동 환원된 통화 리스트.
+ * 고객보호비용(매몰비용) 조회 — 30초 미만 자동 환원된 통화 + 채팅 리스트.
  *
- * 정책 (2026-05-22):
- *   30초 미만 통화는 회원 잔액 자동 환원 (회사 정책) →
- *   m2net 측 차감액은 사주플랜이 부담하는 매몰비용으로 누적.
+ * 정책 (2026-05-22 통화 / 2026-06-14 채팅 합류):
+ *   30초 미만 통화/채팅은 회원 잔액 자동 환원 (회사 정책) →
+ *   회원 환불분 + 상담사 1단위 적립 + m2net 차감액을 사주플랜이 부담하는 매몰비용으로 누적.
+ *   refund_status='short_call_refund'(전화) + 'short_chat_refund'(채팅) 둘 다 집계.
  *   매월 m2net 청구서와 1:1 대조하기 위해 callid/csrid/membid 등 모든 메타 노출.
  */
 @Injectable()
@@ -77,7 +78,7 @@ export class AdminShortCallRefundsService {
         FROM consultation c
         LEFT JOIN member csr ON csr.id = c.counselor_id
         LEFT JOIN member m   ON m.id   = c.member_id
-       WHERE c.refund_status = 'short_call_refund'
+       WHERE c.refund_status IN ('short_call_refund', 'short_chat_refund')
          AND c.created_at >= ${from}::date
          AND c.created_at <  (${to}::date + INTERVAL '1 day')
        ORDER BY c.created_at DESC, c.id DESC
@@ -88,7 +89,7 @@ export class AdminShortCallRefundsService {
       SELECT COUNT(*)::text AS cnt,
              COALESCE(SUM(refunded_amount), 0)::text AS sum
         FROM consultation
-       WHERE refund_status = 'short_call_refund'
+       WHERE refund_status IN ('short_call_refund', 'short_chat_refund')
          AND created_at >= ${from}::date
          AND created_at <  (${to}::date + INTERVAL '1 day')
     `;

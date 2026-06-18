@@ -21,6 +21,15 @@
   #root {
     @apply h-full;
   }
+  /* [2026-06-14] 가로 흔들림(rubber-band) 전역 차단.
+   *   앱 WebView 는 미세한 가로 여유에도 좌우로 흔들리는데, 루트에서 원천 차단.
+   *   overflow-x:clip → scroll container 를 안 만들어 sticky 헤더/BottomNav 안전,
+   *   풀블리드(-mx-4) 요소도 화면 끝까지라 안 잘림. overscroll-behavior-x:none → 가로 바운스 제거. */
+  html,
+  body {
+    overflow-x: clip;
+    overscroll-behavior-x: none;
+  }
   body {
     @apply antialiased bg-white text-gray-800;
     font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;

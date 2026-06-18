@@ -173,6 +173,10 @@ export interface SignupPayload {
   acquisition_source?: string
   agree_email?: boolean
   agree_sms?: boolean
+  /** 모집인(서포터즈) 추천 코드 — 선택. QR/링크 유입 시 자동 prefill */
+  promoter_code?: string
+  /** 추천 유입 경로 — QR/링크면 'qr', 직접 코드 입력이면 'code' */
+  promoter_entry?: 'qr' | 'code'
 }
 
 // ─────────────────────────────────────────────
@@ -2275,8 +2279,84 @@ export const counselorInquiryApi = {
     })
     if (!res.ok) {
       const text = await res.text().catch(() => '')
-      throw new ApiError(res.status, text || `업로드 실패 (${res.status})`)
+      throw new ApiError(res.status, text || `업로드 실패 (${res.status})`, null)
     }
     return res.json() as Promise<{ url: string }>
   },
+}
+
+// ─────────────────────────────────────────────
+// 모집인(서포터즈) — QR/링크 랜딩 + 모집인 대시보드 (휴대폰 OTP 로그인)
+// ─────────────────────────────────────────────
+
+/** 모집인 대시보드 적립 타임라인 1건 */
+export interface PromoterTimelineItem {
+  /** 마스킹된 피모집자 이름 (예: '김*수') */
+  maskedName: string
+  /** 피모집자가 사용한 금액(원) */
+  usedAmount: number
+  /** 모집인 적립 보상(원) */
+  rewardAmount: number
+  /** 'earned' | 'voided' 등 — 'voided' 면 취소된 적립 */
+  status: string
+  createdAt: string
+}
+
+export interface PromoterDashboard {
+  /** 모집인 이름 */
+  name: string
+  /** 내 추천 코드 */
+  code: string
+  /** 기대수익(원) — 아직 정산되지 않은 적립 합계 */
+  expected: number
+  /** 정산 완료 누적(원) */
+  paidTotal: number
+  /** 모집한 인원 수 */
+  recruitCount: number
+  timeline: PromoterTimelineItem[]
+}
+
+export const promoterApi = {
+  /** 코드 유효성 확인 — 랜딩 진입 시 */
+  byCode: (code: string) =>
+    api.get<{ exists: boolean; active: boolean }>(
+      `/promoter/by-code/${encodeURIComponent(code)}`,
+    ),
+  /** OTP 발송 — 누구나 신청 가능(미등록 번호도 OK) */
+  requestOtp: (phone: string) =>
+    api.post<{ ok: true }>('/promoter/otp/request', { phone }),
+  /**
+   * OTP 검증 — 성공 시 상태에 따라 분기.
+   *  - 'active'   : 로그인됨(쿠키 자동). promoterId 있음 → 대시보드
+   *  - 'pending'  : 승인 대기 중
+   *  - 'rejected' : 반려됨
+   *  - 'inactive' : 비활성(관리자가 끔)
+   *  - 'new'      : 미등록 → 신청 폼. memberName 있으면 이름 prefill
+   */
+  verifyOtp: (phone: string, code: string) =>
+    api.post<{
+      status: 'active' | 'pending' | 'rejected' | 'inactive' | 'new'
+      promoterId?: number
+      memberName?: string | null
+    }>('/promoter/otp/verify', { phone, code }),
+  /** 서포터즈 신청 — 방금 OTP 인증한 번호여야 함. 성공 시 관리자 승인 대기 */
+  apply: (payload: {
+    phone: string
+    name: string
+    bank_name?: string
+    bank_account?: string
+    account_holder?: string
+  }) => api.post<{ ok: true }>('/promoter/apply', payload),
+  /** 로그아웃 — 쿠키 제거 */
+  logout: () => api.post<void>('/promoter/logout'),
+  /** 내 대시보드 — 401 이면 미로그인 */
+  dashboard: () => api.get<PromoterDashboard>('/promoter/me/dashboard'),
+  /** [회원] 추천 코드 사후 입력 가능 상태 — 마이페이지(가입 후 7일 내, 미귀속) */
+  referralStatus: () =>
+    api.get<{ hasReferral: boolean; canInput: boolean; promoterName: string | null }>(
+      '/user/promoter/referral-status',
+    ),
+  /** [회원] 추천 코드 사후 등록 */
+  applyReferral: (code: string) =>
+    api.post<{ ok: boolean; message: string }>('/user/promoter/referral', { code }),
 }

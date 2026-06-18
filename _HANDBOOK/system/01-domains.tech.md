@@ -42,8 +42,32 @@ prod 도메인 = `api.sajuplan.com` 인데 실제 코드 경로 = `/data/wwwroot
 
 → 현 단계는 안정성 우선 유지
 
+## 서버 타임존 (KST 정렬 — 2026-06-17 교정)
+
+PROD 서버(104.64.128.103)의 OS·DB·앱이 **모두 `Asia/Seoul` (KST +0900)** 로 정렬돼 있어야 정상.
+
+**적용 지점 3곳 (이 셋이 전부 KST 여야 함):**
+| 레이어 | 설정 위치 | 값 | 확인 명령 |
+|---|---|---|---|
+| OS | `/etc/localtime` → `/usr/share/zoneinfo/Asia/Seoul` | KST | `date '+%Z%z'` → `KST+0900` |
+| PostgreSQL | `/etc/postgresql/18/main/postgresql.conf` **783줄 `timezone`**, **645줄 `log_timezone`** | `'Asia/Seoul'` | `SELECT current_setting('TIMEZONE'), now()` → `+09` |
+| 앱(NestJS) | TZ 환경변수 **없음** → OS localtime 따라감 | (OS=KST) | `node -e "new Date().getTimezoneOffset()"` → `-540` |
+
+**왜 중요한가 (날짜 경계):** `timestamptz` 저장값은 UTC 라 타임존 무관하게 안전. 단 `now()`·`CURRENT_DATE`·`date_trunc('month',CURRENT_DATE)`·node `new Date()` 는 **서버 로컬 타임존 기준** → 여기가 +08(중국)이면 한국보다 1시간 일찍 날짜가 넘어가 **오늘상담·이번달 정산 컷오프·출석 일1회 리셋이 전날·전월로 샘**. 명시적으로 `AT TIME ZONE 'Asia/Seoul'` 또는 `+09` 쓴 쿼리는 영향 없음(이미 정확).
+
+**2026-06-17 교정 (옵션 B — OS+DB 통째 KST):**
+1. `postgresql.conf` 783/645줄 `Asia/Shanghai` → `Asia/Seoul` (백업 `.bak_tz_20260617`)
+2. `timedatectl set-timezone Asia/Seoul`
+3. `systemctl restart postgresql@18-main postgresql.service` + `pm2 restart sajumoon-api`
+4. 검증: `now()`=+09, node offset=-540, API health 200, `_verify_money_integrity.py` PASS
+- 교정 전 상태: OS·DB 모두 `Asia/Shanghai (+0800)` (initdb 가 OS 기준으로 conf 에 박았던 잔재)
+- NestJS `@Cron` 들은 코드에 `timeZone:'Asia/Seoul'` 명시돼 있어 교정과 무관하게 이미 정상. **OS crontab**(DB백업 03:30 등)만 +08→KST 로 이동(원래 의도대로 개선).
+
+**진단 쿼리:** `SELECT current_setting('TIMEZONE'), now(), CURRENT_DATE` 가 `+08` 이면 사고 → 위 3곳 점검.
+
 ## 관련 메모리
 
 - `[[prod-api-code-path]]`
 - `[[deploy-env-substitution]]`
 - `[[sajumoon-project-basics]]`
+- `[[server-timezone-kst]]`

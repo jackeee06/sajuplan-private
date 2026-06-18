@@ -113,13 +113,15 @@ test.describe('후기 CRUD + 상담사 답변 E2E', () => {
     testConsultId = null; testReviewId = null
   })
 
-  /* ─── 1. 라우트 redirect (B-007 fix) ─── */
-  test('1. /counselors/102/reviews/new → /mypage/my-reviews/new 리다이렉트', async ({ page, context }) => {
+  /* ─── 1. 라우트 redirect — [2026-06-14] 경로2 폐지: 상담사 프로필(후기 탭)로 보냄 ─── */
+  test('1. /counselors/102/reviews/new → 상담사 프로필 리다이렉트(깨진 폼 아님)', async ({ page, context }) => {
     await applyCookie(context, memberCookie!)
     await page.goto(`/counselors/${COUNSELOR_ID}/reviews/new`, { waitUntil: 'domcontentloaded' })
-    await page.waitForURL((url) => url.pathname === '/mypage/my-reviews/new', { timeout: 8000 })
+    // 상담번호 없이 후기 폼을 열던 경로 폐지 → 상담사 상세로 보냄
+    await page.waitForURL((url) => url.pathname === `/counselors/${COUNSELOR_ID}`, { timeout: 8000 })
+    expect(page.url()).not.toContain('/my-reviews/new')
     const url = new URL(page.url())
-    expect(url.searchParams.get('counselor_id')).toBe(String(COUNSELOR_ID))
+    expect(url.searchParams.get('tab')).toBe('reviews')
   })
 
   /* ─── 2. 목록 + ⋮ 메뉴 (5분 이내, 답변 없음) ─── */
@@ -239,9 +241,12 @@ test.describe('후기 CRUD + 상담사 답변 E2E', () => {
     await page.goto(`/counselor/mypage/reviews/${testReviewId}`, { waitUntil: 'domcontentloaded' })
     await expect(page.getByText(REPLY_TEXT)).toBeVisible({ timeout: 12000 })
 
-    // "답변 삭제" aria-label 버튼 클릭 + window.confirm 수락
-    page.once('dialog', (d) => d.accept())
+    // "답변 삭제" 버튼 클릭 → 인앱 확인창(ConfirmModal) → '삭제' 확정
+    // (구: window.confirm 네이티브 → 신: 인앱 모달, 앱 WebView 대응)
     await page.getByRole('button', { name: '답변 삭제' }).click()
+    const confirmDialog = page.getByRole('dialog')
+    await expect(confirmDialog).toBeVisible()
+    await confirmDialog.getByRole('button', { name: '삭제' }).click()
 
     // API 처리 대기 후 reload로 UI 확정
     await page.waitForTimeout(2000)

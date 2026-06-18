@@ -85,6 +85,10 @@ export default function CounselorMyConsultStats() {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  // 오늘 하루(자정~자정 KST) 상담 시간/건수 — 기간 선택과 무관하게 항상 고정 표시.
+  //   상담사가 "오늘 얼마나 했는지" 한눈에 체크하는 데일리 카운터.
+  const [today, setToday] = useState<{ seconds: number; count: number } | null>(null)
+
   // 프리셋 클릭 — 기간 자동 채움 + 페이지 리셋.
   const applyPreset = useCallback((p: Preset) => {
     setPreset(p)
@@ -110,6 +114,17 @@ export default function CounselorMyConsultStats() {
       .finally(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [from, to, tab, page])
+
+  // 오늘 하루치 — 마운트 시 1회 (자정 KST 기준 today~today). 기간 필터와 독립.
+  useEffect(() => {
+    let alive = true
+    const t = presetRange('today')
+    consultApi
+      .myStats({ from: t.from, to: t.to, type: 'all', page: 1, limit: 1 })
+      .then((r) => { if (alive) setToday({ seconds: r.total_seconds, count: r.total_count }) })
+      .catch(() => { /* 오늘 표시 실패해도 페이지 동작 */ })
+    return () => { alive = false }
+  }, [])
 
   // 타입 토글 — 페이지 리셋.
   const switchTab = (t: Tab) => { setTab(t); setPage(1) }
@@ -187,7 +202,7 @@ export default function CounselorMyConsultStats() {
                 value={customFrom}
                 max={customTo || undefined}
                 onChange={(e) => setCustomFrom(e.target.value)}
-                className="flex-1 h-[44px] px-3 rounded-[12px] border border-[#E5E7EB] bg-white text-[14px] text-[#252B36] focus:outline-none focus:border-[#8259F5]"
+                className="flex-1 min-w-0 h-[44px] px-3 rounded-[12px] border border-[#E5E7EB] bg-white text-[14px] text-[#252B36] focus:outline-none focus:border-[#8259F5]"
               />
               <span className="text-[#9CA3AF]">~</span>
               <input
@@ -195,12 +210,12 @@ export default function CounselorMyConsultStats() {
                 value={customTo}
                 min={customFrom || undefined}
                 onChange={(e) => setCustomTo(e.target.value)}
-                className="flex-1 h-[44px] px-3 rounded-[12px] border border-[#E5E7EB] bg-white text-[14px] text-[#252B36] focus:outline-none focus:border-[#8259F5]"
+                className="flex-1 min-w-0 h-[44px] px-3 rounded-[12px] border border-[#E5E7EB] bg-white text-[14px] text-[#252B36] focus:outline-none focus:border-[#8259F5]"
               />
               <button
                 type="button"
                 onClick={onSearchCustom}
-                className="h-[44px] px-4 rounded-[12px] bg-[#8259F5] text-white text-[14px] font-medium"
+                className="shrink-0 h-[44px] px-4 rounded-[12px] bg-[#8259F5] text-white text-[14px] font-medium"
               >
                 검색
               </button>
@@ -214,26 +229,50 @@ export default function CounselorMyConsultStats() {
           </p>
         </section>
 
-        {/* 합계 카드 3분할 — 한 줄 (라벨 좌, 숫자 우) */}
-        <section className="grid grid-cols-3 gap-2">
-          <div className="rounded-[16px] bg-[#F8F5FF] border border-[#EDE4FF] px-3 py-3.5 flex items-center justify-between gap-1">
+        {/* ☀️ 오늘 하루 상담 시간 — 기간 선택과 무관하게 항상 고정 (자정 KST 리셋).
+            상담사가 "오늘 얼마나 했는지" 한눈에 체크하는 데일리 카운터 */}
+        <section className="rounded-[14px] bg-[#F3F0FF] border border-[#E5DBFF] px-4 py-3 flex items-center justify-between">
+          <span className="text-[13px] text-[#6A7282] shrink-0">
+            ☀️ 오늘 상담
+            <span className="ml-1 text-[11px] text-[#9CA3AF]">(자정 기준)</span>
+          </span>
+          <span className="text-right whitespace-nowrap">
+            <span className="text-[20px] font-bold text-[#8259F5] tabular-nums leading-none">
+              {formatHMS(today?.seconds ?? 0)}
+            </span>
+            <span className="ml-2 text-[13px] text-[#6A7282] tabular-nums">
+              {(today?.count ?? 0).toLocaleString()}건
+            </span>
+          </span>
+        </section>
+
+        {/* 합계 카드 2×2 — (라벨 좌, 숫자 우). 상담/수익금이 헤드라인, 시간/부재가 보조 */}
+        <section className="grid grid-cols-2 gap-2">
+          <div className="rounded-[16px] bg-[#F8F5FF] border border-[#EDE4FF] px-3.5 py-3.5 flex items-center justify-between gap-1">
             <span className="text-[14px] text-[#6A7282] shrink-0">상담</span>
             <span className="text-[22px] font-semibold text-[#8259F5] leading-none whitespace-nowrap">
               {(data?.total_count ?? 0).toLocaleString()}
               <span className="text-[14px] font-normal text-[#6A7282] ml-0.5">건</span>
             </span>
           </div>
-          <div className="rounded-[16px] bg-[#FFF5F5] border border-[#FFE2E2] px-3 py-3.5 flex items-center justify-between gap-1">
+          <div className="rounded-[16px] bg-[#F0FDF8] border border-[#CFF5E7] px-3.5 py-3.5 flex items-center justify-between gap-1">
+            <span className="text-[14px] text-[#6A7282] shrink-0">수익금</span>
+            <span className="text-[20px] font-semibold text-[#00A37A] leading-none whitespace-nowrap">
+              {(data?.total_earning ?? 0).toLocaleString()}
+              <span className="text-[14px] font-normal text-[#6A7282] ml-0.5">원</span>
+            </span>
+          </div>
+          <div className="rounded-[16px] bg-[#F9FAFB] border border-[#F3F4F6] px-3.5 py-3.5 flex items-center justify-between gap-1">
+            <span className="text-[14px] text-[#6A7282] shrink-0">시간</span>
+            <span className="text-[18px] font-semibold text-[#252B36] leading-none whitespace-nowrap">
+              {formatHMS(data?.total_seconds ?? 0)}
+            </span>
+          </div>
+          <div className="rounded-[16px] bg-[#FFF5F5] border border-[#FFE2E2] px-3.5 py-3.5 flex items-center justify-between gap-1">
             <span className="text-[14px] text-[#6A7282] shrink-0">부재</span>
             <span className="text-[22px] font-semibold text-[#FF6467] leading-none whitespace-nowrap">
               {(data?.missed_count ?? 0).toLocaleString()}
               <span className="text-[14px] font-normal text-[#6A7282] ml-0.5">건</span>
-            </span>
-          </div>
-          <div className="rounded-[16px] bg-[#F9FAFB] border border-[#F3F4F6] px-3 py-3.5 flex items-center justify-between gap-1">
-            <span className="text-[14px] text-[#6A7282] shrink-0">시간</span>
-            <span className="text-[18px] font-semibold text-[#252B36] leading-none whitespace-nowrap">
-              {formatHMS(data?.total_seconds ?? 0)}
             </span>
           </div>
         </section>

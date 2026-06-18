@@ -10,6 +10,7 @@ import { SmsModule } from '../sms/sms.module';
 import { CaptchaModule } from '../captcha/captcha.module';
 import { M2netModule } from '../../shared/m2net/m2net.module';
 import { PushModule } from '../../shared/push/push.module';
+import { PromoterCoreModule } from '../../shared/promoter/promoter-core.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { PushModule } from '../../shared/push/push.module';
     CaptchaModule,
     M2netModule,
     PushModule,
+    PromoterCoreModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

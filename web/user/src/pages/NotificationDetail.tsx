@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 import BottomNav from '../components/BottomNav'
 import { ApiError, notificationsApi, type PublicNotificationItem } from '../lib/api'
 import { openExternalUrl } from '../lib/native-bridge'
@@ -124,7 +125,7 @@ export default function NotificationDetail() {
               {/^\s*</.test(item.content) ? (
                 <div
                   className="text-[15px] leading-[160%] text-[#364153] notice-html"
-                  dangerouslySetInnerHTML={{ __html: item.content }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeIntroHtml(item.content ?? '') }}
                 />
               ) : (
                 <p className="text-[15px] leading-[160%] text-[#364153] whitespace-pre-line">

@@ -114,6 +114,17 @@ export class SignupDto {
   @Length(0, 2000)
   acquisition_source?: string;
 
+  /** 모집인(서포터즈) 코드 — 입력 시 가입 후 회원↔모집인 1:1 귀속 생성 */
+  @IsOptional()
+  @IsString()
+  @Length(0, 20)
+  promoter_code?: string;
+
+  /** 모집인 코드 입력 경로 — 'qr'(링크 자동입력) | 'code'(직접입력) */
+  @IsOptional()
+  @IsIn(['qr', 'code'])
+  promoter_entry?: 'qr' | 'code';
+
   @IsOptional()
   @IsBoolean()
   agree_email?: boolean;

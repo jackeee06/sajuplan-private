@@ -5,6 +5,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import FloatingActions from '../components/FloatingActions'
 import UploadedImage from '../components/UploadedImage'
 import { ApiError, counselorApplyApi, type CounselorApplyDetail as Detail } from '../lib/api'
+import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 
 const STATUS_LABEL: Record<string, string> = {
   pending: '검토중',
@@ -232,7 +233,7 @@ export default function CounselorApplyDetail() {
                 return (
                   <div
                     className="text-[15px] leading-[160%] text-[#364153] notice-html"
-                    dangerouslySetInnerHTML={{ __html: bodyText }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeIntroHtml(bodyText) }}
                   />
                 )
               }

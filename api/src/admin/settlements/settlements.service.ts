@@ -91,6 +91,18 @@ export class SettlementsService {
   async settleNow(memberId: number, month: string, adminId: number) {
     if (!/^\d{4}-\d{2}$/.test(month)) throw new BadRequestException('month=YYYY-MM');
 
+    // [2026-06-14 사장님 지시] 진행 중인 이번 달/미래 달은 정산 불가.
+    //   마감 전 달을 정산하면 아직 쌓이는 중인 적립분까지 조기 지급되어 부풀려진 금액이
+    //   알림톡으로 나간다(#56: 전월 400원이 정상인데 당월 적립분까지 합쳐 10,053원 발송).
+    //   정산 가능한 마지막 달 = 전월. 그 이후 달은 명시적으로 거부(어드민은 silent clamp 대신 명확한 안내).
+    const maxMonth = this.maxSettleMonthKst();
+    if (month > maxMonth) {
+      throw new BadRequestException(
+        `아직 마감되지 않은 ${month} 은 정산할 수 없습니다. 정산 가능한 마지막 달은 ${maxMonth} 입니다 ` +
+        `(진행 중인 달은 마감 후 정산).`,
+      );
+    }
+
     const mrows = await this.sql<{ mb_id: string | null }[]>`
       SELECT mb_id FROM member WHERE id = ${memberId} AND role = 'counselor' LIMIT 1
     `;
@@ -407,6 +419,14 @@ export class SettlementsService {
       this.logger.warn(`[notifySettlementComplete] id=${id}: ${e instanceof Error ? e.message : String(e)}`);
     });
     return { ok: true, id, status: 'paid' };
+  }
+
+  /** 정산 가능한 마지막 달(KST 전월) 'YYYY-MM'. 이번 달/미래 달은 마감 전이라 정산 불가.
+   *  settlement-cron.prevMonthKst 와 동일 산식. */
+  private maxSettleMonthKst(): string {
+    const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const prev = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth() - 1, 1));
+    return `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, '0')}`;
   }
 
   /** 'YYYY-MM' → 그 달 다음달 1일 00:00 KST 의 ISO (정산 cutoff). settlement-cron.monthRange.endday 와 동일. */

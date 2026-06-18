@@ -84,7 +84,11 @@ export class CronController {
   @Get('chat/auto-cancel')
   async chatAutoCancel() {
     try {
-      return await this.consult.autoCancelStaleChats();
+      const staleStay = await this.consult.autoCancelStaleChats();
+      // [2026-06-17] pagehide 즉시종료 폐지(soft 이탈 전환)의 짝 — 방치된 진행 중(CNCH) 채팅 정산.
+      //   try_out + N분 무활동 이중가드라 정상 진행 채팅은 매칭 안 됨.
+      const abandoned = await this.chat.settleAbandonedChats();
+      return { ...staleStay, abandoned };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await this.opsAlert.send(

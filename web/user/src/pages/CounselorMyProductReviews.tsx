@@ -22,7 +22,7 @@ export default function CounselorMyProductReviews() {
       <article className="bg-[#F9FAFB] rounded-[12px] p-4 flex flex-col gap-2">
         <img src="/img/review_visual_img.png" alt="" className="w-[46px] h-auto" />
         <h2 className="text-[18px] leading-[130%] font-semibold text-[#8259F5]">
-          후기 작성 시 포인트 지급!
+          후기 작성 시 코인 지급!
         </h2>
         <p className="text-[14px] leading-[130%] text-[#4A5565]">
           본인인증 완료 및 5분 이상 상담을 진행하신 고객님에 한하여 후기 작성이 가능합니다.

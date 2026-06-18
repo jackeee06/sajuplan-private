@@ -221,15 +221,44 @@ export class PointsService {
       // rel_table 마커: 수익포인트 조정은 '@earning_adjust' 로 분리 (감사/분석 시 식별)
       const relTable = kind === 'earning' ? '@earning_adjust' : null;
 
+      // [2026-06-12 fix] balance_kind 누락 버그 — earning 조정인데 default 'consumer' 로 저장되어
+      //   ① 정산 합산(WHERE balance_kind='earning')에서 빠지고 ② 회원 코인내역(consumer)에 오염되던 문제.
+      //   수익 조정은 'earning', 소비(free/paid) 조정은 'consumer' 로 명시.
+      const balanceKind = kind === 'earning' ? 'earning' : 'consumer';
+
+      // [2026-06-12 fix] 더블서밋/재전송 멱등 가드 — 같은 관리자가 같은 회원에 같은 사유·금액으로
+      //   10초 내 중복 조정 시 두 번째는 무시(이중 적립·차감 방지). point 행 FOR UPDATE 로 직렬화되어
+      //   동시 요청의 두 번째도 첫 커밋을 본다. (의도적 반복 지급은 10초 후 허용)
+      const dup = await tx<{ id: number }[]>`
+        SELECT id FROM point_history
+         WHERE member_id = ${memberId}
+           AND rel_action = 'admin_adjust'
+           AND actor_admin_id = ${actor.adminId}
+           AND content = ${reason}
+           AND earn_point = ${earnPoint}
+           AND use_point = ${usePoint}
+           AND created_at > now() - interval '10 seconds'
+         LIMIT 1
+      `;
+      if (dup.length > 0) {
+        return {
+          balanceAfter: kind === 'earning' ? earning : free + paid,
+          freeBalance: free,
+          paidBalance: paid,
+          earningBalance: earning,
+          duplicated: true,
+        };
+      }
+
       await tx`
         INSERT INTO point_history (
           member_id, content, earn_point, use_point, balance_after,
           is_paid, is_expired, expire_date, rel_table, rel_action,
-          actor_admin_id, actor_ip, actor_type
+          actor_admin_id, actor_ip, actor_type, balance_kind
         ) VALUES (
           ${memberId}, ${reason}, ${earnPoint}, ${usePoint}, ${balanceAfter},
           ${isPaid}, ${isExpired}, ${expireDate}, ${relTable}, 'admin_adjust',
-          ${actor.adminId}, ${actor.ip}, 'admin'
+          ${actor.adminId}, ${actor.ip}, 'admin', ${balanceKind}
         )
       `;
 

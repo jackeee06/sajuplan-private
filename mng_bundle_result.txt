@@ -1,0 +1,8 @@
+bundle: /data/wwwroot/sajumoon.co.kr/mng/assets/index-DNu6S_ft.js
+size: 2324493 bytes
+
+소비포인트: 0
+수익포인트: 0
+충전 포인트: 0
+수익 포인트: 0
+earning point: 0

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>등급 승급 인앱 알림 데모</title>
+  <style>
+    @font-face {
+      font-family: 'Pretendard';
+      src: url('/design/fonts/PretendardVariable.woff2') format('woff2-variations');
+      font-weight: 100 900;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #f9fafb;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+    }
+
+    /* ─── 시나리오 레이블 ─── */
+    .scenario-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #6A7282;
+      margin-bottom: 8px;
+    }
+
+    /* ─── 폰 프레임 ─── */
+    .phone-wrap {
+      width: 100%;
+      max-width: 375px;
+      border-radius: 40px;
+      border: 8px solid #1E2939;
+      overflow: hidden;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.25);
+      background: #fff;
+      position: relative;
+    }
+
+    /* ─── 상담사 마이페이지 배경 (흐리게) ─── */
+    .page-bg {
+      min-height: 520px;
+      background: #f9fafb;
+      padding: 16px;
+      filter: blur(2px);
+      pointer-events: none;
+      user-select: none;
+    }
+    .page-bg-header {
+      height: 52px;
+      background: #fff;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      padding: 0 14px;
+      gap: 8px;
+    }
+    .page-bg-header-dot { width: 8px; height: 8px; border-radius: 50%; background: #D1D5DB; }
+    .page-bg-header-text { flex: 1; height: 14px; background: #E5E7EB; border-radius: 4px; }
+    .page-bg-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .page-bg-line {
+      height: 10px;
+      background: #F3F4F6;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+    .page-bg-line.short { width: 60%; }
+    .page-bg-bar {
+      height: 8px;
+      background: #E5E7EB;
+      border-radius: 99px;
+      margin: 8px 0;
+    }
+    .page-bg-bar-fill {
+      height: 100%;
+      width: 73%;
+      background: linear-gradient(90deg, #8259F5, #9b7af7);
+      border-radius: 99px;
+    }
+
+    /* ─── 오버레이 + 모달 ─── */
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.40);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal {
+      width: 100%;
+      max-width: 300px;
+      background: #fff;
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.30);
+      padding: 28px 24px 24px;
+      text-align: center;
+      animation: popIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes popIn {
+      from { transform: scale(0.8) translateY(20px); opacity: 0; }
+      to   { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .modal-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: #f3f0ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 34px;
+      margin: 0 auto 14px;
+    }
+    .modal-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 99px;
+      background: #f3f0ff;
+      color: #8259F5;
+      font-size: 11px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+    .modal-title {
+      font-size: 19px;
+      font-weight: 800;
+      color: #030712;
+      line-height: 1.3;
+      margin-bottom: 10px;
+    }
+    .modal-body {
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: #4A5565;
+      margin-bottom: 20px;
+    }
+    .modal-body strong { color: #8259F5; font-weight: 700; }
+    .modal-btns {
+      display: flex;
+      gap: 8px;
+    }
+    .btn-later {
+      flex: 1;
+      height: 46px;
+      border-radius: 99px;
+      border: 1.5px solid #E5E7EB;
+      background: #fff;
+      color: #1E2939;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-later:hover { background: #F9FAFB; }
+    .btn-change {
+      flex: 1.3;
+      height: 46px;
+      border-radius: 99px;
+      border: none;
+      background: linear-gradient(135deg, #8259F5, #9b7af7);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(130,89,245,0.35);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .btn-change:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(130,89,245,0.45); }
+    .btn-change:active { transform: translateY(0); }
+
+    /* ─── 비교 섹션 ─── */
+    .compare-section {
+      width: 100%;
+      max-width: 375px;
+      margin-top: 32px;
+    }
+    .compare-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #9CA3AF;
+      text-align: center;
+      margin-bottom: 12px;
+      letter-spacing: 0.05em;
+    }
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .compare-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 14px 12px;
+      border: 1.5px solid #F3F4F6;
+    }
+    .compare-card.active { border-color: #8259F5; background: #faf8ff; }
+    .compare-tag {
+      font-size: 10px;
+      font-weight: 700;
+      color: #9CA3AF;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+    .compare-card.active .compare-tag { color: #8259F5; }
+    .compare-icon { font-size: 20px; margin-bottom: 4px; }
+    .compare-name { font-size: 12px; font-weight: 600; color: #4A5565; }
+    .compare-desc { font-size: 10px; color: #9CA3AF; margin-top: 2px; line-height: 1.4; }
+
+    /* ─── 발생 시점 설명 ─── */
+    .flow-box {
+      width: 100%;
+      max-width: 375px;
+      margin-top: 24px;
+      background: #fff;
+      border-radius: 16px;
+      border: 1.5px solid #F3F4F6;
+      padding: 16px;
+    }
+    .flow-title { font-size: 11px; font-weight: 700; color: #6A7282; margin-bottom: 10px; }
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .flow-dot {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #f3f0ff;
+      color: #8259F5;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .flow-text { font-size: 12px; color: #4A5565; line-height: 1.5; }
+    .flow-text strong { color: #8259F5; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <div class="scenario-label">인앱 알림 데모 — 상담사 등급 승급</div>
+
+  <!-- 폰 프레임 -->
+  <div class="phone-wrap">
+
+    <!-- 배경: 상담사 마이페이지 (흐리게) -->
+    <div class="page-bg">
+      <div class="page-bg-header">
+        <div class="page-bg-header-dot"></div>
+        <div class="page-bg-header-text"></div>
+      </div>
+      <div class="page-bg-card">
+        <div class="page-bg-line" style="width:40%"></div>
+        <div class="page-bg-line short"></div>
+        <div class="page-bg-bar"><div class="page-bg-bar-fill"></div></div>
+        <div class="page-bg-line" style="width:30%"></div>
+      </div>
+      <div class="page-bg-card">
+        <div class="page-bg-line" style="width:50%"></div>
+        <div class="page-bg-line short"></div>
+        <div class="page-bg-line" style="width:80%"></div>
+      </div>
+      <div class="page-bg-card">
+        <div class="page-bg-line short"></div>
+        <div class="page-bg-line" style="width:70%"></div>
+      </div>
+    </div>
+
+    <!-- 오버레이 + 모달 -->
+    <div class="overlay">
+      <div class="modal">
+        <div class="modal-icon">🎉</div>
+        <div class="modal-badge">⚡ 실시간 승급</div>
+        <div class="modal-title">파트너5로<br>승급되었습니다!</div>
+        <div class="modal-body">
+          당월 <strong>120.3시간</strong> 달성으로<br>
+          즉시 승급됐어요.<br>
+          단가를 지금 바로 변경하세요.
+        </div>
+        <div class="modal-btns">
+          <button class="btn-later">나중에</button>
+          <button class="btn-change">단가 변경하기</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 비교: 기존 5분 알림 vs 신규 승급 알림 -->
+  <div class="compare-section">
+    <div class="compare-title">알림 유형 비교</div>
+    <div class="compare-grid">
+      <div class="compare-card">
+        <div class="compare-tag">기존 알림</div>
+        <div class="compare-icon">⏰</div>
+        <div class="compare-name">5분 잔여 알림</div>
+        <div class="compare-desc">핑크 계열<br>충전 버튼 표시</div>
+      </div>
+      <div class="compare-card active">
+        <div class="compare-tag">신규 알림</div>
+        <div class="compare-icon">🎉</div>
+        <div class="compare-name">등급 승급 알림</div>
+        <div class="compare-desc">보라 계열<br>단가 변경 버튼</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 발생 시점 흐름 -->
+  <div class="flow-box">
+    <div class="flow-title">발생 시점 흐름</div>
+    <div class="flow-step">
+      <div class="flow-dot">1</div>
+      <div class="flow-text">상담 종료 → 당월 누적 시간 재계산</div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-dot">2</div>
+      <div class="flow-text"><strong>임계값 달성</strong> → DB 즉시 승급 처리</div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-dot">3</div>
+      <div class="flow-text">인앱 알림 큐 push → <strong>30초 이내 팝업</strong></div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-dot">4</div>
+      <div class="flow-text">카카오 알림톡 동시 발송 (앱 밖 대비)</div>
+    </div>
+    <div class="flow-step" style="margin-bottom:0">
+      <div class="flow-dot">5</div>
+      <div class="flow-text">"단가 변경하기" 클릭 → 마이페이지 이동</div>
+    </div>
+  </div>
+
+</body>
+</html>

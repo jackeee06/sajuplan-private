@@ -35,6 +35,15 @@ export class UserCounselorMypageGradeController {
   }
 
   /**
+   * 실시간 상담수수료 표 — 전 등급 정책(임계값/단가옵션/시간당 상담료).
+   * 공개 정보이므로 로그인 사용자(회원·상담사 무관) 누구나 조회 가능.
+   */
+  @Get('fee-schedule')
+  async getFeeSchedule() {
+    return this.svc.getFeeSchedule();
+  }
+
+  /**
    * 당월 상담시간 진행상황 + 실시간 승급 이력.
    * 프론트 프로그레스 바 + 이번 달 승급 이력 표시용.
    */

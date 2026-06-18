@@ -37,7 +37,7 @@ import { runtimeEnv } from '../../shared/env/runtime-env';
  *
  *   상단 요약:
  *     - 전체목록 / 총건수 / 카드 건수 / 가상결제 건수
- *     - 총결제금액 = SUM(Amount) WHERE ResultMsg NOT IN ('취소완료','정상처리','입금전')
+ *     - 총결제금액 = SUM(amount) WHERE status='completed' (실제 결제완료 건만 — 실패/대기/취소 제외)
  *
  *   검색 (sfl):
  *     mb_id         : like 'stx%'
@@ -314,11 +314,10 @@ export class PaymentsService {
           WHERE (p.pay_method IS NULL OR NOT (p.pay_method = ANY(${VBANK_METHODS})))
             AND p.result_message = '취소완료'
         )::text AS cnt_cancle,
-        COALESCE(SUM(
-          CASE WHEN p.result_message NOT IN ('취소완료','정상처리','입금전')
-                 OR p.result_message IS NULL
-            THEN p.amount ELSE 0 END
-        ), 0)::text AS total_price
+        -- 총 결제금액 = 실제 결제 완료(status='completed')된 건만 합산.
+        -- status 가 결제 성공/실패/취소/대기의 단일 진실원천. (대시보드 매출과 동일 기준)
+        -- result_message 는 PG 가 돌려준 자유 텍스트라 실패/대기 건이 섞여 들어가므로 집계 기준으로 쓰지 않는다.
+        COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'completed'), 0)::text AS total_price
       FROM payment p
       LEFT JOIN member m ON m.id = p.member_id
       ${baseWhere}

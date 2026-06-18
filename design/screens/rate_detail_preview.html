@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>상담료 자세히보기 — 시안 비교</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root{ --pink:#ec4899; --pink-soft:#fdf2f8; --line:#F3F4F6; --ink:#030712; --muted:#6A7282; }
+  *{ -webkit-tap-highlight-color:transparent; }
+  body{ font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:#F3F4F6; margin:0; }
+  .phone{ max-width:600px; margin:0 auto; background:#fff; min-height:100vh; }
+  .hd{ height:56px; display:flex; align-items:center; gap:10px; padding:0 14px; border-bottom:1px solid var(--line); position:sticky; top:0; background:#fff; z-index:10; }
+  .hd .back{ font-size:22px; color:var(--ink); }
+  .hd .title{ font-size:18px; font-weight:700; color:var(--ink); }
+
+  .variant-tag{ margin:12px 14px 4px; display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--pink); background:var(--pink-soft); padding:4px 10px; border-radius:1000px; }
+
+  table.rate{ width:calc(100% - 28px); margin:5px 14px 3px; border-collapse:collapse; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  table.rate th{ background:#FAFAFB; font-size:12px; font-weight:600; color:var(--muted); padding:6px 5px; text-align:center; line-height:1.1; }
+  table.rate td{ font-size:13px; color:var(--ink); padding:4px 5px; text-align:center; border-top:1px solid var(--line); vertical-align:middle; line-height:1.15; }
+  table.rate td.grp{ border-right:1px solid var(--line); }
+  .hours{ font-size:13px; font-weight:600; }
+  .grade{ font-size:13px; font-weight:700; }
+  .use{ color:var(--ink); }
+  .fee{ font-weight:700; color:var(--ink); white-space:nowrap; }
+  .rate-pct{ display:inline-block; margin-left:4px; font-size:11px; font-weight:600; color:var(--pink); }
+  .note{ margin:4px 16px 0; font-size:11px; color:#9CA3AF; line-height:1.4; }
+  .divider{ height:8px; background:#F3F4F6; margin-top:12px; }
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="hd"><span class="back">‹</span><span class="title">상담료 자세히보기</span></div>
+
+  <!-- ===================== 버전 ① : 정산률(%) 표시 ===================== -->
+  <div class="variant-tag">① 정산률(%) 표시 버전</div>
+  <table class="rate" id="tblA"></table>
+  <p class="note">· 시간당 상담료는 60분 기준이며, 고객이용료 선택에 따라 달라집니다.<br>· %는 정산률(상담사 수익 비율)입니다.</p>
+
+  <div class="divider"></div>
+
+  <!-- ===================== 버전 ② : 금액만 ===================== -->
+  <div class="variant-tag" style="color:#4A5565;background:#F3F4F6;">② 금액만 (% 미표시) 버전</div>
+  <table class="rate" id="tblB"></table>
+  <p class="note">· 시간당 상담료는 60분 기준이며, 고객이용료 선택에 따라 달라집니다.</p>
+
+  <div style="height:40px"></div>
+</div>
+
+<script>
+// 관리자 정책 기준 (단가 × 120 × 정산률)
+const GRADES = [
+  { hours:'0시간~',   name:'예비파트너', rate:0.40, costs:[800,1000] },
+  { hours:'20시간~',  name:'파트너1',   rate:0.52, costs:[800,1000] },
+  { hours:'40시간~',  name:'파트너2',   rate:0.56, costs:[1000,1200] },
+  { hours:'70시간~',  name:'파트너3',   rate:0.60, costs:[1000,1200,1300] },
+  { hours:'90시간~',  name:'파트너4',   rate:0.63, costs:[1000,1200,1300,1400,1500] },
+  { hours:'120시간~', name:'파트너5',   rate:0.70, costs:[1200,1300,1400,1500,1800,2000] },
+];
+const won = n => n.toLocaleString('ko-KR') + '원';
+const pct = r => Math.round(r*100) + '%';
+
+function build(tblId, showPct){
+  const head = `<thead><tr>
+      <th style="width:21%">달성시간</th>
+      <th style="width:23%">등급</th>
+      <th style="width:24%">고객이용료</th>
+      <th style="width:32%">시간당 상담료</th>
+    </tr></thead>`;
+  let body = '<tbody>';
+  GRADES.forEach((g, gi) => {
+    g.costs.forEach((c, ci) => {
+      const fee = Math.round(c * 120 * g.rate);
+      const pctTag = showPct ? `<span class="rate-pct">${pct(g.rate)}</span>` : '';
+      body += '<tr>';
+      if (ci === 0) {
+        body += `<td class="grp" rowspan="${g.costs.length}"><span class="hours">${g.hours}</span></td>`;
+        body += `<td class="grp" rowspan="${g.costs.length}"><span class="grade">${g.name}</span></td>`;
+      }
+      body += `<td class="use">${won(c)}</td>`;
+      body += `<td><span class="fee">${won(fee)}</span>${pctTag}</td>`;
+      body += '</tr>';
+    });
+  });
+  body += '</tbody>';
+  document.getElementById(tblId).innerHTML = head + body;
+}
+build('tblA', true);
+build('tblB', false);
+</script>
+</body>
+</html>

@@ -23,6 +23,8 @@ interface Props {
   pattern?: string
   /** native required (HTML form validation) */
   required?: boolean
+  /** 또렷한 테두리(연한 기본 테두리 대신 진한 회색) — 흰 배경 화면에서 입력란 강조용 */
+  borderStrong?: boolean
 }
 
 /**
@@ -46,12 +48,15 @@ export default function InputField({
   inputMode,
   pattern,
   required,
+  borderStrong,
 }: Props) {
   const showClear = !!value && !!onClear && !disabled
   const padRight = rightPadding === 'sm' ? 'pr-4' : rightPadding === 'md' ? 'pr-12' : 'pr-16'
   const borderColor = error
     ? 'border-[#f87171] focus:border-[#f87171]'
-    : 'border-[#f3f4f6] focus:border-brand-400'
+    : borderStrong
+      ? 'border-[#d1d5db] focus:border-brand-400'
+      : 'border-[#f3f4f6] focus:border-brand-400'
   return (
     <div className="relative">
       <input

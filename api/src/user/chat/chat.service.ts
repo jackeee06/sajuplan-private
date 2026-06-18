@@ -1137,9 +1137,8 @@ export class UserChatService {
         status: string;
         alloc_seconds_member: number;
         use_seconds: number;
-        member_try_out: boolean;
       }[]>`
-        SELECT status, alloc_seconds_member, use_seconds, member_try_out
+        SELECT status, alloc_seconds_member, use_seconds
           FROM chat_room WHERE id = ${params.chatRoomId} FOR UPDATE
       `;
       const r = rows[0];
@@ -1155,12 +1154,10 @@ export class UserChatService {
         const remain = Number(r.alloc_seconds_member) - Number(r.use_seconds);
         return { success: false, used: 0, remain: Math.max(0, remain), reason: 'awaiting_counselor' };
       }
-      // 회원이 채팅방 이탈 상태(soft leave) 면 use_seconds 누적 거부 — 차감 발생 안 함.
-      // 재입장 시 markRejoin 이 try_out 해제하면 다시 누적 시작.
-      if (r.member_try_out) {
-        const remain = Number(r.alloc_seconds_member) - Number(r.use_seconds);
-        return { success: false, used: 0, remain: Math.max(0, remain), reason: 'member_paused' };
-      }
+      // [2026-06-17 정책 — 사장님 지시] 진행 중(CNCH) 채팅은 누가 이탈하든 과금 계속.
+      //   m2net 이 세션 살아있는 한 실시간으로 계속 과금하므로, 우리가 try_out(이탈)으로 과금을 멈추면
+      //   m2net 은 회원 돈을 빼갔는데 우리만 안 받아 → 사주플랜 적자. 경쟁사도 안 끊음.
+      //   이탈은 당사자 책임(후기로 심판). STAY(상담사 미입장)·DISCONNECT 보호만 위에서 유지.
       const remain = Number(r.alloc_seconds_member) - Number(r.use_seconds);
       if (remain >= 10) {
         await tx`UPDATE chat_room SET use_seconds = use_seconds + 10 WHERE id = ${params.chatRoomId}`;
@@ -1272,5 +1269,56 @@ export class UserChatService {
       }
       return res;
     });
+  }
+
+  /**
+   * [2026-06-17] 방치 채팅 정산 — pagehide 즉시종료 폐지(soft 이탈 전환)의 짝 안전망.
+   *
+   * 진행 중(CNCH)인데 한쪽이 이탈(try_out)했고 + 마지막 메시지가 idleMinutes 넘게 없는 방 = 사실상 방치.
+   *   → tickRoom no_remain 과 동일하게 DISCONNECT 마킹 후 settleChatRoomLocal(실사용 정산·미사용 환불).
+   *
+   * 가드 2중: ① try_out(한쪽이 명시적으로 이탈) ② idleMinutes 무활동.
+   *   → 정상 진행 중(둘 다 입장·대화 중) 채팅은 절대 매칭되지 않음. (try_out=FALSE)
+   *   → 잠깐 백그라운드 후 복귀(rejoin 으로 try_out 해제)한 채팅도 매칭 안 됨.
+   * 매분 cron(chat/auto-cancel)에서 호출.
+   */
+  async settleAbandonedChats(idleMinutes = 3): Promise<{ settled: number; ids: number[] }> {
+    const rooms = await this.sql<{ id: number }[]>`
+      SELECT cr.id
+        FROM chat_room cr
+       WHERE cr.status = 'CNCH'
+         AND (cr.member_try_out = TRUE OR cr.counselor_try_out = TRUE)
+         AND cr.started_at < NOW() - INTERVAL '1 minute'
+         AND NOT EXISTS (
+           SELECT 1 FROM chat_message cm
+            WHERE cm.chat_room_id = cr.id
+              AND cm.created_at > NOW() - make_interval(mins => ${idleMinutes})
+         )
+       ORDER BY cr.id
+       LIMIT 50
+    `;
+    const ids: number[] = [];
+    for (const r of rooms) {
+      try {
+        // tickRoom no_remain 과 동일 — DISCONNECT 마킹 + roomid suffix (다음 채팅 충돌 방지).
+        await this.sql`
+          UPDATE chat_room
+             SET status = 'DISCONNECT',
+                 ended_at = COALESCE(ended_at, now()),
+                 roomid = CASE WHEN roomid LIKE '%\\_\\_c\\_%' ESCAPE '\\'
+                               THEN roomid
+                               ELSE roomid || '__c_' || id END
+           WHERE id = ${r.id} AND status = 'CNCH'
+        `;
+        await this.m2netPush.settleChatRoomLocal(r.id);
+        ids.push(r.id);
+        this.logger.log(`[settleAbandonedChats] 방치 정산 chatRoomId=${r.id}`);
+      } catch (e) {
+        this.logger.warn(
+          `[settleAbandonedChats] 실패 chatRoomId=${r.id}: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    }
+    return { settled: ids.length, ids };
   }
 }

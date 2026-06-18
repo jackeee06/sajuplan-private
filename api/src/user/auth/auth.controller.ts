@@ -31,6 +31,7 @@ import { SocialAuthService, type SocialProvider } from './social-auth.service';
 import { runtimeEnv } from '../../shared/env/runtime-env';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
+import { PromoterCoreService } from '../../shared/promoter/promoter-core.service';
 import { UserAuthGuard, type UserAuthedRequest } from './user-auth.guard';
 import { OptionalUserGuard, type OptionalUserRequest } from './optional-user.guard';
 import { SmsService } from '../sms/sms.service';
@@ -70,6 +71,7 @@ export class AuthController {
     private readonly captcha: CaptchaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly promoter: PromoterCoreService,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -1023,6 +1025,14 @@ export class AuthController {
         // best-effort — 실패해도 가입은 계속 (로컬 가입과 동일 정책)
       });
 
+      // 모집인(서포터즈) 귀속 — 코드 입력 시 회원↔모집인 1:1 연결(best-effort, 자기추천 차단 내부 처리)
+      await this.promoter.createReferralForSignup({
+        memberId: created.id,
+        code: body.promoter_code,
+        entryMethod: body.promoter_entry === 'qr' ? 'qr' : 'code',
+        memberPhone: body.phone ?? null,
+      });
+
       const member = await this.authService.findActiveById(created.id);
       await this.issueLoginCookie(res, member, true);
       res.clearCookie(SOCIAL_PENDING_COOKIE, this.cookieOptions('lax'));
@@ -1065,6 +1075,14 @@ export class AuthController {
       addr1: body.addr1 ?? null,
       addr2: body.addr2 ?? null,
       acquisition_source: body.acquisition_source ?? null,
+    });
+
+    // 모집인(서포터즈) 귀속 — 코드 입력 시 회원↔모집인 1:1 연결(best-effort, 자기추천 차단 내부 처리)
+    await this.promoter.createReferralForSignup({
+      memberId: created.id,
+      code: body.promoter_code,
+      entryMethod: body.promoter_entry === 'qr' ? 'qr' : 'code',
+      memberPhone: body.phone ?? null,
     });
 
     const member = await this.authService.findActiveById(created.id);

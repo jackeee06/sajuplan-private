@@ -9,6 +9,7 @@ import {
   reviewsApi,
   type CounselorReviewListItem,
 } from '../lib/api'
+import { useAlert } from '../lib/use-alert'
 
 const BEST_LIMIT = 5
 
@@ -25,6 +26,7 @@ const PAGE_SIZE = 10
  */
 export default function CounselorMyReviews() {
   const navigate = useNavigate()
+  const { showAlert, alertUI } = useAlert()
   const [unansweredOnly, setUnansweredOnly] = useState(false)
   const [photoOnly, setPhotoOnly] = useState(false)
   const [page, setPage] = useState(1)
@@ -78,7 +80,7 @@ export default function CounselorMyReviews() {
         e instanceof ApiError
           ? e.message
           : '베스트 후기 변경에 실패했습니다.'
-      alert(msg)
+      void showAlert(msg)
     }
   }
 
@@ -241,6 +243,7 @@ export default function CounselorMyReviews() {
 
       <FloatingActions bottomOffset={100} />
       <BottomNav myHref="/counselor/mypage" />
+      {alertUI}
     </div>
   )
 }

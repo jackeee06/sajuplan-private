@@ -13,6 +13,7 @@ import { M2netService } from '../shared/m2net/m2net.service';
 import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
 import { AlertsService } from '../shared/alerts/alerts.service';
 import { GradeUpgradeService } from '../shared/grade-upgrade/grade-upgrade.service';
+import { PromoterCoreService } from '../shared/promoter/promoter-core.service';
 
 /**
  * 엠투넷(M2NET) Push 콜백 처리.
@@ -61,6 +62,7 @@ export class M2netPushService {
     private readonly opsAlert: OpsAlertService,
     private readonly alerts: AlertsService,
     private readonly gradeUpgrade: GradeUpgradeService,
+    private readonly promoter: PromoterCoreService,
   ) {}
 
   /**
@@ -145,14 +147,23 @@ export class M2netPushService {
     counselorId: number | null,
   ): Promise<boolean> {
     if (!callid) return false;
+    // [2026-06-18 fix] 발화 직전 최후 게이트 — 같은 callid 에 종료 행(DISCONNECT 등)이 있으면 발화 차단.
+    //   consultation 은 m2net push 이벤트마다 1행이라 CONNECT_CSR 행은 ended_at 이 영원히 NULL →
+    //   cron 안전망이 "끝난 통화" 를 살아있다고 착각해 종료 후 5분 팝업을 쏘던 버그(통화 종료 +9초) 방어.
+    //   "끝났음" 의 진실 신호 = 형제 종료 행의 존재. cron + setTimeout + 동시성 레이스 전부 여기서 차단.
     const won = await this.sql<{ id: number }[]>`
       UPDATE consultation
          SET five_min_alert_sent_at = now()
        WHERE callid = ${callid}
          AND five_min_alert_sent_at IS NULL
+         AND NOT EXISTS (
+           SELECT 1 FROM consultation d
+            WHERE d.callid = ${callid}
+              AND d.reason IN ('DISCONNECT','END_CHAT','END_CHAT_LOCAL','NO_ANSWER_CSR','INSUFFICIENT_CONN')
+         )
        RETURNING id
     `;
-    if (won.length === 0) return false; // 다른 경로가 이미 발화함
+    if (won.length === 0) return false; // 이미 발화했거나, 통화가 이미 종료됨
     this.alerts.enqueue(memberId, {
       type: 'consult_5min_warning' as const,
       title: '⏰ 5분 남았어요',
@@ -206,6 +217,12 @@ export class M2netPushService {
          AND c.started_at > now() - interval '60 minutes'
          AND c.callid IS NOT NULL
          AND c.callid <> ''
+         -- [2026-06-18 fix] 같은 callid 에 종료 행 있으면 끝난 통화 → cron 후보에서 제외 (좀비 CONNECT_CSR 행 방어)
+         AND NOT EXISTS (
+           SELECT 1 FROM consultation d
+            WHERE d.callid = c.callid
+              AND d.reason IN ('DISCONNECT','END_CHAT','END_CHAT_LOCAL','NO_ANSWER_CSR','INSUFFICIENT_CONN')
+         )
     `;
     const fired: string[] = [];
     const FIVE_MIN = 300;
@@ -339,6 +356,18 @@ export class M2netPushService {
     //   short_call_refund_seconds=30 (하드코딩, 향후 setting 으로 이전 가능).
     const SHORT_CALL_SEC = 30;
 
+    // 7-c) 단기 채팅 자동 환불 (2026-06-14 사장님 정책 — 전화와 통일)
+    //   상담사 입장 후 30초 이내 비정상 종료 시 회원에게 선결제 전액 자동 환불.
+    //   · 회원 보호: 전액 환불 (어뷰징 한도 일2회/주4회 유지)
+    //   · 상담사 보호: 30초치(1단위) 수익은 정상 적립 (counselorEarnAmt=rawAmt 경로로 이미 보존)
+    //   · 회사 부담: 회원 환불분 + 상담사 1단위 = 고객보호비용
+    //   · 기록: consultation.refund_status='short_chat_refund' → 관리자 고객보호비용 내역 노출
+    //   기존 5초(G정책) → 30초로 상향. _PREPAID_CHAT_POLICY.md §5.2.
+    const SHORT_CHAT_SEC = 30;
+    // 채팅 단기환불이 적용됐는지 — 정산 트랜잭션에서 consultation 마킹용 (함수 스코프).
+    let shortChatRefunded = false;
+    let shortChatRefundAmount = 0;
+
     // 8) 후불 판정 — 전화 only. 채팅은 항상 선불 (후불 개념 없음).
     //    sample 의 is_postpaid 도 to=5000878 비교라 채팅 push 엔 자연스럽게 false 가 되지만,
     //    명시적으로 채팅은 후불 분기 진입 금지 → 잔액 부족 시 m2net 이 채팅을 끊고 차감만 반영.
@@ -398,6 +427,9 @@ export class M2netPushService {
             const uc = Number(cr.unit_cost) > 0 ? Number(cr.unit_cost) : 0;
             const requiredCost = Math.ceil((cm * 60) / us) * uc;
             if (requiredCost > 0) {
+              // 모집인 적립 결과(트랜잭션 외부에서 알림톡 발송용)
+              let prepaidAccrual: { promoterId: number; rewardAmount: number } | null = null;
+              let prepaidLabel = '';
               await this.sql.begin(async (tx) => {
                 // member.point 잔액 확인 (FOR UPDATE — 동시 차감 방지)
                 const m = await tx<{ point: number }[]>`
@@ -458,10 +490,29 @@ export class M2netPushService {
                     ${takePaid > 0}, 'system'
                   )
                 `;
+
+                // ─── 모집인(서포터즈) 보상 적립 — 선결제 유료 차감분(takePaid) 기준 ───
+                //   회사 부담 별도 원장(promoter_reward). point/earning 무침범. 멱등(chat_room, chatRoomId).
+                prepaidLabel = `[채팅]${takePaid.toLocaleString()}원 사용`;
+                prepaidAccrual = await this.promoter.accrueInTx(tx, {
+                  memberId: cr.member_id,
+                  paidAmount: takePaid,
+                  sourceTable: 'chat_room',
+                  sourceId: chatRoomId,
+                  usageLabel: prepaidLabel,
+                });
               });
               this.logger.log(
                 `[START_CHAT prepaid] chatRoomId=${chatRoomId} member=${cr.member_id} -${requiredCost} (charge_minutes=${cm})`,
               );
+              // 모집인 실시간 적립 알림톡 (커밋 후·게이트)
+              if (prepaidAccrual) {
+                void this.promoter.sendAccrualAlimtalk(
+                  (prepaidAccrual as { promoterId: number; rewardAmount: number }).promoterId,
+                  prepaidLabel,
+                  (prepaidAccrual as { promoterId: number; rewardAmount: number }).rewardAmount,
+                );
+              }
             }
           }
         } catch (e) {
@@ -546,10 +597,11 @@ export class M2netPushService {
            WHERE roomid = ${roomid} AND status <> 'DISCONNECT'
         `;
 
-        // ★ [2026-05-29 G 정책] 5초 이내 자동 환불 (선결제 모드)
-        //   상담사 입장 후 5초 안에 비정상 종료 시 회원에게 전액 자동 환불.
+        // ★ [2026-06-14 정책] 30초 이내 자동 환불 (선결제 모드 — 전화와 통일)
+        //   상담사 입장 후 30초 안에 비정상 종료 시 회원에게 전액 자동 환불.
         //   abuse 제한: 회원당 일 2회 / 주 4회. 초과 시 환불 skip (어드민 수동).
-        //   m2net 첫 30초 1,000원은 사주플랜 측 손해 감수 (사장님 명시).
+        //   m2net 첫 30초 1,000원 + 상담사 1단위 적립은 사주플랜 측 손해 감수 (사장님 명시).
+        //   상담사 적립은 아래 counselorEarnAmt=rawAmt 경로로 정상 발생(상담사 보호).
         //   _PREPAID_CHAT_POLICY.md §5.2 참조.
         if (prepaidChatRoomChargeMinutes != null) {
           try {
@@ -566,7 +618,7 @@ export class M2netPushService {
             const rr = crInfo[0];
             if (rr) {
               const elapsed = Number(chatUsetm ?? 0);
-              if (elapsed >= 0 && elapsed < 5) {
+              if (elapsed >= 0 && elapsed < SHORT_CHAT_SEC) {
                 // 환불 제한 카운트 — 일 2회 / 주 4회
                 const limitRows = await this.sql<{ day_cnt: string; week_cnt: string }[]>`
                   SELECT
@@ -619,7 +671,7 @@ export class M2netPushService {
                           rel_table, rel_id, rel_action, is_paid, actor_type
                         ) VALUES (
                           ${rr.member_id},
-                          ${`채팅 선결제 자동 환불 (${rr.charge_minutes}분, 5초 이내 종료)`},
+                          ${`채팅 선결제 자동 환불 (${rr.charge_minutes}분, 30초 이내 종료)`},
                           ${refundAmount}, 0, ${newPoint},
                           'chat_room', ${String(rr.id)},
                           ${`chat_room@${rr.id}@quick_refund`},
@@ -634,8 +686,11 @@ export class M2netPushService {
                         )
                       `;
                     });
+                    // 정산 트랜잭션에서 consultation 에 short_chat_refund 마킹하도록 플래그 세팅.
+                    shortChatRefunded = true;
+                    shortChatRefundAmount = refundAmount;
                     this.logger.log(
-                      `[END_CHAT quick_refund] chatRoomId=${rr.id} member=${rr.member_id} +${refundAmount} (use_seconds=${elapsed})`,
+                      `[END_CHAT quick_refund] chatRoomId=${rr.id} member=${rr.member_id} +${refundAmount} (use_seconds=${elapsed}, <${SHORT_CHAT_SEC}s)`,
                     );
                   }
                 } else {
@@ -775,9 +830,9 @@ export class M2netPushService {
     // [Audit B-#3] DB 레벨 중복 INSERT 차단 — UNIQUE 제약 (uq_consultation_call_callid,
     // uq_consultation_chat_roomid) 위반 시 ON CONFLICT DO NOTHING 으로 graceful skip.
     const svcType = isCall ? '[전화]' : '[채팅]';
-    let txResult: { dup: boolean; consultationId?: number; shortCallRefund?: boolean };
+    let txResult: { dup: boolean; consultationId?: number; shortCallRefund?: boolean; promoterAccrual?: { promoterId: number; rewardAmount: number } | null; promoterUsageLabel?: string };
     try {
-      txResult = await this.sql.begin(async (tx): Promise<{ dup: boolean; consultationId?: number; shortCallRefund?: boolean }> => {
+      txResult = await this.sql.begin(async (tx): Promise<{ dup: boolean; consultationId?: number; shortCallRefund?: boolean; promoterAccrual?: { promoterId: number; rewardAmount: number } | null; promoterUsageLabel?: string }> => {
         const inserted = await tx<{ id: number }[]>`
           INSERT INTO consultation (
             member_id, mb_id, counselor_id, csrid, cpid, dtmfno,
@@ -868,7 +923,50 @@ export class M2netPushService {
           );
         }
 
-        return { dup: false, consultationId, shortCallRefund };
+        // 단기채팅환불 메타 기록 — 관리자 고객보호비용 내역 노출 + 수동환불 화면 차단용 (2026-06-14).
+        //   선결제 채팅은 consultation.amt=0 이라 위 amt>0 분기를 안 타므로 여기서 별도 마킹.
+        //   refunded_amount = 회원에게 돌려준 선결제 전액 (회사가 부담한 고객보호비용).
+        if (shortChatRefunded && consultationId > 0) {
+          await tx`
+            UPDATE consultation
+               SET refund_status = 'short_chat_refund',
+                   refunded_amount = ${shortChatRefundAmount}
+             WHERE id = ${consultationId}
+          `;
+          // 선결제 5초 환불 → START 시점 적립한 모집인 보상도 void (회원에게 전액 환불했으므로).
+          //   reward 는 source_table='chat_room', source_id=chat_room.id. roomid 꼬리표(__c_N) 변형 매칭.
+          if (roomid) {
+            await tx`
+              UPDATE promoter_reward pr SET status = 'voided'
+                FROM chat_room cr
+               WHERE pr.source_table = 'chat_room' AND pr.source_id = cr.id
+                 AND pr.status = 'accrued' AND pr.settlement_id IS NULL
+                 AND regexp_replace(cr.roomid, '__c_[0-9]+$', '') = regexp_replace(${roomid}::text, '__c_[0-9]+$', '')
+            `;
+          }
+        }
+
+        // ─── 모집인(서포터즈) 보상 적립 — 회사 부담 별도 원장(promoter_reward). point/earning 무침범. ───
+        //   종량제 전화/채팅: 회원이 실제 유료 차감(amtPro)된 경우에만 적립.
+        //   선결제 채팅(amt=0, amtPro=0)은 여기서 안 잡히고 START_CHAT 차감 시점에 별도 적립(takePaid 기준).
+        //   단기통화환불/단기채팅환불/후불/환불대상 은 회원이 실질 결제 안 했으므로 제외.
+        let promoterAccrual: { promoterId: number; rewardAmount: number } | null = null;
+        const promoterUsageLabel = `${svcType}${amtPro.toLocaleString()}원 사용`;
+        if (
+          endsHere && memberId !== null && consultationId > 0
+          && !refundEligible && !shortCallRefund && !isPostpaid && !shortChatRefunded
+          && amtPro > 0
+        ) {
+          promoterAccrual = await this.promoter.accrueInTx(tx, {
+            memberId,
+            paidAmount: amtPro,
+            sourceTable: 'consultation',
+            sourceId: consultationId,
+            usageLabel: promoterUsageLabel,
+          });
+        }
+
+        return { dup: false, consultationId, shortCallRefund, promoterAccrual, promoterUsageLabel };
       });
     } catch (e) {
       // [Audit #4] 트랜잭션 전체 실패 — consultation/deduct/credit 모두 롤백된 상태.
@@ -891,6 +989,15 @@ export class M2netPushService {
         `[handleCallPush] consultation 중복 INSERT 차단 — callid=${callid} roomid=${roomid} counselorId=${counselorId} memberId=${memberId}`,
       );
       return { ok: true, idempotent: true };
+    }
+
+    // ─── 모집인 실시간 적립 알림톡 (트랜잭션 커밋 후, fire-and-forget·게이트) ───
+    if (txResult.promoterAccrual) {
+      void this.promoter.sendAccrualAlimtalk(
+        txResult.promoterAccrual.promoterId,
+        txResult.promoterUsageLabel ?? '',
+        txResult.promoterAccrual.rewardAmount,
+      );
     }
 
     // ─── 단기통화 자동 환불 — m2net 측 잔액 복구 (트랜잭션 외부) ───

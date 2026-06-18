@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- ───────────────────────────────────────────────────────────────
+         모집인(서포터즈) 공유 전용 OG 페이지.
+         카카오톡 등에 링크를 "붙여넣기"로 전달해도 카드 제목이 "사주플랜 서포터즈"로 뜨게 한다.
+         (SPA 본문은 자바스크립트라 카카오 크롤러가 못 읽으므로, 정적 OG 메타가 박힌 이 페이지를 경유)
+         실제 사용자가 열면 즉시 /s/{코드} 랜딩으로 자동 이동한다.
+         ※ 오직 이 공유 링크만 "서포터즈"로 노출되고, 메인 사주플랜은 그대로 "사주플랜".
+         ─────────────────────────────────────────────────────────────── -->
+    <title>사주플랜 서포터즈</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="사주플랜 서포터즈" />
+    <meta property="og:description" content="회원가입 시 받으신 추천 코드를 꼭 입력해주세요! 입력해야 추천이 적용돼요 — 사주플랜 서포터즈" />
+    <meta property="og:image" content="https://sajuplan.com/apple-touch-icon.png" />
+    <meta property="og:url" content="https://sajuplan.com/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="사주플랜 서포터즈" />
+    <meta name="twitter:description" content="회원가입 시 받으신 추천 코드를 꼭 입력해주세요! 입력해야 추천이 적용돼요 — 사주플랜 서포터즈" />
+    <meta name="twitter:image" content="https://sajuplan.com/apple-touch-icon.png" />
+
+    <script>
+      // 실제 방문자는 즉시 랜딩(/s/{코드})으로 이동. 카카오 크롤러는 JS 미실행 → 위 OG 메타만 읽음.
+      //   코드 출처 2가지 모두 지원:
+      //     - 깨끗한 경로:  /r/7777        (nginx 가 이 파일을 물려줌)
+      //     - 쿼리 폴백:    /sp.html?c=7777
+      (function () {
+        try {
+          var c = '';
+          var m = window.location.pathname.match(/\/r\/([0-9A-Za-z]+)/);
+          if (m) c = m[1];
+          if (!c) c = new URLSearchParams(window.location.search).get('c') || '';
+          c = c.replace(/[^0-9A-Za-z]/g, '').slice(0, 20);
+          var dest = c ? '/s/' + encodeURIComponent(c) : '/promoter';
+          window.location.replace(dest);
+        } catch (e) {
+          window.location.replace('/promoter');
+        }
+      })();
+    </script>
+  </head>
+  <body style="font-family: 'Pretendard', sans-serif; text-align: center; padding: 40px 20px; color: #6A7282">
+    <p>사주플랜 서포터즈로 이동 중…</p>
+    <p><a href="/promoter" style="color: #ec4899">눌러도 이동하지 않으면 여기를 누르세요</a></p>
+  </body>
+</html>

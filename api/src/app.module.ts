@@ -23,6 +23,7 @@ import { SharedModule } from './shared/shared.module';
 import { AlertsModule } from './shared/alerts/alerts.module';
 import { M2netPushModule } from './pg-callbacks/m2net-push.module';
 import { CronModule } from './cron/cron.module';
+import { PromoterPublicModule } from './promoter/promoter.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { CronModule } from './cron/cron.module';
     UserModule,
     M2netPushModule,
     CronModule,
+    PromoterPublicModule,
   ],
   controllers: [AppController],
   providers: [

@@ -68,6 +68,8 @@ function mapDetail(r: PublicCounselorDetail): CounselorDetailData {
     reviewTotal: r.review_count.toLocaleString(),
     qnaTotal: r.qna_count.toLocaleString(),
     isExclusive: r.is_exclusive ?? false,
+    // 부재(둘 다 off) = state ABSE/RESV → 하단 CTA 를 "상담요청하기" 로 (목록 카드와 동일)
+    isOffline: r.state === 'ABSE' || r.state === 'RESV',
   }
 }
 

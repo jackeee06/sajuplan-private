@@ -7,7 +7,7 @@ alimtalk_template
 - template_code VARCHAR (UNIQUE) — 코드 (예: chat_request_to_counselor)
 - message TEXT — 본문 (변수 #{...} 포함)
 - primary_btn_name VARCHAR
-- primary_btn_url VARCHAR — 버튼 URL (sajuplan:// scheme 또는 https)
+- primary_btn_url VARCHAR — 버튼 URL (`sajuplan://#{url}` 형태. 카카오 알림톡 클릭 시 앱 이동 = 푸시/FCM 이동 방식이며 안드로이드·iOS 모두 정상. BizM 설정 변경 0 = 정상)
 - buttons JSONB
 - is_active BOOLEAN
 
@@ -66,6 +66,12 @@ async sendAlimtalkByCode(templateCode, phone, vars, smsTitle?) {
 
 `SmsService.IN_CHAT_PASS_THROUGH = Set(['chat_request_to_counselor'])` — 화이트리스트 외 차단
 
+## 카카오 알림톡 클릭 → 앱 이동 (정상 — 변경 불필요)
+
+- 카카오 알림톡 클릭 시 앱 이동 = **푸시/FCM 이동 방식**. 안드로이드·iOS 둘 다 동일 기능으로 등록·구현됨 (정상). 앱이 꺼져 있어도 켜지고 **정확한 페이지로 이동**됨.
+- BizM 설정(`sajuplan://#{url}`)·백엔드·서버·사주플랜 코드 = **변경 0 (정상)**. 안드로이드가 정상이므로 BizM/서버 문제 아님. **BizM·서버 변경 불필요.**
+- 일부 아이폰 에러 제보는 iOS 기능 자체는 등록돼 있으므로 **그 단말의 앱 미설치/구버전 등 환경 가능성** (단정 금지).
+
 ## BizM API
 
 - URL: `https://alimtalk-api.bizmsg.kr/v2/sender/send`
@@ -108,4 +114,4 @@ GROUP BY template_code;
 
 - `[[alimtalk-bizm-only]]`
 - `[[ops-alert-catalog]]`
-- `[[mobile-deep-link-status]]` (scheme URL)
+- `[[mobile-deep-link-status]]` (앱 이동=푸시/FCM 이동 방식 / 안드로이드·iOS 모두 정상 / BizM·서버 변경 불필요)

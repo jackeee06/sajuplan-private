@@ -4,6 +4,7 @@ import ReviewReportModal from '../components/ReviewReportModal'
 import { counselorsApi, type PublicCounselorReview } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 import { FILE_BASE } from '../lib/runtime-env'
+import { useAlert } from '../lib/use-alert'
 
 function resolveImageUrl(u: string | null): string {
   if (!u) return '/img/sample_img01.jpg'
@@ -29,7 +30,6 @@ export default function CounselorReviewsTab({ counselorId }: { counselorId: stri
   const [loadingMore, setLoadingMore] = useState(false)
   const [policyOpen, setPolicyOpen] = useState(false)
 
-  const canWriteReview = !member || member.role !== 'counselor'
   const hasMore = reviews.length < total
 
   useEffect(() => {
@@ -85,8 +85,18 @@ export default function CounselorReviewsTab({ counselorId }: { counselorId: stri
           후기 작성 시 코인 지급!
         </h2>
         <p className="text-[14px] leading-[130%] text-[#4A5565]">
-          본인인증 완료 및 5분 이상 상담을 진행하신 고객님에 한하여 후기 작성이 가능합니다.
+          본인인증 완료 및 5분 이상 상담하신 고객님은, 상담 후 <b className="font-semibold text-[#364153]">마이페이지 &gt; 상담내역</b>에서 후기를 남기실 수 있어요.
         </p>
+        {/* 항상 노출(자격 무관) — 누르면 본인 상담내역으로 이동, 미작성 상담을 보고 후기 작성 유도 */}
+        <Link
+          to="/mypage/history"
+          className="mt-1 h-10 rounded-full bg-[#fdf2f8] border border-[#f472b6] text-[#ec4899] text-[14px] font-semibold flex items-center justify-center gap-1 transition hover:bg-[#fce7f3]"
+        >
+          내 상담내역에서 후기 쓰기
+          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
+            <path d="M6 4L10 8L6 12" stroke="#ec4899" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Link>
         <button
           type="button"
           onClick={() => setPolicyOpen(true)}
@@ -98,16 +108,6 @@ export default function CounselorReviewsTab({ counselorId }: { counselorId: stri
           </svg>
         </button>
       </article>
-
-      {canWriteReview && (
-        <Link
-          to={`/mypage/my-reviews/new?counselor_id=${counselorId}`}
-          className="h-10 rounded-full bg-white border border-[#f472b6] text-[#ec4899] text-[14px] font-medium flex items-center justify-center gap-1 transition hover:bg-[#fdf2f8]"
-        >
-          <PencilLineIcon />
-          후기 작성하기
-        </Link>
-      )}
 
       {/* 카운터 */}
       <div className="px-0 pb-3 flex items-center justify-between border-b border-[#F3F4F6]">
@@ -181,19 +181,24 @@ function ReviewCard({
   const { id, title, content, is_secret, reviewer_name, created_at } = review
   const navigate = useNavigate()
   const [reportOpen, setReportOpen] = useState(false)
+  const { showAlert, alertUI } = useAlert()
 
-  const onReportClick = (e: React.MouseEvent) => {
+  const onReportClick = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!isLoggedIn) { alert('신고하려면 로그인이 필요합니다.'); navigate('/login'); return }
+    if (!isLoggedIn) {
+      await showAlert('신고하려면 로그인이 필요합니다.')
+      navigate('/login')
+      return
+    }
     setReportOpen(true)
   }
 
   return (
     <>
-      <Link
-        to={`/reviews/${id}`}
-        className={`block px-0 py-4 flex flex-col gap-2 border-b border-[#F3F4F6] hover:bg-[#F9FAFB]/40 transition ${showAdminMark ? 'pl-3 border-l-2 border-l-[#f472b6]' : ''}`}
+      {/* 후기는 전부 공개 + 리스트에 전문 노출 → 상세 페이지 불필요. 카드 클릭 비활성(2026-06-12). 신고 버튼만 동작. */}
+      <div
+        className={`block px-0 py-4 flex flex-col gap-2 border-b border-[#F3F4F6] ${showAdminMark ? 'pl-3 border-l-2 border-l-[#f472b6]' : ''}`}
       >
         <div className="flex items-center gap-2">
           <div className="flex-1 flex items-center gap-1 min-w-0">
@@ -209,12 +214,13 @@ function ReviewCard({
           {is_secret && <LockIcon />}
           <h3 className="text-[14px] leading-[130%] font-medium text-[#1E2939]">{title}</h3>
         </div>
-        <p className="text-[14px] leading-[130%] text-[#4A5565] whitespace-pre-line line-clamp-3">
+        <p className="text-[14px] leading-[130%] text-[#4A5565] whitespace-pre-line">
           {is_secret ? '비밀 후기입니다' : content}
         </p>
         <span className="text-[14px] leading-[130%] text-[#99A1AF]">{formatDate(created_at)}</span>
-      </Link>
+      </div>
       <ReviewReportModal reviewId={id} open={reportOpen} onClose={() => setReportOpen(false)} />
+      {alertUI}
     </>
   )
 }
@@ -293,11 +299,3 @@ function LockIcon() {
   )
 }
 
-function PencilLineIcon() {
-  return (
-    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" aria-hidden>
-      <path d="M11.5 2.5l2 2-7 7H4.5v-2l7-7z" stroke="#ec4899" strokeWidth="1.4" strokeLinejoin="round" />
-      <path d="M2.5 14h11" stroke="#ec4899" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  )
-}

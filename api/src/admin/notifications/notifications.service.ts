@@ -102,6 +102,12 @@ export class NotificationsService {
     return { ok: true, deleted: r.count };
   }
 
+  /** 푸시 발송 이력 단건 삭제 — 관리자 화면 행별 🗑 버튼용. */
+  async deleteOnePushHistory(id: number): Promise<{ ok: true; deleted: number }> {
+    const r = await this.sql`DELETE FROM notification_log WHERE id = ${id}`;
+    return { ok: true, deleted: r.count };
+  }
+
   // ─── 푸시 발송 ────────────────────────────
   /**
    * target:

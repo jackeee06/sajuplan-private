@@ -1,0 +1,375 @@
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SQL, type Sql, type TxSql } from '../db/db.module';
+import { SmsService } from '../../user/sms/sms.service';
+
+/**
+ * 모집인(서포터즈) 보상 — 공용 코어 서비스.
+ *
+ * 책임:
+ *  - 가입 귀속 생성 (createReferralForSignup)
+ *  - 유료 사용 적립 (accrueInTx) — m2net-push 트랜잭션 내부에서 호출
+ *  - 환불 차감 (voidBySource) — m2net-push / 환불 서비스에서 호출
+ *  - 실시간 적립 알림톡 (sendAccrualAlimtalk) — 게이트(setting)로 on/off
+ *  - 모집인 대시보드 집계 (getDashboard)
+ *
+ * ★ 회사 부담 비용 원장(promoter_reward)에만 기록. point/point_history/earning_balance 무침범.
+ *   → 돈 불변식(_verify_money_integrity.py) 영향 없음.
+ */
+@Injectable()
+export class PromoterCoreService {
+  private readonly logger = new Logger(PromoterCoreService.name);
+
+  constructor(
+    @Inject(SQL) private readonly sql: Sql,
+    private readonly config: ConfigService,
+    private readonly sms: SmsService,
+  ) {}
+
+  /** 정책 상수 (setting namespace='promoter'). 누락 시 안전 기본값. */
+  async getSettings(): Promise<{
+    rate: number;
+    months: number;
+    withholdingRate: number;
+    alimtalkEnabled: boolean;
+  }> {
+    const rows = await this.sql<{ key: string; value: string | null }[]>`
+      SELECT key, value FROM setting WHERE namespace = 'promoter'
+    `;
+    const map = new Map(rows.map((r) => [r.key, r.value ?? '']));
+    const num = (k: string, d: number) => {
+      const v = Number(map.get(k));
+      return Number.isFinite(v) && v >= 0 ? v : d;
+    };
+    return {
+      rate: num('reward_rate', 0.03),
+      months: Math.max(1, Math.trunc(num('reward_months', 3))),
+      withholdingRate: num('withholding_rate', 0.033),
+      alimtalkEnabled: (map.get('alimtalk_enabled') ?? 'false') === 'true',
+    };
+  }
+
+  private normalizeCode(code: string): string {
+    return (code ?? '').replace(/[^0-9A-Za-z]/g, '').trim();
+  }
+
+  /**
+   * 가입 시 회원↔모집인 귀속 생성 (best-effort, 실패해도 가입은 정상).
+   *  - code → active promoter 조회
+   *  - 자기추천 차단(전화 일치 또는 member_id 일치)
+   *  - 한 회원 1모집인(member_id UNIQUE) — 이미 있으면 skip
+   *  - rate/기간 가입 시점 스냅샷
+   */
+  async createReferralForSignup(args: {
+    memberId: number;
+    code: string | null | undefined;
+    entryMethod: 'qr' | 'code';
+    memberPhone: string | null;
+  }): Promise<void> {
+    const code = this.normalizeCode(args.code ?? '');
+    if (!code) return;
+    try {
+      const pr = await this.sql<{ id: number; phone: string; member_id: number | null; reward_rate: string | null }[]>`
+        SELECT id, phone, member_id, reward_rate FROM promoter
+         WHERE code = ${code} AND is_active = true LIMIT 1
+      `;
+      if (!pr[0]) {
+        this.logger.log(`[promoter referral] 코드 매칭 실패(무시) code=${code} member=${args.memberId}`);
+        return;
+      }
+      const promoter = pr[0];
+      // 자기추천 차단
+      const memberPhone = (args.memberPhone ?? '').replace(/\D/g, '');
+      const promoterPhone = (promoter.phone ?? '').replace(/\D/g, '');
+      if ((memberPhone && memberPhone === promoterPhone) || promoter.member_id === args.memberId) {
+        this.logger.log(`[promoter referral] 자기추천 차단 member=${args.memberId} promoter=${promoter.id}`);
+        return;
+      }
+      const { rate, months } = await this.getSettings();
+      const rateSnapshot = promoter.reward_rate != null ? Number(promoter.reward_rate) : rate;
+      await this.sql`
+        INSERT INTO promoter_referral (promoter_id, member_id, entry_method, signup_at, reward_until, rate_snapshot)
+        VALUES (
+          ${promoter.id}, ${args.memberId}, ${args.entryMethod}, now(),
+          (CURRENT_DATE + (${months} || ' months')::interval)::date,
+          ${rateSnapshot}
+        )
+        ON CONFLICT (member_id) DO NOTHING
+      `;
+      this.logger.log(`[promoter referral] 귀속 member=${args.memberId} → promoter=${promoter.id} rate=${rateSnapshot} months=${months}`);
+    } catch (e) {
+      this.logger.error(`[promoter referral] 실패(무시) member=${args.memberId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /** 사후 추천 입력 가능 기간(가입 후 N일). 앱 신규설치 경유로 가입 시 코드 누락분 구제. */
+  private static readonly POST_SIGNUP_DAYS = 7;
+
+  /**
+   * 사후 추천 입력 상태 — 마이페이지 노출 제어용.
+   *  - hasReferral: 이미 귀속됨(추천인 이름 동반)
+   *  - canInput: 아직 귀속 없고 가입 후 7일 이내 → 입력칸 노출
+   */
+  async getReferralStatus(
+    memberId: number,
+  ): Promise<{ hasReferral: boolean; canInput: boolean; promoterName: string | null }> {
+    const ref = await this.sql<{ pname: string | null }[]>`
+      SELECT p.name AS pname
+        FROM promoter_referral pr
+        JOIN promoter p ON p.id = pr.promoter_id
+       WHERE pr.member_id = ${memberId}
+       LIMIT 1
+    `;
+    if (ref.length) return { hasReferral: true, canInput: false, promoterName: ref[0].pname };
+    const days = PromoterCoreService.POST_SIGNUP_DAYS;
+    const m = await this.sql<{ within: boolean }[]>`
+      SELECT (created_at > now() - (${days} || ' days')::interval) AS within
+        FROM member WHERE id = ${memberId} LIMIT 1
+    `;
+    return { hasReferral: false, canInput: m[0]?.within ?? false, promoterName: null };
+  }
+
+  /**
+   * 가입 후 추천 코드 사후 입력 (마이페이지) — 가입 시 코드를 못 넣은 회원 구제.
+   *  - 가입 후 7일 이내 + 아직 미귀속 + 유효 코드 + 자기추천 아님 → 귀속 생성
+   *  - 입력 시점 이후 사용분부터 자연히 적립(과거 소급 없음). 기간 가드로 어뷰징 차단.
+   */
+  async applyReferralPostSignup(
+    memberId: number,
+    code: string,
+  ): Promise<{ ok: boolean; message: string }> {
+    const c = this.normalizeCode(code ?? '');
+    if (!c) return { ok: false, message: '추천 코드를 입력해 주세요.' };
+    const st = await this.getReferralStatus(memberId);
+    if (st.hasReferral) return { ok: false, message: '이미 추천이 등록되어 있어요.' };
+    if (!st.canInput) {
+      return { ok: false, message: '추천 코드 입력 기간(가입 후 7일)이 지났어요.' };
+    }
+    const m = await this.sql<{ phone: string | null }[]>`
+      SELECT phone FROM member WHERE id = ${memberId} LIMIT 1
+    `;
+    await this.createReferralForSignup({
+      memberId,
+      code: c,
+      entryMethod: 'code',
+      memberPhone: m[0]?.phone ?? null,
+    });
+    const after = await this.sql<{ one: number }[]>`
+      SELECT 1 AS one FROM promoter_referral WHERE member_id = ${memberId} LIMIT 1
+    `;
+    if (after.length) return { ok: true, message: '추천 코드가 등록되었어요!' };
+    return { ok: false, message: '유효하지 않은 추천 코드예요. 다시 확인해 주세요.' };
+  }
+
+  /**
+   * 유료 사용 적립 — 트랜잭션 내부에서 호출(consultation/선결제 차감과 원자성).
+   *  - paidAmount: 유료 사용분(종량=amt_pro / 선결제=takePaid)
+   *  - 멱등: (source_table, source_id) UNIQUE
+   *  - 반환: 신규 적립 시 {promoterId, rewardAmount}, 중복/대상아님이면 null
+   */
+  async accrueInTx(
+    tx: TxSql,
+    args: {
+      memberId: number;
+      paidAmount: number;
+      sourceTable: 'consultation' | 'chat_room';
+      sourceId: number;
+      usageLabel: string;
+    },
+  ): Promise<{ promoterId: number; rewardAmount: number } | null> {
+    const paid = Math.trunc(Number(args.paidAmount));
+    if (!Number.isFinite(paid) || paid <= 0) return null;
+    const ref = await tx<{ promoter_id: number; rate_snapshot: string }[]>`
+      SELECT promoter_id, rate_snapshot FROM promoter_referral
+       WHERE member_id = ${args.memberId} AND reward_until >= CURRENT_DATE
+       LIMIT 1
+    `;
+    if (!ref[0]) return null;
+    const rate = Number(ref[0].rate_snapshot);
+    const reward = Math.floor(paid * rate);
+    if (reward <= 0) return null;
+    const ins = await tx<{ id: number }[]>`
+      INSERT INTO promoter_reward (
+        promoter_id, member_id, source_table, source_id,
+        base_paid, rate, reward_amount, status, usage_label
+      ) VALUES (
+        ${ref[0].promoter_id}, ${args.memberId}, ${args.sourceTable}, ${args.sourceId},
+        ${paid}, ${rate}, ${reward}, 'accrued', ${args.usageLabel.slice(0, 120)}
+      )
+      ON CONFLICT (source_table, source_id) DO NOTHING
+      RETURNING id
+    `;
+    if (ins.length === 0) return null; // 멱등 — 이미 적립됨
+    return { promoterId: ref[0].promoter_id, rewardAmount: reward };
+  }
+
+  /**
+   * 환불 차감 — 해당 소스의 미정산 적립을 voided 처리.
+   *  - exec: this.sql(서비스 단독) 또는 tx(트랜잭션 내부) 모두 허용
+   *  - 이미 정산(settlement_id NOT NULL)된 건은 건드리지 않음(다음 정산 이월 상계 대상).
+   */
+  async voidBySource(exec: TxSql, sourceTable: 'consultation' | 'chat_room', sourceId: number): Promise<void> {
+    try {
+      await exec`
+        UPDATE promoter_reward
+           SET status = 'voided'
+         WHERE source_table = ${sourceTable} AND source_id = ${sourceId}
+           AND status = 'accrued' AND settlement_id IS NULL
+      `;
+    } catch (e) {
+      this.logger.error(`[promoter void] ${sourceTable}#${sourceId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /**
+   * 실시간 적립 알림톡 (게이트). setting.alimtalk_enabled=true 일 때만 발송.
+   *  - 회원 마스킹·누적 기대수익 동봉. fire-and-forget.
+   *  - BizM 템플릿 'promoter_reward_accrued' 승인 전까지 enabled=false 로 비활성.
+   */
+  async sendAccrualAlimtalk(promoterId: number, usageLabel: string, rewardAmount: number): Promise<void> {
+    try {
+      const { alimtalkEnabled } = await this.getSettings();
+      if (!alimtalkEnabled) return;
+      const rows = await this.sql<{ name: string; phone: string; expected: string }[]>`
+        SELECT p.name, p.phone,
+               COALESCE((SELECT SUM(reward_amount) FROM promoter_reward r
+                          WHERE r.promoter_id = p.id AND r.status='accrued' AND r.settlement_id IS NULL), 0)::text AS expected
+          FROM promoter p WHERE p.id = ${promoterId} LIMIT 1
+      `;
+      if (!rows[0]) return;
+      await this.sms.sendAlimtalkByCode(
+        'promoter_reward_accrued',
+        rows[0].phone,
+        {
+          내용: usageLabel,
+          적립액: rewardAmount.toLocaleString(),
+          누적기대수익: Number(rows[0].expected).toLocaleString(),
+        },
+        '사주플랜 적립',
+      );
+    } catch (e) {
+      this.logger.error(`[promoter alimtalk] promoter=${promoterId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  /** 회원 이름 마스킹: 홍길동 → 홍** */
+  static maskName(name: string | null): string {
+    const arr = Array.from((name ?? '').trim());
+    if (arr.length === 0) return '익명';
+    return arr[0] + '*'.repeat(Math.max(1, arr.length - 1));
+  }
+
+  /** 코드 유효성(존재·활성)만 — 이름 미반환. 가입 화면 prefill 검증용. */
+  async getByCode(code: string): Promise<{ exists: boolean; active: boolean }> {
+    const c = this.normalizeCode(code);
+    if (!c) return { exists: false, active: false };
+    const rows = await this.sql<{ is_active: boolean }[]>`
+      SELECT is_active FROM promoter WHERE code = ${c} LIMIT 1
+    `;
+    if (!rows[0]) return { exists: false, active: false };
+    return { exists: true, active: !!rows[0].is_active };
+  }
+
+  /** 코드 중복 여부 */
+  async codeExists(code: string): Promise<boolean> {
+    const r = await this.sql`SELECT 1 FROM promoter WHERE code = ${code} LIMIT 1`;
+    return r.length > 0;
+  }
+
+  /** 유니크 코드 자동생성 — 전화 뒷4자리, 충돌 시 앞에 'A' 누적 (A0572, AA0572 …) */
+  async generateUniqueCode(phone: string): Promise<string> {
+    const digits = (phone ?? '').replace(/\D/g, '');
+    let code = digits.slice(-4) || `S${digits.slice(-3)}`;
+    let guard = 0;
+    while ((await this.codeExists(code)) && guard < 30) {
+      code = `A${code}`;
+      guard++;
+    }
+    return code;
+  }
+
+  /** 전화번호로 사주플랜 회원 이름 조회 (신청 폼 자동입력용). 없으면 null. */
+  async findMemberNameByPhone(phone: string): Promise<string | null> {
+    const d = (phone ?? '').replace(/\D/g, '');
+    if (!d) return null;
+    const r = await this.sql<{ name: string | null }[]>`
+      SELECT name FROM member
+       WHERE REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') = ${d}
+       ORDER BY id LIMIT 1
+    `;
+    return r[0]?.name ?? null;
+  }
+
+  /** 전화번호로 모집인 조회 (상태 분기용) */
+  async getPromoterByPhone(phone: string): Promise<{ id: number; status: string; is_active: boolean } | null> {
+    const d = (phone ?? '').replace(/\D/g, '');
+    const r = await this.sql<{ id: number; status: string; is_active: boolean }[]>`
+      SELECT id, status, is_active FROM promoter WHERE phone = ${d} LIMIT 1
+    `;
+    return r[0] ?? null;
+  }
+
+  /** 자가 신청 생성 (status='pending', is_active=false). 코드 자동생성. */
+  async createApplication(args: {
+    phone: string; name: string; bankName?: string; bankAccount?: string; accountHolder?: string;
+  }): Promise<{ id: number }> {
+    const phone = (args.phone ?? '').replace(/\D/g, '');
+    const name = (args.name ?? '').trim().slice(0, 100);
+    if (!/^01[0-9]{8,9}$/.test(phone)) throw new BadRequestException('휴대폰번호 형식이 올바르지 않습니다.');
+    if (!name) throw new BadRequestException('이름을 입력해주세요.');
+    const dup = await this.sql`SELECT 1 FROM promoter WHERE phone = ${phone} LIMIT 1`;
+    if (dup.length > 0) throw new BadRequestException('이미 신청했거나 등록된 번호입니다.');
+    const code = await this.generateUniqueCode(phone);
+    const rows = await this.sql<{ id: number }[]>`
+      INSERT INTO promoter (name, phone, code, bank_name, bank_account, account_holder, is_active, status)
+      VALUES (${name}, ${phone}, ${code}, ${args.bankName ?? null}, ${args.bankAccount ?? null},
+              ${args.accountHolder ?? null}, false, 'pending')
+      RETURNING id
+    `;
+    this.logger.log(`[promoter apply] 신청 id=${rows[0].id} name=${name} code=${code} (pending)`);
+    return { id: rows[0].id };
+  }
+
+  /** 모집인 대시보드 집계 (본인). */
+  async getDashboard(promoterId: number): Promise<{
+    name: string;
+    code: string;
+    expected: number;     // 미정산 기대수익
+    paidTotal: number;    // 정산 완료 누적
+    recruitCount: number; // 모집 인원
+    timeline: { maskedName: string; usedAmount: number; rewardAmount: number; status: string; createdAt: string }[];
+  }> {
+    const p = await this.sql<{ name: string; code: string }[]>`
+      SELECT name, code FROM promoter WHERE id = ${promoterId} LIMIT 1
+    `;
+    const agg = await this.sql<{ expected: string; paid_total: string; recruits: string }[]>`
+      SELECT
+        COALESCE(SUM(reward_amount) FILTER (WHERE status='accrued' AND settlement_id IS NULL), 0)::text AS expected,
+        COALESCE((SELECT SUM(paid_amount) FROM promoter_settlement WHERE promoter_id=${promoterId} AND status='paid'), 0)::text AS paid_total,
+        (SELECT COUNT(*) FROM promoter_referral WHERE promoter_id=${promoterId})::text AS recruits
+      FROM promoter_reward WHERE promoter_id = ${promoterId}
+    `;
+    const tl = await this.sql<{ name: string | null; reward_amount: number; base_paid: number; status: string; created_at: string }[]>`
+      SELECT m.name, r.reward_amount, r.base_paid, r.status, r.created_at
+        FROM promoter_reward r
+        LEFT JOIN member m ON m.id = r.member_id
+       WHERE r.promoter_id = ${promoterId}
+       ORDER BY r.created_at DESC
+       LIMIT 100
+    `;
+    return {
+      name: p[0]?.name ?? '',
+      code: p[0]?.code ?? '',
+      expected: Number(agg[0]?.expected ?? 0),
+      paidTotal: Number(agg[0]?.paid_total ?? 0),
+      recruitCount: Number(agg[0]?.recruits ?? 0),
+      timeline: tl.map((t) => ({
+        maskedName: PromoterCoreService.maskName(t.name),
+        usedAmount: Number(t.base_paid),
+        rewardAmount: Number(t.reward_amount),
+        status: t.status,
+        createdAt: t.created_at,
+      })),
+    };
+  }
+}

@@ -106,6 +106,23 @@ SELECT month, COUNT(*) AS counselors,
  GROUP BY month ORDER BY month DESC;
 ```
 
+## 정산률 안전 fallback (R3, 2026-06-12 수정)
+
+상담 종료 시점 적립(`creditCounselorPointInTx`, `m2net-push.service.ts`)에서 등급 정산률을 못 구하면
+**예전엔 `revenueRate = 1.0`(상담사에게 100% 적립 = 회사 마진 0%)** 으로 떨어졌다.
+등급은 있는데 `setting grade/revenue_rate.<등급>` 이 누락/오류면 곧바로 마진0 사고로 이어지는 구멍.
+
+- 수정: 위험 fallback 제거 → **보수적 안전값 `0.4`(예비등급률) + `logger.error` 경고** 적용.
+  ```ts
+  const SAFE_FALLBACK_REVENUE_RATE = 0.4;
+  let revenueRate: number | null = null; // 등급 setting/royalty 에서 해결
+  if (revenueRate == null || !Number.isFinite(revenueRate) || revenueRate < 0 || revenueRate > 1) {
+    this.logger.error(`[creditCounselorPoint] 정산률 미해결 ... → 안전 기본값 0.4 적용. setting 확인 필요.`);
+    revenueRate = SAFE_FALLBACK_REVENUE_RATE;
+  }
+  ```
+- 효과: 설정 실수가 "전액 적립" 사고로 번지지 않음 + 로그로 운영자 인지. 정상 경로(설정 존재 시)는 영향 없음(정산 회귀 GREEN).
+
 ## 함정
 
 1. **자동 cron 차단 상태** — 지금 정산이 안 도는 것은 정상(의도적). 복구 전 자동 정산 기대 금지.

@@ -66,7 +66,22 @@ export class SettlementCronService {
    * @param mbId     특정 상담사 mb_id 한 명만 (생략 시 전체 level=5).
    */
   async runMonthly(month?: string, testOnly = false, mbId?: string) {
-    const targetMonth = month && /^\d{4}-\d{2}$/.test(month) ? month : this.prevMonthKst();
+    const requestedMonth = month && /^\d{4}-\d{2}$/.test(month) ? month : this.prevMonthKst();
+
+    // [2026-06-14 사장님 지시] 정산 대상월 가드 — "완료된 달(전월 이하)"만 허용.
+    //   진행 중인 이번 달/미래 달을 대상으로 주면, 아직 쌓이는 중인 적립분까지 조기 정산되어
+    //   실제 지급 대상(전월까지)보다 부풀려진 금액이 알림톡으로 나가는 사고가 발생한다(#56 케이스).
+    //   → 마지막으로 끝난 달(전월) 초과 요청은 전월로 클램프. 톡은 정상 발송되되 숫자는 항상 정확.
+    //   YYYY-MM 문자열 비교 = 시간순 비교(사전식)라 안전.
+    const maxAllowedMonth = this.prevMonthKst(); // 마지막으로 마감된 달
+    let targetMonth = requestedMonth;
+    if (targetMonth > maxAllowedMonth) {
+      this.logger.warn(
+        `[settlement] 미완료 월(${requestedMonth}) 정산 요청 차단 → 전월(${maxAllowedMonth})까지로 클램프. ` +
+        `진행 중인 달은 마감 전이라 정산 대상이 아님.`,
+      );
+      targetMonth = maxAllowedMonth;
+    }
     const range = this.monthRange(targetMonth);
 
     // [role/level 정리] level=5 → role='counselor' 로 통일.

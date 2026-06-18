@@ -35,6 +35,12 @@ export class NotificationsController {
     return this.svc.clearPushHistory();
   }
 
+  /** 푸시 발송 이력 단건 삭제 — 관리자 화면 행별 🗑 버튼용. */
+  @Delete('push-history/:id')
+  deletePushHistory(@Param('id', ParseIntPipe) id: number) {
+    return this.svc.deleteOnePushHistory(id);
+  }
+
   /** 푸시 발송: target=all|user|counselor|member_id */
   @Post('push-send')
   pushSend(@Body() body: { target: string; title: string; content?: string; link_url?: string }) {

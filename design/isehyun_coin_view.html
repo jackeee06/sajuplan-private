@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>이세현 회원 코인 화면 (재현)</title>
+<style>
+  :root{ --pink:#ec4899; --primary:#9b7af7; }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  body{background:#F3F4F6; color:#1E2939;
+    font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;}
+  .phone{max-width:600px; margin:0 auto; background:#fff; min-height:100vh;}
+  .banner{background:#FEF3C7; color:#92400E; font-size:12px; text-align:center; padding:7px; line-height:1.5;}
+  .hd{height:60px; display:flex; align-items:center; gap:12px; padding:0 16px; border-bottom:1px solid #F3F4F6; position:sticky; top:0; background:#fff; z-index:10;}
+  .hd .back{width:30px; height:30px; display:flex; align-items:center; justify-content:center; color:#030712; font-size:22px;}
+  .hd h1{font-size:18px; font-weight:600; color:#030712;}
+
+  .balcard{margin:16px; padding:20px; border-radius:16px; background:linear-gradient(135deg,#fdf2f8,#f5f3ff); border:1px solid #F3F4F6;}
+  .balcard .lbl{font-size:14px; color:#99A1AF;}
+  .balcard .amt{font-size:34px; font-weight:800; color:#1E2939; margin-top:4px; letter-spacing:-.5px;}
+  .balcard .amt span{font-size:20px; font-weight:700; color:#6A7282; margin-left:2px;}
+  .balcard .sub{margin-top:8px; font-size:12px; color:#6A7282;}
+  .balcard .sub b{color:var(--pink);}
+  .chargebtn{display:inline-block; margin-top:14px; padding:10px 18px; border-radius:1000px; background:var(--pink); color:#fff; font-size:14px; font-weight:600;}
+
+  .sec{padding:8px 16px 4px; font-size:13px; font-weight:700; color:#6A7282;}
+  .row{display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid #F6F7F8;}
+  .row .left .title{font-size:15px; font-weight:600; color:#1E2939;}
+  .row .left .date{font-size:12px; color:#99A1AF; margin-top:3px;}
+  .row .right{text-align:right;}
+  .row .right .amt{font-size:15px; font-weight:700;}
+  .row .right .amt.in{color:#2563EB;}
+  .row .right .amt.out{color:#9CA3AF;}
+  .row .right .bal{font-size:12px; color:#99A1AF; margin-top:3px;}
+  .note{margin:18px 16px; padding:12px 14px; border-radius:12px; background:#F9FAFB; font-size:12px; color:#6A7282; line-height:1.7;}
+  .note b{color:var(--pink);}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="banner">⚠️ 실제 로그인 화면이 아니라, 이세현(회원ID 184)의 <b>DB 실데이터</b>를 코인 화면 모양으로 재현한 것입니다.</div>
+
+  <div class="hd">
+    <div class="back">‹</div>
+    <h1>코인 내역</h1>
+  </div>
+
+  <div class="balcard">
+    <div class="lbl">보유 코인</div>
+    <div class="amt">16,000<span> 코인</span></div>
+    <div class="sub">무료코인 <b>0</b> + 충전코인 <b>16,000</b></div>
+    <div class="chargebtn">코인 충전</div>
+  </div>
+
+  <div class="sec">전체 내역</div>
+
+  <!-- 최신순 -->
+  <div class="row">
+    <div class="left">
+      <div class="title">코인차감 (전화상담 · 월아신녀)</div>
+      <div class="date">2026.06.12 22:45</div>
+    </div>
+    <div class="right">
+      <div class="amt out">-24,000 코인</div>
+      <div class="bal">잔액 16,000 코인</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="left">
+      <div class="title">코인 충전</div>
+      <div class="date">2026.06.12 21:22</div>
+    </div>
+    <div class="right">
+      <div class="amt in">+30,000 코인</div>
+      <div class="bal">잔액 40,000 코인</div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="left">
+      <div class="title">회원가입 적립 (무료쿠폰)</div>
+      <div class="date">2026.06.12 21:12</div>
+    </div>
+    <div class="right">
+      <div class="amt in">+10,000 코인</div>
+      <div class="bal">잔액 10,000 코인</div>
+    </div>
+  </div>
+
+  <div class="note">
+    가입쿠폰 1만 + 충전 3만 = <b>4만</b> 보유 → 월아신녀와 12분(712초) 통화로 <b>24,000 차감</b> → 현재 <b>16,000</b>.<br>
+    차감은 정상 반영됨. 이세현 앱에 40,000으로 보였다면 <b>앱 화면 캐시</b>이니 재로그인/새로고침 시 16,000으로 바뀝니다.
+  </div>
+</div>
+</body>
+</html>

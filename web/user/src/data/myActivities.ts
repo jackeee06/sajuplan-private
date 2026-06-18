@@ -54,6 +54,8 @@ export interface ConsultHistoryItem {
   /** 후기 작성 라우팅(/mypage/my-reviews/new?consultation_id=N&counselor_id=M)에 필요. */
   consultationId?: number
   counselorId?: number
+  /** 연결 실패 통화(상담사 연결 전 끊김 — 0초·0원·차감 없음). 전화 only. */
+  isFailed?: boolean
 }
 
 export const MOCK_CALL_HISTORY: ConsultHistoryItem[] = [

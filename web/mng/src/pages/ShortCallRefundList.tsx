@@ -103,7 +103,7 @@ export default function ShortCallRefundList() {
       <div>
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">고객보호비용 내역</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          30초 미만 단기 통화 자동 환원 건 — m2net 청구서 대조용
+          30초 미만 단기 통화·채팅 자동 환원 건 — m2net 청구서 대조용
         </p>
       </div>
 
@@ -111,17 +111,17 @@ export default function ShortCallRefundList() {
         <div className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-[14px]">💡 고객보호비용(매몰비용)이란?</div>
         <div className="space-y-1.5">
           <p>
-            30초 미만의 짧은 통화는 회사 정책상 회원에게 자동 환원합니다 — 잘못 누르거나 즉시 끊긴 통화로 회원이 손해보지 않도록 보호하는 정책입니다.
+            30초 미만의 짧은 통화·채팅은 회사 정책상 회원에게 자동 환원합니다 — 잘못 누르거나 즉시 끊긴 상담으로 회원이 손해보지 않도록 보호하는 정책입니다.
           </p>
           <p>
-            회원 잔액(사주플랜·m2net 양쪽)은 통화 전 상태로 복구되고, 상담사 적립은 단가 기준 정상 발생합니다.
-            m2net 측에는 통화 시점 차감액이 그대로 청구되므로, 이 금액은 <strong className="text-gray-900 dark:text-gray-100">사주플랜이 부담하는 회수 불가 비용 (매몰비용)</strong>입니다.
+            회원 잔액은 상담 전 상태로 복구되고, 상담사 적립은 단가 기준(채팅은 30초치 1단위) 정상 발생합니다.
+            m2net 측에는 차감액이 그대로 청구되므로, 회원 환불분 + 상담사 적립분 + m2net 차감액은 <strong className="text-gray-900 dark:text-gray-100">사주플랜이 부담하는 회수 불가 비용 (매몰비용)</strong>입니다.
           </p>
           <p>
             매월 m2net 청구서를 받으실 때 아래 누적 금액 + 개별 건의 callid·csrid·membid 와 1:1 대조하면 회계 정합성을 확인할 수 있습니다.
           </p>
           <p className="text-gray-500 dark:text-gray-400 text-[12px] pt-1 border-t border-amber-200/60 mt-2">
-            정책 시행: 2026-05-21 · 상담사 적립 보존 추가: 2026-05-22
+            정책 시행: 2026-05-21 · 상담사 적립 보존: 2026-05-22 · 채팅 합류(5초→30초): 2026-06-14
           </p>
         </div>
       </div>
@@ -192,7 +192,8 @@ export default function ShortCallRefundList() {
               <tr>
                 <Th align="right">번호</Th>
                 <Th>발생 일시</Th>
-                <Th align="right">통화시간(초)</Th>
+                <Th align="center">구분</Th>
+                <Th align="right">이용시간(초)</Th>
                 <Th align="right">매몰금액</Th>
                 <Th align="right">단가</Th>
                 <Th>상담사</Th>
@@ -206,18 +207,25 @@ export default function ShortCallRefundList() {
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading && (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-sm text-gray-400">불러오는 중…</td>
+                  <td colSpan={12} className="py-8 text-center text-sm text-gray-400">불러오는 중…</td>
                 </tr>
               )}
               {!loading && data && data.items.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-sm text-gray-400">해당 기간에 매몰비용 발생 건 없음</td>
+                  <td colSpan={12} className="py-8 text-center text-sm text-gray-400">해당 기간에 매몰비용 발생 건 없음</td>
                 </tr>
               )}
               {!loading && data && data.items.map((r) => (
                 <tr key={r.id} className="hover:bg-brand-50 dark:hover:bg-brand-500/5 transition-colors">
                   <Td align="right">{r.id}</Td>
                   <Td>{new Date(r.created_at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'medium' })}</Td>
+                  <Td align="center">
+                    {/^END_CHAT/.test(r.reason) ? (
+                      <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-pink-50 text-pink-600 dark:bg-pink-500/10">채팅</span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-sky-50 text-sky-600 dark:bg-sky-500/10">통화</span>
+                    )}
+                  </Td>
                   <Td align="right">{r.usetm}</Td>
                   <Td align="right" className="text-amber-700 font-medium">{won.format(r.refunded_amount)}</Td>
                   <Td align="right">{r.unit_cost_snapshot !== null ? won.format(r.unit_cost_snapshot) : '—'}</Td>

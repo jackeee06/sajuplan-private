@@ -25,7 +25,9 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { UserCounselorMypageGradeModule } from './counselor-mypage-grade/counselor-mypage-grade.module';
 import { UserCounselorMypagePayoutModule } from './counselor-mypage-payout/counselor-mypage-payout.module';
 import { CounselorMypageMemoModule } from './counselor-mypage-memo/counselor-mypage-memo.module';
+import { CounselorMypageInquiryModule } from './counselor-mypage-inquiry/counselor-mypage-inquiry.module';
 import { AppVersionModule } from './app-version/app-version.module';
+import { UserPopupsModule } from './popups/popups.module';
 
 @Module({
   imports: [
@@ -55,7 +57,9 @@ import { AppVersionModule } from './app-version/app-version.module';
     UserCounselorMypageGradeModule,
     UserCounselorMypagePayoutModule,
     CounselorMypageMemoModule,
+    CounselorMypageInquiryModule,
     AppVersionModule,
+    UserPopupsModule,
   ],
 })
 export class UserModule {}

@@ -9,9 +9,10 @@ interface NoticePayload {
   title: string
   category: string
   is_pinned: boolean
+  is_secret: boolean
 }
 
-const empty = (): NoticePayload => ({ title: '', category: '', is_pinned: false })
+const empty = (): NoticePayload => ({ title: '', category: '', is_pinned: false, is_secret: false })
 
 export default function NoticeForm() {
   const { id } = useParams<{ id: string }>()
@@ -32,12 +33,13 @@ export default function NoticeForm() {
   useEffect(() => {
     if (isNew) return
     setLoading(true)
-    api<{ id: number; title: string; content: string | null; category: string | null; is_pinned: boolean }>(`/admin/notices/${id}`)
+    api<{ id: number; title: string; content: string | null; category: string | null; is_pinned: boolean; is_secret: boolean }>(`/admin/notices/${id}`)
       .then((r) => {
         setData({
           title: r.title ?? '',
           category: r.category ?? '',
           is_pinned: Boolean(r.is_pinned),
+          is_secret: Boolean(r.is_secret),
         })
         setInitialContent(r.content ?? '')
         setPublicUrl(buildPublicUrl(Number(id)))
@@ -159,6 +161,15 @@ export default function NoticeForm() {
                 <label className="inline-flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={data.is_pinned} onChange={(e) => set('is_pinned', e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
                   <span className="text-sm text-gray-700 dark:text-gray-300">{data.is_pinned ? '고정' : '일반'}</span>
+                </label>
+              </td>
+            </tr>
+            <tr>
+              <th className="text-left align-middle px-4 py-3 font-medium bg-gray-50 dark:bg-gray-800/50">비공개(임시저장)</th>
+              <td className="px-4 py-3">
+                <label className="inline-flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={data.is_secret} onChange={(e) => set('is_secret', e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+                  <span className="text-sm text-gray-700 dark:text-gray-300">{data.is_secret ? '비공개 (사용자에게 안 보임)' : '공개'}</span>
                 </label>
               </td>
             </tr>

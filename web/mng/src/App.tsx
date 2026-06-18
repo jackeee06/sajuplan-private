@@ -34,6 +34,7 @@ import PaymentDetail from './pages/PaymentDetail'
 import PaymentList from './pages/PaymentList'
 import PointHistoryList from './pages/PointHistoryList'
 import PostList from './pages/PostList'
+import CounselorInquiryList from './pages/CounselorInquiryList'
 import PostReports from './pages/PostReports'
 import ReviewReports from './pages/ReviewReports'
 import Attendance from './pages/Attendance'
@@ -50,6 +51,7 @@ import AlimtalkBulk from './pages/AlimtalkBulk'
 import PostsOverview from './pages/PostsOverview'
 import PopupLayerForm from './pages/PopupLayerForm'
 import PushNotifications from './pages/PushNotifications'
+import AlertLogList from './pages/AlertLogList'
 import PushGuide from './pages/PushGuide'
 import AlertGuide from './pages/AlertGuide'
 import CouponCoinGuide from './pages/CouponCoinGuide'
@@ -65,6 +67,8 @@ import InfraInfo from './pages/InfraInfo'
 import AdminHandbookAI from './pages/AdminHandbookAI'
 import AdminHandbookConfig from './pages/AdminHandbookConfig'
 import StatsOverview from './pages/StatsOverview'
+import PromoterList from './pages/PromoterList'
+import PromoterForm from './pages/PromoterForm'
 
 /**
  * 라우트 변경 시 페이지 상단으로 자동 스크롤.
@@ -133,6 +137,11 @@ export default function App() {
               <Route path="/members/counselor-apply" element={<CounselorApplyList />} />
               <Route path="/members/counselor-apply/:id" element={<CounselorApplyDetail />} />
 
+              {/* 모집인(서포터즈) 관리·정산 */}
+              <Route path="/promoters" element={<PromoterList />} />
+              <Route path="/promoters/new" element={<PromoterForm />} />
+              <Route path="/promoters/:id" element={<PromoterForm />} />
+
               {/* 매출현황 */}
               <Route path="/consultations" element={<ConsultationList />} />
               <Route path="/consultations/:id" element={<ConsultationDetail />} />
@@ -179,6 +188,7 @@ export default function App() {
               <Route path="/push-notifications" element={<PushNotifications />} />
               <Route path="/push-guide" element={<PushGuide />} />
               <Route path="/alert-guide" element={<AlertGuide />} />
+              <Route path="/alert-logs" element={<AlertLogList />} />
               <Route path="/coupon-coin-guide" element={<CouponCoinGuide />} />
               <Route path="/alimtalk-templates" element={<AlimtalkTemplates />} />
 
@@ -196,6 +206,7 @@ export default function App() {
 
               {/* 게시판 통합 (review/wish/wish_event/qa/qa_counselor) */}
               <Route path="/posts/:slug" element={<PostList />} />
+              <Route path="/counselor-inquiries" element={<CounselorInquiryList />} />
 
               {/* 후기 신고 관리 (2026-05-15 신설) */}
               <Route path="/review-reports" element={<ReviewReports />} />

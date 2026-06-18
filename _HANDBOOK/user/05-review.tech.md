@@ -41,7 +41,11 @@ post_review_report (review_id, reporter_member_id, reason_category, reason)
 ## createMine — 작성 검증 순서 (reviews.service.ts)
 
 1. title/content trim 비면 400. `counselor_id` 없으면 400.
-2. `consultation_id` 없으면 → **400** "상담 내역이 있어야 후기를 작성할 수 있습니다".
+2. `consultation_id` 없으면 → **자동 해석(2026-06-14)**: `counselor_id` 기준으로 이 회원의 "후기 가능 상담"(본인·종료·`usetm>=300`·7일 이내·미작성) 중 **가장 최근 1건**을 찾아 `input.consultation_id` 에 채운다.
+   - 상담사 상세 "후기 작성하기"(consultation_id 없이 진입) 경로 구제 — 폼 다 채우고 "상담 내역이 있어야…" 로 막히던 UX 버그 수정.
+   - 찾은 id 는 아래 3~ 의 기존 검증을 그대로 통과(이중 안전).
+   - `counselor_id` 도 없으면 → **400** "상담 내역이 있어야 후기를 작성할 수 있습니다".
+   - 후보 0건 → **400** "후기를 작성할 수 있는 상담 내역이 없습니다. (5분 이상…7일 이내…)".
 3. `consultation` 조회:
    - 없음(가짜/남의 id) → **404** "상담 내역을 찾을 수 없습니다".
    - `member_id !== memberId` → **403** "본인의 상담만…".
@@ -139,3 +143,28 @@ GROUP BY 1 HAVING COUNT(*) > 1;
 -- 베스트 후기 코인 지급 이력
 SELECT * FROM point_history WHERE rel_action LIKE 'review_best:%';
 ```
+
+---
+
+## 후기 시스템 변경 (2026-06-12)
+
+### 후기 카드 클릭 폐지 + 더미 상세 폐기
+- 후기는 전부 공개 + 리스트에 **전문 노출** → 상세 페이지 불필요로 정리.
+- 후기 카드 `<Link to=/reviews/:id>` → `<div>` (클릭 비활성). 신고 버튼만 동작. `line-clamp-3` 제거(전문 노출). 파일: `CounselorReviewsTab.tsx`.
+- `/reviews` 전체목록(`Reviews.tsx` = `MOCK_REVIEWS` 더미) + `ReviewDetail.tsx`(어떤 후기 눌러도 `?? MOCK_REVIEWS[0]` 고정 표시 버그) + `/reviews/:id` 라우트 **폐기**. 죽은 `CounselorReviews.tsx` 삭제.
+- 홈 "후기 더보기": 별도 더미 페이지 이동 → 상담사 탭과 동일 **인-페이지 누적**(`visibleReviewCount`). `Home.tsx`.
+
+### 관리자 시딩(가짜) 후기  → 메모리 [[project-seed-reviews]]
+- `POST /api/admin/posts/reviews/seed` — 일반 작성 검증(consultation/5분/7일/본인/1상담1후기) 전부 우회 + **회원 코인·상담사 알림 미발송**(review_count만 증가) + `extras._seed=true` 박제.
+- 가짜 회원 안 만듦: `member_id`/`mb_id`=NULL, 표시명은 `extras._seed_name`. 조회 시 `seedReviewerName()` 가 displayReviewer 보다 우선.
+- `created_at` 과거 지정 가능 → 후기 정렬(created_at DESC)상 그 시점에 배치.
+- mng `PostList` 우상단 "+ 시딩 후기 작성" → `SeedReviewModal`(상담사 검색·그리드 / 이름 자동생성 / 작성일 빠른선택 칩). 목록 작성자 칸 indigo "시딩" 뱃지 + `_seed_name`.
+- 상담사 합의 + 법적 인지 완료. **별점(rating)은 사주플랜 미사용 필드**라 시딩 모달·관리자목록에서 제외.
+
+### 관리자 후기 수정 + 시딩 '익명' 버그
+- `PATCH /api/admin/posts/reviews/:id/edit` (`reviews.service.adminUpdate`). 서버가 `extras._seed` 로 판별 → **시딩=제목·내용·작성자명·작성일 전부 / 진짜=제목·내용만**(고객 글 조작 방지).
+- mng 후기 상세 모달 [수정] → `ReviewEditModal`. 상세 모달이 시딩 작성자를 "익명" 표시하던 버그 수정(`extras._seed_name`).
+
+### 후기 개수(review_count) drift 수정
+- 후기 **삭제 시 review_count 캐시 미갱신** → 탭 "후기(N)"(post_counselor.review_count 캐시) ≠ "전체 N건"(byCounselor 실시간 COUNT) 불일치.
+- `posts.service.remove` 에 삭제 후 review_count 재계산 추가 + prod 일괄 보정. 검증 E2E `54-review-count-no-drift`.

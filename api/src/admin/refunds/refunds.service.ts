@@ -11,6 +11,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
+import { PromoterCoreService } from '../../shared/promoter/promoter-core.service';
 
 /**
  * 어드민 — 상담 환불 처리 (Phase 10).
@@ -35,7 +36,10 @@ import { SQL, type Sql } from '../../shared/db/db.module';
  */
 @Injectable()
 export class AdminRefundsService {
-  constructor(@Inject(SQL) private readonly sql: Sql) {}
+  constructor(
+    @Inject(SQL) private readonly sql: Sql,
+    private readonly promoter: PromoterCoreService,
+  ) {}
 
   /**
    * 환불 생성 + 즉시 승인 + 포인트 환원 — 단일 트랜잭션.
@@ -106,11 +110,12 @@ export class AdminRefundsService {
         throw new BadRequestException('회원 ID 없는 상담은 환불 불가 (전화 매칭 누락 건).');
       }
 
-      // 단기통화 자동환불(2026-05-22 정책)된 건은 수동 환불 불가 — 이미 회원 잔액 복구 완료.
-      // m2net 측에도 +복구되어 있어 재환불 시 이중 환불 사고 발생.
-      if (cs.refund_status === 'short_call_refund') {
+      // 단기통화/단기채팅 자동환불(통화 2026-05-22 / 채팅 2026-06-14)된 건은 수동 환불 불가
+      //  — 이미 회원 잔액 복구 완료. 재환불 시 이중 환불 사고 발생.
+      if (cs.refund_status === 'short_call_refund' || cs.refund_status === 'short_chat_refund') {
+        const kind = cs.refund_status === 'short_chat_refund' ? '단기채팅' : '단기통화';
         throw new BadRequestException(
-          '이미 단기통화 자동환불 처리된 상담입니다. 회원 잔액·m2net 잔액 모두 복구 완료 상태로, 수동 환불 불가.',
+          `이미 ${kind} 자동환불 처리된 상담입니다. 회원 잔액 복구 완료 상태로, 수동 환불 불가.`,
         );
       }
 
@@ -201,6 +206,13 @@ export class AdminRefundsService {
                refund_status = ${newStatus}
          WHERE id = ${consultationId}
       `;
+
+      // 모집인(서포터즈) 보상 차감 — 이 상담이 전액 환불되면 적립도 void.
+      //   회사가 회원에게 돈을 돌려줬으므로 모집인 보상 근거 소멸. 미정산분만 void(정산된 건은 다음 정산 이월 상계).
+      //   부분 환불은 MVP 에서 유지(추후 비례 차감 검토). point/earning 과 무관한 별도 원장.
+      if (newStatus === 'full') {
+        await this.promoter.voidBySource(tx, 'consultation', consultationId);
+      }
 
       // 8. refund_request INSERT — 이력 기록
       const rrRow = await tx<{ id: number }[]>`

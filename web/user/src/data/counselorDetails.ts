@@ -43,6 +43,8 @@ export interface CounselorDetailData {
   qnaTotal: string
   /** 전속파트너 여부 */
   isExclusive: boolean
+  /** 부재(둘 다 off, state ABSE/RESV) — 하단 CTA 를 "상담요청하기" 로 대체 (2026-06-17). mock 은 생략(undefined=활성) */
+  isOffline?: boolean
 }
 
 /* ─────────── 상담사 mock ─────────── */

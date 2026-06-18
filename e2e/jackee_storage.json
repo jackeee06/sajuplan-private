@@ -1,0 +1,15 @@
+{
+  "cookies": [
+    {
+      "name": "sjm_user",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5MSIsIm1iX2lkIjoiamFja2VlIiwicm9sZSI6ImNvdW5zZWxvciIsImxldmVsIjo1LCJpYXQiOjE3ODA4MjYwMjQsImV4cCI6MTc4MjAzNTYyNCwiaXNzIjoic2FqdW1vb24tdXNlciJ9.7_stMcdgSrRkulXbghFvt8oprnReaQOl7J3B_0t-kw0",
+      "domain": ".sajuplan.com",
+      "path": "/",
+      "expires": 1782035630.718314,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    }
+  ],
+  "origins": []
+}

@@ -181,14 +181,17 @@ export class BoardOpsService {
       (p) => p.rank >= 1 && p.rank <= 20 && typeof p.keyword === 'string' && p.keyword.trim() !== '',
     ).map((p) => ({ rank: p.rank, keyword: p.keyword.trim() }));
 
-    // 기존 전체 삭제 후 재삽입 (단순 upsert)
-    await this.sql`DELETE FROM search_keyword_pin`;
-    if (valid.length > 0) {
-      await this.sql`
-        INSERT INTO search_keyword_pin ${this.sql(valid, 'rank', 'keyword')}
-        ON CONFLICT (rank) DO UPDATE SET keyword = EXCLUDED.keyword, updated_at = now()
-      `;
-    }
+    // [2026-06-12] 전체 교체를 단일 트랜잭션으로 — DELETE 후 INSERT 사이 실패/동시 저장 시
+    //   핀이 빈 상태로 남던 race 방지.
+    await this.sql.begin(async (tx) => {
+      await tx`DELETE FROM search_keyword_pin`;
+      if (valid.length > 0) {
+        await tx`
+          INSERT INTO search_keyword_pin ${tx(valid, 'rank', 'keyword')}
+          ON CONFLICT (rank) DO UPDATE SET keyword = EXCLUDED.keyword, updated_at = now()
+        `;
+      }
+    });
     return { ok: true, saved: valid.length };
   }
 

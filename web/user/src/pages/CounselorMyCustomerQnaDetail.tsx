@@ -8,6 +8,8 @@ import {
   counselorCustomerQnaApi,
   type CounselorCustomerQnaDetailDto,
 } from '../lib/api'
+import { useConfirm } from '../lib/use-confirm'
+import { useAlert } from '../lib/use-alert'
 
 /**
  * 08마이페이지_상담사_고객 문의 관리 (상세)
@@ -43,6 +45,8 @@ export default function CounselorMyCustomerQnaDetail() {
   const [editing, setEditing] = useState(false)
   const [editDraft, setEditDraft] = useState('')
   const [editSubmitting, setEditSubmitting] = useState(false)
+  const { confirm, confirmUI } = useConfirm()
+  const { showAlert, alertUI } = useAlert()
   const [editError, setEditError] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
 
@@ -96,12 +100,12 @@ export default function CounselorMyCustomerQnaDetail() {
   const onDelete = async () => {
     if (!id) return
     setMenuOpen(false)
-    if (!window.confirm('답변을 삭제하시겠어요?')) return
+    if (!(await confirm({ message: '답변을 삭제하시겠어요?', actionLabel: '삭제', tone: 'danger' }))) return
     try {
       await counselorCustomerQnaApi.deleteReply(id)
       loadDetail()
     } catch (e) {
-      alert((e as Error).message || '답변 삭제에 실패했습니다.')
+      void showAlert((e as Error).message || '답변 삭제에 실패했습니다.')
     }
   }
 
@@ -397,6 +401,8 @@ export default function CounselorMyCustomerQnaDetail() {
 
       <FloatingActions bottomOffset={24} />
       <BottomNav myHref="/counselor/mypage" />
+      {confirmUI}
+      {alertUI}
       </div>
   )
 }

@@ -5,6 +5,7 @@ import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
 import { counselorApplyApi, settingsApi, type CounselorApplyListItem } from '../lib/api'
 import { openExternalUrl } from '../lib/native-bridge'
+import { useAlert } from '../lib/use-alert'
 
 const PAGE_SIZE = 10
 
@@ -35,6 +36,7 @@ function formatDate(s: string): string {
  */
 export default function CounselorApply() {
   const navigate = useNavigate()
+  const { showAlert, alertUI } = useAlert()
   const [page, setPage] = useState(1)
   const [items, setItems] = useState<CounselorApplyListItem[]>([])
   const [total, setTotal] = useState(0)
@@ -84,7 +86,7 @@ export default function CounselorApply() {
     if (kakaoChannelUrl) {
       openExternalUrl(kakaoChannelUrl)
     } else {
-      alert('카카오 채널이 설정되지 않았습니다. 운영자에게 문의해주세요.')
+      void showAlert('카카오 채널이 설정되지 않았습니다. 운영자에게 문의해주세요.')
     }
   }
 
@@ -232,6 +234,7 @@ export default function CounselorApply() {
 
       <FloatingActions bottomOffset={100} />
       <BottomNav />
+      {alertUI}
     </div>
   )
 }

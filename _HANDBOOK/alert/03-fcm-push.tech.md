@@ -19,8 +19,8 @@
 | 파일 | 역할 |
 |---|---|
 | `api/src/shared/push/push.service.ts` | FCM Admin SDK 래퍼 — sendToTokens, sendToTopic, subscribeToTopic, unsubscribeFromTopic |
-| `mobile/src/fcm.ts` | RN 앱 FCM 처리 — 토큰 발급·등록, 포그라운드 메시지, 딥링크 핸들러 |
-| `mobile/App.tsx` | initFcm 호출, onForegroundMessage 인앱 배너, onNotificationOpen 딥링크 |
+| `mobile/src/fcm.ts` | RN 앱 FCM 처리 — 토큰 발급·등록, 포그라운드 메시지, 앱 이동 핸들러 |
+| `mobile/App.tsx` | initFcm 호출, onForegroundMessage 인앱 배너, onNotificationOpen 앱 이동 |
 | `api/src/user/auth/auth.service.ts` | 로그인/로그아웃 시 토픽 구독 토글 (updatePushTopics) |
 | `api/src/admin/notifications/notifications.service.ts` | 관리자 일괄 발송 + push-test 엔드포인트 |
 
@@ -117,12 +117,12 @@ push.sendToTokens(memberTokens, {
 | 필드 | 용도 | 예시 |
 |---|---|---|
 | `type` | 이벤트 종류 식별 | `chat_request`, `counselor_request`, `qa_ask`, `grade_upgraded` |
-| `event_url` | 딥링크 (최우선) | `/chat/123`, `/counselor/mypage/grade` |
-| `link` | 딥링크 (event_url 없을 때 폴백) | `/mypage` |
+| `event_url` | 이동 경로 (최우선) | `/chat/123`, `/counselor/mypage/grade` |
+| `link` | 이동 경로 (event_url 없을 때 폴백) | `/mypage` |
 | `counselor_id` | 수신자 상담사 ID | `'91'` |
 | `chat_room_id` | 채팅방 ID (chat_request 한정) | `'456'` |
 
-> **딥링크 키 우선순위** (mobile/src/fcm.ts `extractDeepLink`):
+> **이동 경로 키 우선순위** (mobile/src/fcm.ts `extractDeepLink`):
 > `event_url` → `url` → `link` → `target_url` → `move_url` → `landing_url` → `path` → `deeplink`
 > 서버 표준은 `event_url` 사용. 없으면 `link` 폴백.
 
@@ -152,7 +152,7 @@ push.sendToTokens(memberTokens, {
         └── extractDeepLink → cb(url) → App.tsx navigateWebView(url)
 ```
 
-> ✅ **딥링크 완전 구현됨** (2026-06-10 App.tsx 확인). 앱 어떤 상태에서든 알림 탭 → 해당 화면 자동 이동.
+> ✅ **앱 이동(푸시/FCM 방식) 완전 구현됨 — 안드로이드·iOS 모두 정상 등록.** 앱 어떤 상태에서든 알림 탭 → 해당 화면 자동 이동. 카카오 알림톡 클릭 → 앱 꺼져 있어도 켜지고 정확한 페이지로 이동. BizM·서버·사주플랜 코드 변경 0 (정상). 일부 아이폰 에러 제보는 그 단말의 앱 미설치/구버전 등 환경 가능성 (단정 금지).
 
 ---
 

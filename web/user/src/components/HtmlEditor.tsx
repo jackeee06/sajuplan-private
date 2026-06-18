@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 import { Editor } from '@toast-ui/react-editor'
 import '@toast-ui/editor/dist/toastui-editor.css'
 import { API_BASE, FILE_BASE } from '../lib/runtime-env'
+import { useAlert } from '../lib/use-alert'
 
 export interface HtmlEditorHandle {
   getHTML(): string
@@ -37,6 +38,7 @@ const HtmlEditor = forwardRef<HtmlEditorHandle, Props>(function HtmlEditor(
   ref,
 ) {
   const editorRef = useRef<Editor>(null)
+  const { showAlert, alertUI } = useAlert()
 
   useImperativeHandle(ref, () => ({
     getHTML: () => editorRef.current?.getInstance().getHTML() ?? '',
@@ -52,6 +54,7 @@ const HtmlEditor = forwardRef<HtmlEditorHandle, Props>(function HtmlEditor(
   }, [initialHtml])
 
   return (
+   <>
     <Editor
       ref={editorRef}
       initialValue={initialHtml || ' '}
@@ -84,11 +87,13 @@ const HtmlEditor = forwardRef<HtmlEditorHandle, Props>(function HtmlEditor(
             const url = raw.startsWith('http') ? raw : `${FILE_BASE}${raw}`
             callback(url, '')
           } catch (e) {
-            window.alert(e instanceof Error ? e.message : '이미지 업로드 실패')
+            void showAlert(e instanceof Error ? e.message : '이미지 업로드 실패')
           }
         },
       }}
     />
+    {alertUI}
+   </>
   )
 })
 

@@ -6,6 +6,7 @@ import CounselorCard from '../components/CounselorCard'
 import CounselorIncomingBanner from '../components/CounselorIncomingBanner'
 import FavoriteCounselorBanner from '../components/FavoriteCounselorBanner'
 import MaintenanceBanner from '../components/MaintenanceBanner'
+import PopupLayer from '../components/PopupLayer'
 import NotificationGreetBanner from '../components/NotificationGreetBanner'
 import ReviewCardMain from '../components/ReviewCardMain'
 import UploadedImage from '../components/UploadedImage'
@@ -35,6 +36,17 @@ type ChipTab = '전체' | '사주' | '타로' | '신점'
 const CHIPS: ChipTab[] = ['전체', '사주', '타로', '신점']
 
 // 카드 매핑 + state 도출은 src/lib/counselor-mapper.ts 에 통합. 모든 리스트 페이지가 같은 헬퍼 사용.
+
+/** 홈 상담사/후기 리스트 초기 노출 수(2026-06-12: 13→20). 데이터는 이미 클라에 다 받아둔 상태라 늘려도 비용 0. */
+const INITIAL_VISIBLE = 20
+/** "더보기" 펼침 상태를 (탭,칩)별로 sessionStorage 에 기억 — 다른 페이지 갔다 와도 펼침 유지. */
+const expandKey = (tab: string, chip: string) => `home_expand_${tab}_${chip}`
+const isExpanded = (tab: string, chip: string) => {
+  try { return sessionStorage.getItem(expandKey(tab, chip)) === '1' } catch { return false }
+}
+const markExpanded = (tab: string, chip: string) => {
+  try { sessionStorage.setItem(expandKey(tab, chip), '1') } catch { /* private mode 등 무시 */ }
+}
 
 /**
  * 홈(메인) — Figma 1:1269 (02홈_메인)
@@ -72,10 +84,12 @@ export default function Home() {
   const [reviews, setReviews] = useState<PublicRecentReview[]>([])
   const [loading, setLoading] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
-  // 2026-05-22: "상담사 더보기" 누르면 별도 페이지 이동 X, 같은 자리에 +N명 추가.
-  //   백엔드에서 한 번에 limit=50 받아두고 클라이언트에서 visibleCount 만큼 표시.
-  //   탭/칩 바뀌면 다시 INITIAL_VISIBLE 로 리셋.
-  const [visibleCount, setVisibleCount] = useState(13)
+  // 2026-05-22: "상담사 더보기" 누르면 별도 페이지 이동 X, 같은 자리에 전체 펼침.
+  //   백엔드에서 한 번에 받아두고 클라이언트에서 visibleCount 만큼 표시.
+  //   탭/칩 바뀌면 INITIAL_VISIBLE 로 리셋. 단, 같은 (탭,칩)을 펼친 적 있으면 재진입 시 복원(2026-06-12).
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
+  // 후기 탭 "더보기"도 상담사 탭과 동일 — 별도 페이지 이동 X, 같은 자리에 펼친다(2026-06-12).
+  const [visibleReviewCount, setVisibleReviewCount] = useState(INITIAL_VISIBLE)
   // 메인 통계 — 어드민 dashboard 와 같은 데이터 소스 (consultation, member)
   const [stats, setStats] = useState<{ recent: number; online: number }>({
     recent: 0,
@@ -142,11 +156,13 @@ export default function Home() {
 
     if (tab === 'review') {
       reviewsApi
-        .recent({ category, limit: 13 })
+        .recent({ category, limit: 50 })
         .then((r) => {
           if (alive) {
             setReviews(r.items)
             setCounselors([])
+            // 같은 (review,칩) 을 펼친 적 있으면 복원, 아니면 초기값
+            setVisibleReviewCount(isExpanded('review', chip) ? r.items.length : INITIAL_VISIBLE)
           }
         })
         .catch((e) => {
@@ -162,7 +178,8 @@ export default function Home() {
           if (alive) {
             setCounselors(r.items)
             setReviews([])
-            setVisibleCount(13)
+            // 같은 (탭,칩) 을 펼친 적 있으면 복원, 아니면 초기값
+            setVisibleCount(isExpanded(tab, chip) ? r.items.length : INITIAL_VISIBLE)
           }
         })
         .catch((e) => {
@@ -205,6 +222,9 @@ export default function Home() {
 
       {/* 점검 안내 배너 — 어드민 설정 ON 시 모든 사용자에게 노출 (단골 배너보다 위, 긴급도 우선) */}
       <MaintenanceBanner />
+
+      {/* [2026-06-12] 공지 팝업 레이어 — 회원/전체 대상(홈) */}
+      <PopupLayer area="home" />
 
       {/* 새 알림 "마중" 배너 — 안 읽은 알림 N개 안내 (시안1 보라 그라데이션). 점검 다음 우선순위 */}
       <NotificationGreetBanner />
@@ -270,7 +290,7 @@ export default function Home() {
           )}
           {!loading && !listError && tab === 'review' && (
             reviews.length > 0 ? (
-              reviews.map((r) => <ReviewCardMain key={r.id} review={r} />)
+              reviews.slice(0, visibleReviewCount).map((r) => <ReviewCardMain key={r.id} review={r} />)
             ) : (
               <p className="text-center text-[13px] text-[#99A1AF] py-10">
                 아직 등록된 후기가 없습니다.
@@ -291,19 +311,20 @@ export default function Home() {
         </section>
 
         {/* 더보기 — 2026-05-22 누적 패턴.
-            - 후기 탭: /reviews 페이지로 (그대로)
+            - 후기 탭: 인-페이지 누적(상담사 탭과 동일). 별도 페이지(/reviews 더미) 이동 폐기(2026-06-12).
             - 상담사 탭: 인-페이지 누적 +13명. 끝까지 가면 /counselors (필터 옵션) 안내. */}
-        {!loading && tab === 'review' && (
+        {!loading && !listError && tab === 'review' && visibleReviewCount < reviews.length && (
           <div className="flex justify-center pt-2 pb-4">
-            <Link
-              to="/reviews"
+            <button
+              type="button"
+              onClick={() => { setVisibleReviewCount(reviews.length); markExpanded('review', chip) }}
               className="inline-flex items-center gap-1 h-10 px-5 rounded-full border border-[#E5E7EB] bg-white text-[14px] text-[#364153] font-medium"
             >
               후기 더보기
               <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 fill-[#364153]">
                 <path d="M5.7 3.3a1 1 0 0 0 0 1.4L9 8l-3.3 3.3a1 1 0 0 0 1.4 1.4l4-4a1 1 0 0 0 0-1.4l-4-4a1 1 0 0 0-1.4 0z" />
               </svg>
-            </Link>
+            </button>
           </div>
         )}
         {/* 상담사 탭 더보기 — 누적 +N명. 모두 노출되면 안내 박스 사라지고 푸터로 자연스럽게 이어진다.
@@ -313,7 +334,7 @@ export default function Home() {
           <div className="px-4 pt-3 pb-4">
             <button
               type="button"
-              onClick={() => setVisibleCount(counselors.length)}
+              onClick={() => { setVisibleCount(counselors.length); markExpanded(tab, chip) }}
               className="w-full h-14 rounded-2xl border border-[#f472b6] bg-white text-[16px] text-[#ec4899] font-semibold flex items-center justify-center gap-2 hover:bg-[#fdf2f8] transition shadow-[0_2px_8px_rgba(244,114,182,0.12)]"
             >
               <span>더보기</span>
@@ -534,10 +555,12 @@ function BannerSlider() {
             )
           }
           if (/^https?:\/\//.test(b.link_url)) {
+            // [2026-06-12] target=_blank 는 RN WebView 에서 미작동(앱 내 배너 클릭 먹통) →
+            //   openExternalUrl 로 외부 브라우저/시스템 처리 (웹에서도 정상 새창).
             return (
-              <a key={b.id} href={b.link_url} target="_blank" rel="noopener noreferrer" className="w-full h-full shrink-0 block" aria-label={`배너 ${i + 1}`} draggable={false}>
+              <button key={b.id} type="button" onClick={() => openExternalUrl(b.link_url!)} className="w-full h-full shrink-0 block" aria-label={`배너 ${i + 1}`}>
                 {img}
-              </a>
+              </button>
             )
           }
           return (

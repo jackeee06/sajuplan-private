@@ -375,6 +375,12 @@ export interface ConsultLog {
   endedAt: string
   /** 채팅만 사용 — 과금 포인트 */
   pointPaid?: number
+  /** 상담사 수익(원) — 이 상담으로 번 net 수익 */
+  earning?: number
+  /** 상대(회원) 프로필 이미지 — /uploads/... 상대경로 */
+  avatar?: string | null
+  /** 상담 시간(초) — 간략 표기 계산용 */
+  usetmSeconds?: number
   reviewStatus: ReviewStatus
   /** 후기 답변을 이미 작성했는지 — true면 "작성한 후기 답변 보기" */
   hasReply?: boolean

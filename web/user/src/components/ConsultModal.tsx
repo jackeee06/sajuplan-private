@@ -69,10 +69,10 @@ const CHAT_MINUTE_OPTIONS_PUBLIC: Array<{ min: number; tag?: string }> = [
 const POSTPAID_ENABLED = false
 
 /** [2026-05-29] 1분 테스트 옵션 노출 정책.
- *  현재: 모든 사용자에게 노출 (다수가 테스트 진행 중 — 사장님 결정 2026-05-29 v2).
- *  운영 시작 시: SHOW_TEST_MINUTE_TO_ALL = false 로 + 옵션 자체 제거.
+ *  [2026-06-14] 사장님 지시로 OFF — 1분 테스트 옵션 전체 숨김 (실사용 시작).
+ *  필요 시 특정 mb_id 만 보이게 하려면 CHAT_TEST_MB_IDS 에 추가.
  *  _PREPAID_CHAT_POLICY.md §1.1 참조. */
-const SHOW_TEST_MINUTE_TO_ALL = true
+const SHOW_TEST_MINUTE_TO_ALL = false
 const CHAT_TEST_MB_IDS = new Set<string>([])
 
 export default function ConsultModal({ open, onClose, variant, counselor }: Props) {

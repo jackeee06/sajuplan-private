@@ -58,6 +58,10 @@ export class UserEventsService {
       conds.push(this.sql`ends_at IS NOT NULL AND ends_at < now()`);
     } else if (params.status === 'upcoming') {
       conds.push(this.sql`starts_at IS NOT NULL AND starts_at > now()`);
+    } else {
+      // [2026-06-12] 기본: 미시작(예정/초안) 이벤트는 사용자 목록에서 숨김 (active + ended 만 노출).
+      //   status 미지정 시 전체 반환하던 탓에 시작 전 이벤트가 사용자에게 조기 노출되던 문제 차단.
+      conds.push(this.sql`(starts_at IS NULL OR starts_at <= now())`);
     }
 
     const whereClause =

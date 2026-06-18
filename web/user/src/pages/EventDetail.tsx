@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import { ApiError, eventsApi, type PublicEventDetail } from '../lib/api'
@@ -100,7 +101,7 @@ export default function EventDetail() {
         {ev.content && ev.content.trim() !== '' && (
           <div
             className="mt-4 text-[14px] leading-[160%] text-[#252B36] event-content"
-            dangerouslySetInnerHTML={{ __html: ev.content }}
+            dangerouslySetInnerHTML={{ __html: sanitizeIntroHtml(ev.content ?? '') }}
           />
         )}
 

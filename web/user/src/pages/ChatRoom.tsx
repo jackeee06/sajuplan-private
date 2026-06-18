@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { ApiError, chatApi, counselorGradeApi, type ChatMessage, type ChatRoomDetail } from '../lib/api'
 import { GRADE_UPGRADE_STORAGE_KEY } from '../components/GradeUpgradeToast'
@@ -643,68 +644,50 @@ export default function ChatRoom() {
   useEffect(() => {
     if (chatStatus !== 'active' || !wssEnabled) return
 
-    let bgTimer: number | null = null
-    const BG_GRACE_MS = 5 * 60 * 1000 // 5분
-
-    // 탭/앱 종료 — grace 무시하고 즉시 leave (sendBeacon).
-    // [2026-05-30] STAY 상태(상담사 미입장)에선 즉시 leave 호출 X — autoCancelStaleChats(3분)가 처리.
-    //   refresh / pagehide / beforeunload 가 모두 같은 이벤트로 발화되는데, 사용자가 단순 새로고침한
-    //   경우에도 종료되는 사고가 발생 (사장님 보고 2026-05-30). F 정책(상담사 입장 전 차감 0) 과 일관.
-    const maybeFireEnd = (immediate: boolean) => {
-      if (counselorJoinedRef.current || isMeCounselor) {
-        fireEndRef.current(immediate)
-      }
-      // STAY + 회원 = 종료 호출 안 함. 3분 cron 이 자동 취소.
-    }
-    const onPageHide = () => { flushPendingLeaveImmediate(); maybeFireEnd(true) }
-    const onBeforeUnload = () => { flushPendingLeaveImmediate(); maybeFireEnd(true) }
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        // [2026-05-23] 상담사 미입장(STAY) 상태에서 회원이 다른 화면 이동 시 즉시 soft leave.
-        //   → 백엔드 try_out=TRUE 마킹 → 상담사가 입장해도 use_seconds 누적 차단 →
-        //     회원 모르는 사이 차감되는 사고 차단.
-        //   상담사 입장 후(CNCH)에는 기존 5분 grace 유지 (잠깐 다른 앱 봐도 진행).
-        if (!counselorJoinedRef.current && !isMeCounselor) {
-          const id = chatRoomIdRef.current
-          chatApi.leave(id, 'soft').catch(() => { /* swallow */ })
-        } else {
-          bgTimer = window.setTimeout(() => fireEndRef.current(false), BG_GRACE_MS)
-        }
-      } else if (document.visibilityState === 'visible') {
-        if (bgTimer) {
-          window.clearTimeout(bgTimer)
-          bgTimer = null
-        }
-        // [2026-05-23] STAY 상태에서 visible 복귀 시 rejoin → try_out=FALSE 복원.
-        if (!counselorJoinedRef.current && !isMeCounselor) {
-          const id = chatRoomIdRef.current
-          chatApi.rejoin(id).catch(() => { /* swallow */ })
-        }
-      }
-    }
-
-    // [2026-05-30] RN WebView 에서 visibilitychange 가 발화 안 되는 케이스 보완 안전망.
-    //   사용자가 다른 앱으로 이탈 시 blur 는 발화 가능성 높음 → soft leave 호출.
-    //   거짓 양성 (키보드 포커스 변경) 위험 있지만 soft leave 는 멱등이고
-    //   focus 복귀 시 rejoin 으로 자동 복원되므로 부작용 미미.
-    const onBlur = () => {
-      if (!counselorJoinedRef.current && !isMeCounselor) {
-        const id = chatRoomIdRef.current
+    // [2026-06-17 근본수정] 기존엔 pagehide/beforeunload 마다 leave('close')+즉시 DISCONNECT 라,
+    //   iOS WebView 가 백그라운드(알림·앱전환·화면잠금) 때도 pagehide 를 쏴서 "진행 중 채팅이 즉사"했다.
+    //   (방 89 사고: 상담사가 "성별은요" 보낸 직후 폰 백그라운드 → pagehide → 종료. 회원 10분 남고 끊김.)
+    //   WSS 가 상시 열려 bfcache 가 안 되니 event.persisted 로도 background/close 구분 불가.
+    //   → 모든 이탈(pagehide/blur/visibility-hidden)을 '복구 가능한 soft 이탈'로 바꾸고,
+    //     복귀(pageshow/focus/visible)에서 rejoin 으로 자동 복원한다. 즉시 종료는 명시적 '상담종료' 버튼만.
+    //     진짜 떠난 방(soft 이탈 + N분 무활동)은 백엔드 settleAbandonedChats cron 이 정산.
+    const softLeave = (useBeacon: boolean) => {
+      if (chatStatusRef.current !== 'active' || !wssEnabledRef.current) return
+      const id = chatRoomIdRef.current
+      const body = JSON.stringify({ mode: 'soft' })
+      if (useBeacon && typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
+        try {
+          navigator.sendBeacon(`${API_BASE}/user/chat/rooms/${id}/leave`, new Blob([body], { type: 'application/json' }))
+        } catch { /* swallow */ }
+      } else {
         chatApi.leave(id, 'soft').catch(() => { /* swallow */ })
       }
     }
-    const onFocus = () => {
-      if (!counselorJoinedRef.current && !isMeCounselor) {
-        const id = chatRoomIdRef.current
-        chatApi.rejoin(id).catch(() => { /* swallow */ })
-      }
+    const doRejoin = () => {
+      if (chatStatusRef.current !== 'active') return
+      chatApi.rejoin(chatRoomIdRef.current).catch(() => { /* swallow */ })
     }
+
+    // 탭/앱 이탈 — 즉시 종료(close) 금지. 복구 가능한 soft 이탈만 (beacon 으로 전송 보장).
+    const onPageHide = () => { flushPendingLeaveImmediate(); softLeave(true) }
+    const onBeforeUnload = () => { flushPendingLeaveImmediate(); softLeave(true) }
+    // 백그라운드 ↔ 복귀 = soft 이탈 ↔ rejoin (회원·상담사 양쪽).
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') softLeave(false)
+      else if (document.visibilityState === 'visible') doRejoin()
+    }
+    // [2026-05-30] RN WebView 에서 visibilitychange 안 뜨는 케이스 보완 — blur/focus 폴백.
+    //   거짓양성(앱 전환)도 soft 는 멱등이고 focus 복귀 시 rejoin 으로 자동 복원되어 부작용 미미.
+    const onBlur = () => softLeave(false)
+    const onFocus = () => doRejoin()
+    const onPageShow = () => doRejoin() // bfcache 복귀(지원 브라우저)
 
     window.addEventListener('pagehide', onPageHide)
     window.addEventListener('beforeunload', onBeforeUnload)
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('blur', onBlur)
     window.addEventListener('focus', onFocus)
+    window.addEventListener('pageshow', onPageShow)
 
     return () => {
       window.removeEventListener('pagehide', onPageHide)
@@ -712,7 +695,7 @@ export default function ChatRoom() {
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('blur', onBlur)
       window.removeEventListener('focus', onFocus)
-      if (bgTimer) window.clearTimeout(bgTimer)
+      window.removeEventListener('pageshow', onPageShow)
       // ⚠️ leave 는 호출하지 않는다. Effect B 의 unmount cleanup 이 일괄 처리.
     }
   }, [chatStatus, wssEnabled])
@@ -1507,7 +1490,7 @@ function MessageBody({ m, mine }: { m: DisplayMessage; mine: boolean }) {
     return (
       <div
         className={`text-[16px] leading-[150%] ${textColor} whitespace-pre-line break-words`}
-        dangerouslySetInnerHTML={{ __html: m.text }}
+        dangerouslySetInnerHTML={{ __html: sanitizeIntroHtml(m.text) }}
       />
     )
   }

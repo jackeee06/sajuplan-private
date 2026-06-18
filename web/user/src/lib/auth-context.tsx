@@ -139,6 +139,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refresh()
   }, [location.key, refresh])
 
+  // [2026-06-13] 앱 백그라운드 복귀 시 회원정보(=보유 코인) 자동 갱신.
+  //  - 전화 상담은 앱 밖(통화)에서 진행 → 통화 후 앱 복귀 시 라우트가 안 바뀌면 me() 미갱신 →
+  //    차감된 코인이 헤더/마이페이지에 반영 안 되어 "차감 안 됨" 고객 불만 발생.
+  //  - visibilitychange(visible) + 3초 디바운스로 polling 폭주 없이 즉시 최신화.
+  //  - window 'focus' 는 Android WebView 오발화 잦아 제외(useRefreshOnFocus 와 동일 정책).
+  useEffect(() => {
+    let lastRun = 0
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastRun < 3000) return
+      lastRun = now
+      void refresh()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [refresh])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       member,

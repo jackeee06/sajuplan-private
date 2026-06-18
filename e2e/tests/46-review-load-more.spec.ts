@@ -13,10 +13,24 @@ import { test, expect } from '@playwright/test'
  */
 
 const COUNSELOR_URL = '/counselors/141'
+const COUNSELOR_ID = 141
+const PAGE_SIZE = 20
 
 test.use({ storageState: { cookies: [], origins: [] } })
 
 test.describe('후기 탭 더보기 버튼 — 페이지네이션', () => {
+  // 전제: counselor 141 에 더미 후기 25개(_e2e_loadmore_test) 가 prod 에 존재해야 함.
+  // 이 더미 데이터는 외부(운영/정리 cron)에서 사라질 수 있으므로, 미충족이면
+  // "제품 버그"가 아니라 "테스트 전제 미충족"으로 graceful skip 한다. (2026-06-11)
+  test.beforeEach(async ({ request }) => {
+    const r = await request.get(`https://api.sajuplan.com/api/user/counselors/${COUNSELOR_ID}/reviews?limit=50`)
+    const body = await r.json().catch(() => ({ total: 0 }))
+    const total = Number(body?.total ?? 0)
+    test.skip(
+      total <= PAGE_SIZE,
+      `전제 미충족 — counselor ${COUNSELOR_ID} 후기 ${total}개(>${PAGE_SIZE} 필요). 더미 후기 25개 재시드 필요.`,
+    )
+  })
 
   test('후기 탭에 더보기 버튼이 존재한다 (25개 > PAGE_SIZE 20)', async ({ page }) => {
     await page.goto(COUNSELOR_URL)

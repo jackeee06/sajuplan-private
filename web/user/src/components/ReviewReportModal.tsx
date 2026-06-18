@@ -1,5 +1,6 @@
 ﻿import { useState } from 'react'
 import { ApiError, reviewsApi } from '../lib/api'
+import { useAlert } from '../lib/use-alert'
 
 /**
  * 후기 신고 모달 (2026-05-15 신설).
@@ -30,6 +31,7 @@ export default function ReviewReportModal({ reviewId, open, onClose, onSuccess }
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { showAlert, alertUI } = useAlert()
 
   if (!open) return null
 
@@ -41,12 +43,13 @@ export default function ReviewReportModal({ reviewId, open, onClose, onSuccess }
         reason_category: category,
         reason: reason.trim() || undefined,
       })
-      onSuccess?.()
-      onClose()
       // 입력 초기화 (모달이 재오픈될 때 깨끗이)
       setCategory('abuse')
       setReason('')
-      alert('신고가 접수되었습니다. 검토 후 처리됩니다.')
+      // 모달이 닫히기 전에 인앱 알림을 띄우고, 확인 후 닫는다 (앱 WebView 대응)
+      await showAlert('신고가 접수되었습니다. 검토 후 처리됩니다.')
+      onSuccess?.()
+      onClose()
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.status === 401) setError('신고하려면 로그인이 필요합니다.')
@@ -62,6 +65,7 @@ export default function ReviewReportModal({ reviewId, open, onClose, onSuccess }
   }
 
   return (
+   <>
     <div
       className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center"
       onClick={onClose}
@@ -150,5 +154,7 @@ export default function ReviewReportModal({ reviewId, open, onClose, onSuccess }
         </div>
       </div>
     </div>
+    {alertUI}
+   </>
   )
 }

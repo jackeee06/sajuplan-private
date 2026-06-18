@@ -15,32 +15,42 @@ export function DateRangeChips({
   from,
   to,
   onPick,
+  allowAll = false,
 }: {
   from: string
   to: string
   onPick: (r: { from: string; to: string }) => void
+  /** "전체"(기간 제한 없음) 칩 노출 — 클릭 시 날짜 필터 해제 */
+  allowAll?: boolean
 }) {
   const active = activePresetLabel(from, to)
+  const allActive = allowAll && !from && !to
+  const chipCls = (on: boolean) =>
+    'px-2.5 py-1 text-[12px] rounded-full border transition ' +
+    (on
+      ? 'bg-brand-50 border-brand-300 text-brand-700 font-medium'
+      : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800')
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      {rangePresets.map((p) => {
-        const isActive = active === p.label
-        return (
-          <button
-            key={p.label}
-            type="button"
-            onClick={() => onPick(p.calc())}
-            className={
-              'px-2.5 py-1 text-[12px] rounded-full border transition ' +
-              (isActive
-                ? 'bg-brand-50 border-brand-300 text-brand-700 font-medium'
-                : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800')
-            }
-          >
-            {p.label}
-          </button>
-        )
-      })}
+      {rangePresets.map((p) => (
+        <button
+          key={p.label}
+          type="button"
+          onClick={() => onPick(p.calc())}
+          className={chipCls(active === p.label && !allActive)}
+        >
+          {p.label}
+        </button>
+      ))}
+      {allowAll && (
+        <button
+          type="button"
+          onClick={() => onPick({ from: '', to: '' })}
+          className={chipCls(allActive)}
+        >
+          전체
+        </button>
+      )}
     </div>
   )
 }

@@ -129,6 +129,9 @@ function mapHistoryToLog(r: ApiConsultHistoryItem): ConsultLog {
     startedAt,
     endedAt,
     pointPaid: r.amt,
+    earning: r.earning ?? 0,
+    avatar: r.counselor_avatar,
+    usetmSeconds: r.usetm_seconds,
     reviewStatus: reviewWritten ? '완료' : '대기',
     hasReply: replyWritten,
     reviewId: r.review_id,
@@ -160,87 +163,76 @@ function ChatCard({
   // 종료 판정: 명시적 DISCONNECT 또는 endedAt 값이 채워진 경우. 그 외(STAY/CNCH/null) 모두 진행 중.
   const chatEnded = log.chatStatus === 'DISCONNECT' || (log.endedAt != null && log.endedAt !== '')
   const chatActive = !chatEnded
+  const earning = log.earning ?? 0
+  const avatar = log.avatar || '/img/avatar_default.svg'
+  const timeRange = `${log.startedAt}${log.endedAt ? ` ~ ${shortEnd(log.startedAt, log.endedAt)}` : ''}`
+
+  // 2줄 압축 (2026-06-14). 전화상담내역과 동일 형식 + 휴지통 제거.
+  //  - 1줄: [사진] 회원명 · 채팅 {시간}  ……  {수익}원
+  //  - 2줄: 시간 시작 ~ 끝  ……  채팅보기 · 후기답변 · 메모
   return (
-    <article className="px-4 py-4">
-      <div className="flex items-start">
-        <div className="flex-1">
-          <p className="text-[16px] font-bold text-[#030712]">{log.customerName}</p>
-          <p className="mt-1 text-[13px] text-[#99A1AF]">
-            {log.date} · {log.duration}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onMemo}
-            aria-label="메모"
-            className="w-7 h-7 flex items-center justify-center"
-          >
-            <img src="/img/ic_memo.svg" alt="" className="w-6 h-6" />
-          </button>
-          <button type="button" aria-label="삭제" className="w-7 h-7 flex items-center justify-center">
-            <img src="/img/ic_trash_r.svg" alt="" className="w-6 h-6" />
-          </button>
-        </div>
-      </div>
-      <ul className="mt-3 flex flex-col gap-1.5 text-[14px]">
-        <li className="flex items-center justify-between">
-          <span className="font-semibold text-[#1E2939]">시작시간</span>
-          <span className="text-[#4A5565]">{log.startedAt}</span>
-        </li>
-        <li className="flex items-center justify-between">
-          <span className="font-semibold text-[#1E2939]">완료시간</span>
-          <span className="text-[#4A5565]">{log.endedAt}</span>
-        </li>
-        <li className="flex items-center justify-between">
-          <span className="font-semibold text-[#1E2939]">결제금액</span>
-          <span className="text-[#4A5565]">{(log.pointPaid ?? 0).toLocaleString()}원</span>
-        </li>
-        <li className="flex items-center justify-between">
-          <span className="font-semibold text-[#1E2939]">후기작성</span>
-          <span className={reviewDone ? 'text-[#1E2939]' : 'text-[#99A1AF]'}>
-            {log.reviewStatus}
-          </span>
-        </li>
-      </ul>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {chatActive ? (
-          <button
-            type="button"
-            onClick={onOpenChat}
-            className="col-span-2 h-[44px] rounded-full bg-[#8259F5] text-[14px] font-semibold text-white"
-          >
-            채팅방 입장하기
-          </button>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={onOpenChat}
-              className={
-                reviewDone
-                  ? 'h-[44px] rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]'
-                  : 'col-span-2 h-[44px] rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]'
-              }
-            >
-              채팅 내역 보기
-            </button>
-            {reviewDone && (
-              <button
-                type="button"
-                onClick={onWriteReply}
-                className={
-                  log.hasReply
-                    ? 'h-[44px] rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]'
-                    : 'h-[44px] rounded-full bg-[#8259F5] text-[14px] font-semibold text-white'
-                }
-              >
-                {log.hasReply ? '작성한 후기 답변 보기' : '후기 답변 작성하기'}
-              </button>
+    <article className="px-4 py-2.5">
+      <div className="flex items-center gap-2.5">
+        <img
+          src={avatar}
+          alt=""
+          className="w-9 h-9 rounded-full object-cover bg-[#E5E7EB] shrink-0"
+          onError={(e) => { (e.target as HTMLImageElement).src = '/img/avatar_default.svg' }}
+        />
+        <div className="flex-1 min-w-0">
+          {/* 1줄: 회원명 · 채팅 시간 …… 수익 (진행중이면 [상담중]) */}
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-[#030712] text-[15px] shrink-0">{log.customerName}</span>
+            {chatActive ? (
+              <span className="px-2 h-[20px] inline-flex items-center text-[11px] font-semibold text-[#ec4899] bg-[#fdf2f8] rounded-full shrink-0">상담중</span>
+            ) : (
+              <>
+                <span className="text-[12px] text-[#6A7282] truncate">· 채팅 {briefDur(Number(log.usetmSeconds) || 0)}</span>
+                <span className="ml-auto font-bold text-[#8259F5] text-[15px] shrink-0">{earning.toLocaleString()}원</span>
+              </>
             )}
-          </>
-        )}
+          </div>
+          {/* 2줄: 시각 시작~끝 …… (채팅보기·후기답변·메모 / 또는 채팅방 입장) */}
+          <div className="mt-0.5 flex items-center gap-2">
+            <p className="text-[12.5px] text-[#99A1AF] truncate">
+              {chatActive ? `시작 ${log.startedAt}` : `시간 ${timeRange}`}
+            </p>
+            <span className="ml-auto shrink-0 flex items-center gap-2.5">
+              {chatActive ? (
+                <button type="button" onClick={onOpenChat} className="text-[13px] font-semibold text-[#8259F5]">채팅방 입장</button>
+              ) : (
+                <>
+                  <button type="button" onClick={onOpenChat} className="text-[13px] font-medium text-[#6A7282]">채팅보기</button>
+                  {reviewDone && (
+                    <button type="button" onClick={onWriteReply} className="text-[13px] font-semibold text-[#8259F5]">
+                      {log.hasReply ? '답변 보기' : '후기 답변'}
+                    </button>
+                  )}
+                  <button type="button" onClick={onMemo} className="text-[13px] font-medium text-[#6A7282]">메모</button>
+                </>
+              )}
+            </span>
+          </div>
+        </div>
       </div>
     </article>
   )
+}
+
+/** 종료시각: 시작과 같은 날이면 시·분·초만, 다른 날이면 전체. */
+function shortEnd(start: string, end: string): string {
+  const sd = start.split(' ')[0]
+  const [ed, et] = end.split(' ')
+  return ed === sd ? (et ?? end) : end
+}
+
+/** 간략 통화시간: "3분35초" / "36초" / "1시간2분". */
+function briefDur(sec: number): string {
+  const n = Number(sec) || 0
+  const h = Math.floor(n / 3600)
+  const m = Math.floor((n % 3600) / 60)
+  const s = n % 60
+  if (h) return `${h}시간${m}분`
+  if (m) return `${m}분${s}초`
+  return `${s}초`
 }

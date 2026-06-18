@@ -79,26 +79,53 @@
 - 디자인 변천(사장님 피드백 누적): 연보라 칩 → 진보라 배경(눈시림) → 배경제거 핑크숫자 → **얇은 핑크 테두리 + 검은 숫자(크게) + 연한 "번"** 확정.
 - m2net 매핑: 화면 `153번` = m2net 상담사연결번호 `3번` (−150). 운영자 조회 시 −150.
 
-## 정렬 (list)
+## 정렬 (list) — 2026-06-12 재확정 (가용 폭 기준)
 
 state set: `IDLE/ABSE/CONN/RESV/CRDY/RDCH/RDVC/CNCH`
 
-`statePriority` (전체·인기·신규 탭):
+`statePriority` (전체·인기·신규 탭) — counselors.service.ts L572~:
 ```
-0 → CONN/CNCH AND updated_at >= now()-5min   (상담중)
-1 → use_phone = true                          (대기 전화ON)
-2 → else                                      (대기 채팅전용)
-3 → ABSE/RESV                                 (부재)
+0 → CONN/CNCH                                   (상담중 — 시간제한 폐지, 상담 내내)
+4 → ABSE/RESV                                   (부재)            ← 부재를 상담중 다음에 먼저 판정
+1 → last_consult_ended_at >= now()-30min        (방금끝남, 대기상태)
+2 → use_phone = true AND use_chat = true        (대기 + 전화·채팅 둘 다 가능)
+3 → else                                        (대기 + 둘 중 하나만 가능)
 ```
-`statePriorityChat` (채팅 탭): 0=상담중 / 2=부재 / 1=그 외.
+> WHEN 순서 주의: 상담중(0) → 부재(4) → 방금끝남(1) → 둘다(2) → 하나만(3). 부재를 방금끝남보다 먼저 판정해야 "끝나자마자 휴식(ABSE) 전환"이 1순위로 안 뜸.
+>
+> **변경 이력**: 이전엔 `use_phone=true` 면 채팅 여부 무관 2점이라, **전화만 켠 상담사가 전화·채팅 둘 다 켠 상담사와 같은 칸에 섞여** 헷갈렸다(채팅 오프라인인데 위에 뜸). → "둘 다 가능"을 "하나만 가능"보다 위로 올려 가용 폭이 넓은 상담사를 우대(2026-06-12).
+
+`statePriorityChat` (채팅 탭) — 전체 탭과 동일 철학:
+```
+0 → CONN/CNCH                                   (상담중)
+4 → ABSE/RESV                                   (부재)
+1 → last_consult_ended_at >= now()-30min        (방금끝남)
+2 → use_phone = true AND use_chat = true        (전화도 같이 가능)
+3 → else                                        (채팅만 가능)
+```
+
+### 동점자(같은 statePriority) — updated_at DESC + 어뷰징 가드 (2026-06-12)
+- 같은 점수 그룹은 `updated_at DESC, id DESC` 로 정렬 → **가장 최근 상태 갱신자가 그룹 맨 위**.
+- ⚠️ `setMyAvailability`(counselors.service.ts L306~)에 **no-op 가드** 추가: `use_phone/use_chat/state` 가 기존과 완전히 동일하면 UPDATE 자체를 건너뛴다(`updated_at` 미갱신). 값을 바꾸지 않고 "저장"만 연타해 순위 새치기하는 걸 차단.
 
 orderBy:
 - `popular`: `is_rising DESC, statePriority, updated_at DESC, id DESC`
 - `chat`: `statePriorityChat, updated_at DESC, id DESC`
 - `new`: `created_at DESC, id DESC`
-- `all`: `is_recommended DESC, statePriority, updated_at DESC, id DESC`
+- `all`: `is_recommended DESC, statePriority, updated_at DESC, id DESC` (추천핀=0순위)
+
+### `last_consult_ended_at` (방금끝남 2순위 근거) — 2026-06-12
+- 컬럼: `member.last_consult_ended_at timestamptz` + `idx_member_last_consult_ended_at` (migration `20260612000000_add_last_consult_ended_at.sql`).
+- 기록 지점: `api/src/pg-callbacks/m2net-push.service.ts` L489~ — 상담 종료(통화 `DISCONNECT` / 채팅 `END_CHAT`) 시 `state=readyState, last_consult_ended_at=now()`. **`NO_ANSWER_CSR`(미응답)은 제외**(실제 상담 아님).
+- 30분 경과하면 자동으로 3·4순위(일반 대기)로 내려감(별도 cron 불필요 — 조회 시점 `now()-30min` 비교).
 
 tabWhere: 전체/인기/신규는 `state IN (IDLE,RDCH,RDVC,CRDY,CONN,CNCH,ABSE,RESV)` + (`use_phone OR use_chat`). 채팅은 `use_chat=true AND state IN (IDLE,RDCH,RDVC,CNCH,ABSE,RESV)`. 신규는 추가로 `created_at >= now()-90d`.
+
+### E2E 테스트 계정 비노출 (2026-06-12)
+list/search 공통 WHERE 에 `AND COALESCE(m.mb_id,'') NOT LIKE 'e2e%'` — `e2e_dual`("E2E듀얼", id 141, 0원) 등 자동테스트 계정이 사용자 목록/검색에 안 뜨게 함(상태 무관). 테스트는 계정 그대로 사용.
+
+### 데모 상담사(dummy_*) = 부재(ABSE) 고정 (2026-06-12)
+`dummy_*`(id 102·104~111, 9명)는 **m2net 미등록(csrid 빈값)** 이라 실제 상담 불가 → **state='ABSE'(부재)로 고정**. 목록엔 계속 보이되 카드가 "상담요청하기"(isOffline)로 떠 헛클릭(전화 연결실패 / 채팅 3분대기 자동취소) 방지. `use_phone/use_chat` 은 유지해야 목록 노출(WHERE `use_phone OR use_chat`). **정식 오픈 시 실제 상담사로 교체/제거.** (m2net 등록된 실 상담사는 15명 — csrid 있음, 정상 연결.) ⚠️ 이건 코드가 아니라 **DB 데이터 상태** — 다시 가용으로 풀리면 헛클릭 재발(데모는 ABSE 유지 권장).
 
 ### stuck 상태 자동복구
 `list()` 진입 시 `CNCH/CONN` 인데 진행 중 `chat_room`(STAY/CNCH) 도 `consultation`(ended_at NULL, 2h 내)도 없으면 `use_phone/use_chat` 조합으로 ready state(RDVC/IDLE/RDCH/ABSE) 강제 복귀 (DB만, m2net은 별도 동기화).
@@ -194,7 +221,11 @@ rating(별점)은 매퍼는 받지만 카드에서 destructure 생략 — 미노
 | `e2e/tests/02-user-counselor-list.spec.ts` | 리스트 로드/탭/카드 렌더 |
 | `e2e/tests/13-filter-dropdown.spec.ts` | FilterDropdown 토글/선택/외부클릭 |
 | `e2e/tests/26-keyword-pin.spec.ts` | 인기검색어 핀 고정 머지 |
+| `e2e/tests/63-counselor-ranking.spec.ts` | 랭킹 경계(추천핀 선두·상담중→가용→부재) API 검증 |
+| `e2e/tests/64-counselor-ranking-ui.spec.ts` | 랭킹 화면(손가락) — 카드 렌더 순서 검증 |
+| `e2e/tests/65-test-account-hidden.spec.ts` | E2E 계정(e2e_*) 목록/검색 비노출 검증 |
+| `e2e/tests/66-demo-counselor-absent.spec.ts` | 데모 상담사(dummy_*) 부재(ABSE) 고정 검증 |
 
 ## DB 참조 테이블
 
-`member`(role, state, counselor_category, use_phone/chat, call_*/chat_* 단가), `post_counselor`(headline, specialty, hashtag1/2, intro, bio, traits, event_*, is_exclusive), `member_file`(kind=profile/wide), `member_favorite_counselor`, `counselor_request_alert`, `counselor_block`, `post_review`(rating), `search_log`, `search_keyword_pin`.
+`member`(role, state, counselor_category, use_phone/chat, call_*/chat_* 단가, **last_consult_ended_at**, is_recommended, is_rising), `post_counselor`(headline, specialty, hashtag1/2, intro, bio, traits, event_*, is_exclusive), `member_file`(kind=profile/wide), `member_favorite_counselor`, `counselor_request_alert`, `counselor_block`, `post_review`(rating), `search_log`, `search_keyword_pin`.

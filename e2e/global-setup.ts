@@ -9,7 +9,7 @@ import { chromium, FullConfig } from '@playwright/test'
  * 한 번만 로그인 → 모든 테스트가 재사용 (login throttle 회피).
  */
 async function globalSetup(_config: FullConfig) {
-  const target = process.env.TARGET ?? 'test'
+  const target = process.env.TARGET ?? 'prod'
   const baseURL = target === 'prod' ? 'https://sajuplan.com' : 'https://sajumoon.kr'
 
   const browser = await chromium.launch()
@@ -18,8 +18,8 @@ async function globalSetup(_config: FullConfig) {
   //   사장님이 admin 비번을 바꾼 뒤로는 환경변수 설정 후 실행:
   //     $env:E2E_ADMIN_PW = "실제비번"; npx playwright test
   //   환경변수 미설정 또는 로그인 실패 시 admin spec 들은 자동 skip.
-  const adminId = process.env.E2E_ADMIN_ID ?? 'admin'
-  const adminPw = process.env.E2E_ADMIN_PW ?? 'test1234!'
+  const adminId = process.env.E2E_ADMIN_ID ?? 'admin_e2e'
+  const adminPw = process.env.E2E_ADMIN_PW ?? '1234!'
   const adminCtx = await browser.newContext()
   const adminPage = await adminCtx.newPage()
   try {
@@ -114,24 +114,41 @@ async function globalSetup(_config: FullConfig) {
   } else {
     // prod — e2e 계정 prod DB에 생성됨 (2026-06-03). API 로그인으로 세션 저장.
     const apiBase = 'https://api.sajuplan.com'
+    const E2E_PASSWORDS: Record<string, string> = {
+      'e2e_member': 'e2e_test_2026',
+      'e2e_dual':   'e2e_test_2026',
+      'dummy_01':   'dummy_pass_2026!',
+    }
     for (const [file, mbId] of [
       ['user_member_storage.json', 'e2e_member'],
       ['user_dual_storage.json', 'e2e_dual'],
+      ['user_counselor_storage.json', 'dummy_01'],
     ] as [string, string][]) {
       const ctx = await browser.newContext()
       const pg = await ctx.newPage()
       try {
         await pg.goto(baseURL, { waitUntil: 'domcontentloaded', timeout: 30_000 })
-        const r = await pg.evaluate(async ([base, id]) => {
+        const r = await pg.evaluate(async ([base, id, pw]) => {
           const res = await fetch(`${base}/api/user/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ mb_id: id, password: 'e2e_test_2026' }),
+            body: JSON.stringify({ mb_id: id, password: pw }),
             credentials: 'include',
           })
           return { ok: res.ok, status: res.status }
-        }, [apiBase, mbId])
+        }, [apiBase, mbId, E2E_PASSWORDS[mbId] ?? 'e2e_test_2026'])
         console.log(`[e2e global-setup] prod ${mbId} 로그인:`, JSON.stringify(r))
+        // 쿠키 도메인을 .sajuplan.com 으로 변환 — api.sajuplan.com 에서 설정된 쿠키가
+        // sajuplan.com 페이지의 api.sajuplan.com fetch 에 포함되도록 보장
+        const cookies = await ctx.cookies()
+        const rootDomain = '.sajuplan.com'
+        const fixedCookies = cookies
+          .filter((c) => c.name === 'sjm_user')
+          .map((c) => ({ ...c, domain: rootDomain, sameSite: 'None' as const }))
+        if (fixedCookies.length) {
+          await ctx.clearCookies()
+          await ctx.addCookies(fixedCookies)
+        }
         await ctx.storageState({ path: file })
       } catch (e) {
         console.warn(`[e2e global-setup] prod ${mbId} 실패:`, (e as Error).message.slice(0, 80))

@@ -4,6 +4,8 @@ import { Search, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
+import SeedReviewModal from '../components/SeedReviewModal'
+import ReviewEditModal from '../components/ReviewEditModal'
 import {
   Th,
   Td,
@@ -59,7 +61,7 @@ interface Post {
   /** 관리자 베스트 후기 여부 (2026-06-05 신설) */
   is_admin_best?: boolean
   /** 어드민 답변 (qa / qa_counselor 만) */
-  extras?: { admin_reply?: AdminReply }
+  extras?: { admin_reply?: AdminReply; _seed?: boolean; _seed_name?: string }
   /** counselor_qna 전용 */
   is_hidden?: boolean
   has_reply?: boolean
@@ -125,6 +127,8 @@ export default function PostList() {
   const isQa = slug === 'qa' || slug === 'qa_counselor'
   const isCounselorQna = slug === 'qa_counselor'
   const isReview = slug === 'review'
+  const [seedOpen, setSeedOpen] = useState(false)
+  const [editPost, setEditPost] = useState<Post | null>(null)
 
   const onAdminBest = async (e: React.MouseEvent, p: Post) => {
     e.stopPropagation()
@@ -225,16 +229,26 @@ export default function PostList() {
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
-  const colSpan = slug === 'review' ? 11 : slug === 'qa_counselor' ? 9 : 8
+  const colSpan = slug === 'review' ? 10 : slug === 'qa_counselor' ? 9 : 8
 
   const policy = POLICY_INFO[slug] ?? null
 
   return (
     <div className="space-y-3 max-w-[1100px]">
       {/* 타이틀 */}
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{info.title}</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{info.desc}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{info.title}</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{info.desc}</p>
+        </div>
+        {isReview && (
+          <button
+            onClick={() => setSeedOpen(true)}
+            className="shrink-0 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white font-medium whitespace-nowrap"
+          >
+            + 시딩 후기 작성
+          </button>
+        )}
       </div>
 
       {/* 운영 정책 안내 박스 */}
@@ -312,6 +326,7 @@ export default function PostList() {
           <DateRangeChips
             from={pending.fr_date}
             to={pending.to_date}
+            allowAll={isReview}
             onPick={(r) => {
               const next = { ...pending, fr_date: r.from, to_date: r.to }
               setPending(next)
@@ -330,11 +345,6 @@ export default function PostList() {
           <Th align="right">번호</Th>
           <Th align="left">제목</Th>
           {(slug === 'review' || slug === 'qa_counselor') && <Th align="left">상담사</Th>}
-          {slug === 'review' && (
-            <Th align="right">
-              평점 <span className="text-[10px] font-normal normal-case tracking-normal">(미사용)</span>
-            </Th>
-          )}
           {slug === 'review' && <Th align="center">신고</Th>}
           <Th align="left">작성자</Th>
           <Th align="right">조회</Th>
@@ -385,11 +395,6 @@ export default function PostList() {
                     </Td>
                   )}
                   {slug === 'review' && (
-                    <Td align="right" className="text-xs text-gray-300 tabular-nums">
-                      {p.rating ? `${p.rating}/5` : '-'}
-                    </Td>
-                  )}
-                  {slug === 'review' && (
                     <Td align="center">
                       {(p.report_count ?? 0) === 0 ? (
                         <span className="text-gray-300">-</span>
@@ -408,7 +413,12 @@ export default function PostList() {
                     </Td>
                   )}
                   <Td align="left">
-                    {p.member_id && p.mb_id ? (
+                    {p.extras?._seed ? (
+                      <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Badge color="indigo">시딩</Badge>
+                        <span className="text-gray-500">{p.extras._seed_name || '-'}</span>
+                      </span>
+                    ) : p.member_id && p.mb_id ? (
                       <Link
                         to={`/members/customers/${p.member_id}`}
                         onClick={(e) => e.stopPropagation()}
@@ -508,7 +518,7 @@ export default function PostList() {
               <button onClick={() => setViewPost(null)} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
             <div className="text-xs text-gray-500 mb-3 flex flex-wrap gap-2">
-              <span>작성자: {viewPost.mb_id || viewPost.member_nickname || viewPost.member_name || '익명'}</span>
+              <span>작성자: {viewPost.extras?._seed ? (viewPost.extras._seed_name || '익명') : (viewPost.mb_id || viewPost.member_nickname || viewPost.member_name || '익명')}</span>
               <span>·</span>
               <span>{formatDT(viewPost.created_at)}</span>
               {isCounselorQna && viewPost.counselor_name && (
@@ -543,6 +553,14 @@ export default function PostList() {
               </div>
             )}
             <div className="flex justify-end gap-2 mt-4">
+              {slug === 'review' && (
+                <button
+                  onClick={() => { setEditPost(viewPost); setViewPost(null) }}
+                  className="px-3 py-2 text-sm rounded-md border border-brand-300 text-brand-700 hover:bg-brand-50 font-medium mr-auto"
+                >
+                  수정
+                </button>
+              )}
               <button
                 onClick={() => {
                   void onDelete(viewPost)
@@ -623,6 +641,20 @@ export default function PostList() {
             </div>
           </div>
         </div>
+      )}
+
+      <SeedReviewModal
+        open={seedOpen}
+        onClose={() => setSeedOpen(false)}
+        onSuccess={(m) => { setSuccess(m); load() }}
+      />
+
+      {editPost && (
+        <ReviewEditModal
+          post={editPost}
+          onClose={() => setEditPost(null)}
+          onSuccess={(m) => { setSuccess(m); load() }}
+        />
       )}
     </div>
   )

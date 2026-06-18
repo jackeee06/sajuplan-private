@@ -4,6 +4,7 @@ import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import ConfirmModal from '../components/ConfirmModal'
 import UploadedImage from '../components/UploadedImage'
+import PopupLayer from '../components/PopupLayer'
 import {
   MOCK_COUNSELOR_MY_PROFILE,
   COUNSELOR_MAIN_MENU,
@@ -25,6 +26,7 @@ import {
 import { GRADE_UPGRADE_STORAGE_KEY } from '../components/GradeUpgradeToast'
 import { FILE_BASE } from '../lib/runtime-env'
 import UnitCostChangeModal from '../components/UnitCostChangeModal'
+import { useAlert } from '../lib/use-alert'
 
 function resolveImageUrl(u: string | null): string | null {
   if (!u) return null
@@ -40,12 +42,21 @@ function daysUntilMonthEnd(): number {
   return Math.max(0, Math.ceil((last.getTime() - now.getTime()) / 86_400_000))
 }
 
-/** 초 단위를 "Nh Nm" 형태로. 1시간 미만이면 "N분" */
+/** 초 단위를 "N시간 N분" 형태로. 1시간 미만이면 "N분" */
 function formatHoursMinutes(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds))
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
-  if (h > 0) return `${h}h${m > 0 ? ` ${m}m` : ''}`
+  if (h > 0) return `${h}시간${m > 0 ? ` ${m}분` : ''}`
+  return `${m}분`
+}
+
+/** 소수 시간(예: 18.7) → "N시간 N분". 1시간 미만이면 "N분", 0이면 "0분" */
+function formatHoursLabel(hoursDecimal: number): string {
+  const totalMin = Math.max(0, Math.round(hoursDecimal * 60))
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  if (h > 0) return `${h}시간${m > 0 ? ` ${m}분` : ''}`
   return `${m}분`
 }
 
@@ -114,6 +125,7 @@ export default function CounselorMyPage() {
   const [extraOpen, setExtraOpen] = useState(false)
   const [monthlyStats, setMonthlyStats] = useState<ConsultMyStats | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
+  const { showAlert, alertUI } = useAlert()
 
   // ?action=change-unit-cost — 승급 토스트 "단가 변경하기" 버튼에서 진입 시 모달 자동 오픈
   useEffect(() => {
@@ -236,7 +248,7 @@ export default function CounselorMyPage() {
       setAvailable(prev.available)
       setCallOn(prev.callOn)
       setChatOn(prev.chatOn)
-      alert(`상태 변경 실패: ${e instanceof Error ? e.message : ''}`)
+      void showAlert(`상태 변경 실패: ${e instanceof Error ? e.message : ''}`)
     } finally {
       setToggleBusy(false)
     }
@@ -273,6 +285,8 @@ export default function CounselorMyPage() {
 
   return (
     <div className="mobile-frame flex flex-col pb-[100px]">
+      {/* [2026-06-12] 상담사 대상 공지 팝업 */}
+      <PopupLayer area="counselor" />
       <header className="h-[60px] px-4 flex items-center gap-3 sticky top-0 z-20 bg-gradient-to-b from-white to-white/80 backdrop-blur-[7px]">
         <button
           type="button"
@@ -385,39 +399,86 @@ export default function CounselorMyPage() {
           </p>
         </section>
 
-        {/* ② 💰 정산금액 카드 — 큰 폰트, 선지급 미니, D-day */}
+        {/* ② 💰 수익금 카드 — 계층형(2026-06-14). 상담사가 하루에도 수십 번 보는 자리.
+            "이번달 정산금액" 단일 숫자가 총잔여·당월·정산예상을 한꺼번에 떠안아 혼란 → 행동 기준 분해.
+              총잔여(balance) = 이번 정산 예정(전월까지) + 당월 적립 중(순액)
+              · 모든 숫자는 순액(추천·정산 이미 반영). 추천수당은 "수익금 내역"에만 1회 기록, 여기 별도 표기 X.
+              · 세후 입금 예상 = 상담사가 제일 궁금한 "통장에 꽂히는 돈". */}
         <section className="rounded-[16px] p-4" style={{ background: 'linear-gradient(135deg, #f3f0ff 0%, #fce7f3 100%)', border: '1px solid #fbcfe8' }}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[12px] text-[#be185d] font-medium">💰 이번달 정산금액</span>
-            <span className="text-[11px] text-[#6A7282]">정산까지 <span className="font-semibold text-[#8259F5]">D-{daysUntilMonthEnd()}</span></span>
-          </div>
-          <div className="text-[28px] font-bold text-[#1E2939] tabular-nums leading-tight">
-            {(settlement?.estimated_payout ?? settlement?.this_month ?? 0).toLocaleString()}
-            <span className="text-[15px] font-medium text-[#6A7282] ml-0.5">원</span>
-          </div>
-          <div className="text-[11px] text-[#6A7282] mt-0.5">원천세(3.3%) 공제 후 예상 실수령액</div>
-          <div className="grid grid-cols-4 gap-2 mt-3">
-            <Link to="/mypage/calls" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">통화 내역</Link>
-            <Link to="/mypage/chats" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">채팅 내역</Link>
-            <Link to="/counselor/mypage/settlement/history" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">정산 이력</Link>
-            <Link to="/counselor/mypage/referral" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">추천 현황</Link>
-          </div>
-          {/* 선지급 미니 */}
-          {payout && (
-            <Link to="/counselor/mypage/payout" className="mt-3 block p-2.5 rounded-lg bg-white/70 flex items-center justify-between">
-              <div>
-                <div className="text-[11px] text-[#6A7282]">선지급 가능액</div>
-                <div className="text-[15px] font-semibold text-[#1E2939] tabular-nums">
-                  {payout.available_amount.toLocaleString()}원
+          {(() => {
+            const balance = settlement?.balance ?? 0                                   // 총잔여 수익금
+            const thisMonthNet = (settlement?.this_month ?? 0)
+              + (settlement?.referral_earn ?? 0)
+              - (settlement?.referral_deduct ?? 0)                                       // 당월 적립 중 (순액)
+            const pendingSettle = Math.max(0, balance - thisMonthNet)                    // 이번 정산 예정 (전월까지)
+            const afterTax = Math.max(0, balance - Math.floor(balance * 0.033))          // 세후 입금 예상 (약)
+            return (
+              <>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[12px] text-[#be185d] font-medium">💰 내 수익금 <span className="text-[#9d6fb0]">(받을 수 있는 전체)</span></span>
+                  <span className="text-[11px] text-[#6A7282]">정산까지 <span className="font-semibold text-[#8259F5]">D-{daysUntilMonthEnd()}</span></span>
                 </div>
-              </div>
-              {payout.has_pending_request ? (
-                <span className="text-[11px] px-2.5 h-8 rounded-full bg-[#FEF9C3] text-[#A16207] font-medium inline-flex items-center">처리 대기</span>
-              ) : (
-                <span className="px-3 h-8 rounded-full bg-[#8259F5] text-white text-[12px] font-medium inline-flex items-center">신청</span>
-              )}
-            </Link>
-          )}
+                <div className="text-[28px] font-bold text-[#1E2939] tabular-nums leading-tight">
+                  {balance.toLocaleString()}
+                  <span className="text-[15px] font-medium text-[#6A7282] ml-0.5">원</span>
+                </div>
+                <div className="text-[11px] text-[#6A7282] mt-0.5">원천세 3.3% 공제 후 약 {afterTax.toLocaleString()}원 입금 예상</div>
+
+                {/* 분해 2칸 — 합치면 위 총잔여 (구멍 없이 떨어짐) */}
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  <div className="rounded-lg bg-white/70 px-3 py-2">
+                    <div className="text-[11px] text-[#6A7282]">이번 정산 예정</div>
+                    <div className="text-[22px] font-bold text-[#1E2939] tabular-nums leading-tight">{pendingSettle.toLocaleString()}원</div>
+                    <div className="text-[10px] text-[#9CA3AF]">전월까지 · 곧 정산</div>
+                  </div>
+                  <div className="rounded-lg bg-white/70 px-3 py-2">
+                    <div className="text-[11px] text-[#6A7282]">당월 적립 중</div>
+                    <div className="text-[22px] font-bold text-[#1E2939] tabular-nums leading-tight">{thisMonthNet.toLocaleString()}원</div>
+                    <div className="text-[10px] text-[#9CA3AF]">이번 달 · 쌓이는 중</div>
+                  </div>
+                </div>
+
+                {/* 선지급 가능 — 차단 시(예비파트너·운영제한·계좌잠금 등) 사유 표시 + 신청 막음.
+                    is_blocked/block_reason 으로 판단 → 예비 외 다른 차단 케이스도 자동으로 맞는 사유 노출. */}
+                {payout && (
+                  payout.is_blocked ? (
+                    <div className="mt-2 p-2.5 rounded-lg bg-white/70">
+                      <div className="text-[11px] text-[#6A7282]">선지급 가능 (지금 당겨받기)</div>
+                      <div className="text-[22px] font-bold text-[#9CA3AF] tabular-nums leading-tight">
+                        {payout.available_amount.toLocaleString()}원
+                      </div>
+                      <div className="mt-1 text-[11px] text-[#9CA3AF] flex items-start gap-1">
+                        <span aria-hidden>🔒</span>
+                        <span>{payout.block_reason ?? '선지급 신청이 제한됩니다.'}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <Link to="/counselor/mypage/payout" className="mt-2 block p-2.5 rounded-lg bg-white/70 flex items-center justify-between">
+                      <div>
+                        <div className="text-[11px] text-[#6A7282]">선지급 가능 (지금 당겨받기)</div>
+                        <div className="text-[22px] font-bold text-[#1E2939] tabular-nums leading-tight">
+                          {payout.available_amount.toLocaleString()}원
+                        </div>
+                      </div>
+                      {payout.has_pending_request ? (
+                        <span className="text-[11px] px-2.5 h-8 rounded-full bg-[#FEF9C3] text-[#A16207] font-medium inline-flex items-center">처리 대기</span>
+                      ) : (
+                        <span className="px-3 h-8 rounded-full bg-[#8259F5] text-white text-[12px] font-medium inline-flex items-center">신청</span>
+                      )}
+                    </Link>
+                  )
+                )}
+
+                {/* 바로가기 */}
+                <div className="grid grid-cols-4 gap-2 mt-2">
+                  <Link to="/counselor/mypage/calls" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">통화 내역</Link>
+                  <Link to="/counselor/mypage/chats" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">채팅 내역</Link>
+                  <Link to="/counselor/mypage/settlement/history" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">정산 이력</Link>
+                  <Link to="/counselor/mypage/referral" className="h-9 rounded-lg bg-white border border-[#fbcfe8] text-[12px] text-[#8259F5] font-medium flex items-center justify-center hover:bg-[#f3f0ff]">추천 현황</Link>
+                </div>
+              </>
+            )
+          })()}
         </section>
 
         {/* ③ 🔔 처리 필요 알림 — 미답변 후기/문의 카운트 실시간 표시 */}
@@ -552,54 +613,45 @@ export default function CounselorMyPage() {
           </div>
         </section>
 
-        {/* ⑥ 상담 통계 (기간 검색) — 자세한 기간 검색은 별도 페이지 */}
-        <Link to="/counselor/mypage/consult-stats" className="rounded-[16px] border border-[#F3F4F6] bg-white px-4 py-3.5 flex items-center justify-between">
-          <span className="text-[14px] font-medium text-[#364153] inline-flex items-center gap-2">
-            📈 상담 통계 (기간 검색)
-          </span>
-          <span className="text-[#D1D5DB] text-[16px]">›</span>
-        </Link>
-
-        {/* 상담 스타일 설정 */}
-        <Link to="/counselor/mypage/style" className="rounded-[16px] border border-[#F3F4F6] bg-white px-4 py-3.5 flex items-center justify-between">
-          <span className="text-[14px] font-medium text-[#364153] inline-flex items-center gap-2">
-            ✨ 상담 스타일 설정
-          </span>
-          <span className="text-[#D1D5DB] text-[16px]">›</span>
-        </Link>
-
-        {/* 내 공지사항 작성 — 프로필 페이지의 공지 영역에 표시 */}
-        <Link to="/counselor/mypage/notice-edit" className="rounded-[16px] border border-[#F3F4F6] bg-white px-4 py-3.5 flex items-center justify-between">
-          <span className="text-[14px] font-medium text-[#364153] inline-flex items-center gap-2">
-            📢 내 공지사항 작성
-          </span>
-          <span className="text-[#D1D5DB] text-[16px]">›</span>
-        </Link>
-
-        {/* [2026-05-31] 나만의 메모장 — 본인만 보기/쓰기 */}
-        <Link to="/counselor/mypage/memo" className="rounded-[16px] border border-[#F3F4F6] bg-white px-4 py-3.5 flex items-center justify-between">
-          <span className="text-[14px] font-medium text-[#364153] inline-flex items-center gap-2">
-            📝 나만의 메모장
-          </span>
-          <span className="text-[#D1D5DB] text-[16px]">›</span>
-        </Link>
-
-        {/* ⑦ 설정 / 기타 — 접힘 */}
-        <section className="rounded-[16px] border border-[#F3F4F6] bg-white overflow-hidden">
+        {/* ⑥ 하단 메뉴 — 2열 그리드 컴팩트화 (2026-06-14 사장님: 한 줄 2개 + 라벨 단축 + 빡빡) */}
+        <div className="grid grid-cols-2 gap-2">
+          <Link to="/counselor/mypage/consult-stats" className="rounded-[12px] border border-[#F3F4F6] bg-white px-3 py-3 flex items-center gap-1.5">
+            <span className="text-[14px] leading-none">📈</span>
+            <span className="text-[13px] font-medium text-[#364153]">기간별 통계</span>
+          </Link>
+          <Link to="/counselor/mypage/fee-schedule" className="rounded-[12px] border border-[#F3F4F6] bg-white px-3 py-3 flex items-center gap-1.5">
+            <span className="text-[14px] leading-none">💸</span>
+            <span className="text-[13px] font-medium text-[#364153]">상담 수수료</span>
+          </Link>
+          <Link to="/counselor/mypage/style" className="rounded-[12px] border border-[#F3F4F6] bg-white px-3 py-3 flex items-center gap-1.5">
+            <span className="text-[14px] leading-none">✨</span>
+            <span className="text-[13px] font-medium text-[#364153]">스타일 설정</span>
+          </Link>
+          <Link to="/counselor/mypage/notice-edit" className="rounded-[12px] border border-[#F3F4F6] bg-white px-3 py-3 flex items-center gap-1.5">
+            <span className="text-[14px] leading-none">📢</span>
+            <span className="text-[13px] font-medium text-[#364153]">공지 작성</span>
+          </Link>
+          <Link to="/counselor/mypage/memo" className="rounded-[12px] border border-[#F3F4F6] bg-white px-3 py-3 flex items-center gap-1.5">
+            <span className="text-[14px] leading-none">📝</span>
+            <span className="text-[13px] font-medium text-[#364153]">메모장</span>
+          </Link>
           <button
             type="button"
             onClick={() => setExtraOpen((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-3.5"
+            className="rounded-[12px] border border-[#F3F4F6] bg-white px-3 py-3 flex items-center gap-1.5 text-left"
           >
-            <span className="text-[14px] font-medium text-[#364153] inline-flex items-center gap-2">
-              ⚙️ 설정 및 기타
-            </span>
-            <svg className={`w-4 h-4 text-[#9CA3AF] transition-transform ${extraOpen ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none">
+            <span className="text-[14px] leading-none">⚙️</span>
+            <span className="text-[13px] font-medium text-[#364153]">설정·기타</span>
+            <svg className={`w-3.5 h-3.5 text-[#9CA3AF] ml-auto transition-transform ${extraOpen ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none">
               <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </button>
-          {extraOpen && (
-            <ul className="border-t border-[#F3F4F6]">
+        </div>
+
+        {/* 설정·기타 펼침 — 그리드 아래 전폭 (격자 유지) */}
+        {extraOpen && (
+          <section className="rounded-[12px] border border-[#F3F4F6] bg-white overflow-hidden">
+            <ul>
               <li>
                 <Link to="/mypage/app-settings" className="h-12 px-4 flex items-center justify-between text-[14px] text-[#1E2939]">
                   앱 알림 설정 <span className="text-[#D1D5DB]">›</span>
@@ -615,8 +667,8 @@ export default function CounselorMyPage() {
                 </button>
               </li>
             </ul>
-          )}
-        </section>
+          </section>
+        )}
       </main>
 
       <FloatingActions bottomOffset={100} />
@@ -639,6 +691,7 @@ export default function CounselorMyPage() {
           counselorGradeApi.getMine().then(setGrade).catch(() => {})
         }}
       />
+      {alertUI}
     </div>
   )
 }
@@ -655,31 +708,34 @@ function RealtimeGradeProgress({ progress }: { progress: GradeProgressInfo }) {
       {/* 진척바 */}
       {next_grade_label && next_threshold_hours ? (
         <>
-          <div className="flex items-center justify-between text-[12px] text-[#6A7282]">
-            <span>
+          {/* 핵심 정보 = 다음 등급까지 남은 시간 (히어로) */}
+          <div className="flex items-end justify-between">
+            <div>
+              <p className="text-[12px] text-[#6A7282]">{next_grade_label}까지</p>
+              <p className="mt-0.5 text-[22px] font-bold text-[#8259F5] tabular-nums leading-none">
+                {formatHoursLabel(Math.max(0, next_threshold_hours - total_hours))}
+                <span className="ml-1 text-[12px] font-medium text-[#6A7282]">남음</span>
+              </p>
+            </div>
+            <p className="text-[12px] text-[#9CA3AF] pb-0.5">
               이번달{' '}
-              <span className="font-semibold text-[#8259F5] tabular-nums">{total_hours.toFixed(1)}h</span>
-            </span>
-            <span>
-              {next_grade_label}까지{' '}
-              <span className="font-semibold tabular-nums">
-                {Math.max(0, next_threshold_hours - total_hours).toFixed(1)}h
-              </span>
-            </span>
+              <span className="font-semibold text-[#6A7282] tabular-nums">{formatHoursLabel(total_hours)}</span>{' '}
+              누적
+            </p>
           </div>
-          <div className="mt-1.5 h-2 rounded-full bg-[#F3F4F6] overflow-hidden">
+          <div className="mt-2 h-2 rounded-full bg-[#F3F4F6] overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-[#8259F5] to-[#9b7af7] transition-all"
               style={{ width: `${progress_pct}%` }}
             />
           </div>
-          <p className="mt-1 text-[11px] text-[#9CA3AF]">이번 달 누적 (매월 1일 초기화)</p>
+          <p className="mt-1 text-[11px] text-[#9CA3AF]">매월 1일 초기화</p>
         </>
       ) : (
         <div className="mt-1">
           <p className="text-[12px] text-[#6A7282]">
             최고 등급 · 이번달 누적{' '}
-            <span className="font-semibold text-[#8259F5] tabular-nums">{total_hours.toFixed(1)}시간</span>
+            <span className="font-semibold text-[#8259F5] tabular-nums">{formatHoursLabel(total_hours)}</span>
           </p>
         </div>
       )}
@@ -702,7 +758,7 @@ function RealtimeGradeProgress({ progress }: { progress: GradeProgressInfo }) {
                   <span className="text-[#6A7282]">{LABEL[u.grade_before] ?? u.grade_before}</span>
                   <span className="text-[#D1D5DB]">→</span>
                   <span className="font-semibold text-[#8259F5]">{LABEL[u.grade_after] ?? u.grade_after}</span>
-                  <span className="text-[#9CA3AF]">({u.hours_at_upgrade}h 달성)</span>
+                  <span className="text-[#9CA3AF]">({formatHoursLabel(Number(u.hours_at_upgrade) || 0)} 달성)</span>
                 </div>
               )
             })}
@@ -743,7 +799,7 @@ function NextGradeProgress({
         <p className="text-[12px] text-[#6A7282] leading-[140%]">
           최고 등급 · 직전 1개월 누적{' '}
           <span className="font-semibold text-[#8259F5] tabular-nums">
-            {hours.toFixed(1)}시간
+            {formatHoursLabel(hours)}
           </span>
         </p>
       </div>
@@ -758,19 +814,21 @@ function NextGradeProgress({
 
   return (
     <div className="mt-3">
-      <div className="flex items-center justify-between text-[12px] text-[#6A7282] leading-[140%]">
-        <span>
+      {/* 핵심 정보 = 다음 등급까지 남은 시간 (히어로) */}
+      <div className="flex items-end justify-between">
+        <div>
+          <p className="text-[12px] text-[#6A7282]">{info.next}까지</p>
+          <p className="mt-0.5 text-[22px] font-bold text-[#8259F5] tabular-nums leading-none">
+            {formatHoursLabel(remaining)}
+            <span className="ml-1 text-[12px] font-medium text-[#6A7282]">남음</span>
+          </p>
+        </div>
+        <p className="text-[12px] text-[#9CA3AF] pb-0.5">
           직전 1개월{' '}
-          <span className="font-semibold text-[#8259F5] tabular-nums">
-            {hours.toFixed(1)}h
-          </span>
-        </span>
-        <span>
-          {info.next}까지{' '}
-          <span className="font-semibold tabular-nums">{remaining.toFixed(1)}h</span>
-        </span>
+          <span className="font-semibold text-[#6A7282] tabular-nums">{formatHoursLabel(hours)}</span>
+        </p>
       </div>
-      <div className="mt-1.5 h-1.5 rounded-full bg-[#F3F4F6] overflow-hidden">
+      <div className="mt-2 h-1.5 rounded-full bg-[#F3F4F6] overflow-hidden">
         <div
           className="h-full bg-[#8259F5] transition-all"
           style={{ width: `${pct}%` }}

@@ -1,5 +1,6 @@
 ﻿import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import { ApiError, noticesApi, type PublicNoticeDetail } from '../lib/api'
@@ -104,7 +105,7 @@ export default function NoticeDetail() {
               {/^\s*</.test(notice.content) ? (
                 <div
                   className="text-[15px] leading-[160%] text-[#364153] notice-html"
-                  dangerouslySetInnerHTML={{ __html: notice.content }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeIntroHtml(notice.content ?? '') }}
                 />
               ) : (
                 <p className="text-[15px] leading-[160%] text-[#364153] whitespace-pre-line">

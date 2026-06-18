@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, FileText, X } from 'lucide-react'
 import { api } from '../lib/api'
 import { FILE_BASE } from '../lib/runtime-env'
+import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 
 /**
  * 상담사 신청 상세 — 사용자 가입 페이지에서 들어온 신청 1건을 펼쳐 보여준다.
@@ -460,7 +461,7 @@ export default function CounselorApplyDetail() {
           {intro ? (
             <div
               className="apply-intro text-sm text-gray-700 dark:text-gray-300 leading-relaxed prose prose-sm max-w-none dark:prose-invert"
-              dangerouslySetInnerHTML={{ __html: intro }}
+              dangerouslySetInnerHTML={{ __html: sanitizeIntroHtml(intro) }}
             />
           ) : (
             <span className="text-gray-400 text-sm">-</span>

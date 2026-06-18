@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사주플랜 플랫폼 설계도</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --primary: #9b7af7;
+    --primary-dark: #7c5ce8;
+    --primary-light: #ede9fe;
+    --pink: #ec4899;
+    --pink-light: #fdf2f8;
+    --teal: #00BBA7;
+    --red: #FF6467;
+    --orange: #f97316;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-500: #6b7280;
+    --gray-700: #374151;
+    --gray-900: #111827;
+    --white: #ffffff;
+    --shadow: 0 4px 24px rgba(0,0,0,0.08);
+    --shadow-lg: 0 8px 40px rgba(0,0,0,0.12);
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+
+  body {
+    font-family: 'Noto Sans KR', 'Pretendard', -apple-system, sans-serif;
+    background: #f0eeff;
+    color: var(--gray-900);
+    line-height: 1.6;
+  }
+
+  /* ───── HERO ───── */
+  .hero {
+    background: linear-gradient(135deg, #1a0533 0%, #3b0764 40%, #6d28d9 100%);
+    color: white;
+    padding: 64px 40px 80px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: rgba(236,72,153,0.15);
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: -40px;
+    width: 250px; height: 250px;
+    border-radius: 50%;
+    background: rgba(155,122,247,0.2);
+  }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(236,72,153,0.25);
+    border: 1px solid rgba(236,72,153,0.5);
+    color: #f9a8d4;
+    padding: 6px 18px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    margin-bottom: 20px;
+  }
+  .hero h1 {
+    font-size: 42px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    margin-bottom: 12px;
+  }
+  .hero h1 span { color: #c4b5fd; }
+  .hero p {
+    font-size: 16px;
+    color: rgba(255,255,255,0.7);
+    max-width: 560px;
+    margin: 0 auto 32px;
+  }
+  .hero-stats {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+  .hero-stat { text-align: center; }
+  .hero-stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #c4b5fd;
+    display: block;
+  }
+  .hero-stat-label {
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+  }
+
+  /* ───── LAYOUT ───── */
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+  .page { padding: 48px 24px; }
+  .section { margin-bottom: 56px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .section-icon {
+    width: 40px; height: 40px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .section-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--gray-900);
+  }
+  .section-sub {
+    font-size: 13px;
+    color: var(--gray-500);
+    margin-top: 2px;
+  }
+  .card {
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 28px;
+    border: 1px solid var(--gray-100);
+  }
+
+  /* ───── ARCHITECTURE DIAGRAM ───── */
+  .arch-diagram {
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    border: 1px solid var(--gray-100);
+  }
+  .arch-svg-wrap {
+    padding: 32px;
+    overflow-x: auto;
+  }
+  .arch-svg-wrap svg {
+    min-width: 700px;
+    width: 100%;
+  }
+
+  /* ───── MONEY FLOW ───── */
+  .money-flow {
+    background: white;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    border: 1px solid var(--gray-100);
+  }
+  .money-flow-header {
+    background: linear-gradient(90deg, #065f46, #047857);
+    color: white;
+    padding: 16px 24px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .money-flow-body { padding: 28px; }
+  .flow-svg-wrap { overflow-x: auto; }
+
+  /* ───── TECH STACK GRID ───── */
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+  }
+  .stack-card {
+    background: white;
+    border-radius: var(--radius-sm);
+    padding: 20px;
+    border: 1px solid var(--gray-100);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  .stack-card-icon { font-size: 28px; margin-bottom: 10px; }
+  .stack-card-label {
+    font-size: 12px;
+    color: var(--gray-500);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .stack-card-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gray-900);
+    line-height: 1.4;
+  }
+
+  /* ───── DOMAIN TABLE ───── */
+  .domain-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .domain-table th {
+    background: var(--primary-light);
+    color: var(--primary-dark);
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .domain-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--gray-100);
+    vertical-align: middle;
+  }
+  .domain-table tr:last-child td { border-bottom: none; }
+  .domain-table tr:hover td { background: var(--gray-50); }
+  .dead-row td { opacity: 0.55; background: #fff5f5 !important; }
+  .code { font-family: 'Consolas', monospace; font-size: 13px; background: var(--gray-100); padding: 2px 7px; border-radius: 5px; }
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .badge-green { background: #d1fae5; color: #065f46; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .badge-gray { background: var(--gray-100); color: var(--gray-500); }
+
+  /* ───── CRON TABLE ───── */
+  .cron-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .cron-table th {
+    background: #1e1b4b;
+    color: #c4b5fd;
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+  }
+  .cron-table td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--gray-100);
+    vertical-align: middle;
+  }
+  .cron-table tr:hover td { background: var(--primary-light); }
+  .freq-badge {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    font-family: monospace;
+    background: #1e1b4b;
+    color: #c4b5fd;
+  }
+
+  /* ───── MODULE TREE ───── */
+  .module-tree {
+    font-family: 'Consolas', monospace;
+    font-size: 13.5px;
+    line-height: 1.9;
+    color: var(--gray-700);
+  }
+  .module-root { color: var(--primary); font-weight: 800; font-size: 15px; }
+  .module-branch { color: var(--gray-300); }
+  .module-name { color: var(--gray-900); font-weight: 600; }
+  .module-desc { color: var(--gray-500); font-size: 12px; }
+
+  /* ───── GRADE TABLE ───── */
+  .grade-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .grade-card {
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    text-align: center;
+    border: 2px solid transparent;
+  }
+  .grade-card-level { font-size: 11px; font-weight: 700; opacity: 0.7; margin-bottom: 4px; }
+  .grade-card-name { font-size: 15px; font-weight: 800; margin-bottom: 8px; }
+  .grade-card-hours { font-size: 12px; opacity: 0.7; margin-bottom: 6px; }
+  .grade-card-rate { font-size: 22px; font-weight: 900; }
+
+  /* ───── ALERT CHANNELS ───── */
+  .alert-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .alert-card {
+    border-radius: var(--radius-sm);
+    padding: 20px;
+    border: 1px solid var(--gray-100);
+  }
+  .alert-card-icon { font-size: 32px; margin-bottom: 10px; }
+  .alert-card-name { font-size: 16px; font-weight: 800; margin-bottom: 6px; }
+  .alert-card-desc { font-size: 13px; color: var(--gray-500); line-height: 1.5; }
+
+  /* ───── DANGER ZONE ───── */
+  .danger-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .danger-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 18px;
+    background: #fff5f5;
+    border-radius: var(--radius-sm);
+    border-left: 4px solid #ef4444;
+  }
+  .danger-num {
+    background: #ef4444;
+    color: white;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .danger-text { font-size: 14px; line-height: 1.5; color: #7f1d1d; }
+  .danger-text strong { color: #b91c1c; }
+
+  /* ───── DEPLOY TABLE ───── */
+  .deploy-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .deploy-table th {
+    background: #1c1917;
+    color: #fbbf24;
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 12px;
+    letter-spacing: 0.3px;
+  }
+  .deploy-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--gray-100);
+  }
+  .deploy-table code {
+    font-family: 'Consolas', monospace;
+    font-size: 12.5px;
+    background: #1c1917;
+    color: #6ee7b7;
+    padding: 4px 10px;
+    border-radius: 6px;
+    display: block;
+    margin-top: 4px;
+  }
+
+  /* ───── FOOTER ───── */
+  .footer {
+    background: #1a0533;
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+    padding: 28px;
+    font-size: 12px;
+  }
+
+  /* ───── PRINT / NO-SCROLL ───── */
+  @media (max-width: 600px) {
+    .hero h1 { font-size: 28px; }
+    .stack-grid { grid-template-columns: 1fr 1fr; }
+    .grade-grid { grid-template-columns: 1fr 1fr; }
+    .alert-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     HERO
+══════════════════════════════════════════════ -->
+<div class="hero">
+  <div class="hero-badge">🔮 PLATFORM BLUEPRINT v1.0</div>
+  <h1>사주플랜 <span>플랫폼 설계도</span></h1>
+  <p>신규 개발자·관리자가 사주플랜 플랫폼의 구조를 한눈에 파악하기 위한 입문 문서입니다.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="hero-stat-value">3</span><span class="hero-stat-label">레이어 (사용자·API·외부)</span></div>
+    <div class="hero-stat"><span class="hero-stat-value">4</span><span class="hero-stat-label">외부 서비스 (m2net·AG9·BizM·FCM)</span></div>
+    <div class="hero-stat"><span class="hero-stat-value">9</span><span class="hero-stat-label">Cron 자동화 잡</span></div>
+    <div class="hero-stat"><span class="hero-stat-value">44+</span><span class="hero-stat-label">E2E 테스트 스펙</span></div>
+  </div>
+</div>
+
+<div class="container">
+<div class="page">
+
+<!-- ══════════════════════════════════════════════
+     §1 전체 아키텍처
+══════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#ede9fe;">🏗️</div>
+    <div>
+      <div class="section-title">전체 아키텍처</div>
+      <div class="section-sub">사용자 레이어 → API 레이어 → 외부 서비스 3단 구조</div>
+    </div>
+  </div>
+
+  <div class="arch-diagram">
+    <div class="arch-svg-wrap">
+      <svg viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg" style="height:auto;">
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#9b7af7"/>
+          </marker>
+          <marker id="arrow-gray" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#9ca3af"/>
+          </marker>
+          <filter id="shadow">
+            <feDropShadow dx="0" dy="2" stdDeviation="4" flood-opacity="0.08"/>
+          </filter>
+        </defs>
+
+        <!-- ── BACKGROUND LANES ── -->
+        <rect x="20" y="16" width="860" height="148" rx="14" fill="#f0eeff" stroke="#c4b5fd" stroke-width="1.5"/>
+        <text x="36" y="36" font-size="11" fill="#7c3aed" font-weight="700" font-family="sans-serif">① 사용자 레이어</text>
+
+        <rect x="20" y="188" width="860" height="150" rx="14" fill="#f0fdf4" stroke="#86efac" stroke-width="1.5"/>
+        <text x="36" y="208" font-size="11" fill="#15803d" font-weight="700" font-family="sans-serif">② API 레이어 (NestJS 11 · PostgreSQL)</text>
+
+        <rect x="20" y="362" width="860" height="148" rx="14" fill="#fefce8" stroke="#fde047" stroke-width="1.5"/>
+        <text x="36" y="382" font-size="11" fill="#a16207" font-weight="700" font-family="sans-serif">③ 외부 서비스</text>
+
+        <!-- ── LAYER 1: USER ── -->
+        <!-- Web User -->
+        <rect x="50" y="46" width="170" height="90" rx="12" fill="white" filter="url(#shadow)" stroke="#c4b5fd" stroke-width="1.5"/>
+        <text x="135" y="73" text-anchor="middle" font-size="22" font-family="sans-serif">📱</text>
+        <text x="135" y="93" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2937" font-family="sans-serif">사용자 웹</text>
+        <text x="135" y="110" text-anchor="middle" font-size="10" fill="#6b7280" font-family="sans-serif">React 18 + Vite</text>
+        <text x="135" y="124" text-anchor="middle" font-size="10" fill="#9b7af7" font-family="sans-serif">sajuplan.com</text>
+
+        <!-- Web Mng -->
+        <rect x="250" y="46" width="170" height="90" rx="12" fill="white" filter="url(#shadow)" stroke="#c4b5fd" stroke-width="1.5"/>
+        <text x="335" y="73" text-anchor="middle" font-size="22" font-family="sans-serif">🛡️</text>
+        <text x="335" y="93" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2937" font-family="sans-serif">관리자 웹</text>
+        <text x="335" y="110" text-anchor="middle" font-size="10" fill="#6b7280" font-family="sans-serif">React 18 + Vite</text>
+        <text x="335" y="124" text-anchor="middle" font-size="10" fill="#9b7af7" font-family="sans-serif">sajuplan.com/mng</text>
+
+        <!-- Mobile -->
+        <rect x="450" y="46" width="170" height="90" rx="12" fill="white" filter="url(#shadow)" stroke="#c4b5fd" stroke-width="1.5"/>
+        <text x="535" y="73" text-anchor="middle" font-size="22" font-family="sans-serif">📲</text>
+        <text x="535" y="93" text-anchor="middle" font-size="13" font-weight="700" fill="#1f2937" font-family="sans-serif">모바일 앱</text>
+        <text x="535" y="110" text-anchor="middle" font-size="10" fill="#6b7280" font-family="sans-serif">RN WebView 셸</text>
+        <text x="535" y="124" text-anchor="middle" font-size="10" fill="#9b7af7" font-family="sans-serif">com.dmonster.sajumoon</text>
+
+        <!-- Arrows Layer1 → Layer2 -->
+        <line x1="135" y1="136" x2="280" y2="186" stroke="#9b7af7" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+        <line x1="335" y1="136" x2="335" y2="186" stroke="#9b7af7" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+        <line x1="535" y1="136" x2="390" y2="186" stroke="#9b7af7" stroke-width="2" stroke-dasharray="4,3" marker-end="url(#arrow)"/>
+        <text x="345" y="168" font-size="9.5" fill="#9b7af7" font-family="sans-serif">HTTPS / nginx → :3001</text>
+
+        <!-- ── LAYER 2: API ── -->
+        <!-- UserModule -->
+        <rect x="50" y="210" width="148" height="92" rx="10" fill="white" filter="url(#shadow)" stroke="#86efac" stroke-width="1.5"/>
+        <text x="124" y="236" text-anchor="middle" font-size="11" font-weight="700" fill="#15803d" font-family="sans-serif">UserModule</text>
+        <text x="124" y="252" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">auth / charge / chat</text>
+        <text x="124" y="265" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">consult / points</text>
+        <text x="124" y="278" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">counselors / reviews …</text>
+        <text x="124" y="292" text-anchor="middle" font-size="9" fill="#9b7af7" font-family="sans-serif">/api/user/*</text>
+
+        <!-- AdminModule -->
+        <rect x="220" y="210" width="148" height="92" rx="10" fill="white" filter="url(#shadow)" stroke="#86efac" stroke-width="1.5"/>
+        <text x="294" y="236" text-anchor="middle" font-size="11" font-weight="700" fill="#15803d" font-family="sans-serif">AdminModule</text>
+        <text x="294" y="252" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">members / grade</text>
+        <text x="294" y="265" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">settlements / payouts</text>
+        <text x="294" y="278" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">stats / handbook-AI …</text>
+        <text x="294" y="292" text-anchor="middle" font-size="9" fill="#9b7af7" font-family="sans-serif">/api/admin/*</text>
+
+        <!-- M2netPushModule (CRITICAL) -->
+        <rect x="390" y="210" width="160" height="92" rx="10" fill="#fff1f2" filter="url(#shadow)" stroke="#fca5a5" stroke-width="2"/>
+        <text x="470" y="230" text-anchor="middle" font-size="10" fill="#ef4444" font-weight="700" font-family="sans-serif">🔴 CRITICAL</text>
+        <text x="470" y="246" text-anchor="middle" font-size="11" font-weight="700" fill="#991b1b" font-family="sans-serif">M2netPushModule</text>
+        <text x="470" y="262" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">전화·채팅 콜백 수신</text>
+        <text x="470" y="275" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">금전 처리 진입점</text>
+        <text x="470" y="290" text-anchor="middle" font-size="9" fill="#ef4444" font-family="sans-serif">/api/pg/m2net/*</text>
+
+        <!-- CronModule -->
+        <rect x="574" y="210" width="140" height="92" rx="10" fill="white" filter="url(#shadow)" stroke="#86efac" stroke-width="1.5"/>
+        <text x="644" y="236" text-anchor="middle" font-size="11" font-weight="700" fill="#15803d" font-family="sans-serif">CronModule</text>
+        <text x="644" y="252" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">채팅자동취소 (매분)</text>
+        <text x="644" y="265" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">m2net동기화 (10분)</text>
+        <text x="644" y="278" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">월정산 (매월1일)</text>
+        <text x="644" y="291" text-anchor="middle" font-size="9" fill="#9b7af7" font-family="sans-serif">/api/cron/*</text>
+
+        <!-- SharedModule -->
+        <rect x="736" y="210" width="130" height="92" rx="10" fill="white" filter="url(#shadow)" stroke="#86efac" stroke-width="1.5"/>
+        <text x="801" y="236" text-anchor="middle" font-size="11" font-weight="700" fill="#15803d" font-family="sans-serif">SharedModule</text>
+        <text x="801" y="252" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">M2net / AG9 / FCM</text>
+        <text x="801" y="265" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">BizM / OpsAlert</text>
+        <text x="801" y="278" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">GradeUpgrade</text>
+        <text x="801" y="291" text-anchor="middle" font-size="9" fill="#9b7af7" font-family="sans-serif">Global Provider</text>
+
+        <!-- Arrows Layer2 → Layer3 -->
+        <line x1="124" y1="302" x2="124" y2="360" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#arrow-gray)"/>
+        <line x1="470" y1="302" x2="400" y2="360" stroke="#ef4444" stroke-width="2" marker-end="url(#arrow)"/>
+        <line x1="801" y1="302" x2="801" y2="360" stroke="#9ca3af" stroke-width="1.5" marker-end="url(#arrow-gray)"/>
+
+        <!-- ── LAYER 3: EXTERNAL ── -->
+        <!-- m2net -->
+        <rect x="50" y="388" width="150" height="92" rx="12" fill="#fff7ed" filter="url(#shadow)" stroke="#fdba74" stroke-width="2"/>
+        <text x="125" y="413" text-anchor="middle" font-size="22" font-family="sans-serif">📞</text>
+        <text x="125" y="432" text-anchor="middle" font-size="12" font-weight="800" fill="#c2410c" font-family="sans-serif">m2net (PassCall)</text>
+        <text x="125" y="447" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">전화·채팅 라우팅</text>
+        <text x="125" y="460" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">잔액 보유·동기화</text>
+        <text x="125" y="474" text-anchor="middle" font-size="9" fill="#c2410c" font-weight="700" font-family="sans-serif">🔴 핵심</text>
+
+        <!-- AG9 -->
+        <rect x="230" y="388" width="150" height="92" rx="12" fill="#fff7ed" filter="url(#shadow)" stroke="#fdba74" stroke-width="2"/>
+        <text x="305" y="413" text-anchor="middle" font-size="22" font-family="sans-serif">💳</text>
+        <text x="305" y="432" text-anchor="middle" font-size="12" font-weight="800" fill="#c2410c" font-family="sans-serif">AG9 (PG)</text>
+        <text x="305" y="447" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">카드·가상계좌</text>
+        <text x="305" y="460" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">자동충전(빌링키)</text>
+        <text x="305" y="474" text-anchor="middle" font-size="9" fill="#c2410c" font-weight="700" font-family="sans-serif">🔴 핵심</text>
+
+        <!-- BizM -->
+        <rect x="560" y="388" width="150" height="92" rx="12" fill="white" filter="url(#shadow)" stroke="#e5e7eb" stroke-width="1.5"/>
+        <text x="635" y="413" text-anchor="middle" font-size="22" font-family="sans-serif">💬</text>
+        <text x="635" y="432" text-anchor="middle" font-size="12" font-weight="800" fill="#1f2937" font-family="sans-serif">BizM</text>
+        <text x="635" y="447" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">카카오 알림톡</text>
+        <text x="635" y="460" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">건당 약 7원</text>
+        <text x="635" y="474" text-anchor="middle" font-size="9" fill="#d97706" font-weight="700" font-family="sans-serif">🟡 중요</text>
+
+        <!-- FCM -->
+        <rect x="730" y="388" width="150" height="92" rx="12" fill="white" filter="url(#shadow)" stroke="#e5e7eb" stroke-width="1.5"/>
+        <text x="805" y="413" text-anchor="middle" font-size="22" font-family="sans-serif">🔔</text>
+        <text x="805" y="432" text-anchor="middle" font-size="12" font-weight="800" fill="#1f2937" font-family="sans-serif">FCM</text>
+        <text x="805" y="447" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">앱 푸시 알림</text>
+        <text x="805" y="460" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">거의 안 씀</text>
+        <text x="805" y="474" text-anchor="middle" font-size="9" fill="#16a34a" font-weight="700" font-family="sans-serif">🟢 보조</text>
+
+        <!-- m2net push arrow back up -->
+        <path d="M 400 420 Q 410 320 390 302" stroke="#ef4444" stroke-width="2" fill="none" marker-end="url(#arrow)" stroke-dasharray="5,3"/>
+        <text x="415" y="365" font-size="9" fill="#ef4444" font-family="sans-serif">push callback</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     §2 돈 흐름
+══════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#d1fae5;">💰</div>
+    <div>
+      <div class="section-title">돈 흐름 (Money Flow)</div>
+      <div class="section-sub">결제 → 코인 적립 → 상담 차감 → 정산 → 입금 전 과정</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="flow-svg-wrap">
+      <svg viewBox="0 0 900 310" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;min-width:700px;">
+        <defs>
+          <marker id="marr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#16a34a"/>
+          </marker>
+        </defs>
+
+        <!-- Nodes -->
+        <!-- 1. 결제 -->
+        <rect x="20" y="60" width="120" height="64" rx="10" fill="#fef3c7" stroke="#fbbf24" stroke-width="2"/>
+        <text x="80" y="86" text-anchor="middle" font-size="20" font-family="sans-serif">💳</text>
+        <text x="80" y="105" text-anchor="middle" font-size="12" font-weight="700" fill="#92400e" font-family="sans-serif">AG9 결제</text>
+        <text x="80" y="118" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">카드·가상계좌</text>
+
+        <!-- arrow1 -->
+        <line x1="140" y1="92" x2="175" y2="92" stroke="#16a34a" stroke-width="2" marker-end="url(#marr)"/>
+
+        <!-- 2. paid_balance -->
+        <rect x="176" y="60" width="130" height="64" rx="10" fill="#d1fae5" stroke="#34d399" stroke-width="2"/>
+        <text x="241" y="86" text-anchor="middle" font-size="20" font-family="sans-serif">🪙</text>
+        <text x="241" y="104" text-anchor="middle" font-size="11" font-weight="700" fill="#065f46" font-family="sans-serif">paid_balance</text>
+        <text x="241" y="117" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">유료코인 적립</text>
+
+        <!-- arrow2 -->
+        <line x1="306" y1="92" x2="345" y2="92" stroke="#16a34a" stroke-width="2" marker-end="url(#marr)"/>
+
+        <!-- 3. 상담 -->
+        <rect x="346" y="60" width="120" height="64" rx="10" fill="#ede9fe" stroke="#c4b5fd" stroke-width="2"/>
+        <text x="406" y="86" text-anchor="middle" font-size="20" font-family="sans-serif">🔮</text>
+        <text x="406" y="104" text-anchor="middle" font-size="11" font-weight="700" fill="#5b21b6" font-family="sans-serif">전화·채팅 상담</text>
+        <text x="406" y="117" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">m2net 라우팅</text>
+
+        <!-- arrow3 -->
+        <line x1="466" y1="92" x2="505" y2="92" stroke="#16a34a" stroke-width="2" marker-end="url(#marr)"/>
+
+        <!-- 4. 차감 -->
+        <rect x="506" y="60" width="130" height="64" rx="10" fill="#fee2e2" stroke="#fca5a5" stroke-width="2"/>
+        <text x="571" y="86" text-anchor="middle" font-size="20" font-family="sans-serif">📉</text>
+        <text x="571" y="104" text-anchor="middle" font-size="11" font-weight="700" fill="#991b1b" font-family="sans-serif">코인 차감</text>
+        <text x="571" y="117" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">paid → free 순</text>
+
+        <!-- arrow4 -->
+        <line x1="636" y1="92" x2="675" y2="92" stroke="#16a34a" stroke-width="2" marker-end="url(#marr)"/>
+
+        <!-- 5. earning -->
+        <rect x="676" y="60" width="130" height="64" rx="10" fill="#fce7f3" stroke="#f9a8d4" stroke-width="2"/>
+        <text x="741" y="86" text-anchor="middle" font-size="20" font-family="sans-serif">💼</text>
+        <text x="741" y="104" text-anchor="middle" font-size="11" font-weight="700" fill="#9d174d" font-family="sans-serif">earning_balance</text>
+        <text x="741" y="117" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">상담사 수익금</text>
+
+        <!-- 정산 흐름 (하단) -->
+        <text x="450" y="165" text-anchor="middle" font-size="12" font-weight="700" fill="#6b7280" font-family="sans-serif">── 매월 1일 정산 cron ──</text>
+
+        <!-- 6. settlement -->
+        <rect x="340" y="190" width="150" height="80" rx="10" fill="#f0fdf4" stroke="#86efac" stroke-width="2"/>
+        <text x="415" y="220" text-anchor="middle" font-size="20" font-family="sans-serif">📋</text>
+        <text x="415" y="240" text-anchor="middle" font-size="11" font-weight="700" fill="#15803d" font-family="sans-serif">settlement_monthly</text>
+        <text x="415" y="255" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">원천세 3.3% · 회선료 2만</text>
+
+        <!-- arrow earning → settlement -->
+        <path d="M741,124 Q741,165 490,190" stroke="#16a34a" stroke-width="1.5" fill="none" marker-end="url(#marr)" stroke-dasharray="4,3"/>
+
+        <!-- 7. 입금 -->
+        <rect x="560" y="190" width="120" height="80" rx="10" fill="#eff6ff" stroke="#93c5fd" stroke-width="2"/>
+        <text x="620" y="220" text-anchor="middle" font-size="20" font-family="sans-serif">🏦</text>
+        <text x="620" y="240" text-anchor="middle" font-size="11" font-weight="700" fill="#1e40af" font-family="sans-serif">운영자 검토</text>
+        <text x="620" y="255" text-anchor="middle" font-size="9.5" fill="#6b7280" font-family="sans-serif">수작업 계좌이체</text>
+
+        <line x1="490" y1="230" x2="558" y2="230" stroke="#16a34a" stroke-width="2" marker-end="url(#marr)"/>
+
+        <!-- DB 컬럼 라벨 -->
+        <rect x="20" y="190" width="290" height="90" rx="10" fill="#f9fafb" stroke="#e5e7eb" stroke-width="1.5"/>
+        <text x="165" y="213" text-anchor="middle" font-size="12" font-weight="700" fill="#374151" font-family="sans-serif">DB 컬럼 (변경 금지)</text>
+        <text x="35" y="233" font-size="11" fill="#16a34a" font-weight="700" font-family="sans-serif">free_balance</text>
+        <text x="150" y="233" font-size="10" fill="#6b7280" font-family="sans-serif">→ 출석/이벤트 무료코인</text>
+        <text x="35" y="251" font-size="11" fill="#0ea5e9" font-weight="700" font-family="sans-serif">paid_balance</text>
+        <text x="150" y="251" font-size="10" fill="#6b7280" font-family="sans-serif">→ 결제 유료코인</text>
+        <text x="35" y="269" font-size="11" fill="#ec4899" font-weight="700" font-family="sans-serif">earning_balance</text>
+        <text x="165" y="269" font-size="10" fill="#6b7280" font-family="sans-serif">→ 상담사 수익금</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     §3 기술 스택
+══════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fce7f3;">⚙️</div>
+    <div>
+      <div class="section-title">기술 스택</div>
+      <div class="section-sub">사용된 프레임워크·라이브러리·인프라</div>
+    </div>
+  </div>
+
+  <div class="stack-grid">
+    <div class="stack-card">
+      <div class="stack-card-icon">📱</div>
+      <div class="stack-card-label">사용자 웹</div>
+      <div class="stack-card-value">React 18 + Vite<br>TailwindCSS + Router v6</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-card-icon">🛡️</div>
+      <div class="stack-card-label">관리자 웹</div>
+      <div class="stack-card-value">React 18 + Vite<br>Recharts + React-Markdown</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-card-icon">📲</div>
+      <div class="stack-card-label">모바일 앱</div>
+      <div class="stack-card-value">React Native WebView 셸<br>com.dmonster.sajumoon</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-card-icon">🖥️</div>
+      <div class="stack-card-label">API 서버</div>
+      <div class="stack-card-value">NestJS 11 + TypeScript<br>postgres.js (ORM 없음)</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-card-icon">🗄️</div>
+      <div class="stack-card-label">데이터베이스</div>
+      <div class="stack-card-value">PostgreSQL 18.1<br>Raw SQL + 태그드 쿼리</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-card-icon">🔐</div>
+      <div class="stack-card-label">인증</div>
+      <div class="stack-card-value">JWT HTTP-only Cookie<br>sjm_user / sjm_admin</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-card-icon">🚀</div>
+      <div class="stack-card-label">서버 런타임</div>
+      <div class="stack-card-value">PM2 (fork mode)<br>104.64.128.103</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-card-icon">🤖</div>
+      <div class="stack-card-label">AI (핸드북)</div>
+      <div class="stack-card-value">Anthropic SDK<br>Claude RAG + SQL Tool</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     §4 도메인·서버 경로
+══════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fef3c7;">🌐</div>
+    <div>
+      <div class="section-title">도메인·서버 경로 구조</div>
+      <div class="section-sub">겉(도메인)과 속(폴더)이 다른 이유 — 서비스명 변경 이력</div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="background:#fef3c7;padding:14px 20px;border-bottom:1px solid #e5e7eb;">
+      <strong style="color:#92400e;">⚠️ 왜 도메인과 폴더명이 다른가?</strong>
+      <span style="font-size:13px;color:#78350f;margin-left:8px;">
+        초기 서비스명 "사주문(Sajumoon)" → "사주플랜(Sajuplan)" 으로 변경.
+        서버 폴더·외부 API 경로 변경 작업량이 너무 커서 폴더명은 <code style="background:#fde68a;padding:1px 5px;border-radius:4px;">sajumoon.co.kr</code>로 그대로 유지.
+      </span>
+    </div>
+    <table class="domain-table">
+      <thead>
+        <tr>
+          <th>접속 도메인</th>
+          <th>실제 서버 경로</th>
+          <th>역할</th>
+          <th>상태</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="code">sajuplan.com</span></td>
+          <td><span class="code">/data/wwwroot/sajumoon.co.kr/</span></td>
+          <td>사용자 프론트</td>
+          <td><span class="badge badge-green">운영 중</span></td>
+        </tr>
+        <tr>
+          <td><span class="code">sajuplan.com/mng</span></td>
+          <td><span class="code">/data/wwwroot/sajumoon.co.kr/mng/</span></td>
+          <td>관리자 프론트</td>
+          <td><span class="badge badge-green">운영 중</span></td>
+        </tr>
+        <tr>
+          <td><span class="code">api.sajuplan.com</span></td>
+          <td><span class="code">/data/wwwroot/api.sajumoon.co.kr/</span></td>
+          <td>API 서버</td>
+          <td><span class="badge badge-green">운영 중</span></td>
+        </tr>
+        <tr>
+          <td><span class="code">sajumoon.co.kr</span></td>
+          <td>→ sajuplan.com 301 redirect</td>
+          <td>구 도메인 리다이렉트</td>
+          <td><span class="badge badge-gray">redirect only</span></td>
+        </tr>
+        <tr class="dead-row">
+          <td><span class="code">❌ /data/wwwroot/sajuplan.com/</span></td>
+          <td colspan="2">nginx 미사용 — 절대 배포 금지</td>
+          <td><span class="badge badge-red">죽은 폴더</span></td>
+        </tr>
+        <tr class="dead-row">
+          <td><span class="code">❌ 172.235.211.75 (TEST)</span></td>
+          <td colspan="2">2026-05-29 공식 폐기, PROD 단일 운영</td>
+          <td><span class="badge badge-red">폐기됨</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     §5 상담사 등급 시스템
+══════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#ede9fe;">🎧</div>
+    <div>
+      <div class="section-title">상담사 등급 시스템</div>
+      <div class="section-sub">당월 누적 상담시간 기준 실시간 자동 승급 (2026-06-07)</div>
+    </div>
+  </div>
+
+  <div class="grade-grid">
+    <div class="grade-card" style="background:#f9fafb;border-color:#e5e7eb;">
+      <div class="grade-card-level">LEVEL 0</div>
+      <div class="grade-card-name" style="color:#6b7280;">예비파트너</div>
+      <div class="grade-card-hours">신규 입문</div>
+      <div class="grade-card-rate" style="color:#9ca3af;">40%</div>
+    </div>
+    <div class="grade-card" style="background:#fef3c7;border-color:#fbbf24;">
+      <div class="grade-card-level">LEVEL 1</div>
+      <div class="grade-card-name" style="color:#92400e;">파트너1</div>
+      <div class="grade-card-hours">5시간 이상</div>
+      <div class="grade-card-rate" style="color:#d97706;">45%</div>
+    </div>
+    <div class="grade-card" style="background:#fef3c7;border-color:#f59e0b;">
+      <div class="grade-card-level">LEVEL 2</div>
+      <div class="grade-card-name" style="color:#78350f;">파트너2</div>
+      <div class="grade-card-hours">15시간 이상</div>
+      <div class="grade-card-rate" style="color:#b45309;">50%</div>
+    </div>
+    <div class="grade-card" style="background:#ede9fe;border-color:#c4b5fd;">
+      <div class="grade-card-level">LEVEL 3</div>
+      <div class="grade-card-name" style="color:#5b21b6;">파트너3</div>
+      <div class="grade-card-hours">30시간 이상</div>
+      <div class="grade-card-rate" style="color:#7c3aed;">55%</div>
+    </div>
+    <div class="grade-card" style="background:#ede9fe;border-color:#a78bfa;">
+      <div class="grade-card-level">LEVEL 4</div>
+      <div class="grade-card-name" style="color:#4c1d95;">파트너4</div>
+      <div class="grade-card-hours">50시간 이상</div>
+      <div class="grade-card-rate" style="color:#6d28d9;">60%</div>
+    </div>
+    <div class="grade-card" style="background:linear-gradient(135deg,#fdf2f8,#ede9fe);border-color:#ec4899;">
+      <div class="grade-card-level">LEVEL 5 ⭐</div>
+      <div class="grade-card-name" style="color:#9d174d;">파트너5</div>
+      <div class="grade-card-hours">80시간 이상</div>
+      <div class="grade-card-rate" style="color:#ec4899;">70%</div>
+    </div>
+  </div>
+  <div style="margin-top:14px;font-size:13px;color:#6b7280;padding:12px 16px;background:#f9fafb;border-radius:10px;border:1px solid #e5e7eb;">
+    🔼 <strong>승급</strong>: 당월 누적 상담시간 달성 즉시 실시간 자동 승급 &nbsp;|&nbsp;
+    🔽 <strong>강등</strong>: 매월 1일 크론에서만, 한 단계씩만 처리
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     §6 Cron 스케줄
+══════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#1e1b4b;">⏰</div>
+    <div>
+      <div class="section-title">Cron 자동화 스케줄</div>
+      <div class="section-sub">9개 자동화 잡 — 모두 PM2 단일 프로세스에서 실행</div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table class="cron-table">
+      <thead>
+        <tr>
+          <th>주기</th>
+          <th>잡 이름</th>
+          <th>역할</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="freq-badge">매분</span></td>
+          <td>채팅 자동 취소</td>
+          <td>STAY 3분 초과 → DISCONNECT 자동 전환 + 알림톡</td>
+        </tr>
+        <tr>
+          <td><span class="freq-badge">매분</span></td>
+          <td>5분 알림 안전망</td>
+          <td>채팅/전화 잔여 5분 경고 메시지 (백업 cron)</td>
+        </tr>
+        <tr>
+          <td><span class="freq-badge">10분</span></td>
+          <td>m2net 동기화 재시도</td>
+          <td>결제 후 m2net 잔액 정합 복구 (이중적립 방어)</td>
+        </tr>
+        <tr>
+          <td><span class="freq-badge">10분</span></td>
+          <td>채팅 정산 재시도</td>
+          <td>m2net 장애로 누락된 채팅 정산 재처리</td>
+        </tr>
+        <tr>
+          <td><span class="freq-badge">1시간</span></td>
+          <td>상담사 자동 부재중</td>
+          <td>24시간 무응답 → absent_status 전환 + 알림톡</td>
+        </tr>
+        <tr>
+          <td><span class="freq-badge">매시간</span></td>
+          <td>DB 헬스체크</td>
+          <td>18개 invariant 검사 → 위반 시 OpsAlert 발송</td>
+        </tr>
+        <tr>
+          <td><span class="freq-badge">매일 09:00</span></td>
+          <td>일일 요약</td>
+          <td>전일 매출·가입·채팅 수치 알림톡 → 사장님</td>
+        </tr>
+        <tr>
+          <td><span class="freq-badge">매월 1일</span></td>
+          <td>등급 재산정</td>
+          <td>전월 상담시간 기반 등급 재계산 + 강등 처리</td>
+        </tr>
+        <tr>
+          <td><span class="freq-badge">매월 1일</span></td>
+          <td>월 정산</td>
+          <td>earning_balance → settlement_monthly 생성 (원천세 3.3%, 회선료 2만)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     §7 알림 채널
+══════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fef3c7;">🔔</div>
+    <div>
+      <div class="section-title">알림 채널 정책</div>
+      <div class="section-sub">3채널 — 목적과 차단 정책이 다름</div>
+    </div>
+  </div>
+
+  <div class="alert-grid">
+    <div class="alert-card" style="background:#fffbeb;border-color:#fde68a;">
+      <div class="alert-card-icon">💬</div>
+      <div class="alert-card-name" style="color:#92400e;">BizM 알림톡</div>
+      <div class="alert-card-desc">
+        외부 도달 메인 채널. 카카오 알림톡. 건당 약 7원.<br><br>
+        <strong style="color:#b45309;">⚠️ 채팅 중 차단</strong> — 예외:
+        <code style="font-size:11px;background:#fef3c7;padding:1px 5px;border-radius:4px;">chat_request_to_counselor</code>만 통과
+      </div>
+    </div>
+    <div class="alert-card" style="background:#ede9fe;border-color:#c4b5fd;">
+      <div class="alert-card-icon">🔔</div>
+      <div class="alert-card-name" style="color:#5b21b6;">인앱 알림</div>
+      <div class="alert-card-desc">
+        앱 내 종모양 아이콘. 영구보존 (직접 삭제까지 유지).<br><br>
+        <strong style="color:#6d28d9;">채팅 중에도 발생</strong> — 알림톡 수신 불가 상황에서도 인앱 기록 남음
+      </div>
+    </div>
+    <div class="alert-card" style="background:#f0fdf4;border-color:#86efac;">
+      <div class="alert-card-icon">📲</div>
+      <div class="alert-card-name" style="color:#15803d;">FCM 푸시</div>
+      <div class="alert-card-desc">
+        앱 푸시 알림 인프라. 기술적으로 완성됨.<br><br>
+        <strong>거의 안 씀</strong> — 알림톡 선호 정책. 앱 설치 + 권한 필요
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     §8 배포 명령
+══════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#1c1917;">🚀</div>
+    <div>
+      <div class="section-title">배포 명령</div>
+      <div class="section-sub">"fast패치" 키워드 = 아래 명령 즉시 실행 · 다른 방법 없음</div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden;">
+    <table class="deploy-table">
+      <thead>
+        <tr>
+          <th>변경 내용</th>
+          <th>명령어</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>사용자 프론트</strong> 변경 시<br><small style="color:#6b7280;">web/user/ 소스 수정 후</small></td>
+          <td><code>python tools/_patch_frontend_fast.py user</code></td>
+        </tr>
+        <tr>
+          <td><strong>관리자 프론트</strong> 변경 시<br><small style="color:#6b7280;">web/mng/ 소스 수정 후</small></td>
+          <td><code>python tools/_patch_frontend_fast.py mng</code></td>
+        </tr>
+        <tr>
+          <td><strong>API 코드</strong> 변경 시<br><small style="color:#6b7280;">api/src/ 소스 수정 후</small></td>
+          <td><code>python tools/_patch_api.py</code></td>
+        </tr>
+        <tr>
+          <td><strong>핸드북 MD</strong> 변경 시<br><small style="color:#6b7280;">_HANDBOOK/*.md 수정 후</small></td>
+          <td><code>python tools/_sync_handbook.py</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="margin-top:14px;padding:14px 18px;background:#fef3c7;border-radius:10px;border-left:4px solid #f59e0b;">
+    <strong>배포 후 반드시 확인:</strong>
+    <span style="font-size:13px;color:#78350f;margin-left:6px;">
+      <code style="background:#fde68a;padding:1px 6px;border-radius:4px;">__SAJUMOON_ENV__</code> →
+      <code style="background:#fde68a;padding:1px 6px;border-radius:4px;">prod</code> 치환 여부.
+      누락 시 prod가 test API를 호출하는 사고 발생 (실 사고 이력 있음)
+    </span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     §9 위험 원칙
+══════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-header">
+    <div class="section-icon" style="background:#fee2e2;">🚨</div>
+    <div>
+      <div class="section-title">절대 해서는 안 되는 것 (핵심 안전 원칙)</div>
+      <div class="section-sub">실제 사고 이력 기반 — 반드시 숙지</div>
+    </div>
+  </div>
+
+  <div class="danger-list">
+    <div class="danger-item">
+      <div class="danger-num">1</div>
+      <div class="danger-text"><strong>DB 직접 삭제·TRUNCATE 절대 금지</strong> — FK cascade 사고 이력 있음. soft delete 정책(state='deleted') 준수. pg_dump 백업 후 화이트리스트 작업만 허용.</div>
+    </div>
+    <div class="danger-item">
+      <div class="danger-num">2</div>
+      <div class="danger-text"><strong><code>__SAJUMOON_ENV__</code> 치환 누락 배포 금지</strong> — 누락 시 prod가 test API를 호출. 실 사고 발생 이력. 배포 스크립트가 자동 처리하나 수동 배포 시 주의.</div>
+    </div>
+    <div class="danger-item">
+      <div class="danger-num">3</div>
+      <div class="danger-text"><strong><code>/data/wwwroot/sajuplan.com/</code>에 배포 금지</strong> — nginx 미사용 죽은 폴더. 여기에 배포하면 사용자에게 아무 반영 없음.</div>
+    </div>
+    <div class="danger-item">
+      <div class="danger-num">4</div>
+      <div class="danger-text"><strong>m2net / AG9 / BizM 외부 서비스 키 임의 수정 금지</strong> — 실 서비스에 즉각 영향. 변경 시 반드시 사장님과 사전 협의.</div>
+    </div>
+    <div class="danger-item">
+      <div class="danger-num">5</div>
+      <div class="danger-text"><strong>결제·정산 관련 코드 변경 시 E2E 0 failed 필수 확인</strong> — Playwright 자동 클릭 테스트 통과 후에만 완료 보고. 코드 리뷰만으로는 불충분.</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end .page -->
+</div><!-- end .container -->
+
+<div class="footer">
+  사주플랜(Sajumoon) Platform Blueprint v1.0 &nbsp;·&nbsp; 최종 업데이트: 2026-06-08 &nbsp;·&nbsp;
+  상세 내용: 운영 바이블 AI (<code>/mng/handbook</code>) 또는 <code>_HANDBOOK/system/</code>
+</div>
+
+</body>
+</html>

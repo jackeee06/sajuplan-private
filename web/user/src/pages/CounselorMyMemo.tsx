@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { NotebookPen, Save, CheckCircle } from 'lucide-react'
 import { useAuth } from '../lib/auth-context'
+import { API_BASE } from '../lib/runtime-env'
 
 /**
  * 상담사 개인 메모장.
@@ -10,15 +11,14 @@ import { useAuth } from '../lib/auth-context'
  * - 자동 저장 (2초 디바운스)
  * - 단순 textarea (이미지 업로드는 향후 검토)
  * - 회원별 특이사항, 본인 노트 등 자유 형식
+ *
+ * [2026-06-11 fix] 자체 API_BASE(/api 누락 + 폐기서버 fallback) 제거 →
+ *   표준 runtime-env API_BASE 사용. 기존엔 모든 호출이 /api 빠져 404 → 메모 먹통.
  */
-
-const API_BASE = (window as unknown as { __SAJUMOON_CONFIG?: { env?: string } }).__SAJUMOON_CONFIG?.env === 'prod'
-  ? 'https://api.sajuplan.com'
-  : 'https://api.sajumoon.kr'
 
 export default function CounselorMyMemo() {
   const navigate = useNavigate()
-  const { isLoggedIn, isCounselor } = useAuth()
+  const { isLoggedIn, isCounselor, loading: authLoading } = useAuth()
   const [content, setContent] = useState('')
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -26,6 +26,10 @@ export default function CounselorMyMemo() {
   const debounceRef = useRef<number | null>(null)
 
   useEffect(() => {
+    // [2026-06-11 fix] 인증 확인 중(loading)엔 판단 보류 — 콜드 로드/새로고침/딥링크 시
+    //   member=null·loading=true 초기 상태에서 즉시 /login 으로 튕겨 메모 호출 자체가
+    //   안 되던 가드 레이스 수정.
+    if (authLoading) return
     if (!isLoggedIn || !isCounselor) {
       navigate('/login')
       return
@@ -38,7 +42,7 @@ export default function CounselorMyMemo() {
       })
       .catch(() => undefined)
       .finally(() => setLoading(false))
-  }, [isLoggedIn, isCounselor, navigate])
+  }, [authLoading, isLoggedIn, isCounselor, navigate])
 
   const save = async (text: string) => {
     setSaving(true)

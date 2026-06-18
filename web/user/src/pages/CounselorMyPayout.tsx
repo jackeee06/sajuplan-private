@@ -11,6 +11,8 @@ import {
 } from '../lib/api'
 import PayoutRequestModal from '../components/PayoutRequestModal'
 import PayoutBankModal from '../components/PayoutBankModal'
+import { useConfirm } from '../lib/use-confirm'
+import { useAlert } from '../lib/use-alert'
 
 /**
  * 상담사 마이페이지 — 선지급(early payout)
@@ -30,6 +32,8 @@ export default function CounselorMyPayout() {
   const [busy, setBusy] = useState(false)
   const [requestModalOpen, setRequestModalOpen] = useState(false)
   const [bankModalOpen, setBankModalOpen] = useState(false)
+  const { confirm, confirmUI } = useConfirm()
+  const { showAlert, alertUI } = useAlert()
 
   const refresh = () => {
     counselorPayoutApi.available()
@@ -46,13 +50,13 @@ export default function CounselorMyPayout() {
   }, [member])
 
   const handleCancel = async (id: number) => {
-    if (!window.confirm('이 신청을 취소하시겠습니까?')) return
+    if (!(await confirm({ message: '이 신청을 취소하시겠습니까?', actionLabel: '신청 취소', tone: 'danger' }))) return
     setBusy(true)
     try {
       await counselorPayoutApi.cancel(id)
       refresh()
     } catch (e) {
-      alert(`취소 실패: ${e instanceof Error ? e.message : ''}`)
+      void showAlert(`취소 실패: ${e instanceof Error ? e.message : ''}`)
     } finally {
       setBusy(false)
     }
@@ -298,6 +302,8 @@ export default function CounselorMyPayout() {
           refresh()
         }}
       />
+      {confirmUI}
+      {alertUI}
     </div>
   )
 }

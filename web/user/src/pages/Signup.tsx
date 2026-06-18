@@ -51,6 +51,7 @@ export default function Signup() {
     dateMode: 'solar' as DateMode,
     birth: '',
     referrer: '',
+    promoterCode: '',
   })
 
   const update = <K extends keyof typeof form>(key: K, v: (typeof form)[K]) => {
@@ -135,6 +136,24 @@ export default function Signup() {
       alive = false
     }
   }, [initialSocial, navigate])
+
+  // 추천코드 칸 접이식 — 기본 숨김. 추천 없이 온 일반 가입자(대다수)는 방해받지 않는다.
+  const [showPromoter, setShowPromoter] = useState(false)
+
+  // 모집인(서포터즈) QR/링크 유입 — RecruiterLanding 이 localStorage 에 심어둔
+  // 'promoter_ref'(코드) 가 있으면 추천코드 칸을 펼쳐 자동으로 채운다.
+  // (단, 앱 신규설치 경유 가입은 저장소가 끊겨 prefill 안 됨 → 가입 후 마이페이지 사후 입력으로 보완)
+  useEffect(() => {
+    try {
+      const ref = localStorage.getItem('promoter_ref')
+      if (ref) {
+        setForm((p) => (p.promoterCode ? p : { ...p, promoterCode: ref }))
+        setShowPromoter(true)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   const fmtTime = (s: number) => {
     const m = Math.floor(s / 60)
@@ -250,13 +269,30 @@ export default function Signup() {
     if (form.birth.trim() && !parseBirthYmd(form.birth))
       errs.birth = '생년월일은 YYYY. MM. DD 형식으로 입력해주세요.'
     if (!form.referrer.trim()) errs.referrer = '유입경로를 입력해주세요.'
-    if (!agreeTerms) errs.agreeTerms = '회원가입약관에 동의해주세요.'
+    if (!agreeTerms) errs.agreeTerms = '이용약관에 동의해주세요.'
     if (!agreePrivacy) errs.agreePrivacy = '개인정보처리방침에 동의해주세요.'
 
     if (Object.keys(errs).length) {
       setErrors(errs)
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
+    }
+
+    // 모집인 추천 — 입력값(또는 QR/링크 prefill) + 유입경로(qr|code)
+    const promoterCode = form.promoterCode.trim() || undefined
+    let promoterEntry: 'qr' | 'code' = 'code'
+    try {
+      if (localStorage.getItem('promoter_ref_entry') === 'qr') promoterEntry = 'qr'
+    } catch {
+      /* ignore */
+    }
+    const clearPromoterRef = () => {
+      try {
+        localStorage.removeItem('promoter_ref')
+        localStorage.removeItem('promoter_ref_entry')
+      } catch {
+        /* ignore */
+      }
     }
 
     setSubmitting(true)
@@ -278,8 +314,11 @@ export default function Signup() {
           agree_privacy: agreePrivacy,
           agree_email: agreeEmail,
           agree_sms: agreeSms,
+          promoter_code: promoterCode,
+          promoter_entry: promoterEntry,
         })
         // 백엔드가 가입 응답에 JWT 쿠키를 함께 발급 → 즉시 인증 컨텍스트 갱신 후 메인으로.
+        clearPromoterRef()
         await refresh()
         navigate('/', { replace: true, state: { signupToast: '🎉 회원가입이 완료되었습니다. 환영합니다!' } })
         return
@@ -301,8 +340,11 @@ export default function Signup() {
         agree_privacy: agreePrivacy,
         agree_email: agreeEmail,
         agree_sms: agreeSms,
+        promoter_code: promoterCode,
+        promoter_entry: promoterEntry,
       })
       // 백엔드가 가입 응답에 JWT 쿠키를 함께 발급 → 즉시 인증 컨텍스트 갱신 후 메인으로.
+      clearPromoterRef()
       await refresh()
       navigate('/', { replace: true, state: { signupToast: '🎉 회원가입이 완료되었습니다. 환영합니다!' } })
     } catch (err) {
@@ -459,30 +501,37 @@ export default function Signup() {
             error={errors.phone}
             rightLabel={phoneSent && !phoneVerified ? <span className="text-[#FF6467] font-medium">{fmtTime(timer)}</span> : null}
           >
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <InputField
-                  type="tel"
-                  value={form.phone}
-                  onChange={(v) => update('phone', v.replace(/[^0-9]/g, '').slice(0, 11))}
-                  placeholder="'-' 없이 숫자만 입력해주세요."
-                  autoComplete="tel"
-                  error={!!errors.phone}
-                  rightPadding="sm"
-                  disabled={phoneVerified}
-                  maxLength={11}
-                  inputMode="numeric"
-                  pattern="\d*"
-                />
+            <InputField
+              type="tel"
+              value={form.phone}
+              onChange={(v) => update('phone', v.replace(/[^0-9]/g, '').slice(0, 11))}
+              placeholder="'-' 없이 숫자만 입력해주세요."
+              autoComplete="tel"
+              error={!!errors.phone}
+              rightPadding="sm"
+              disabled={phoneVerified}
+              maxLength={11}
+              inputMode="numeric"
+              pattern="\d*"
+            />
+            {!phoneVerified && (
+              <div className="mt-2 flex items-start gap-2 rounded-[12px] bg-[#FEF9E7] border border-[#FDE68A] px-3 py-2.5">
+                <span className="text-[15px] leading-none mt-[1px]">💬</span>
+                <p className="text-[12.5px] leading-[150%] text-[#854D0E]">
+                  인증번호는 <span className="font-bold text-[#030712]">카카오톡</span>으로 발송됩니다.
+                  문자(SMS)가 아니니 <span className="font-bold text-[#030712]">카카오톡</span>을 확인해 주세요.
+                </p>
               </div>
-              <OutlineButton type="button" onClick={onSendPhoneCode} disabled={phoneVerified}>
-                {phoneSent ? '재전송' : '인증번호 전송'}
-              </OutlineButton>
-            </div>
-            {!phoneSent && !phoneVerified && (
-              <p className="mt-1.5 ml-1 text-[12px] text-[#6A7282]">
-                💬 인증번호는 <span className="font-semibold text-[#1E2939]">카카오톡</span>으로 발송됩니다. 카카오톡 알림이 안 오면 잠시 후 다시 시도해 주세요.
-              </p>
+            )}
+            {!phoneVerified && (
+              <button
+                type="button"
+                onClick={onSendPhoneCode}
+                className="mt-2.5 w-full h-12 rounded-[12px] bg-[#FEE500] text-[15px] font-bold text-[#191600] flex items-center justify-center gap-1.5 active:opacity-80 transition-opacity"
+              >
+                <span className="text-[16px] leading-none">💬</span>
+                {phoneSent ? '카카오톡으로 다시 받기' : '카카오톡으로 인증번호 받기'}
+              </button>
             )}
             {phoneSent && !phoneVerified && (
               <>
@@ -547,6 +596,27 @@ export default function Signup() {
             />
           </Field>
 
+          {/* 추천코드 — 선택. 기본 접힘(일반 가입자 무방해). 추천 받은 사람만 펼쳐 입력 */}
+          {showPromoter ? (
+            <Field label="추천코드 (선택)">
+              <InputField
+                value={form.promoterCode}
+                onChange={(v) => update('promoterCode', v.trim().slice(0, 32))}
+                placeholder="받으신 추천코드 (없으면 비워두세요)"
+                onClear={() => update('promoterCode', '')}
+                maxLength={32}
+              />
+            </Field>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowPromoter(true)}
+              className="w-fit text-[14px] text-[#6A7282] underline underline-offset-2 hover:text-[#1e2939] transition"
+            >
+              추천코드가 있으신가요?
+            </button>
+          )}
+
           <hr className="my-2 border-[#e5e7eb]" />
 
           {/* 약관 동의 — 전체 동의 헤더 + 4개 개별 */}
@@ -561,7 +631,7 @@ export default function Signup() {
               }}
             >
               <AgreeRow checked={agreeTerms} onChange={setAgreeTerms} required onMore={() => setModal('terms')}>
-                (필수) 회원가입약관 동의
+                (필수) 이용약관 동의
               </AgreeRow>
               <AgreeRow checked={agreePrivacy} onChange={setAgreePrivacy} required onMore={() => setModal('privacy')}>
                 (필수) 개인정보처리방침 동의

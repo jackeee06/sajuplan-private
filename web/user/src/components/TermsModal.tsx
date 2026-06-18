@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { CloseIcon } from './icons'
+import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 import { useDismissOnBack } from '../lib/use-dismiss-on-back'
+import { API_BASE } from '../lib/runtime-env'
 
 export type TermsKind = 'terms' | 'privacy'
 
@@ -10,7 +12,7 @@ interface Props {
 }
 
 const FALLBACK_TITLES: Record<TermsKind, string> = {
-  terms: '회원가입약관',
+  terms: '이용약관',
   privacy: '개인정보처리방침',
 }
 
@@ -23,7 +25,9 @@ interface PageResp {
 
 /**
  * 약관/개인정보처리방침 모달 — Figma node 16:50398
- * 본문은 /api/user/pages/{terms|privacy} 에서 fetch.
+ * 본문은 `${API_BASE}/user/pages/{terms|privacy}` 에서 fetch.
+ *   ⚠️ 반드시 API_BASE 사용 — 프론트 도메인(sajuplan.com)은 /api 를 프록시하지 않아
+ *      bare `/api/...` 는 SPA index.html(200 text/html)을 반환 → r.json() 파싱 실패 → "불러오기 실패".
  * 어드민 → 콘텐츠 관리에서 수정 가능.
  */
 export default function TermsModal({ kind, onClose }: Props) {
@@ -46,7 +50,7 @@ export default function TermsModal({ kind, onClose }: Props) {
     setLoading(true)
     setError(null)
     setData(null)
-    fetch(`/api/user/pages/${kind}`)
+    fetch(`${API_BASE}/user/pages/${kind}`, { credentials: 'include' })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         const j: PageResp = await r.json()
@@ -87,7 +91,7 @@ export default function TermsModal({ kind, onClose }: Props) {
           ) : error ? (
             <div className="py-10 text-center text-[#DC2626]">불러오기 실패 — {error}</div>
           ) : data?.use_html ? (
-            <div dangerouslySetInnerHTML={{ __html: data.content }} />
+            <div dangerouslySetInnerHTML={{ __html: sanitizeIntroHtml(data.content ?? '') }} />
           ) : (
             <div className="whitespace-pre-line">{data?.content ?? ''}</div>
           )}

@@ -4,6 +4,7 @@ import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
 import ConfirmModal from '../components/ConfirmModal'
 import UploadedImage from '../components/UploadedImage'
+import PromoterReferralPrompt from '../components/PromoterReferralPrompt'
 import { MEMBER_MAIN_MENU, MEMBER_EXTRA_MENU } from '../data/memberProfile'
 import { useAuth } from '../lib/auth-context'
 import { FILE_BASE } from '../lib/runtime-env'
@@ -170,6 +171,9 @@ export default function MemberMyPage() {
             </Link>
           </div>
         </section>
+
+        {/* 추천 코드 사후 입력 — 가입 후 7일 내·미귀속 회원에게만 노출(아니면 렌더 X) */}
+        <PromoterReferralPrompt />
 
         <section className="pt-6">
           <h3 className="text-[14px] leading-[140%] text-[#99A1AF] mb-1">마이페이지</h3>

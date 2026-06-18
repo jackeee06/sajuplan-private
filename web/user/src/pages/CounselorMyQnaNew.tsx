@@ -1,30 +1,82 @@
-﻿import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import { COUNSELOR_MY_QNA_CATEGORIES } from '../data/counselorMyPage'
+import { counselorInquiryApi } from '../lib/api'
+import { FILE_BASE } from '../lib/runtime-env'
 
 /**
- * 08마이페이지_상담사_문의하기 작성
+ * 08마이페이지_상담사_문의하기 작성 (상담사 → 운영자 1:1 고객센터 문의)
  * Figma node-id: 179:18451
  *
  * 폼: 분류(셀렉트) / 제목(입력) / 내용(텍스트에어리어) / 사진(0~5장)
- * 작성완료 보라 풀폭 둥근 버튼
+ * 작성완료 시 실제 저장(POST /user/counselor-mypage/inquiry) 후 목록으로 이동.
  */
+const MAX_PHOTOS = 5
+
 export default function CounselorMyQnaNew() {
   const navigate = useNavigate()
+  const fileRef = useRef<HTMLInputElement>(null)
   const [category, setCategory] = useState('')
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [photos, setPhotos] = useState<string[]>(['/img/sample_img03.jpg'])
+  const [photos, setPhotos] = useState<string[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleAddPhoto = () => {
-    if (photos.length >= 5) return
-    setPhotos((prev) => [...prev, '/img/sample_img03.jpg'])
+  const openPicker = () => {
+    if (photos.length >= MAX_PHOTOS || uploading || submitting) return
+    fileRef.current?.click()
+  }
+
+  const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = '' // 같은 파일 재선택 허용
+    if (files.length === 0) return
+    const room = MAX_PHOTOS - photos.length
+    if (room <= 0) return
+    setError('')
+    setUploading(true)
+    try {
+      const picked = files.slice(0, room)
+      for (const f of picked) {
+        const { url } = await counselorInquiryApi.uploadPhoto(f)
+        setPhotos((prev) => (prev.length < MAX_PHOTOS ? [...prev, url] : prev))
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '사진 업로드에 실패했어요.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   const handleRemovePhoto = (idx: number) => {
     setPhotos((prev) => prev.filter((_, i) => i !== idx))
   }
+
+  const handleSubmit = async () => {
+    if (submitting) return
+    if (!category) return setError('분류를 선택해주세요.')
+    if (!title.trim()) return setError('제목을 입력해주세요.')
+    if (!content.trim()) return setError('문의 내용을 작성해주세요.')
+    setError('')
+    setSubmitting(true)
+    try {
+      await counselorInquiryApi.create({
+        category,
+        title: title.trim(),
+        content: content.trim(),
+        photos,
+      })
+      navigate('/counselor/mypage/qnas', { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '문의 등록에 실패했어요. 잠시 후 다시 시도해주세요.')
+      setSubmitting(false)
+    }
+  }
+
+  const resolveImg = (u: string) => (u.startsWith('/') ? `${FILE_BASE}${u}` : u)
 
   return (
     <div className="mobile-frame flex flex-col pb-[100px]">
@@ -56,6 +108,7 @@ export default function CounselorMyQnaNew() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="제목을 입력해주세요."
+            maxLength={255}
             className="w-full h-[48px] px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] text-[15px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none"
           />
         </Field>
@@ -73,17 +126,28 @@ export default function CounselorMyQnaNew() {
         <div>
           <div className="mb-2 flex items-center justify-between">
             <p className="text-[14px] leading-[140%] font-semibold text-[#030712]">사진</p>
-            <p className="text-[13px] leading-[140%] text-[#99A1AF]">({photos.length}/5)</p>
+            <p className="text-[13px] leading-[140%] text-[#99A1AF]">({photos.length}/{MAX_PHOTOS})</p>
           </div>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleFiles}
+            className="hidden"
+          />
           <div className="flex items-start gap-2 flex-wrap">
-            {photos.length < 5 && (
+            {photos.length < MAX_PHOTOS && (
               <button
                 type="button"
-                onClick={handleAddPhoto}
-                className="w-[80px] h-[80px] rounded-[12px] border border-dashed border-[#8259F5] bg-white flex flex-col items-center justify-center gap-1"
+                onClick={openPicker}
+                disabled={uploading || submitting}
+                className="w-[80px] h-[80px] rounded-[12px] border border-dashed border-[#8259F5] bg-white flex flex-col items-center justify-center gap-1 disabled:opacity-50"
               >
                 <img src="/img/ic_upload.svg" alt="" className="w-5 h-5" />
-                <span className="text-[12px] leading-none text-[#8259F5]">사진 등록</span>
+                <span className="text-[12px] leading-none text-[#8259F5]">
+                  {uploading ? '업로드중' : '사진 등록'}
+                </span>
               </button>
             )}
             {photos.map((p, idx) => (
@@ -91,7 +155,7 @@ export default function CounselorMyQnaNew() {
                 key={`${p}-${idx}`}
                 className="relative w-[80px] h-[80px] rounded-[12px] overflow-hidden bg-[#F3F4F6]"
               >
-                <img src={p} alt={`첨부 ${idx + 1}`} className="w-full h-full object-cover" />
+                <img src={resolveImg(p)} alt={`첨부 ${idx + 1}`} className="w-full h-full object-cover" />
                 <button
                   type="button"
                   onClick={() => handleRemovePhoto(idx)}
@@ -105,12 +169,15 @@ export default function CounselorMyQnaNew() {
           </div>
         </div>
 
+        {error && <p className="text-[13px] leading-[140%] text-[#FF6467]">{error}</p>}
+
         <button
           type="button"
-          onClick={() => navigate('/counselor/mypage/qnas')}
-          className="mt-4 w-full h-[52px] rounded-full bg-[#8259F5] text-white text-[16px] font-semibold"
+          onClick={handleSubmit}
+          disabled={submitting || uploading}
+          className="mt-4 w-full h-[52px] rounded-full bg-[#8259F5] text-white text-[16px] font-semibold disabled:opacity-50"
         >
-          작성완료
+          {submitting ? '등록 중…' : '작성완료'}
         </button>
       </main>
       <BottomNav myHref="/counselor/mypage" />

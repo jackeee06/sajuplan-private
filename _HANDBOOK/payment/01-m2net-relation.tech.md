@@ -197,6 +197,56 @@ role='counselor' → `m2net.registerCounselor` → `csrid` UPDATE. 실패해도 
 
 ---
 
+## 11-b. 수동 코인 조정 & m2net 동기화 (포인트 관리) ⭐
+
+**코인 잔액의 진실원천은 사주플랜.** m2net 은 "코인 한도 내 상담 진행" 미터기일 뿐. 우리가 목표 잔액을 정해 m2net 에 써준다(push).
+
+### 포인트 조정 — `admin/points/points.service.ts`
+- 엔드포인트: `POST /admin/members/customers/:id/point-adjust` (회원상세), `POST /admin/points/adjust-by-mb-id` (포인트 관리 화면).
+- 입력: `{ delta, reason(필수), kind:'free'|'paid'|'earning' }`.
+- 트랜잭션: `point_history` INSERT(감사: actor_admin_id/ip/type='admin') + `point.{kind}_balance += delta` + `member.point = free+paid+delta` 동기화. 음수잔액 검증. **멱등 가드**: 같은 admin·회원·사유·금액 10초 내 중복 무시.
+- **m2net 동기화**: `delta > 0 && kind !== 'earning'` 일 때만 → `m2net.addMemberCoin(membid, delta)` 호출. (수익 earning 조정은 회원 코인 무관 → m2net 동기화 안 함.)
+
+### ⚠️ delta vs 절대값
+- `addMemberCoin(membid, **delta**)` = m2net 잔액에 **더하기**(절대값 set 아님).
+- → m2net 이 우리와 동기 상태(=조정 전 우리 잔액)면 정확히 목표값 도달.
+- → m2net 이 어긋나 있으면(정산 실패 등) 델타만 더해선 목표값 안 됨. 그땐 m2net 실값 읽어(`getMemberByMembid`) **목표−현재** 만큼 보정 필요. (m2net 무응답이면 우리 잔액만 확정하고 다음 동기화 때 우리 값으로 반영.)
+
+---
+
+## 12. ⚠️ consultation 구조: 통화 1건 = "여러 행" (좀비 행 함정) ★★★
+
+> **AI 가 가장 자주 틀리는 구조적 진실. 5분 알림 사고(2026-06-18)의 뿌리이고, 정산·통계 쿼리도 여기서 또 사고 날 수 있다.**
+
+`consultation` 은 **통화 1건당 1행이 아니라, m2net push 이벤트마다 1행**이다. 한 통화가 같은 `callid` 로 여러 행을 만든다:
+
+| reason | 의미 | `ended_at` |
+|---|---|---|
+| `START_ARS` | ARS 시작 | NULL |
+| `TRY_OK` | 연결 시도 | NULL |
+| `CONNECT_CSR` | **통화 시작** | **NULL (영원히)** ← 함정 |
+| `DISCONNECT` | **통화 종료** | 종료시각 (이 행에만 찍힘) |
+
+### 핵심 함정
+- **`CONNECT_CSR`(통화시작) 행의 `ended_at` 은 통화가 끝나도 영원히 NULL.** 종료는 별도 `DISCONNECT` 행에만 기록된다.
+- 따라서 **"이 통화 끝났나?" 를 `c.ended_at IS NULL` 로 판단하면 틀린다** — CONNECT_CSR 행은 끝난 통화인데도 항상 "안 끝남"으로 보인다(좀비 행).
+- **올바른 판정 = 같은 `callid` 에 종료 행이 있는가:**
+  ```sql
+  EXISTS (SELECT 1 FROM consultation d
+          WHERE d.callid = c.callid
+            AND d.reason IN ('DISCONNECT','END_CHAT','END_CHAT_LOCAL','NO_ANSWER_CSR','INSUFFICIENT_CONN'))
+  ```
+
+### 실제 사고 (2026-06-18, [[server-timezone-kst]] 와 별개)
+전화 5분 알림 안전망 cron 이 좀비 `CONNECT_CSR` 행을 "진행 중 통화"로 착각 → **통화 종료 후(+9초~최대 55분)에 "마무리 멘트" 팝업 발화**. 과거 5/28부터 21건 반복(고객 항의는 1건). 수정·감시는 [[chat/06-five-min-alert]] 참조. **돈 영향 없음**(차감 정상), UX 오알림.
+
+### 선결제 채팅 환불은 포인트 조정으로
+- 일반 환불 플로우(`admin/refunds/refunds.service.ts createAndApprove`)는 `amount ≤ consultation.amt − 이미환불` 게이트. **선결제 채팅은 amt=0** 이라 이 플로우로 환불 **불가**.
+- 선결제 차감은 `point_history`(`채팅 선결제 (N분)`)로 일어났으므로 환불도 **point-adjust** 로.
+- **실사례(2026-06-17)**: chat_room.id=89 정산 `m2net_failed`(getMemberByMembid 응답없음, 옛 세션) → 회원196 미사용 20,000 미환불 → `point-adjust delta=+20000 kind=paid` 로 환불(우리 10,000→30,000) + `m2net.addMemberCoin +20000` sync 완료 + chat_room.settle_status='manual_refund'(재시도 중단). 머니무결성 PASS.
+
+---
+
 ## 12. 운영 SQL
 
 ```sql

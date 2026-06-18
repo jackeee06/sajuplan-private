@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Upload, X } from 'lucide-react'
 import { api } from '../lib/api'
 import UploadedImage from '../components/UploadedImage'
-import { FILE_BASE } from '../lib/runtime-env'
+import HtmlEditor, { type HtmlEditorHandle } from '../components/HtmlEditor'
+import { API_BASE } from '../lib/runtime-env'
 
 interface PopupLayer {
   id: number
@@ -22,9 +23,11 @@ interface PopupLayer {
   image_url_webp: string | null
   link_url: string | null
   is_active: boolean
+  audience: string // 'all' | 'member' | 'counselor'
 }
 
-const API_BASE = FILE_BASE
+// [2026-06-12 fix] 이미지 업로드 POST 가 FILE_BASE(/api 없는 origin)로 가서 404("Cannot POST /admin/...")
+//   나던 버그 → 표준 API_BASE(/api 포함) 사용. (다른 호출들은 api() 헬퍼라 정상이었음)
 
 const empty = (): PopupLayer => {
   const now = new Date()
@@ -46,6 +49,7 @@ const empty = (): PopupLayer => {
     image_url_webp: null,
     link_url: '',
     is_active: true,
+    audience: 'all',
   }
 }
 
@@ -60,6 +64,7 @@ export default function PopupLayerForm() {
   // 등록 전 선택한 파일은 메모리에 들고 있다가 등록 직후 업로드
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [pendingPreview, setPendingPreview] = useState<string | null>(null)
+  const editorRef = useRef<HtmlEditorHandle>(null)
 
   useEffect(() => {
     if (isNew) return
@@ -108,6 +113,8 @@ export default function PopupLayerForm() {
     try {
       const payload = {
         ...data,
+        content: editorRef.current?.getHTML() ?? data.content,
+        is_html: true, // 에디터 본문은 항상 HTML 로 저장 (노출 시 sanitize 됨)
         starts_at: new Date(data.starts_at).toISOString(),
         ends_at: new Date(data.ends_at).toISOString(),
       }
@@ -244,6 +251,18 @@ export default function PopupLayerForm() {
           </select>
         </Row>
 
+        <Row label="대상" hint="누구에게 보여줄지">
+          <select
+            value={data.audience}
+            onChange={(e) => set('audience', e.target.value)}
+            className={inputCls}
+          >
+            <option value="all">전체 (비로그인 포함)</option>
+            <option value="member">회원만 (홈, 로그인 회원)</option>
+            <option value="counselor">상담사만 (상담사 마이페이지)</option>
+          </select>
+        </Row>
+
         <Row label="시작일시" required>
           <input
             type="datetime-local"
@@ -345,24 +364,12 @@ export default function PopupLayerForm() {
           />
         </Row>
 
-        <Row label="HTML 본문 사용">
-          <label className="inline-flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={data.is_html}
-              onChange={(e) => set('is_html', e.target.checked)}
-              className="w-4 h-4 rounded border-gray-300 text-brand-600"
-            />
-            <span className="text-xs text-gray-500">{data.is_html ? 'HTML 그대로 노출' : '일반 텍스트'}</span>
-          </label>
-        </Row>
-
-        <Row label="본문" hint="이미지 외 추가 본문이 필요할 때 사용">
-          <textarea
-            value={data.content}
-            onChange={(e) => set('content', e.target.value)}
-            rows={6}
-            className={inputCls + ' font-mono text-xs'}
+        <Row label="본문" hint="에디터로 작성 (굵게·이미지·링크 삽입). 자동 HTML 저장 + 노출 시 정화(XSS 방어).">
+          <HtmlEditor
+            ref={editorRef}
+            initialHtml={data.content}
+            uploadEndpoint="/admin/events/upload"
+            height="360px"
           />
         </Row>
       </div>

@@ -264,8 +264,24 @@ export class PostsService {
     }
     const cfg = this.resolveSlug(slug);
     const tableSql = this.sql.unsafe(cfg.table);
+    // 후기 삭제 시 상담사 review_count 캐시를 다시 세서 맞춘다 (삭제 후 drift 방지).
+    //   - 삭제하면 counselor_id 를 못 읽으니 DELETE 전에 미리 조회.
+    let reviewCounselorId: number | null = null;
+    if (slug === 'review') {
+      const r = await this.sql<{ counselor_id: number | null }[]>`
+        SELECT counselor_id FROM post_review WHERE id = ${id} LIMIT 1
+      `;
+      reviewCounselorId = r[0]?.counselor_id ?? null;
+    }
     const result = await this.sql`DELETE FROM ${tableSql} WHERE id = ${id}`;
     if (result.count === 0) throw new NotFoundException('게시글을 찾을 수 없습니다.');
+    if (slug === 'review' && reviewCounselorId) {
+      await this.sql`
+        UPDATE post_counselor SET review_count = (
+          SELECT COUNT(*) FROM post_review WHERE counselor_id = ${reviewCounselorId}
+        ) WHERE member_id = ${reviewCounselorId}
+      `.catch(() => {});
+    }
     return { ok: true };
   }
 

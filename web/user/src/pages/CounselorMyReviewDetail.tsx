@@ -6,6 +6,8 @@ import {
   counselorMyReviewsApi,
   type CounselorReviewDetail,
 } from '../lib/api'
+import { useConfirm } from '../lib/use-confirm'
+import { useAlert } from '../lib/use-alert'
 
 /**
  * 08마이페이지_상담사_후기 상세
@@ -24,6 +26,8 @@ export default function CounselorMyReviewDetail() {
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const { confirm, confirmUI } = useConfirm()
+  const { showAlert, alertUI } = useAlert()
 
   useEffect(() => {
     if (!reviewId) return
@@ -65,7 +69,7 @@ export default function CounselorMyReviewDetail() {
         err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
           ? String((err as { message: string }).message)
           : '답변 등록에 실패했습니다.'
-      alert(message)
+      void showAlert(message)
     } finally {
       setSubmitting(false)
     }
@@ -73,7 +77,7 @@ export default function CounselorMyReviewDetail() {
 
   const handleDelete = async () => {
     if (!review?.reply) return
-    if (!confirm('답변을 삭제하시겠습니까?')) return
+    if (!(await confirm({ message: '답변을 삭제하시겠습니까?', actionLabel: '삭제', tone: 'danger' }))) return
     try {
       await counselorMyReviewsApi.deleteReply(reviewId)
       const next = await counselorMyReviewsApi.detail(reviewId)
@@ -83,7 +87,7 @@ export default function CounselorMyReviewDetail() {
         err && typeof err === 'object' && 'message' in err && typeof (err as { message: unknown }).message === 'string'
           ? String((err as { message: string }).message)
           : '답변 삭제에 실패했습니다.'
-      alert(message)
+      void showAlert(message)
     }
   }
 
@@ -159,7 +163,7 @@ export default function CounselorMyReviewDetail() {
         {hasReply && review.reply ? (
           <div className="py-4 border-b border-[#F3F4F6]">
             <div className="flex items-start gap-2">
-              <p className="flex-1 text-[15px] leading-[160%] text-[#1E2939] whitespace-pre-line">
+              <p className="flex-1 text-[15px] leading-[160%] text-[#1E2939] whitespace-pre-wrap break-words">
                 {review.reply.text}
               </p>
               <button
@@ -204,20 +208,17 @@ export default function CounselorMyReviewDetail() {
         )}
 
         {!hasReply && (
+          // [2026-06-17] 한 줄 input → 여러 줄 textarea.
+          //   기존 input 은 줄바꿈 입력 불가(Enter=전송) + 한 줄만 보여 쓴 내용 전체가 안 보였다.
+          //   textarea 로 줄바꿈/공백 그대로 입력·표시. 전송은 우하단 버튼(Enter=줄바꿈).
           <div className="mt-4 relative">
-            <input
-              type="text"
+            <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  void handleSubmit()
-                }
-              }}
-              placeholder="답변을 입력해주세요."
+              placeholder="답변을 입력해주세요. (줄바꿈 가능)"
               disabled={submitting}
-              className="w-full h-[44px] pl-4 pr-14 rounded-full bg-[#F9FAFB] border border-[#8259F5] text-[14px] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none disabled:opacity-60"
+              rows={4}
+              className="w-full min-h-[120px] px-4 py-3 pb-12 rounded-[16px] bg-[#F9FAFB] border border-[#8259F5] text-[14px] leading-[160%] text-[#1E2939] placeholder:text-[#99A1AF] focus:outline-none resize-y disabled:opacity-60"
             />
             {draft.trim() && (
               <button
@@ -225,7 +226,7 @@ export default function CounselorMyReviewDetail() {
                 onClick={() => void handleSubmit()}
                 disabled={submitting}
                 aria-label="보내기"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#8259F5] flex items-center justify-center disabled:opacity-60"
+                className="absolute right-2.5 bottom-2.5 w-9 h-9 rounded-full bg-[#8259F5] flex items-center justify-center disabled:opacity-60"
               >
                 <img src="/img/ic_send.svg" alt="" className="w-4 h-4" />
               </button>
@@ -246,6 +247,8 @@ export default function CounselorMyReviewDetail() {
 
       <FloatingActions bottomOffset={24} />
       <BottomNav myHref="/counselor/mypage" />
+      {confirmUI}
+      {alertUI}
       </div>
   )
 }

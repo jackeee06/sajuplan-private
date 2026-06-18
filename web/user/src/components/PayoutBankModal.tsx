@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { counselorPayoutApi, type MyPayoutInfo } from '../lib/api'
+import { useConfirm } from '../lib/use-confirm'
 
 const KOREAN_BANKS = [
   '국민', '신한', '우리', '하나', '농협', 'IBK기업', 'SC제일', '씨티', 'KDB산업',
@@ -46,6 +47,9 @@ export default function PayoutBankModal({
   const [bankAccount, setBankAccount] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const { confirm, confirmUI } = useConfirm()
+  // IME(한글) 조합 진행 여부 — 조합 중에는 값을 가공하지 않는다(가공하면 iOS 한글 조합이 깨짐)
+  const composingRef = useRef(false)
 
   useEffect(() => {
     if (open && info) {
@@ -74,11 +78,16 @@ export default function PayoutBankModal({
 
   const valid = bankSelected && holderOk && accountOk
 
-  // 예금주 입력 시 한글 외 차단
+  // 예금주 정제 — NFC 로 합치고(아이폰 분해형 입력 대응) 한글/자모/공백 외 문자만 제거.
+  //   조합용 자모(U+1100~U+11FF)도 허용해 조합 중 글자가 사라지지 않게 한다.
+  const sanitizeHolder = (raw: string) =>
+    raw.normalize('NFC').replace(/[^가-힣ㄱ-ㅎㅏ-ㅣᄀ-ᇿ ]/g, '')
+
+  // 예금주 입력 — 조합 중에는 가공하지 않고(IME 깨짐 방지), 조합이 끝나면 정제한다.
+  //   기존엔 정규식 불일치 시 입력을 통째로 무시해서, 아이폰 분해형 한글이 "안 써지는" 버그가 있었다.
   const onHolderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const v = e.target.value
-    if (HOLDER_REGEX.test(v)) setBankHolder(v)
-    // 정규식 안 맞으면 입력 무시
+    const raw = e.target.value
+    setBankHolder(composingRef.current ? raw : sanitizeHolder(raw))
   }
 
   // 계좌번호 입력 시 숫자만 (하이픈도 제거 — 운영 일관성)
@@ -105,9 +114,12 @@ export default function PayoutBankModal({
   })()
 
   const handleSubmit = async () => {
-    if (!window.confirm('계좌 정보를 저장하시겠습니까?\n변경 시 3일간 선지급 신청이 제한됩니다.')) {
-      return
-    }
+    const ok = await confirm({
+      message: '계좌 정보를 저장하시겠습니까?',
+      subMessage: '변경 시 3일간 선지급 신청이 제한됩니다.',
+      actionLabel: '저장',
+    })
+    if (!ok) return
     setBusy(true)
     setErr(null)
     try {
@@ -124,6 +136,7 @@ export default function PayoutBankModal({
   }
 
   return (
+   <>
     <div
       className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center"
       onClick={onClose}
@@ -167,6 +180,11 @@ export default function PayoutBankModal({
               type="text"
               value={bankHolder}
               onChange={onHolderChange}
+              onCompositionStart={() => { composingRef.current = true }}
+              onCompositionEnd={(e) => {
+                composingRef.current = false
+                setBankHolder(sanitizeHolder(e.currentTarget.value))
+              }}
               placeholder="홍길동"
               maxLength={HOLDER_MAX_LEN}
               className="w-full h-11 px-3 rounded-[10px] bg-[#F9FAFB] border border-[#F3F4F6] text-[14px] focus:outline-none focus:border-[#9B7AF7]"
@@ -224,5 +242,7 @@ export default function PayoutBankModal({
         </div>
       </div>
     </div>
+    {confirmUI}
+   </>
   )
 }

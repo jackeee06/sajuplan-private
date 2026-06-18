@@ -180,6 +180,17 @@ WHERE status='paid' AND settled_at IS NULL
 GROUP BY counselor_id;
 ```
 
+## ⚠️ 현재 코드 실제 vs 위 산식 — 가용한도 base 불일치 (R1, 2026-06-12 발견·보류)
+
+위 §가용 계산은 **이상적(earning_balance 기준)** 설명이지만, **현재 실제 코드는 다르다**:
+
+- 실제: `api/src/user/counselor-mypage-payout/counselor-mypage-payout.service.ts`
+  - `getMine` / `createRequest` 의 가용 base = **당월 `consultation` 테이블 재계산**(`calcEstimatedSettlement` = `SUM(amt_free/amt_pro × revenue_rate)`) − `already_paid`(이번달 paid 선지급).
+  - 반면 정산엔진(`settleOne`/`markPaid`)은 **earning 원장 − 미정산 선지급(`status='paid' AND settled_at IS NULL`)** base.
+- 결과: **두 산식의 base가 다르다.** 특히 `already_paid` 가 `paid_at >= 이번달 1일` 조건이라 **월 경계를 넘긴 미정산 선지급(지난달 paid, 미settled)** 은 신청 게이트에서 누락 → 이론상 이중 인출 여지.
+- 현재 위험도: **낮음** — ① 정산 자동 cron 차단 상태, ② prod 선지급 0건, ③ 월 70% cap 버퍼.
+- 조치: **보류(정책/설계 결정).** `정산단순화` 재설계 시 신청 게이트를 정산엔진과 동일한 `earning 원장 − 미정산 선지급` base 로 **통일**한다. (사장님: "정산 자동기능 당분간 안 씀" → 1년 뒤 재검토 가능)
+
 ## 함정
 
 1. **음수 가용** — 환불 다수 발생 시. 신청 거부 + 다음 정산까지 대기

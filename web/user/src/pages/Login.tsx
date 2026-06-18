@@ -1,7 +1,7 @@
 ﻿import { FormEvent, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
-import { ApiError, attendanceApi, authApi, counselorGradeApi } from '../lib/api'
+import { ApiError, authApi, counselorGradeApi } from '../lib/api'
 import { GRADE_UPGRADE_STORAGE_KEY } from '../components/GradeUpgradeToast'
 import { useAuth } from '../lib/auth-context'
 
@@ -188,20 +188,8 @@ export default function Login() {
       // 이전 코드: await refresh() → 쿠키 동기화 race 로 401 받아 "첫 로그인 안 됨" 버그 다수 발생
       setSession(r.member)
 
-      // 출석체크 (2026-05-16) — 로그인 직후 자동 처리. 실패해도 로그인은 성공으로 본다.
-      // 결과는 sessionStorage 로 다음 화면에 전달 → 토스트/모달 노출.
-      try {
-        const att = await attendanceApi.checkin()
-        if (att.attended_now && att.total_added > 0) {
-          sessionStorage.setItem('attendance.justChecked', JSON.stringify({
-            consecutive_days: att.consecutive_days,
-            base_coin: att.base_coin,
-            bonus_coin: att.bonus_coin,
-            coupon_amount: att.coupon_amount,
-            total_added: att.total_added,
-          }))
-        }
-      } catch { /* 출석 실패는 로그인 흐름 막지 않음 */ }
+      // [2026-06-12] 출석체크는 여기서 호출하지 않는다 — AttendanceToast 가 로그인 상태(member)를
+      // 감지해 하루 1회 자동 처리한다. 비밀번호/간편로그인/세션유지 모든 진입을 일원화해서 커버.
 
       // 실시간 등급 승급 확인 (2026-06-07) — 상담사 로그인 직후 미확인 승급 체크.
       // 출석 토스트와 동일 패턴: sessionStorage → GradeUpgradeToast 가 다음 화면에서 1회 표시.

@@ -7,6 +7,7 @@ export interface NoticeRow {
   content: string | null;
   category: string | null;
   is_pinned: boolean;
+  is_secret: boolean;
   view_count: number;
   created_at: string;
   updated_at: string;
@@ -17,6 +18,7 @@ export interface NoticeInput {
   content?: string | null;
   category?: string | null;
   is_pinned?: boolean;
+  is_secret?: boolean;
 }
 
 @Injectable()
@@ -38,7 +40,7 @@ export class NoticesService {
     );
 
     const items = await this.sql<NoticeRow[]>`
-      SELECT id, title, content, category, is_pinned, view_count, created_at, updated_at
+      SELECT id, title, content, category, is_pinned, is_secret, view_count, created_at, updated_at
         FROM post_notice ${where}
        ORDER BY is_pinned DESC, created_at DESC, id DESC
        LIMIT ${limit} OFFSET ${offset}
@@ -51,7 +53,7 @@ export class NoticesService {
 
   async detail(id: number): Promise<NoticeRow> {
     const rows = await this.sql<NoticeRow[]>`
-      SELECT id, title, content, category, is_pinned, view_count, created_at, updated_at
+      SELECT id, title, content, category, is_pinned, is_secret, view_count, created_at, updated_at
         FROM post_notice WHERE id = ${id}
     `;
     if (rows.length === 0) throw new NotFoundException('공지사항을 찾을 수 없습니다.');
@@ -60,8 +62,8 @@ export class NoticesService {
 
   async create(input: NoticeInput): Promise<{ id: number; url: string }> {
     const inserted = await this.sql<{ id: number }[]>`
-      INSERT INTO post_notice (title, content, category, is_pinned)
-      VALUES (${input.title}, ${input.content ?? null}, ${input.category ?? null}, ${input.is_pinned ?? false})
+      INSERT INTO post_notice (title, content, category, is_pinned, is_secret)
+      VALUES (${input.title}, ${input.content ?? null}, ${input.category ?? null}, ${input.is_pinned ?? false}, ${input.is_secret ?? false})
       RETURNING id
     `;
     const id = inserted[0].id;
@@ -76,6 +78,7 @@ export class NoticesService {
     if (input.content !== undefined) updates.content = input.content;
     if (input.category !== undefined) updates.category = input.category;
     if (input.is_pinned !== undefined) updates.is_pinned = input.is_pinned;
+    if (input.is_secret !== undefined) updates.is_secret = input.is_secret;
     if (Object.keys(updates).length > 0) {
       await this.sql`UPDATE post_notice SET ${this.sql(updates)}, updated_at = now() WHERE id = ${id}`;
     }

@@ -69,9 +69,40 @@
 
 37 이벤트 중 push.status='rejected' 대부분 (2026-05-28 사장님 일괄 결정). 푸시 피로/스팸 방지 정책. alimtalk='rejected' 일부 (마케팅성). 메모리 [[alert-channel-policy]] 참고.
 
-## 📡 푸시 (FCM) 추적
+## 📡 푸시 (FCM) 현황 (2026-06-11 전수 확인 완료)
 
-`shared/push/push.service.ts` 의 `sendToTokens`, `sendToTopic` 호출처 별도 추적 필요. consult_request_arrived 가 push='active' (FCM 발송) 라 했지만 호출 코드 매핑 확인 필요.
+### Firebase 인프라
+- 프로젝트: `sajummon-5a4c0`
+- 서비스 계정 키: `/data/wwwroot/api.sajumoon.co.kr/secrets/fcm-service-account.json`
+- 2026-06-08 키 만료 장애 → 2026-06-10 갱신 완료, 현재 정상
+
+### 토픽 구조
+| 토픽 | 대상 | 구독 시점 |
+|---|---|---|
+| `chl_all` | 앱 설치 전체 | 앱 부팅 시 |
+| `chl_2` | 일반 회원 | 회원 로그인 시 |
+| `chl_5` | 상담사 | 상담사 로그인 시 |
+
+### 이벤트별 FCM 발송 현황
+
+| 이벤트 | 발송 방식 | 코드 위치 | data.event_url | 상태 |
+|---|---|---|---|---|
+| 채팅 상담 요청 | sendToTokens (1:1) | consult.service.ts:notifyCounselorChatRequest | `/chat/{chatRoomId}` | ✅ 정상 |
+| 전화 상담 요청 | sendToTopic('chl_5') | counselors.service.ts:requestConsult | (없음, link='/mypage') | ⚠️ 브로드캐스트 버그 |
+| 문의(QnA) 도착 | sendToTopic('chl_5') | qna.service.ts:notifyQaAsk | `/counselor/mypage/customer-qnas/{id}` | ⚠️ 브로드캐스트 버그 |
+| 등급 승급 | sendToTokens (1:1) | grade-upgrade.service.ts | `/counselor/mypage/grade` | ✅ 정상 |
+| 문의 신고 | sendToTokens (1:1) | qna.service.ts:sendReportPush | `/mypage/my-qnas` | ✅ 정상 |
+| 관리자 일괄 | sendToTopic(선택) | notifications.service.ts | 없음 | ✅ 정상 |
+
+### 딥링크 구현 상태
+- ✅ App.tsx에서 `onNotificationOpen` 핸들러 호출 (2026-06-10 확인)
+- ✅ 백그라운드 탭 (onNotificationOpenedApp) + 콜드스타트 (getInitialNotification) 모두 구현
+- 딥링크 키 우선순위: `event_url` > `url` > `link` > ...
+
+### 개선 필요 항목
+- [ ] 전화 요청 FCM: sendToTopic('chl_5') → sendToTokens(해당 상담사) 교체
+- [ ] QnA 도착 FCM: sendToTopic('chl_5') → sendToTokens(해당 상담사) 교체
+- [ ] 만료 토큰 정리 cron (30일 이상 미갱신 is_active=false)
 
 ---
 

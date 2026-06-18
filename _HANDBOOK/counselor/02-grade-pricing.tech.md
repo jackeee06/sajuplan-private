@@ -117,3 +117,24 @@ pricePaid += floor(rowAmtPro  × ratePct / 100)
 CREATE INDEX idx_grade_history_realtime ON member_grade_history(member_id, changed_by, created_at DESC);
 CREATE INDEX idx_consultation_counselor_reason_created ON consultation(counselor_id, reason, created_at DESC);
 ```
+
+---
+
+## ⏱️ 단위시간(unit_seconds) 30초 고정 정책 (2026-06-12)
+
+상담사 단가의 **단위시간은 전화·채팅 모두 30초로 고정**한다. 관리자가 다른 값을 입력해도 서버가 무시하고 항상 30으로 강제 저장한다.
+
+**이유**: 사용자 상담사 카드가 단가를 **"30초당 N원"으로 하드코딩** 표시한다(`CounselorCard.tsx`, `counselor-mapper.ts` — `unit_seconds`를 읽지 않고 `unit_cost`를 그대로 "30초당"으로 붙임). 따라서 `unit_seconds`가 30이 아니면 화면 단가가 실제와 어긋난다(예: 60초/2000원이면 "30초당 2,000원"으로 2배 비싸 보임).
+
+**강제 위치** (`api/src/admin/members/members.service.ts`):
+- 상담사 생성 INSERT: `call/chat_unit_seconds = 30` 하드코딩
+- m2net `registerCounselor`: `dectm/chatdectm = 30`
+- 상담사 수정: `call/chat_unit_seconds`를 `setIf`에서 제외 + `updates`에 30 강제
+
+**관리자 화면**: `CounselorForm` 의 단위시간 입력칸 제거 → "전화·채팅 모두 30초 고정" 안내만 노출.
+
+**DB 컬럼**: `member.call_unit_seconds` / `member.chat_unit_seconds`.
+
+> 단위를 30초가 아닌 값으로 바꾸려면 ① 이 강제 로직 ② 화면 "30초당" 하드코딩 ③ m2net `dectm` 을 **모두 함께** 수정해야 한다. 부분만 바꾸면 표시·차감이 어긋난다.
+
+**검증**: E2E `e2e/tests/57-unit-seconds-fixed-30.spec.ts` (60/90 입력해도 30 유지).

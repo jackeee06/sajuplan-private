@@ -317,26 +317,40 @@ test.describe('5. 베스트 후기 (상담사 선정) — 코인 없음', () => 
 // 6. 관리자 선정 베스트 후기 코인 (10,000코인)
 // ─────────────────────────────────────────────────
 test.describe('6. 관리자 선정 베스트 후기 코인 (10,000코인)', () => {
-  // 사용할 후기 id (counselor_id=123 후기)
-  const TEST_REVIEW_ID = 97
+  // [2026-06-12] 후기 id 동적 조회로 변경. 과거엔 97 하드코딩이었으나 후기 데이터가 정리되며
+  //   97 이 사라져 API 가 정상적으로 404 를 반환 → 테스트만 실패하던 stale 문제. 실재 후기를 잡는다.
+  let TEST_REVIEW_ID = 0
 
   test.beforeAll(async ({ browser }) => {
-    // admin-best 상태 초기화 (OFF로 시작)
     const page = await browser.newPage()
     await adminLogin(page)
-    const url = `${API}/api/admin/posts/reviews/${TEST_REVIEW_ID}/admin-best`
-    await page.evaluate(async (u) => {
-      await fetch(u, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ is_admin_best: false }),
-      })
-    }, url)
+    // 실재하는 후기 id 를 동적 조회 (목록 경로 slug 는 'review' 단수 — 'reviews' 복수는 400)
+    // 코인 실지급(실회원 오염) 방지 — member_id 없는 시드후기를 우선 선택. ON 시 코인지급 경로(if r.member_id)를
+    // 안 타므로 실데이터에 영향 0. 시드후기가 없으면 차선으로 첫 후기 사용.
+    const list = await page.evaluate(async (api) => {
+      const r = await fetch(`${api}/api/admin/posts/review?limit=50`, { credentials: 'include' })
+      return r.ok ? await r.json() : null
+    }, API)
+    const items: Array<{ id: string | number; member_id: string | number | null }> = list?.items ?? []
+    const pick = items.find((it) => !it.member_id) ?? items[0]
+    TEST_REVIEW_ID = Number(pick?.id ?? 0) || 0
+    // admin-best 상태 초기화 (OFF로 시작)
+    if (TEST_REVIEW_ID) {
+      const url = `${API}/api/admin/posts/reviews/${TEST_REVIEW_ID}/admin-best`
+      await page.evaluate(async (u) => {
+        await fetch(u, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ is_admin_best: false }),
+        })
+      }, url)
+    }
     await page.close()
   })
 
   test('관리자 admin-best 토글 ON → 10,000코인 지급 확인', async ({ page }) => {
+    test.skip(!TEST_REVIEW_ID, '후기 데이터 0건 — 동적 조회 결과 없음')
     await adminLogin(page)
     const url = `${API}/api/admin/posts/reviews/${TEST_REVIEW_ID}/admin-best`
 
@@ -358,6 +372,7 @@ test.describe('6. 관리자 선정 베스트 후기 코인 (10,000코인)', () =
   })
 
   test('동일 후기 admin-best 중복 ON → no-op (코인 이중 지급 없음)', async ({ page }) => {
+    test.skip(!TEST_REVIEW_ID, '후기 데이터 0건 — 동적 조회 결과 없음')
     await adminLogin(page)
     const url = `${API}/api/admin/posts/reviews/${TEST_REVIEW_ID}/admin-best`
 
@@ -379,6 +394,7 @@ test.describe('6. 관리자 선정 베스트 후기 코인 (10,000코인)', () =
   })
 
   test('관리자 admin-best 토글 OFF → 코인 환수 없음 (정책)', async ({ page }) => {
+    test.skip(!TEST_REVIEW_ID, '후기 데이터 0건 — 동적 조회 결과 없음')
     await adminLogin(page)
     const url = `${API}/api/admin/posts/reviews/${TEST_REVIEW_ID}/admin-best`
 

@@ -392,7 +392,7 @@ export default function Settings() {
     grade:     { title: '등급/단가 설정', subtitle: '상담사 등급별 단가 옵션·정산률·임계값을 관리합니다.' },
     payout:    { title: '선지급 설정', subtitle: '선지급 정책 안내문과 수수료율·원천세율을 관리합니다.' },
     ops:       { title: '운영알림 설정', subtitle: '시스템 사고 알림 수신자와 발송 정책을 관리합니다.' },
-    legal:     { title: '약관/처리방침', subtitle: '회원가입약관·개인정보처리방침 본문을 관리합니다.' },
+    legal:     { title: '약관/처리방침', subtitle: '이용약관·개인정보처리방침 본문을 관리합니다.' },
     counselor: { title: '상담사 설정', subtitle: '상담사 스타일 선택지 등 상담사 관련 옵션을 관리합니다.' },
   }), [])
 
@@ -1465,7 +1465,7 @@ function LegalEditor() {
 
       {/* terms */}
       <LegalCard
-        label="회원가입약관"
+        label="이용약관"
         page={terms}
         kind="terms"
         saving={saving === 'terms'}

@@ -25,6 +25,22 @@ export default function PushNotifications() {
   const [data, setData] = useState<{ items: HistoryRow[]; total: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [reload, setReload] = useState(0)
+  const [detail, setDetail] = useState<HistoryRow | null>(null)
+
+  const onDeleteRow = async (h: HistoryRow) => {
+    if (!window.confirm(`이 알림을 삭제하시겠습니까?\n\n[${h.category ?? ''}] ${h.title}\n\n삭제 후 복구할 수 없습니다.`)) return
+    try {
+      await api(`/admin/notifications/push-history/${h.id}`, { method: 'DELETE' })
+      setDetail((d) => (d && d.id === h.id ? null : d))
+      // 낙관적 제거 — 삭제한 행을 즉시 목록에서 빼서 사용자가 바로 사라짐을 본다.
+      setData((prev) =>
+        prev ? { items: prev.items.filter((x) => x.id !== h.id), total: Math.max(0, prev.total - 1) } : prev,
+      )
+      setReload((x) => x + 1) // 서버 기준 재동기화
+    } catch (e) {
+      alert(`삭제 실패: ${e instanceof Error ? e.message : ''}`)
+    }
+  }
 
   useEffect(() => {
     const p = new URLSearchParams()
@@ -127,14 +143,15 @@ export default function PushNotifications() {
             <Th align="left">제목</Th>
             <Th align="left">아이디</Th>
             <Th align="left">URL</Th>
+            <Th align="center">관리</Th>
           </THead>
           <TBody>
             {loading && !data ? (
-              <EmptyRow colSpan={5} loading />
+              <EmptyRow colSpan={6} loading />
             ) : !data || data.items.length === 0 ? (
-              <EmptyRow colSpan={5} />
+              <EmptyRow colSpan={6} />
             ) : data.items.map((h) => (
-              <Tr key={h.id}>
+              <Tr key={h.id} onClick={() => setDetail(h)}>
                 <Td align="left" className="text-xs text-gray-500 tabular-nums">{formatDT(h.created_at)}</Td>
                 <Td align="left" className="text-xs text-gray-600">{h.category ?? <span className="text-gray-300">—</span>}</Td>
                 <Td align="left" className="text-xs font-medium">{h.title}</Td>
@@ -142,12 +159,92 @@ export default function PushNotifications() {
                 <Td align="left" className="text-xs text-brand-600 max-w-[280px] truncate">
                   {h.link_url ? <a href={h.link_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="hover:underline">{h.link_url}</a> : <span className="text-gray-300">—</span>}
                 </Td>
+                <Td align="center">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onDeleteRow(h) }}
+                    title="이 알림 삭제"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </Td>
               </Tr>
             ))}
           </TBody>
         </TableShell>
       </section>
       </div>
+
+      {/* ─── 행 클릭 시 상세(본문 포함) 팝업 ─── */}
+      {detail && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setDetail(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-5 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">알림 상세</h3>
+              <button
+                type="button"
+                onClick={() => setDetail(null)}
+                className="w-7 h-7 inline-flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-2.5 text-sm">
+              <div className="flex gap-3">
+                <span className="w-16 shrink-0 text-[11px] font-medium text-gray-500 pt-0.5">분류</span>
+                <span className="text-sm text-gray-800 dark:text-gray-200">{detail.category ?? '—'}</span>
+              </div>
+              <div className="flex gap-3">
+                <span className="w-16 shrink-0 text-[11px] font-medium text-gray-500 pt-0.5">발송시각</span>
+                <span className="text-sm text-gray-800 dark:text-gray-200 tabular-nums">{formatDT(detail.created_at)}</span>
+              </div>
+              <div className="flex gap-3">
+                <span className="w-16 shrink-0 text-[11px] font-medium text-gray-500 pt-0.5">대상</span>
+                <span className="text-sm text-gray-800 dark:text-gray-200">{detail.mb_id ?? '(브로드캐스트)'}</span>
+              </div>
+              <div>
+                <div className="text-[11px] font-medium text-gray-500 mb-0.5">제목</div>
+                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{detail.title}</div>
+              </div>
+              <div>
+                <div className="text-[11px] font-medium text-gray-500 mb-0.5">본문</div>
+                <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap rounded-md bg-gray-50 dark:bg-gray-800 p-2.5 min-h-[56px]">
+                  {detail.content || <span className="text-gray-400">(본문 없음)</span>}
+                </div>
+              </div>
+              {detail.link_url && (
+                <div>
+                  <div className="text-[11px] font-medium text-gray-500 mb-0.5">URL</div>
+                  <a href={detail.link_url} target="_blank" rel="noreferrer" className="text-sm text-brand-600 break-all hover:underline">{detail.link_url}</a>
+                </div>
+              )}
+            </div>
+            <div className="flex items-center justify-between pt-1">
+              <button
+                type="button"
+                onClick={() => onDeleteRow(detail)}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md border border-rose-200 dark:border-rose-700 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> 삭제
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetail(null)}
+                className="px-4 py-1.5 text-sm rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

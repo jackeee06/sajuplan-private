@@ -1,12 +1,14 @@
 import {
   CanActivate,
   ExecutionContext,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
+import { SQL, type Sql } from '../../shared/db/db.module';
 
 export interface UserJwtPayload {
   sub: number;
@@ -28,6 +30,7 @@ export class UserAuthGuard implements CanActivate {
   constructor(
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    @Inject(SQL) private readonly sql: Sql,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -48,6 +51,22 @@ export class UserAuthGuard implements CanActivate {
         throw new UnauthorizedException('세션이 만료되었거나 유효하지 않습니다.');
       }
       req.user = { ...payload, sub };
+
+      // [2026-06-13 근본수정] 토큰의 role 은 발급 시점 값으로 최대 14일 고정된다.
+      //   회원→상담사 승격 후 재로그인 전까지 토큰 role 이 'user' 로 남아,
+      //   role 을 보는 컨트롤러 가드(계좌/등급/문의/후기 저장 등)가 정당한 상담사를 403 으로 막았다.
+      //   me()·일부 서비스는 DB live role 을 봐서 화면은 열리는데 저장만 막히는 불일치.
+      //   → 권한 판정의 진실원천을 DB live role 로 통일. 조회 실패 시 토큰 role 유지(락아웃 방지).
+      try {
+        const rows = await this.sql<{ role: string }[]>`
+          SELECT role FROM member WHERE id = ${sub} AND left_at IS NULL LIMIT 1
+        `;
+        if (rows[0]?.role) {
+          req.user.role = rows[0].role;
+        }
+      } catch {
+        /* DB 일시 오류 — 토큰 role 그대로 사용 (가용성 우선) */
+      }
       return true;
     } catch {
       throw new UnauthorizedException('세션이 만료되었거나 유효하지 않습니다.');

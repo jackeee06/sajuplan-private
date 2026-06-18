@@ -118,6 +118,7 @@ function mapToHistoryItem(r: ApiConsultHistoryItem): ConsultHistoryItem {
     reviewId: r.review_id ?? undefined,
     consultationId: r.id,
     counselorId: r.counselor_id ?? undefined,
+    isFailed: r.is_failed ?? false,
   }
 }
 

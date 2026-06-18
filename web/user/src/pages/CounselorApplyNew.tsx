@@ -15,6 +15,7 @@ import {
   APPLY_STATUS_OPTIONS,
 } from '../data/myPageMockData'
 import { authApi, counselorApplyApi, settingsApi, smsApi } from '../lib/api'
+import { API_BASE } from '../lib/runtime-env'
 import { useAuth } from '../lib/auth-context'
 import { resizeImage } from '../lib/image-resize'
 
@@ -428,7 +429,7 @@ export default function CounselorApplyNew() {
     }
     // 지원서(application) 풀폼이면 필수 약관 동의 검증
     if (isFullForm) {
-      if (!agreeTerms) return flashField('agreeTerms', '회원가입약관에 동의해주세요.')
+      if (!agreeTerms) return flashField('agreeTerms', '이용약관에 동의해주세요.')
       if (!agreePrivacy) return flashField('agreePrivacy', '개인정보처리방침에 동의해주세요.')
     }
     setSubmitOpen(true)
@@ -1003,7 +1004,8 @@ export default function CounselorApplyNew() {
                 referrerTimerRef.current = window.setTimeout(async () => {
                   try {
                     const res = await fetch(
-                      `/api/user/counselor-apply/check-referral-code?code=${encodeURIComponent(trimmed)}`
+                      `${API_BASE}/user/counselor-apply/check-referral-code?code=${encodeURIComponent(trimmed)}`,
+                      { credentials: 'include' }
                     )
                     const data = await res.json() as { found: boolean; nickname: string | null }
                     setReferrerNickname(data.found ? (data.nickname ?? trimmed) : '')
@@ -1042,7 +1044,7 @@ export default function CounselorApplyNew() {
               }}
             >
               <AgreeRow checked={agreeTerms} onChange={setAgreeTerms} onMore={() => setTermsModal('terms')}>
-                <span className="text-[#FF6467]">(필수)</span> 회원가입약관 동의
+                <span className="text-[#FF6467]">(필수)</span> 이용약관 동의
               </AgreeRow>
               <AgreeRow checked={agreePrivacy} onChange={setAgreePrivacy} onMore={() => setTermsModal('privacy')}>
                 <span className="text-[#FF6467]">(필수)</span> 개인정보처리방침 동의

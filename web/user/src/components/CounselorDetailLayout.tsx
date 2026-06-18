@@ -1,12 +1,15 @@
 ﻿import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { Bell } from 'lucide-react'
 import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 import FloatingActions from './FloatingActions'
 import ShareBottomSheet from './ShareBottomSheet'
+import AlertModal from './AlertModal'
 import { BADGE_BG, type CounselorDetailData } from '../data/counselorDetails'
 import { useConsultModal } from '../lib/consult-context'
 import { useLikeAction } from '../lib/like-context'
 import { formatCounselorNo } from '../lib/counselor-mapper'
+import { ApiError, counselorsApi } from '../lib/api'
 
 /**
  * 상담사 상세 공통 레이아웃 — Figma 76:4852 / 84:4721 / 92:4694 공유 골격
@@ -76,6 +79,40 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
       },
       variant,
     )
+  }
+
+  // 부재(둘 다 off) 상담사 "상담요청하기" — 목록 카드와 동일 동작(카톡/푸시 알림). (2026-06-17)
+  const [isRequested, setIsRequested] = useState(false)
+  const [requestBusy, setRequestBusy] = useState(false)
+  const [requestAlert, setRequestAlert] = useState<{ open: boolean; title: string; message: string }>(
+    { open: false, title: '', message: '' },
+  )
+  const handleRequestConsult = async () => {
+    if (requestBusy || isRequested) return
+    setRequestBusy(true)
+    try {
+      const r = await counselorsApi.requestConsult(data.id)
+      setIsRequested(true)
+      setRequestAlert({
+        open: true,
+        title: r.already ? '이미 요청됨' : '상담 요청을 보냈어요',
+        message: r.already
+          ? `${data.name} 상담사님에게 24시간 내 이미 요청을 보냈어요.\n상담사가 접속하면 알림이 갈 거예요.`
+          : `${data.name} 상담사님에게 알림이 전송됐어요.\n접속하시면 다시 안내드릴게요.`,
+      })
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        navigate('/login')
+        return
+      }
+      setRequestAlert({
+        open: true,
+        title: '요청 실패',
+        message: e instanceof Error ? e.message : '잠시 후 다시 시도해주세요.',
+      })
+    } finally {
+      setRequestBusy(false)
+    }
   }
 
   // 통합 LikeContext 사용 — 401 시 자동으로 통합 로그인 안내 모달 노출
@@ -272,12 +309,25 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
         </p>
       </div>
 
-      {/* 하단 고정 CTA */}
+      {/* 하단 고정 CTA — 부재면 "상담요청하기" 한 줄, 아니면 전화/채팅 */}
       <BottomFixedBar
         liked={liked}
         onLikeToggle={onLikeToggle}
         onPhoneClick={() => triggerConsult('phone')}
         onChatClick={() => triggerConsult('chat')}
+        isOffline={!!data.isOffline}
+        isRequested={isRequested}
+        requestBusy={requestBusy}
+        onRequestClick={handleRequestConsult}
+      />
+
+      {/* 상담요청하기 결과 안내 */}
+      <AlertModal
+        open={requestAlert.open}
+        title={requestAlert.title}
+        message={requestAlert.message}
+        confirmLabel="확인"
+        onClose={() => setRequestAlert((s) => ({ ...s, open: false }))}
       />
 
       <FloatingActions bottomOffset={80} showKakao={false} />
@@ -343,11 +393,19 @@ function BottomFixedBar({
   onLikeToggle,
   onPhoneClick,
   onChatClick,
+  isOffline,
+  isRequested,
+  requestBusy,
+  onRequestClick,
 }: {
   liked: boolean
   onLikeToggle: () => void
   onPhoneClick: () => void
   onChatClick: () => void
+  isOffline: boolean
+  isRequested: boolean
+  requestBusy: boolean
+  onRequestClick: () => void
 }) {
   return (
     <div
@@ -370,22 +428,45 @@ function BottomFixedBar({
           className="w-5 h-5"
         />
       </button>
-      <button
-        type="button"
-        onClick={onPhoneClick}
-        className="flex-1 h-10 rounded-full bg-[#f472b6] flex items-center justify-center gap-1 text-white text-[14px] font-medium"
-      >
-        <img src="/img/ic_phone_solid_w.svg" alt="" className="w-4 h-4" />
-        전화상담
-      </button>
-      <button
-        type="button"
-        onClick={onChatClick}
-        className="flex-1 h-10 rounded-full bg-[#f472b6] flex items-center justify-center gap-1 text-white text-[14px] font-medium"
-      >
-        <img src="/img/ic_message_circle_solid_w.svg" alt="" className="w-4 h-4" />
-        채팅상담
-      </button>
+      {isOffline ? (
+        // 부재(둘 다 off) — 즉시 통화/채팅 대신 "상담요청하기"(카톡/푸시 알림). 목록 카드와 동일.
+        <button
+          type="button"
+          onClick={onRequestClick}
+          disabled={requestBusy || isRequested}
+          className={
+            'flex-1 h-10 rounded-full flex items-center justify-center gap-1.5 text-[14px] font-medium ' +
+            (isRequested
+              ? 'bg-[#F3F4F6] text-[#9CA3AF] cursor-not-allowed'
+              : 'bg-[#f472b6] text-white disabled:opacity-60')
+          }
+        >
+          {isRequested ? (
+            <><span aria-hidden>✓</span><span>요청됨</span></>
+          ) : (
+            <><Bell className="w-4 h-4" aria-hidden /><span>상담요청하기</span></>
+          )}
+        </button>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={onPhoneClick}
+            className="flex-1 h-10 rounded-full bg-[#f472b6] flex items-center justify-center gap-1 text-white text-[14px] font-medium"
+          >
+            <img src="/img/ic_phone_solid_w.svg" alt="" className="w-4 h-4" />
+            전화상담
+          </button>
+          <button
+            type="button"
+            onClick={onChatClick}
+            className="flex-1 h-10 rounded-full bg-[#f472b6] flex items-center justify-center gap-1 text-white text-[14px] font-medium"
+          >
+            <img src="/img/ic_message_circle_solid_w.svg" alt="" className="w-4 h-4" />
+            채팅상담
+          </button>
+        </>
+      )}
     </div>
   )
 }

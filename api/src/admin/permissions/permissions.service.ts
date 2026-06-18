@@ -82,9 +82,19 @@ export class PermissionsService {
    * 기존 일반 회원의 role/level 을 변경하지 않는다.
    */
   async setSuperFlag(memberId: number, isSuper: boolean) {
-    const rows = await this.sql<{ role: string }[]>`SELECT role FROM member WHERE id = ${memberId} LIMIT 1`;
+    const rows = await this.sql<{ role: string; is_super: boolean }[]>`SELECT role, is_super FROM member WHERE id = ${memberId} LIMIT 1`;
     if (rows.length === 0) throw new NotFoundException('관리자 계정을 찾을 수 없습니다.');
     if (rows[0].role !== 'admin') throw new BadRequestException('관리자 계정에서만 변경할 수 있습니다.');
+    // [2026-06-12 fix] 마지막 슈퍼관리자 강등 방지 — 슈퍼 0명이 되면 슈퍼 전용 기능 영구 잠김.
+    if (!isSuper && rows[0].is_super) {
+      const others = await this.sql<{ c: number }[]>`
+        SELECT COUNT(*)::int AS c FROM member
+         WHERE role='admin' AND is_super=true AND left_at IS NULL AND id <> ${memberId}
+      `;
+      if (others[0].c === 0) {
+        throw new BadRequestException('마지막 슈퍼관리자는 강등할 수 없습니다. 다른 슈퍼관리자를 먼저 지정하세요.');
+      }
+    }
     await this.sql`UPDATE member SET is_super = ${isSuper} WHERE id = ${memberId}`;
     return { ok: true };
   }
@@ -95,9 +105,19 @@ export class PermissionsService {
    *      이 호출은 admin 인 계정에서만 호출되어야 한다.
    */
   async deactivateAdmin(memberId: number) {
-    const rows = await this.sql<{ role: string }[]>`SELECT role FROM member WHERE id = ${memberId} LIMIT 1`;
+    const rows = await this.sql<{ role: string; is_super: boolean }[]>`SELECT role, is_super FROM member WHERE id = ${memberId} LIMIT 1`;
     if (rows.length === 0) throw new NotFoundException('관리자 계정을 찾을 수 없습니다.');
     if (rows[0].role !== 'admin') throw new BadRequestException('관리자 계정만 비활성화할 수 있습니다.');
+    // [2026-06-12 fix] 마지막 슈퍼관리자 비활성화 방지 (is_super=FALSE 까지 세팅하므로 잠김 위험).
+    if (rows[0].is_super) {
+      const others = await this.sql<{ c: number }[]>`
+        SELECT COUNT(*)::int AS c FROM member
+         WHERE role='admin' AND is_super=true AND left_at IS NULL AND id <> ${memberId}
+      `;
+      if (others[0].c === 0) {
+        throw new BadRequestException('마지막 슈퍼관리자는 비활성화할 수 없습니다. 다른 슈퍼관리자를 먼저 지정하세요.');
+      }
+    }
     await this.sql`UPDATE member SET left_at = now(), is_super = FALSE WHERE id = ${memberId}`;
     return { ok: true };
   }

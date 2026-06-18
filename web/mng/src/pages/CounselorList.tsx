@@ -47,10 +47,10 @@ interface Counselor {
   created_at: string
   total_consult: string
   total_usetm: string
-  this_month_070: string
-  this_month_060: string
+  this_month_070: string   // 전화(roomid 없음, 후불 060 흡수)
+  this_month_chat: string  // 채팅(roomid 있음)
   last_month_070: string
-  last_month_060: string
+  last_month_chat: string
   // 2026-05-25: 빠른 필터 + 정렬용 신규 필드
   updated_at?: string
   last_login_at?: string | null
@@ -276,7 +276,7 @@ export default function CounselorList() {
   }
 
   const monthSalesOf = (c: Counselor): number =>
-    Number(c.this_month_070 ?? 0) + Number(c.this_month_060 ?? 0)
+    Number(c.this_month_070 ?? 0) + Number(c.this_month_chat ?? 0)
 
   // 빠른 필터별 카운트 (전체 데이터 기준)
   const quickCounts = useMemo(() => {
@@ -488,7 +488,7 @@ export default function CounselorList() {
                 ))}
               </select>
             </label>
-            <label className="inline-flex items-center gap-1.5" title="이번달 매출(070+060) 임계값">
+            <label className="inline-flex items-center gap-1.5" title="이번달 매출(전화+채팅) 임계값">
               <span className="text-gray-500">매출</span>
               <select
                 value={SALES_THRESHOLD_OPTIONS.some((o) => o.value === minSalesMan) ? minSalesMan : 'custom'}
@@ -642,8 +642,9 @@ export default function CounselorList() {
           <Th align="right">우선순위</Th>
           <Th align="right">누적상담</Th>
           <Th align="right">누적시간</Th>
-          <Th align="right">이번달(070)</Th>
-          <Th align="right">지난달(070)</Th>
+          <Th align="right">이번달 전화</Th>
+          <Th align="right">이번달 채팅</Th>
+          <Th align="right">지난달 전화</Th>
           <Th align="right">수익금</Th>
           <Th align="right">코인</Th>
           <Th align="center">상태</Th>
@@ -651,9 +652,9 @@ export default function CounselorList() {
         </THead>
         <TBody>
           {loading ? (
-            <EmptyRow colSpan={21} loading />
+            <EmptyRow colSpan={22} loading />
           ) : !data || pagedItems.length === 0 ? (
-            <EmptyRow colSpan={21} />
+            <EmptyRow colSpan={22} />
           ) : (
             pagedItems.map((c) => (
               <Tr key={c.id} onClick={() => navigate(`/members/counselors/${c.id}`)}>
@@ -697,6 +698,7 @@ export default function CounselorList() {
                   {secsToMin(c.total_usetm)}
                 </Td>
                 <Td align="right"><NumCell value={c.this_month_070} /></Td>
+                <Td align="right"><NumCell value={c.this_month_chat} /></Td>
                 <Td align="right"><NumCell value={c.last_month_070} /></Td>
                 <Td align="right"><NumCell value={c.earning_balance} bold /></Td>
                 <Td align="right" className="text-xs tabular-nums text-gray-500"><NumCell value={c.point} /></Td>

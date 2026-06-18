@@ -342,7 +342,7 @@ function maskMbId(mbId: string): string {
   return s.slice(0, 2) + '***' + s.slice(-2);
 }
 
-/** 작성자 표기 우선순위: nickname → mb_id(마스킹) → fallback. 본명은 노출 안 함 (2026-05-15). */
+/** 작성자 표기 우선순위: nickname(마스킹) → mb_id(마스킹) → fallback. 본명 전체는 노출 안 함 (2026-05-15). */
 function displayReviewer(nickname: string | null, mbId: string | null, fallback = '익명'): string {
   if (nickname && nickname.trim()) return maskName(nickname);
   if (mbId && mbId.trim()) return maskMbId(mbId);

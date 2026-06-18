@@ -4,6 +4,7 @@ import UploadedImage from './UploadedImage'
 import AlertModal from './AlertModal'
 import { useConsultModal } from '../lib/consult-context'
 import { useLikeAction } from '../lib/like-context'
+import { Bell } from 'lucide-react'
 import { ApiError, counselorsApi } from '../lib/api'
 
 export interface Counselor {
@@ -247,7 +248,7 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
             </>
           ) : (
             <>
-              <img src="/img/ic_bell_g.svg" alt="" className="w-4 h-4" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
+              <Bell className="w-4 h-4" aria-hidden />
               <span>상담요청하기</span>
             </>
           )}

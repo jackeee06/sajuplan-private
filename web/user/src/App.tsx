@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AuthProvider } from './lib/auth-context'
+import WebAppGate from './components/WebAppGate'
 import { ConsultProvider } from './lib/consult-context'
 import { LikeProvider } from './lib/like-context'
 import { LoginPromptProvider } from './lib/login-prompt-context'
@@ -30,8 +31,6 @@ import CounselorReviewNew from './pages/CounselorReviewNew'
 import ChatRoom from './pages/ChatRoom'
 import ChatLog from './pages/ChatLog'
 import Favorites from './pages/Favorites'
-import Reviews from './pages/Reviews'
-import ReviewDetail from './pages/ReviewDetail'
 import MemberMyPage from './pages/MemberMyPage'
 import MemberEdit from './pages/MemberEdit'
 import AppSettings from './pages/AppSettings'
@@ -76,6 +75,7 @@ import CounselorMyMemo from './pages/CounselorMyMemo'
 import CounselorIncomingList from './pages/CounselorIncomingList'
 import CounselorMyConsultMemo from './pages/CounselorMyConsultMemo'
 import CounselorMyConsultStats from './pages/CounselorMyConsultStats'
+import CounselorFeeSchedule from './pages/CounselorFeeSchedule'
 import CounselorMyProducts from './pages/CounselorMyProducts'
 import CounselorMyProductInfo from './pages/CounselorMyProductInfo'
 import CounselorMyProductReviews from './pages/CounselorMyProductReviews'
@@ -91,6 +91,8 @@ import CounselorApply from './pages/CounselorApply'
 import CounselorApplyNew from './pages/CounselorApplyNew'
 import CounselorApplyDone from './pages/CounselorApplyDone'
 import CounselorApplyDetail from './pages/CounselorApplyDetail'
+import RecruiterLanding from './pages/RecruiterLanding'
+import PromoterDashboard from './pages/PromoterDashboard'
 
 /** 구 URL (/counselors/:id/reviews, /qna) → ?tab= 방식으로 리다이렉트 */
 function TabRedirect({ tab }: { tab: string }) {
@@ -101,6 +103,7 @@ function TabRedirect({ tab }: { tab: string }) {
 export default function App() {
   return (
     <BrowserRouter basename="/">
+      <WebAppGate />
       <AuthProvider>
       <LoginPromptProvider>
       <LikeProvider>
@@ -135,8 +138,6 @@ export default function App() {
         <Route path="/chat/:id" element={<ChatRoom />} />
         <Route path="/chat-log/:id" element={<ChatLog />} />
         <Route path="/favorites" element={<Favorites />} />
-        <Route path="/reviews" element={<Reviews />} />
-        <Route path="/reviews/:id" element={<ReviewDetail />} />
         <Route path="/mypage" element={<MyPageEntry />} />
         <Route path="/mypage/member" element={<MemberMyPage />} />
         <Route path="/mypage/member/edit" element={<MemberEdit />} />
@@ -187,6 +188,7 @@ export default function App() {
         <Route path="/counselor/mypage/memo" element={<CounselorMyMemo />} />
         <Route path="/counselor/mypage/:type/:id/memo" element={<CounselorMyConsultMemo />} />
         <Route path="/counselor/mypage/consult-stats" element={<CounselorMyConsultStats />} />
+        <Route path="/counselor/mypage/fee-schedule" element={<CounselorFeeSchedule />} />
         <Route path="/counselor/mypage/products" element={<CounselorMyProducts />} />
         <Route path="/counselor/mypage/products/:id/info" element={<CounselorMyProductInfo />} />
         <Route path="/counselor/mypage/products/:id/reviews" element={<CounselorMyProductReviews />} />
@@ -202,6 +204,9 @@ export default function App() {
         <Route path="/mypage/counselor-apply/new" element={<CounselorApplyNew />} />
         <Route path="/mypage/counselor-apply/done" element={<CounselorApplyDone />} />
         <Route path="/mypage/counselor-apply/:id" element={<CounselorApplyDetail />} />
+        {/* 모집인(서포터즈) — QR/링크 랜딩 + 모집인 대시보드 (앱 게이트 예외) */}
+        <Route path="/s/:code" element={<RecruiterLanding />} />
+        <Route path="/promoter" element={<PromoterDashboard />} />
         {/* 추후: /chat/:id, /bookmarks, /point, /mypage/inquiry/new */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

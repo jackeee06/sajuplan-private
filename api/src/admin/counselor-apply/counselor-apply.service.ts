@@ -365,10 +365,15 @@ export class AdminCounselorApplyService {
       applicant_email: string | null;
       extras: unknown;
     };
-    const rows = await this.sql<Row[]>`
+    return await this.sql.begin(async (tx) => {
+    // [2026-06-12] 동시 승인 직렬화 — 같은 신청 동시 2요청/더블클릭 시 중복 승인·중복 m2net 등록 방지.
+    //   xact advisory lock + post_apply FOR UPDATE 로 두 번째 요청은 첫 commit 까지 대기 →
+    //   status='accepted' 를 보고 ConflictException. (헬퍼/외부 m2net 은 기존 재실행-멱등 설계 유지)
+    await tx`SELECT pg_advisory_xact_lock(7777010, ${id})`;
+    const rows = await tx<Row[]>`
       SELECT id, status, member_id, title, content,
              applicant_phone, applicant_email, extras
-        FROM post_apply WHERE id = ${id} LIMIT 1
+        FROM post_apply WHERE id = ${id} FOR UPDATE
     `;
     const r = rows[0];
     if (!r) throw new NotFoundException('해당 신청을 찾을 수 없습니다.');
@@ -379,6 +384,15 @@ export class AdminCounselorApplyService {
       throw new ConflictException(
         '이 신청은 더 최신 신청으로 대체되었습니다. 최신 신청서를 확인해주세요.',
       );
+    }
+    // [2026-06-12 fix] 종결 상태(반려/취소) 신청을 다시 승인하던 구멍 차단.
+    //   - 반려: 종결이어야 하는데 재승인되면 반려사유와 모순.
+    //   - 취소: 신청자 본인이 철회했는데 승인하면 동의 정합/법적 리스크(철회 의사 무시).
+    if (r.status === 'rejected') {
+      throw new ConflictException('반려된 신청은 승인할 수 없습니다. 새 신청서를 받아 진행해주세요.');
+    }
+    if (r.status === 'cancelled') {
+      throw new ConflictException('신청자가 취소(철회)한 신청은 승인할 수 없습니다.');
     }
     const phone = (r.applicant_phone ?? '').replace(/[^0-9]/g, '');
     if (!phone) throw new BadRequestException('휴대폰 번호가 없는 신청은 승인할 수 없습니다.');
@@ -407,8 +421,11 @@ export class AdminCounselorApplyService {
       if (ex.role === 'counselor') {
         // ★ 부분 승인 복구 — 이전 승인 시도가 promoteToCounselor 직후 실패한 경우.
         // 같은 사람(member_id 일치 또는 mb_id 일치)이면 ConflictException 대신 나머지 단계만 완료.
+        // [2026-06-12] 본인확인 강화 — 회원 신청(member_id 존재)이면 member_id 정확 일치만 본인으로.
+        //   phone 은 재사용/이전되는 식별자고 mb_id 는 신청서 extras(공격자 제어 가능) 라
+        //   mb_id 단독 매칭은 회원 신청에선 신뢰하지 않는다(엉뚱한 기존 상담사 후처리 방지).
         const isSamePerson =
-          (r.member_id != null && r.member_id === ex.id) || ex.mb_id === mbId;
+          r.member_id != null ? r.member_id === ex.id : ex.mb_id === mbId;
         if (!isSamePerson) {
           throw new ConflictException('이미 같은 휴대폰으로 상담사 가입되어 있습니다.');
         }
@@ -550,7 +567,8 @@ export class AdminCounselorApplyService {
     extras.created_mb_id = mbId;
     extras.created_csrid = m2netResult.csrid;
     extras.m2net_result = { ok: m2netResult.ok, error: m2netResult.error };
-    await this.sql`
+    // 최종 post_apply 갱신 — tx 사용(위 FOR UPDATE 로 잠근 동일 행 → this.sql 로 하면 자기 자신과 데드락).
+    await tx`
       UPDATE post_apply
          SET status = 'accepted',
              member_id = COALESCE(member_id, ${memberId}),
@@ -567,6 +585,7 @@ export class AdminCounselorApplyService {
       csrid: m2netResult.csrid,
       m2net: { ok: m2netResult.ok, error: m2netResult.error },
     };
+    });
   }
 
   /** 신청서의 사진/계약서 파일을 /uploads/member/ 로 복사하고 member_file row 추가. */

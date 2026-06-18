@@ -384,7 +384,7 @@ export class DashboardService {
 
     const [
       referralCnt, paymentFailedCnt, reportCnt, settleNegCnt, alimtalkFailCnt, refundRecentCnt,
-      counselorApplyCnt, unrepliedReviewCnt, retryFailedCnt, payoutPendingCnt,
+      counselorApplyCnt, unrepliedReviewCnt, retryFailedCnt, payoutPendingCnt, counselorInquiryCnt,
     ] = await Promise.all([
       safeCount(() => this.sql<{ cnt: string }[]>`
         SELECT count(*)::text AS cnt
@@ -441,6 +441,11 @@ export class DashboardService {
       safeCount(() => this.sql<{ cnt: string }[]>`
         SELECT count(*)::text AS cnt FROM payout_request WHERE status = 'pending'
       `),
+      // 미답변 상담사 문의 — 상담사가 운영자에게 보낸 1:1 고객센터 문의 (답변대기, 2026-06-14)
+      safeCount(() => this.sql<{ cnt: string }[]>`
+        SELECT count(*)::text AS cnt FROM counselor_inquiry
+         WHERE status = 'pending' AND is_hidden = false
+      `),
     ]);
 
     return [
@@ -452,6 +457,7 @@ export class DashboardService {
       { key: 'refund_24h', label: '환불 발생(24h)', count: refundRecentCnt, to: '/refunds', tone: 'amber' },
       { key: 'counselor_apply', label: '상담사 신청 대기', count: counselorApplyCnt, to: '/members/counselor-apply', tone: 'amber' },
       { key: 'unreplied_review', label: '미답변 후기(3일+)', count: unrepliedReviewCnt, to: '/posts/review', tone: 'amber' },
+      { key: 'counselor_inquiry', label: '미답변 상담사 문의', count: counselorInquiryCnt, to: '/counselor-inquiries', tone: 'rose' },
       { key: 'retry_failed', label: 'retry 영구실패', count: retryFailedCnt, to: '/settlements', tone: 'rose' },
       { key: 'payout_pending', label: '선지급 처리 대기', count: payoutPendingCnt, to: '/payouts', tone: 'amber' },
     ];
@@ -728,7 +734,7 @@ export class DashboardService {
           COUNT(*)::text AS all_cnt,
           COALESCE(SUM(refunded_amount), 0)::text AS all_amt
         FROM consultation
-       WHERE refund_status = 'short_call_refund'
+       WHERE refund_status IN ('short_call_refund', 'short_chat_refund')
       `;
       const r = rows[0];
       return {

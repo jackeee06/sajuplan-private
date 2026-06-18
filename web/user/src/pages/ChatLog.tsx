@@ -1,4 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react'
+import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ApiError, chatApi, type ChatMessage, type ChatRoomDetail } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
@@ -239,7 +240,7 @@ function MessageBody({
     return (
       <div
         className={`text-[14px] leading-[140%] ${textColor} whitespace-pre-line break-words`}
-        dangerouslySetInnerHTML={{ __html: m.text }}
+        dangerouslySetInnerHTML={{ __html: sanitizeIntroHtml(m.text) }}
       />
     )
   }

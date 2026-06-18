@@ -156,105 +156,67 @@ export default function MyHistory() {
           </p>
         )}
 
-        {items.map((it) => (
-          <article key={it.id} className="py-4 border-b border-[#F3F4F6]">
-            <p className="text-[12px] text-[#99A1AF]">
-              {formatDateTime(it.started_at)}
-            </p>
-            <div className="mt-2 flex items-center gap-3">
-              <div className="w-[56px] h-[56px] rounded-full bg-[#F3F4F6] overflow-hidden shrink-0">
-                {it.counselor_avatar && (
-                  <UploadedImage
-                    src={it.counselor_avatar}
-                    srcWebp={it.counselor_avatar_webp}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  {/* "기타" 는 추론 실패 폴백이라 의미가 없으므로 표시 생략. 사주/타로/신점만 노출. */}
-                  {it.counselor_badge !== '기타' && (
-                    <span
-                      className="px-2 h-[22px] inline-flex items-center text-[12px] font-medium text-white rounded"
-                      style={{ background: BADGE_BG[it.counselor_badge] }}
-                    >
-                      {it.counselor_badge}
-                    </span>
-                  )}
-                  <span className="text-[15px] font-bold text-[#030712] truncate">
-                    {it.counselor_name}
-                  </span>
-                  {it.counselor_code && (
-                    <span className="text-[13px] font-medium text-[#ec4899] shrink-0">
-                      {it.counselor_code}
-                    </span>
-                  )}
-                  {it.is_active_chat && (
-                    <span className="px-2 h-[20px] inline-flex items-center text-[11px] font-semibold text-[#ec4899] bg-[#fdf2f8] rounded-full shrink-0">
-                      상담중
-                    </span>
+        {items.map((it) => {
+          const startedAt = formatDateTime(it.started_at)
+          const endedAt = it.ended_at ? formatDateTime(it.ended_at) : ''
+          const timeRange = `${startedAt}${endedAt ? ` ~ ${shortEnd(startedAt, endedAt)}` : ''}`
+          const typeShort = it.consult_type === 'chat' ? '채팅' : '전화'
+          return (
+            <article key={it.id} className="py-2.5 border-b border-[#F3F4F6]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-[#F3F4F6] overflow-hidden shrink-0">
+                  {it.counselor_avatar && (
+                    <UploadedImage
+                      src={it.counselor_avatar}
+                      srcWebp={it.counselor_avatar_webp}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   )}
                 </div>
-                <p className="mt-1 text-[13px] text-[#4A5565]">
-                  {it.consult_type_label}
-                  {!it.is_active_chat && (
-                    <>
-                      {' '}· <span className="font-semibold">{it.usetm_label}</span>
-                    </>
-                  )}
-                </p>
-                {!it.is_active_chat && (
-                  <p className="text-[12px] text-[#99A1AF]">
-                    사용 코인 <span className="font-semibold text-[#1E2939]">{it.amt.toLocaleString()}</span>P
+                <div className="flex-1 min-w-0">
+                  {/* 1줄: (뱃지) 이름(번호) [상담중] · 채팅 3분35초 …… 코인 + 후기 */}
+                  <div className="flex items-center gap-1.5">
+                    {it.counselor_badge !== '기타' && (
+                      <span
+                        className="px-1.5 h-[18px] inline-flex items-center text-[11px] font-medium text-white rounded shrink-0"
+                        style={{ background: BADGE_BG[it.counselor_badge] }}
+                      >
+                        {it.counselor_badge}
+                      </span>
+                    )}
+                    <span className="text-[15px] font-bold text-[#030712] shrink-0">{it.counselor_name}</span>
+                    {it.counselor_code && (
+                      <span className="text-[13px] font-medium text-[#ec4899] shrink-0">{it.counselor_code}</span>
+                    )}
+                    {it.is_active_chat && (
+                      <span className="px-2 h-[20px] inline-flex items-center text-[11px] font-semibold text-[#ec4899] bg-[#fdf2f8] rounded-full shrink-0">상담중</span>
+                    )}
+                    {it.is_failed ? (
+                      <span className="text-[#FB2C36] text-[12px] font-medium truncate">· 연결 실패 · 상담사와 연결 전 종료</span>
+                    ) : (
+                      <span className="text-[12px] text-[#6A7282] truncate">
+                        · {typeShort}{!it.is_active_chat && ` ${briefDur(Number(it.usetm_seconds) || 0)}`}
+                      </span>
+                    )}
+                    {!it.is_failed && (
+                      <span className="ml-auto shrink-0 flex items-center gap-2">
+                        {!it.is_active_chat && (
+                          <span className="font-bold text-[#1E2939] text-[13px]">{it.amt.toLocaleString()}코인</span>
+                        )}
+                        {renderHistoryAction(it)}
+                      </span>
+                    )}
+                  </div>
+                  {/* 2줄: 시각 시작~끝 통째로 (안 잘림) */}
+                  <p className="mt-0.5 text-[12.5px] text-[#99A1AF] truncate">
+                    {it.is_active_chat ? `시작 ${startedAt}` : `시간 ${timeRange}`}
                   </p>
-                )}
+                </div>
               </div>
-            </div>
-
-            <div className="mt-3 flex justify-end">
-              {/* 채팅방이 아직 진행 중(STAY/CNCH) 이면 무조건 "재입장하기" 만 노출 — 후기 작성은 종료 후. */}
-              {((it.is_active_chat && it.chat_room_id) ||
-                ((it.chat_status === 'STAY' || it.chat_status === 'CNCH') && it.chat_room_id)) ? (
-                <Link
-                  to={`/chat/${it.chat_room_id}`}
-                  className="h-9 px-4 inline-flex items-center gap-1 rounded-full bg-[#f472b6] text-[13px] font-medium text-white"
-                >
-                  채팅방 재입장하기
-                  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" aria-hidden>
-                    <path d="M6 3.5L10.5 8L6 12.5" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </Link>
-              ) : it.review_id ? (
-                <Link
-                  to={`/mypage/my-reviews/${it.review_id}`}
-                  className="h-9 px-4 inline-flex items-center gap-1 rounded-full border border-[#E5E7EB] text-[13px] text-[#6A7282]"
-                >
-                  후기 보러가기
-                  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" aria-hidden>
-                    <path d="M6 3.5L10.5 8L6 12.5" stroke="#6A7282" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </Link>
-              ) : (Number(it.usetm_seconds) || 0) < 300 ? (
-                // [2026-05-27 후기 5분 정책] 백엔드 가드와 동기화 — 버튼 대신 안내 텍스트
-                <span className="h-9 px-3 inline-flex items-center text-[12px] text-[#99A1AF]">
-                  5분 이상 상담 후 후기 작성 가능
-                </span>
-              ) : (
-                <Link
-                  to={`/mypage/my-reviews/new?consultation_id=${it.id}&counselor_id=${it.counselor_id ?? ''}`}
-                  className="h-9 px-4 inline-flex items-center gap-1 rounded-full bg-[#f472b6] text-[13px] font-medium text-white"
-                >
-                  후기 작성하기
-                  <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" aria-hidden>
-                    <path d="M6 3.5L10.5 8L6 12.5" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </Link>
-              )}
-            </div>
-          </article>
-        ))}
+            </article>
+          )
+        })}
 
         {!loading && total > 0 && (
           <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
@@ -272,5 +234,58 @@ function formatDateTime(s: string | null): string {
   const dt = new Date(s)
   if (isNaN(dt.getTime())) return s
   const pad = (n: number) => String(n).padStart(2, '0')
-  return `${dt.getFullYear()}.${pad(dt.getMonth() + 1)}.${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`
+  return `${dt.getFullYear()}.${pad(dt.getMonth() + 1)}.${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`
+}
+
+/** 종료시각: 시작과 같은 날이면 시·분만, 다른 날이면 전체. */
+function shortEnd(start: string, end: string): string {
+  const sd = start.split(' ')[0]
+  const [ed, et] = end.split(' ')
+  return ed === sd ? (et ?? end) : end
+}
+
+/** 카드 2번째 줄 오른쪽 액션 — 기존 기능(재입장/후기보기/5분안내/후기작성) 전부 보존, 작은 링크로. */
+function renderHistoryAction(it: ConsultHistoryItem) {
+  if (it.is_failed) return null
+  // 진행 중 채팅 → 재입장 (후기는 종료 후)
+  if (
+    (it.is_active_chat && it.chat_room_id) ||
+    ((it.chat_status === 'STAY' || it.chat_status === 'CNCH') && it.chat_room_id)
+  ) {
+    return (
+      <Link to={`/chat/${it.chat_room_id}`} className="text-[13px] font-semibold text-[#ec4899]">
+        채팅방 재입장
+      </Link>
+    )
+  }
+  if (it.review_id) {
+    return (
+      <Link to={`/mypage/my-reviews/${it.review_id}`} className="text-[13px] font-medium text-[#6A7282]">
+        후기 보기
+      </Link>
+    )
+  }
+  // [2026-05-27 후기 5분 정책] 5분 미만은 작성 불가 — 짧은 안내.
+  if ((Number(it.usetm_seconds) || 0) < 300) {
+    return <span className="text-[12px] text-[#99A1AF] whitespace-nowrap">후기 가능(5분↑)</span>
+  }
+  return (
+    <Link
+      to={`/mypage/my-reviews/new?consultation_id=${it.id}&counselor_id=${it.counselor_id ?? ''}`}
+      className="text-[13px] font-semibold text-[#ec4899] whitespace-nowrap"
+    >
+      후기 작성
+    </Link>
+  )
+}
+
+/** 간략 통화시간: "3분35초" / "36초" / "1시간2분". */
+function briefDur(sec: number): string {
+  const n = Number(sec) || 0
+  const h = Math.floor(n / 3600)
+  const m = Math.floor((n % 3600) / 60)
+  const s = n % 60
+  if (h) return `${h}시간${m}분`
+  if (m) return `${m}분${s}초`
+  return `${s}초`
 }

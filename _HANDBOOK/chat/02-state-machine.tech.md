@@ -20,14 +20,18 @@
 - F 정책 → 선결제 차감 실행 (chargeMinutes × 분당 단가)
 
 ### CNCH → DISCONNECT
-- `leave('close')` (명시적 종료) — 회원 또는 상담사
+- `leave('close')` (명시적 "상담종료" 버튼) — 회원 또는 상담사
 - m2net END_CHAT push (m2net 측 세션 종료)
 - tick API 가 잔여 0 감지 (시간 소진 자동 종료)
-- 5초 이내 종료 → G 정책 환불 처리
+- 5초/30초 이내 종료 → 단기 환불 정책 처리
+- **[2026-06-17] `settleAbandonedChats` cron** — CNCH + (member/counselor)\_try_out + 3분 무활동 = 방치 → DISCONNECT + 정산
+- ⚠️ **pagehide/백그라운드는 더 이상 종료 트리거 아님** — soft 이탈로 전환(복구 가능). → [03-exit-handling](chat/03-exit-handling)
 
 ### STAY → DISCONNECT (직접)
-- `autoCancelStaleChats` 매분 cron — `started_at < NOW() - INTERVAL '3 minutes'`
+- `autoCancelStaleChats` 매분 cron — `status='STAY' AND started_at < NOW() - INTERVAL '3 minutes'`
 - 헤더 종료 버튼
+
+> **과금 주의:** CNCH 에서는 try_out(이탈) 여부와 무관하게 과금 계속(m2net 일치). try_out 은 과금이 아니라 **방치 cron 판정용**일 뿐. → [07-billing-policy](chat/07-billing-policy)
 
 ## 핵심 코드 위치
 
@@ -80,7 +84,8 @@ ORDER BY cnt DESC;
 1. **STAY → CNCH 전환 미발화**: m2net START_CHAT push 누락 시 차감 안 됨. 안전망: 클라이언트 측 폴링이 상태 동기화 (5초 주기)
 2. **DISCONNECT → CNCH 역전 시도**: 단방향 정책 위반. m2net push 충돌 검토
 3. **3분 cron 정지**: STAY 무한 대기. `pm2 logs sajumoon-api | grep autoCancelStaleChats` 매분 로그
-4. **try_out 마킹 안 풀림**: rejoin 호출 실패 시 회원이 영원히 "자리비움". 클라이언트 측 focus 이벤트 검증
+4. **try_out 마킹 안 풀림**: rejoin 실패 시 "자리비움"이 안 풀림. 단 [2026-06-17] 이후 try_out 은 **과금에 영향 없음**(CNCH 무조건 과금). 영향: 방치 cron 이 일찍 정산할 수 있음 → focus/visible/pageshow 다중 rejoin 으로 복원
+5. **CNCH 과금정지 재도입 금지**: try_out 으로 use_seconds 멈추면 m2net 과 어긋나 사주플랜 적자. [[feedback-no-chat-billing-pause]]
 
 ## 관련 메모리
 

@@ -15,6 +15,8 @@ import {
   type RegisteredCardDto,
 } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
+import { useConfirm } from '../lib/use-confirm'
+import { useAlert } from '../lib/use-alert'
 
 /**
  * 07마이페이지_일반회원_포인트 충전 (Figma 5종 변형 + 백엔드 연동)
@@ -59,7 +61,6 @@ export default function Charge() {
   const [packageId, setPackageId] = useState<number | null>(null)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('sajumun_pay')
   const [generalOption, setGeneralOption] = useState<GeneralPayOption>('신용카드')
-  const [firstChargeNoticeOpen, setFirstChargeNoticeOpen] = useState(true)
   const [autoEnabled, setAutoEnabled] = useState(false)
   // 자동충전 기준 잔액 — sample 라이브 정책상 엠투넷이 관리. 사용자 조절 불가, 10,000원 고정.
   const AUTO_THRESHOLD = 10000
@@ -74,6 +75,8 @@ export default function Charge() {
 
   // 상담시간 계산 가이드 모달 — sample/include/guide_coin_fill.php 동등
   const [timeGuideOpen, setTimeGuideOpen] = useState(false)
+  const { confirm, confirmUI } = useConfirm()
+  const { showAlert, alertUI } = useAlert()
 
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -135,16 +138,19 @@ export default function Charge() {
   )
 
   const handleRemoveCard = async () => {
-    if (!confirm('등록된 결제수단을 삭제하시겠습니까?\n\n삭제 후 새 카드를 등록해야 사주플랜페이/자동결제 사용이 가능합니다.')) {
-      return
-    }
+    const ok = await confirm({
+      message: '등록된 결제수단을 삭제하시겠습니까?',
+      subMessage: '삭제 후 새 카드를 등록해야 사주플랜페이/자동결제 사용이 가능합니다.',
+      actionLabel: '삭제',
+      tone: 'danger',
+    })
+    if (!ok) return
     setErrorMsg(null)
     try {
       await chargeApi.autopayCardDelete()
       const methods = await chargeApi.methods()
       setCards(methods.cards)
       setAutoEnabled(false)
-      setFirstChargeNoticeOpen(true)
     } catch (e) {
       setErrorMsg(`카드 삭제 실패: ${(e as Error).message}`)
     }
@@ -213,11 +219,11 @@ export default function Charge() {
 
   const handleAutoToggle = async () => {
     if (cards.length === 0) {
-      alert('자동충전을 사용하려면 사주플랜페이 카드를 먼저 등록해주세요.')
+      void showAlert('자동충전을 사용하려면 사주플랜페이 카드를 먼저 등록해주세요.')
       return
     }
     if (!selectedPkg) {
-      alert('자동충전 시 결제할 패키지를 선택해주세요.')
+      void showAlert('자동충전 시 결제할 패키지를 선택해주세요.')
       return
     }
     const next = !autoEnabled
@@ -229,7 +235,7 @@ export default function Charge() {
       })
       setAutoEnabled(next)
     } catch (e) {
-      alert(`자동충전 설정 실패: ${(e as Error).message}`)
+      void showAlert(`자동충전 설정 실패: ${(e as Error).message}`)
     }
   }
 
@@ -348,25 +354,6 @@ export default function Charge() {
 
         {paymentMethod === 'sajumun_pay' && (
           <div className="mt-3">
-            {firstChargeNoticeOpen && cards.length === 0 && (
-              <div className="mb-3 ml-7 relative inline-block max-w-full px-3 py-2.5 bg-[#fdf2f8] rounded-[12px]">
-                <p className="text-[13px] text-[#1E2939] leading-[140%] pr-5">
-                  첫 결제 시 코인 50% 추가 적립!
-                  <br />
-                  (최초 1회 결제에 한해 제공되는 혜택입니다)
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setFirstChargeNoticeOpen(false)}
-                  aria-label="안내 닫기"
-                  className="absolute top-2 right-2 w-4 h-4 flex items-center justify-center text-[#6A7282]"
-                >
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                </button>
-              </div>
-            )}
 
             {cards.length === 0 ? (
               <EmptyCardBox
@@ -465,6 +452,8 @@ export default function Charge() {
       {/* 상담시간 계산 가이드 모달 — sample/include/guide_coin_fill.php 그대로 매핑 */}
       <ConsultTimeGuideModal open={timeGuideOpen} onClose={() => setTimeGuideOpen(false)} />
       <BottomNav />
+      {confirmUI}
+      {alertUI}
       </div>
   )
 }
@@ -758,7 +747,7 @@ function AutoChargeHeader({
       <section className="px-4 pt-5">
         <h2 className="text-[16px] font-semibold text-[#1E2939]">충전 기준 잔액</h2>
         <div className="mt-3 h-[52px] px-4 flex items-center rounded-[12px] border border-[#f472b6] text-[15px] text-[#1E2939]">
-          {threshold.toLocaleString()}P보다 낮아지면 자동충전
+          {threshold.toLocaleString()} 코인보다 낮아지면 자동충전
         </div>
       </section>
     </>

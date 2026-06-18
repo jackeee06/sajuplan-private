@@ -8,5 +8,6 @@ import { AdminReferralsService } from '../../admin/referrals/referrals.service';
   imports: [AuthModule],
   controllers: [UserSettlementsController],
   providers: [UserSettlementsService, AdminReferralsService],
+  exports: [UserSettlementsService],
 })
 export class UserSettlementsModule {}

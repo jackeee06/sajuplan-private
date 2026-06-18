@@ -32,8 +32,11 @@ import { AdminPayoutsModule } from './payouts/payouts.module';
 import { AlimtalkBulkModule } from './alimtalk-bulk/alimtalk-bulk.module';
 import { AdminReferralsModule } from './referrals/referrals.module';
 import { AdminMemoModule } from './memo/memo.module';
+import { AdminCounselorInquiriesModule } from './counselor-inquiries/counselor-inquiries.module';
+import { AlertLogsModule } from './alert-logs/alert-logs.module';
 import { AdminHandbookModule } from './handbook/handbook.module';
 import { ProfitSimModule } from './profit-sim/profit-sim.module';
+import { AdminPromotersModule } from './promoters/promoters.module';
 
 @Module({
   imports: [
@@ -70,8 +73,11 @@ import { ProfitSimModule } from './profit-sim/profit-sim.module';
     AlimtalkBulkModule,
     AdminReferralsModule,
     AdminMemoModule,
+    AdminCounselorInquiriesModule,
+    AlertLogsModule,
     AdminHandbookModule,
     ProfitSimModule,
+    AdminPromotersModule,
   ],
 })
 export class AdminModule {}

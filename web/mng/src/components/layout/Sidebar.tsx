@@ -19,7 +19,7 @@ type MenuKey = 'member' | 'sales' | 'consultation' | 'board' | 'notification' | 
  * 운영자가 "이 페이지가 어느 메뉴에 속하는지" 자연스럽게 학습할 수 있게 함.
  */
 function pathToGroup(pathname: string): MenuKey | null {
-  if (pathname.startsWith('/members/') || pathname.startsWith('/attendance') || pathname.startsWith('/grade')) return 'member'
+  if (pathname.startsWith('/members/') || pathname.startsWith('/attendance') || pathname.startsWith('/grade') || pathname.startsWith('/promoters')) return 'member'
   if (pathname.startsWith('/consultations') || pathname.startsWith('/refunds') || pathname.startsWith('/short-call-refunds') || pathname.startsWith('/ops-kpi')
       || pathname.startsWith('/charge-amounts') || pathname.startsWith('/payments') || pathname.startsWith('/points')
       || pathname.startsWith('/settlements') || pathname.startsWith('/payouts') || pathname.startsWith('/referrals')) return 'sales'
@@ -111,6 +111,7 @@ export default function Sidebar() {
                     <li><NavLink to="/members/counselor-apply" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담사 신청 내역</NavLink></li>
                     <li><NavLink to="/attendance" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 출석 관리</NavLink></li>
                     <li><NavLink to="/grade" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 등급 관리</NavLink></li>
+                    <li><NavLink to="/promoters" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>모집인 관리</NavLink></li>
                   </ul>
                 )}
               </li>
@@ -165,6 +166,7 @@ export default function Sidebar() {
                     <li><NavLink to="/review-reports" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>후기 신고 관리</NavLink></li>
                     <li><NavLink to="/posts/qa" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담문의</NavLink></li>
                     <li><NavLink to="/posts/qa_counselor" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>1:1문의(상담사)</NavLink></li>
+                    <li><NavLink to="/counselor-inquiries" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담사 고객센터 문의</NavLink></li>
                     <li><NavLink to="/chat-history" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>채팅내역 리스트</NavLink></li>
                   </ul>
                 )}
@@ -202,6 +204,7 @@ export default function Sidebar() {
                     <li><NavLink to="/push-notifications" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>푸시 알림</NavLink></li>
                     <li><NavLink to="/push-guide" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📱 푸시 가이드</NavLink></li>
                     <li><NavLink to="/alert-guide" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>🔔 알림 가이드</NavLink></li>
+                    <li><NavLink to="/alert-logs" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📋 알림 이력</NavLink></li>
                     <li><NavLink to="/alimtalk-bulk" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 알림톡 발송</NavLink></li>
                     <li><NavLink to="/alimtalk-templates" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>알림톡 템플릿</NavLink></li>
                   </ul>

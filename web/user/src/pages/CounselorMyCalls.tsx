@@ -123,58 +123,58 @@ function CallCard({
   const customerName = item.counselor_name || '회원'
   const startedAt = formatKDateTime(item.started_at)
   const endedAt = formatKDateTime(item.ended_at)
+  const timeRange = `${startedAt}${endedAt ? ` ~ ${shortEnd(startedAt, endedAt)}` : ''}`
   const reviewDone = item.review_id != null
   const replyDone = item.reply_id != null
+  const earning = item.earning ?? 0
+  const avatar = item.counselor_avatar || '/img/avatar_default.svg'
 
+  // 2줄 압축 (2026-06-14). 회원 전화내역과 동일 형식.
+  //  - 성공:   [사진] 고객명 …… 수익원  /  시간 시작 ~ 끝  (+ 후기답변/메모 작은 링크)
+  //  - 놓친통화: [사진] 고객명 · 😢 놓친 수익 기회 · 연결 전 종료  /  시간 시작 ~ 끝
+  //    (기분 나쁜 "실패"가 아니라 "놓친 수익 기회"로 — 아쉬움이 핵심)
   return (
-    <article className="px-4 py-4">
-      <div className="flex items-start">
-        <div className="flex-1">
-          <p className="text-[16px] font-bold text-[#030712]">{customerName}</p>
-          <p className="mt-1 text-[13px] text-[#99A1AF]">
-            {startedAt.split(' ')[0]} · {item.usetm_label}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onMemo}
-            aria-label="메모"
-            className="w-7 h-7 flex items-center justify-center"
-          >
-            <img src="/img/ic_memo.svg" alt="" className="w-6 h-6" />
-          </button>
+    <article className="px-4 py-2.5">
+      <div className="flex items-center gap-2.5">
+        <img
+          src={avatar}
+          alt=""
+          className="w-9 h-9 rounded-full object-cover bg-[#E5E7EB] shrink-0"
+          onError={(e) => { (e.target as HTMLImageElement).src = '/img/avatar_default.svg' }}
+        />
+        <div className="flex-1 min-w-0">
+          {/* 1줄: 고객명 …… 수익 / 또는 놓친 수익 기회 */}
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-[#030712] text-[15px]">{customerName}</span>
+            {item.is_failed ? (
+              <span className="text-[#F59E0B] text-[13px] font-medium">· 😢 놓친 수익 기회 · 연결 전 종료</span>
+            ) : (
+              <span className="ml-auto font-bold text-[#8259F5] text-[15px]">{earning.toLocaleString()}원</span>
+            )}
+          </div>
+          {/* 2줄: 시간 시작~끝 …… (후기답변/메모 작은 링크 — 성공만) */}
+          <div className="mt-0.5 flex items-center gap-2.5">
+            <p className="text-[12.5px] text-[#99A1AF] truncate">시간 {timeRange}</p>
+            {!item.is_failed && (
+              <span className="ml-auto shrink-0 flex items-center gap-2.5">
+                {reviewDone && (
+                  <button type="button" onClick={onWriteReply} className="text-[13px] font-semibold text-[#8259F5]">
+                    {replyDone ? '답변 보기' : '후기 답변'}
+                  </button>
+                )}
+                <button type="button" onClick={onMemo} className="text-[13px] font-medium text-[#6A7282]">메모</button>
+              </span>
+            )}
+          </div>
         </div>
       </div>
-      <ul className="mt-3 flex flex-col gap-1.5 text-[14px]">
-        <li className="flex items-center justify-between">
-          <span className="font-semibold text-[#1E2939]">시작시간</span>
-          <span className="text-[#4A5565]">{startedAt}</span>
-        </li>
-        <li className="flex items-center justify-between">
-          <span className="font-semibold text-[#1E2939]">완료시간</span>
-          <span className="text-[#4A5565]">{endedAt}</span>
-        </li>
-        <li className="flex items-center justify-between">
-          <span className="font-semibold text-[#1E2939]">후기작성</span>
-          <span className={reviewDone ? 'text-[#1E2939]' : 'text-[#99A1AF]'}>
-            {reviewDone ? '완료' : '대기'}
-          </span>
-        </li>
-      </ul>
-      {reviewDone && (
-        <button
-          type="button"
-          onClick={onWriteReply}
-          className={
-            replyDone
-              ? 'mt-3 w-full h-[44px] rounded-full border border-[#8259F5] text-[14px] font-medium text-[#8259F5]'
-              : 'mt-3 w-full h-[44px] rounded-full bg-[#8259F5] text-white text-[14px] font-semibold'
-          }
-        >
-          {replyDone ? '작성한 후기 답변 보기' : '후기 답변 작성하기'}
-        </button>
-      )}
     </article>
   )
+}
+
+/** 종료시각: 시작과 같은 날이면 시간만, 다른 날이면 전체. */
+function shortEnd(start: string, end: string): string {
+  const sd = start.split(' ')[0]
+  const [ed, et] = end.split(' ')
+  return ed === sd ? (et ?? end) : end
 }

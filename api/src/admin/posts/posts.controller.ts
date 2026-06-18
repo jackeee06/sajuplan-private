@@ -68,4 +68,56 @@ export class PostsController {
   ) {
     return this.reviewsSvc.adminToggleBest(id, !!body.is_admin_best);
   }
+
+  /**
+   * POST /api/admin/posts/reviews/seed
+   * 관리자 시딩 후기 작성 (초기 상담사 가치 부여 — 상담사 합의된 마케팅).
+   * 일반 작성 검증 우회 + 회원 코인/상담사 알림 미발송 + extras._seed 박제.
+   */
+  /**
+   * PATCH /api/admin/posts/reviews/:id/edit
+   * 관리자 후기 수정. 시딩=제목·내용·작성자명·작성일 / 진짜=제목·내용만(서버가 extras._seed 로 판별).
+   */
+  @Patch('reviews/:id/edit')
+  editReview(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { title?: string; content?: string; reviewer_name?: string; created_at?: string },
+  ) {
+    return this.reviewsSvc.adminUpdate(id, {
+      title: body?.title,
+      content: body?.content,
+      reviewer_name: body?.reviewer_name,
+      created_at: body?.created_at,
+    });
+  }
+
+  @Post('reviews/seed')
+  seedReview(
+    @Body() body: {
+      counselor_id?: number;
+      reviewer_name?: string;
+      title?: string;
+      content?: string;
+      rating?: number | null;
+      created_at?: string | null;
+      consult_type?: string | null;
+      consult_duration_sec?: number | null;
+      photo_url?: string | null;
+      photo_url_webp?: string | null;
+    },
+  ) {
+    if (!body?.counselor_id) throw new BadRequestException('상담사를 선택해주세요.');
+    return this.reviewsSvc.createSeed({
+      counselor_id: Number(body.counselor_id),
+      reviewer_name: body.reviewer_name ?? '',
+      title: body.title ?? '',
+      content: body.content ?? '',
+      rating: body.rating ?? null,
+      created_at: body.created_at ?? null,
+      consult_type: body.consult_type ?? null,
+      consult_duration_sec: body.consult_duration_sec ?? null,
+      photo_url: body.photo_url ?? null,
+      photo_url_webp: body.photo_url_webp ?? null,
+    });
+  }
 }

@@ -434,6 +434,42 @@ export class HealthCheckService {
       detail: c23[0].sample ?? undefined,
     });
 
+    // C-24 (2026-06-18) 끝난 통화에 5분 알림 발화 — "통화 끝났는데 마무리 멘트 팝업" 재발 감시
+    //   consultation 은 push 이벤트마다 1행이라 CONNECT_CSR 행은 ended_at 이 영원히 NULL.
+    //   과거: 5분 안전망 cron 이 좀비 CONNECT_CSR 행을 보고 종료 후 알림 발화(종료 +9초) → 고객 불만.
+    //   수정(발화 직전 종료-행 게이트 + cron 후보 제외) 후엔 0건이어야 정상. 0 이 아니면 회귀.
+    //   콜 단위: 종료시각(MIN ended_at) 보다 알림시각(MIN five_min_alert_sent_at) 이 뒤면 위반.
+    //   최근 90분 내 종료 건만 — 과거 1회성 사고가 영구 알림되지 않도록 + 신규 발생만 즉시 포착.
+    const c24 = await this.sql<{ cnt: string; sample: string | null }[]>`
+      WITH ended AS (
+        SELECT callid, MIN(ended_at) AS end_at
+          FROM consultation
+         WHERE roomid IS NULL AND ended_at IS NOT NULL AND callid IS NOT NULL AND callid <> ''
+         GROUP BY callid
+      ),
+      alerted AS (
+        SELECT callid, MIN(five_min_alert_sent_at) AS alert_at
+          FROM consultation
+         WHERE roomid IS NULL AND five_min_alert_sent_at IS NOT NULL AND callid IS NOT NULL AND callid <> ''
+         GROUP BY callid
+      )
+      SELECT COUNT(*)::text AS cnt,
+             STRING_AGG('callid=' || left(e.callid, 12)
+               || ' 종료=' || to_char(e.end_at   AT TIME ZONE 'Asia/Seoul', 'HH24:MI:SS')
+               || ' 알림=' || to_char(a.alert_at AT TIME ZONE 'Asia/Seoul', 'HH24:MI:SS'), ', ') AS sample
+        FROM ended e
+        JOIN alerted a ON a.callid = e.callid
+       WHERE a.alert_at > e.end_at
+         AND e.end_at > now() - interval '90 minutes'
+    `;
+    checks.push({
+      id: 'C-24',
+      name: '끝난 통화에 5분 알림 발화(마무리 멘트 팝업 재발)',
+      severity: 'critical',
+      violations: Number(c24[0].cnt),
+      detail: c24[0].sample ?? undefined,
+    });
+
     // 종합
     const critical = checks.filter((c) => c.severity === 'critical' && c.violations > 0);
     const warning = checks.filter((c) => c.severity === 'warning' && c.violations > 0);
@@ -460,6 +496,7 @@ export class HealthCheckService {
       'C-21': '관리자 > 선지급 > 30일 이상 방치된 신청 건 처리',
       'C-22': '관리자 > 상담사 > m2net 미등록 상담사 재등록 필요',
       'C-23': 'DB alimtalk_template 즉시 확인 — BizM 콘솔 버튼 타입(AL)·URL(sajuplan://) 대조 후 수복. _INFRA_LOCKED.md 참조',
+      'C-24': '끝난 통화에 5분 알림 발화 — 전화 5분 알림 cron/게이트 회귀 의심. m2net-push.service.ts firePhoneFiveMinAlert 종료-행 게이트 확인',
     };
 
     let alerted = false;
