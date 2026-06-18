@@ -32,9 +32,23 @@ import paramiko
 # 2026-05-17: 상담사 후기 알림톡 추가
 # audit A~G 전체 변경분 외과 패치 (18개 파일) — 이전 배포 분
 FILES = [
+    # 2026-06-14: 상담사→운영자 1:1 고객센터 문의 정식 연결 (그동안 시안 mock 이던 자리)
+    ("api/db/migrations/20260614000000_counselor_inquiry.sql", "db/migrations/20260614000000_counselor_inquiry.sql"),
+    ("api/src/user/counselor-mypage-inquiry/counselor-mypage-inquiry.service.ts", "src/user/counselor-mypage-inquiry/counselor-mypage-inquiry.service.ts"),
+    ("api/src/user/counselor-mypage-inquiry/counselor-mypage-inquiry.controller.ts", "src/user/counselor-mypage-inquiry/counselor-mypage-inquiry.controller.ts"),
+    ("api/src/user/counselor-mypage-inquiry/counselor-mypage-inquiry.module.ts", "src/user/counselor-mypage-inquiry/counselor-mypage-inquiry.module.ts"),
+    ("api/src/admin/counselor-inquiries/counselor-inquiries.service.ts", "src/admin/counselor-inquiries/counselor-inquiries.service.ts"),
+    ("api/src/admin/counselor-inquiries/counselor-inquiries.controller.ts", "src/admin/counselor-inquiries/counselor-inquiries.controller.ts"),
+    ("api/src/admin/counselor-inquiries/counselor-inquiries.module.ts", "src/admin/counselor-inquiries/counselor-inquiries.module.ts"),
     # 2026-06-11: JWT sub 문자열 비교 버그 근본수정 (self/소유권 검증 무력화 방지) + qna 본인페이지 차단
     ("api/src/user/auth/user-auth.guard.ts", "src/user/auth/user-auth.guard.ts"),
     ("api/src/user/qna/qna.service.ts", "src/user/qna/qna.service.ts"),
+    # 2026-06-11: 푸시 알림 내역 단건 삭제 엔드포인트 추가
+    ("api/src/admin/notifications/notifications.controller.ts", "src/admin/notifications/notifications.controller.ts"),
+    ("api/src/admin/notifications/notifications.service.ts", "src/admin/notifications/notifications.service.ts"),
+    # 2026-06-18: 운영바이블 알림 매트릭스 단일출처(SSOT) — alert-matrix 서빙 엔드포인트
+    ("api/src/admin/handbook/handbook.controller.ts", "src/admin/handbook/handbook.controller.ts"),
+    ("api/src/admin/handbook/handbook.service.ts", "src/admin/handbook/handbook.service.ts"),
     # 2026-06-08: FCM 푸시 토큰→토픽 방식 전환 (sendToTokens → sendToTopic 'chl_5')
     ("api/src/user/counselors/counselors.service.ts", "src/user/counselors/counselors.service.ts"),
     ("api/src/user/consult/consult.service.ts", "src/user/consult/consult.service.ts"),
@@ -49,6 +63,7 @@ FILES = [
     # (아래 기존 항목과 중복이지만 최신 버전 유지 — SFTP put 은 덮어쓰기라 무해)
     ("api/src/cron/settlement-cron.service.ts", "src/cron/settlement-cron.service.ts"),
     ("api/src/user/counselor-mypage-grade/counselor-mypage-grade.controller.ts", "src/user/counselor-mypage-grade/counselor-mypage-grade.controller.ts"),
+    ("api/src/user/counselor-mypage-grade/counselor-mypage-grade.service.ts", "src/user/counselor-mypage-grade/counselor-mypage-grade.service.ts"),
     ("api/src/user/counselor-mypage-grade/counselor-mypage-grade.module.ts", "src/user/counselor-mypage-grade/counselor-mypage-grade.module.ts"),
     ("api/src/admin/grade/grade.service.ts", "src/admin/grade/grade.service.ts"),
     ("api/src/admin/grade/grade.controller.ts", "src/admin/grade/grade.controller.ts"),
@@ -60,6 +75,7 @@ FILES = [
     # 2026-06-05: 후기 시스템 — 사진 +500코인 / 관리자 베스트 10,000코인 / is_admin_best 정렬
     ("api/src/user/reviews/reviews.service.ts", "src/user/reviews/reviews.service.ts"),
     ("api/src/admin/posts/posts.controller.ts", "src/admin/posts/posts.controller.ts"),
+    ("api/src/admin/posts/posts.service.ts", "src/admin/posts/posts.service.ts"),
     ("api/src/admin/posts/posts.module.ts", "src/admin/posts/posts.module.ts"),
     ("api/src/user/reviews/reviews.module.ts", "src/user/reviews/reviews.module.ts"),
     # 🟣 ID 단일화 작업 (2026-05-22) — 한 사람 한 mb_id, 회원 → 상담사 승격, m2net 컬럼 분리
@@ -105,6 +121,11 @@ FILES = [
     ("api/src/admin/payouts/payouts.controller.ts", "src/admin/payouts/payouts.controller.ts"),
     ("api/src/admin/payouts/payouts.module.ts", "src/admin/payouts/payouts.module.ts"),
     ("api/src/admin/admin.module.ts", "src/admin/admin.module.ts"),
+    # 2026-06-12: 알림 이력 화면 + 일일요약 문구 개선
+    ("api/src/admin/alert-logs/alert-logs.controller.ts", "src/admin/alert-logs/alert-logs.controller.ts"),
+    ("api/src/admin/alert-logs/alert-logs.service.ts", "src/admin/alert-logs/alert-logs.service.ts"),
+    ("api/src/admin/alert-logs/alert-logs.module.ts", "src/admin/alert-logs/alert-logs.module.ts"),
+    ("api/src/cron/daily-summary.service.ts", "src/cron/daily-summary.service.ts"),
     ("api/src/admin/dashboard/dashboard.service.ts", "src/admin/dashboard/dashboard.service.ts"),
     ("api/src/admin/settings/settings.controller.ts", "src/admin/settings/settings.controller.ts"),
     # 슈퍼관리자 전화번호 토글 (2026-05-20 추가) — JWT 에 is_super 포함 + members API 마스킹 분기
@@ -130,6 +151,8 @@ FILES = [
     ("api/src/user/reviews/reviews.controller.ts", "src/user/reviews/reviews.controller.ts"),
     # 2026-06-02: 상담 내역 수익 분해 컬럼 (상담사%/m2net차감/수익금/영업이익23%) + Number() 변환
     ("api/src/admin/consultations/consultations.service.ts", "src/admin/consultations/consultations.service.ts"),
+    # 2026-06-18: 영업이익 컬럼 슈퍼전용 게이트 — controller 가 is_super 를 service 로 전달 (누락 시 슈퍼도 빈칸)
+    ("api/src/admin/consultations/consultations.controller.ts", "src/admin/consultations/consultations.controller.ts"),
     # 2026-06-02: BigInt 비교 전체 Number() 처리 (postgres.js v3 bigint→BigInt 타입 이슈)
     ("api/src/user/counselor-reviews/counselor-reviews.service.ts", "src/user/counselor-reviews/counselor-reviews.service.ts"),
     ("api/src/user/chat/chat.service.ts", "src/user/chat/chat.service.ts"),
@@ -144,6 +167,15 @@ FILES = [
     ("api/src/admin/members/members.controller.ts", "src/admin/members/members.controller.ts"),
     ("api/src/admin/members/members.service.ts", "src/admin/members/members.service.ts"),
     ("api/src/admin/settings/settings.service.ts", "src/admin/settings/settings.service.ts"),
+    ("api/src/admin/permissions/permissions.service.ts", "src/admin/permissions/permissions.service.ts"),
+    ("api/src/admin/board-ops/board-ops.service.ts", "src/admin/board-ops/board-ops.service.ts"),
+    ("api/src/user/events/events.service.ts", "src/user/events/events.service.ts"),
+    ("api/src/user/popups/popups.service.ts", "src/user/popups/popups.service.ts"),
+    ("api/src/user/popups/popups.controller.ts", "src/user/popups/popups.controller.ts"),
+    ("api/src/user/popups/popups.module.ts", "src/user/popups/popups.module.ts"),
+    ("api/src/admin/popup-layers/popup-layers.service.ts", "src/admin/popup-layers/popup-layers.service.ts"),
+    ("api/src/admin/notices/notices.service.ts", "src/admin/notices/notices.service.ts"),
+    ("api/src/user/user.module.ts", "src/user/user.module.ts"),
     ("api/src/app.module.ts", "src/app.module.ts"),
     ("api/src/cron/cron.controller.ts", "src/cron/cron.controller.ts"),
     ("api/src/cron/cron.module.ts", "src/cron/cron.module.ts"),
@@ -198,6 +230,22 @@ FILES = [
     ("api/src/user/sms/sms.service.ts", "src/user/sms/sms.service.ts"),
     # 2026-05-25: 메인 통계 디폴트(override) + 실제 자동집계 합산
     ("api/src/user/stats/stats.service.ts", "src/user/stats/stats.service.ts"),
+    # 2026-06-18: 모집인(서포터즈) 회원모집 보상 제도
+    ("api/db/migrations/20260618000000_promoter.sql", "db/migrations/20260618000000_promoter.sql"),
+    ("api/db/migrations/20260618010000_promoter_status.sql", "db/migrations/20260618010000_promoter_status.sql"),
+    ("api/src/shared/crypto/pii-crypto.ts", "src/shared/crypto/pii-crypto.ts"),
+    ("api/src/shared/promoter/promoter-core.service.ts", "src/shared/promoter/promoter-core.service.ts"),
+    ("api/src/shared/promoter/promoter-core.module.ts", "src/shared/promoter/promoter-core.module.ts"),
+    ("api/src/admin/refunds/refunds.module.ts", "src/admin/refunds/refunds.module.ts"),
+    ("api/src/user/auth/auth.module.ts", "src/user/auth/auth.module.ts"),
+    ("api/src/admin/promoters/promoters.service.ts", "src/admin/promoters/promoters.service.ts"),
+    ("api/src/admin/promoters/promoters.controller.ts", "src/admin/promoters/promoters.controller.ts"),
+    ("api/src/admin/promoters/promoters.module.ts", "src/admin/promoters/promoters.module.ts"),
+    ("api/src/promoter/promoter.service.ts", "src/promoter/promoter.service.ts"),
+    ("api/src/promoter/promoter.controller.ts", "src/promoter/promoter.controller.ts"),
+    ("api/src/promoter/promoter-member.controller.ts", "src/promoter/promoter-member.controller.ts"),
+    ("api/src/promoter/promoter.module.ts", "src/promoter/promoter.module.ts"),
+    ("api/src/promoter/promoter-auth.guard.ts", "src/promoter/promoter-auth.guard.ts"),
 ]
 
 
