@@ -1,7 +1,7 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { BellRing } from 'lucide-react'
+import { api } from '../lib/api'
 import {
-  ALERT_CATALOG,
   CATEGORY_META,
   CHANNEL_STATUS_META,
   activeChannelCount,
@@ -17,10 +17,21 @@ import {
  * sticky 헤더, 카테고리 좌측 컬러 보더, 중복 행 강조.
  */
 export default function AlertGuide() {
+  // [2026-06-18] 단일출처화: 매트릭스 데이터를 _HANDBOOK/alert/_matrix.json 에서 fetch.
+  //   (이전엔 alertCatalog.ts 정적 import — 코드와 드리프트 발생. 이제 _HANDBOOK 이 진실원천.)
+  const [items, setItems] = useState<AlertCatalogItem[]>([])
+  const [loading, setLoading] = useState(true)
+  useEffect(() => {
+    api<{ items: AlertCatalogItem[] }>('/admin/handbook/alert-matrix')
+      .then((r) => setItems(Array.isArray(r.items) ? r.items : []))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false))
+  }, [])
+
   const summary = useMemo(() => {
-    const total = ALERT_CATALOG.length
+    const total = items.length
     let dup = 0, push = 0, inApp = 0, alimtalk = 0, finalized = 0, pending = 0
-    for (const it of ALERT_CATALOG) {
+    for (const it of items) {
       if (activeChannelCount(it) >= 2) dup += 1
       if (it.push.status === 'active') push += 1
       if (it.inApp.status === 'active') inApp += 1
@@ -29,7 +40,7 @@ export default function AlertGuide() {
       else pending += 1
     }
     return { total, dup, push, inApp, alimtalk, finalized, pending }
-  }, [])
+  }, [items])
 
   return (
     <div className="w-full min-w-0 space-y-3">
@@ -54,7 +65,7 @@ export default function AlertGuide() {
         {Object.entries(CATEGORY_META).map(([key, meta]) => (
           <Chip
             key={key}
-            label={`${meta.label} ${ALERT_CATALOG.filter((it) => it.category === key).length}`}
+            label={`${meta.label} ${items.filter((it) => it.category === key).length}`}
             color={meta.color}
             bg={meta.bg}
           />
@@ -65,7 +76,7 @@ export default function AlertGuide() {
       <div className="rounded-md border border-brand-100 bg-brand-50/40 dark:bg-brand-900/10 dark:border-brand-900 px-3 py-2 text-[12px] leading-relaxed text-gray-700 dark:text-gray-300">
         <strong className="text-brand-700 dark:text-brand-300">읽는 법:</strong> 한 행이 하나의 알림 이벤트입니다.
         <strong> 📱 푸시 / 🪟 인앱 / 💬 알림톡</strong> 컬럼에서 어느 채널이 동작 중인지 확인. 같은 이벤트에 2개 이상 채널이 활성이면 ⚠️ <strong>중복 위험</strong> — 행 배경 노랑.
-        <strong className="text-brand-700 dark:text-brand-300"> 권장</strong> 컬럼이 정리 방향을 안내. 데이터 출처: <code className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[11px]">web/mng/src/data/alertCatalog.ts</code>
+        <strong className="text-brand-700 dark:text-brand-300"> 권장</strong> 컬럼이 정리 방향을 안내. 데이터 단일출처(SSOT): <code className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[11px]">_HANDBOOK/alert/_matrix.json</code> (운영 바이블·AI와 동일 뿌리)
       </div>
 
       {/* ─── 안내 박스 2: 3채널의 본질 차이 (운영자 온보딩) ─── */}
@@ -141,7 +152,13 @@ export default function AlertGuide() {
             </tr>
           </thead>
           <tbody>
-            {ALERT_CATALOG.map((item, idx) => (
+            {loading && items.length === 0 && (
+              <tr><td colSpan={11} className="px-3 py-6 text-center text-sm text-gray-400">불러오는 중…</td></tr>
+            )}
+            {!loading && items.length === 0 && (
+              <tr><td colSpan={11} className="px-3 py-6 text-center text-sm text-gray-400">매트릭스 데이터 없음 (_HANDBOOK/alert/_matrix.json 확인)</td></tr>
+            )}
+            {items.map((item, idx) => (
               <Row key={item.id} item={item} idx={idx} />
             ))}
           </tbody>

@@ -57,6 +57,12 @@ export class AdminHandbookController {
     return this.svc.getItem(slug ?? '');
   }
 
+  /** 알림 3채널 매트릭스 (SSOT: _HANDBOOK/alert/_matrix.json) — /alert-guide 가 읽음 */
+  @Get('alert-matrix')
+  alertMatrix() {
+    return this.svc.getAlertMatrix();
+  }
+
   @Get('search')
   search(@Query('q') q: string, @Query('limit') limit?: string) {
     const lim = Math.min(Math.max(parseInt(limit ?? '5', 10) || 5, 1), 20);

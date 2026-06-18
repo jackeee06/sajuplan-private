@@ -94,6 +94,24 @@ export class AdminHandbookService {
     }
   }
 
+  /**
+   * 알림 3채널 매트릭스 단일출처(SSOT) — _HANDBOOK/alert/_matrix.json.
+   * /alert-guide 페이지가 이걸 읽어 렌더. 캐시 X (콘텐츠 갱신 즉시 반영).
+   */
+  getAlertMatrix(): { items: unknown[]; _updated?: string } {
+    const path = join(this.root, 'alert', '_matrix.json');
+    if (!existsSync(path)) {
+      this.logger.warn(`alert/_matrix.json 없음: ${path}`);
+      return { items: [] };
+    }
+    try {
+      return JSON.parse(readFileSync(path, 'utf-8'));
+    } catch (e) {
+      this.logger.error(`_matrix.json 읽기 실패: ${e instanceof Error ? e.message : String(e)}`);
+      return { items: [] };
+    }
+  }
+
   /** slug → md 본문. 경로 traversal + .tech.md 직접 접근 차단. */
   getItem(slug: string): { slug: string; title: string; markdown: string } {
     // slug 보안: 영문/숫자/-/_/ 만 허용. .. 차단. .tech 접미사 차단 (AI 전용 파일).

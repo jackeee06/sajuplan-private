@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { SmsService } from '../sms/sms.service';
+import { PushService } from '../../shared/push/push.service';
 import { M2netService } from '../../shared/m2net/m2net.service';
 
 export interface PublicRecentReview {
@@ -39,6 +40,7 @@ export class UserReviewsService {
     @Inject(SQL) private readonly sql: Sql,
     private readonly sms: SmsService,
     private readonly m2net: M2netService,
+    private readonly push: PushService,
   ) {}
 
   async recent(params: {
@@ -807,32 +809,74 @@ export class UserReviewsService {
   }
 
   /**
-   * 후기 작성 시 상담사에게 BizM 알림톡 발송.
-   *  - 템플릿: review_for_counselor (BizM 콘솔 등록 필요)
-   *  - 발송 실패는 흡수 (후기 작성 본 흐름에 영향 X)
+   * 후기 작성 시 상담사에게 알림 발송 (BizM 알림톡 + FCM 푸시).
+   *  - 알림톡 템플릿: review_for_counselor_v2 (버튼은 앱 열기만 → 홈)
+   *  - FCM 푸시: 탭하면 event_url(/counselor/mypage/reviews/{id})로 앱이 자동 이동
+   *    → "받은 후기 상세"로 바로 진입 (딥링크/앱 재빌드 불필요, 기존 FCM 이동 코드 재사용)
+   *  - 둘 다 best-effort — 발송 실패는 흡수 (후기 작성 본 흐름에 영향 X)
    */
   private async notifyCounselorOfReview(counselorId: number, reviewId: number): Promise<void> {
     const rows = await this.sql<{ phone: string | null; nickname: string | null; name: string | null }[]>`
       SELECT phone, nickname, name FROM member WHERE id = ${counselorId} AND role = 'counselor' LIMIT 1
     `;
     const c = rows[0];
-    if (!c?.phone) {
-      this.logger.warn(`[notifyCounselorOfReview] 상담사 phone 없음 counselorId=${counselorId}`);
+    if (!c) {
+      this.logger.warn(`[notifyCounselorOfReview] 상담사 없음 counselorId=${counselorId}`);
       return;
     }
     const displayName = (c.nickname || c.name || '').trim();
-    const r = await this.sms.sendAlimtalkByCode(
-      'review_for_counselor_v2',
-      c.phone,
-      { 상담사명: displayName, url: `counselor-mypage/reviews/${reviewId}` },
-      '새 후기 알림',
-      // [2026-06-17] iOS 앱 크래시 수정 후 재개 — iOS도 안드와 동일 발송.
-      { recipientMemberId: counselorId, iosSkip: false },
-    );
-    if (!r.ok) {
-      this.logger.warn(`[notifyCounselorOfReview] BizM 거부 reason=${r.reason ?? '?'} counselorId=${counselorId} reviewId=${reviewId}`);
+
+    // ── ① BizM 알림톡 (상담사 phone 있을 때만) ──────────────────────────────
+    if (c.phone) {
+      const r = await this.sms.sendAlimtalkByCode(
+        'review_for_counselor_v2',
+        c.phone,
+        { 상담사명: displayName, url: `counselor-mypage/reviews/${reviewId}` },
+        '새 후기 알림',
+        // [2026-06-17] iOS 앱 크래시 수정 후 재개 — iOS도 안드와 동일 발송.
+        { recipientMemberId: counselorId, iosSkip: false },
+      );
+      if (!r.ok) {
+        this.logger.warn(`[notifyCounselorOfReview] BizM 거부 reason=${r.reason ?? '?'} counselorId=${counselorId} reviewId=${reviewId}`);
+      } else {
+        this.logger.log(`[notifyCounselorOfReview] 알림톡 발송 성공 counselorId=${counselorId} reviewId=${reviewId}`);
+      }
     } else {
-      this.logger.log(`[notifyCounselorOfReview] 발송 성공 counselorId=${counselorId} reviewId=${reviewId}`);
+      this.logger.warn(`[notifyCounselorOfReview] 상담사 phone 없음 counselorId=${counselorId} — 알림톡 skip`);
+    }
+
+    // ── ② FCM 푸시 (탭 시 후기 상세로 직접 이동) ──────────────────────────────
+    // [2026-06-17] 알림톡 버튼은 앱을 열기만 하고 홈으로 가지만, FCM 푸시는 탭하면
+    //   앱이 event_url 로 자동 이동(이미 구현됨: mobile fcm onNotificationOpen → navigateWebView).
+    //   → 상담사가 푸시를 탭하면 받은 후기 상세(/counselor/mypage/reviews/{id})로 바로 진입.
+    try {
+      const tokenRows = await this.sql<{ token: string }[]>`
+        SELECT token FROM member_push_token
+         WHERE member_id = ${counselorId}
+           AND is_active = TRUE
+           AND token IS NOT NULL AND token <> ''
+         LIMIT 10
+      `;
+      if (tokenRows.length > 0) {
+        const pr = await this.push.sendToTokens(
+          tokenRows.map((t) => t.token),
+          {
+            title: '새 후기가 도착했습니다',
+            body: '새로운 상담 후기가 남겨졌어요. 확인 후 답변을 남겨보세요.',
+            data: {
+              type: 'review_for_counselor',
+              counselor_id: String(counselorId),
+              review_id: String(reviewId),
+              event_url: `/counselor/mypage/reviews/${reviewId}`,
+            },
+          },
+        );
+        if (!pr.ok && pr.error) {
+          this.logger.warn(`[notifyCounselorOfReview] FCM 발송 실패 counselorId=${counselorId}: ${pr.error}`);
+        }
+      }
+    } catch (e) {
+      this.logger.warn(`[notifyCounselorOfReview] FCM 예외 counselorId=${counselorId}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
