@@ -184,34 +184,30 @@ export default function GradeManagement() {
 
   return (
     <div className="space-y-3 max-w-[1100px]">
-      {/* 페이지 타이틀 + 단가/정산률 변경 CTA + D-day */}
-      <div className="flex items-end justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">등급 관리</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            상담사 등급 분포 + 정책 + 변동/변경 이력. 개별 상담사 수정은 상담사 상세 페이지에서.
-          </p>
+      {/* 최상단 — 핵심 액션/정보 3개를 한 줄 가로로 (좌측 정렬, 빈 여백 제거) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Link
+          to="/settings?tab=grade"
+          className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-md bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium shadow-sm whitespace-nowrap"
+          title="설정 > 등급/단가 탭에서 정책 수정"
+        >
+          💰 단가·정산률 변경
+        </Link>
+        <div className="inline-flex items-center gap-1.5 px-3 h-9 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs whitespace-nowrap">
+          <span>📅 크론 재산정</span>
+          <span className="font-semibold text-amber-900">D-{dDay}</span>
+          <span className="text-amber-600/70">(매월 1일)</span>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Link
-            to="/settings?tab=grade"
-            className="inline-flex items-center gap-1.5 h-10 px-4 rounded-md bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium shadow-sm"
-            title="설정 > 등급/단가 탭에서 정책 수정"
-          >
-            💰 단가·정산률 변경
-          </Link>
-          <div className="flex flex-col items-end gap-1">
-            <div className="inline-flex items-center gap-2 px-3 h-9 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-              <span>📅 크론 재산정</span>
-              <span className="font-semibold text-amber-900">D-{dDay}</span>
-              <span className="text-amber-600/70">(매월 1일)</span>
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-3 h-8 rounded-md bg-amber-100 border border-amber-300 text-amber-900 text-xs font-medium">
-              <span>⚡</span>
-              <span>당월 목표시간 달성 시 <strong>즉시 승급</strong>도 가능</span>
-            </div>
-          </div>
+        <div className="inline-flex items-center gap-1.5 px-3 h-9 rounded-md bg-amber-100 border border-amber-300 text-amber-900 text-xs font-medium whitespace-nowrap">
+          <span>⚡</span>
+          <span>당월 목표시간 달성 시 <strong>즉시 승급</strong>도 가능</span>
         </div>
+      </div>
+
+      {/* 타이틀 — 한 줄, 부제 인라인 */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">등급 관리</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">상담사 등급 분포 + 정책 + 변동/변경 이력. 개별 상담사 수정은 상담사 상세 페이지에서.</span>
       </div>
 
       {error && (
@@ -297,7 +293,7 @@ export default function GradeManagement() {
                     <Tr key={c.id} onClick={() => navigate(`/members/counselors/${c.member_id}`)}>
                       <Td align="left" className="text-[13px] text-gray-500 tabular-nums">{c.created_at.slice(0, 16).replace('T', ' ')}</Td>
                       <Td align="left" className="text-[13px]">
-                        <Link to={`/members/counselors/${c.member_id}`} onClick={(e) => e.stopPropagation()} className="text-brand-600 hover:underline font-medium">
+                        <Link to={`/members/counselors/${c.member_id}`} onClick={(e) => e.stopPropagation()} className="inline-block max-w-[150px] truncate align-bottom text-brand-600 hover:underline font-medium" title={String(c.nickname || c.mb_id || '')}>
                           {c.nickname || c.mb_id || `#${c.member_id}`}
                         </Link>
                       </Td>

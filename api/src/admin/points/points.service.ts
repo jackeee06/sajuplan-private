@@ -86,6 +86,7 @@ export interface PointHistoryRow {
   rel_table: string | null;
   rel_id: string | null;
   rel_action: string | null;
+  balance_kind: string | null;
   actor_admin_id: number | null;
   actor_admin_mb_id: string | null;
   actor_ip: string | null;
@@ -392,7 +393,7 @@ export class PointsService {
         ph.id, ph.member_id, ph.content,
         ph.earn_point, ph.use_point, ph.balance_after,
         ph.is_paid, ph.is_expired, ph.expire_date,
-        ph.rel_table, ph.rel_id, ph.rel_action,
+        ph.rel_table, ph.rel_id, ph.rel_action, ph.balance_kind,
         ph.actor_admin_id, ph.actor_ip, ph.actor_type,
         ph.created_at,
         m.mb_id, m.name AS member_name, m.nickname AS member_nickname,
@@ -415,20 +416,50 @@ export class PointsService {
 
     // 합계: sample은 SUM(po_point) (전체 검색 결과 기준).
     // 신규 point_history는 earn_point - use_point.
-    const sumRows = await this.sql<{ sum_point: string }[]>`
-      SELECT COALESCE(SUM(ph.earn_point - ph.use_point), 0)::text AS sum_point
+    // [2026-06-19] 종류별(코인/수익금) 적립·사용 합계 분리 — balance_kind='earning' = 수익금, 그 외 = 코인.
+    //   IS DISTINCT FROM 으로 NULL(옛 행)도 코인으로 집계.
+    const sumRows = await this.sql<{
+      sum_point: string; coin_earn: string; coin_use: string; earning_earn: string; earning_use: string;
+    }[]>`
+      SELECT
+        COALESCE(SUM(ph.earn_point - ph.use_point), 0)::text AS sum_point,
+        COALESCE(SUM(ph.earn_point) FILTER (WHERE ph.balance_kind IS DISTINCT FROM 'earning'), 0)::text AS coin_earn,
+        COALESCE(SUM(ph.use_point)  FILTER (WHERE ph.balance_kind IS DISTINCT FROM 'earning'), 0)::text AS coin_use,
+        COALESCE(SUM(ph.earn_point) FILTER (WHERE ph.balance_kind = 'earning'), 0)::text AS earning_earn,
+        COALESCE(SUM(ph.use_point)  FILTER (WHERE ph.balance_kind = 'earning'), 0)::text AS earning_use
       FROM point_history ph
       LEFT JOIN member m ON m.id = ph.member_id
       ${whereClause}
     `;
 
-    // mb_id 검색 시 해당 회원 정보 + 잔액
-    let searched_member: { mb_id: string; nickname: string; point: number } | null = null;
+    // mb_id 검색 시 해당 회원 정보 + 코인/수익금 잔액 분리
+    let searched_member:
+      | { mb_id: string; nickname: string; point: number; coin: number; earning: number; role: string | null }
+      | null = null;
     if (filter.sfl === 'mb_id' && filter.stx) {
-      const mrows = await this.sql<{ mb_id: string; nickname: string; point: number }[]>`
-        SELECT mb_id, nickname, point FROM member WHERE mb_id = ${filter.stx} LIMIT 1
+      const mrows = await this.sql<{
+        mb_id: string; nickname: string; point: number; role: string | null;
+        free_balance: number; paid_balance: number; earning_balance: number;
+      }[]>`
+        SELECT m.mb_id, m.nickname, m.point, m.role,
+               COALESCE(p.free_balance, 0)    AS free_balance,
+               COALESCE(p.paid_balance, 0)    AS paid_balance,
+               COALESCE(p.earning_balance, 0) AS earning_balance
+          FROM member m
+          LEFT JOIN point p ON p.member_id = m.id
+         WHERE m.mb_id = ${filter.stx} LIMIT 1
       `;
-      if (mrows.length > 0) searched_member = mrows[0];
+      if (mrows.length > 0) {
+        const r = mrows[0];
+        searched_member = {
+          mb_id: r.mb_id,
+          nickname: r.nickname,
+          point: Number(r.point),
+          coin: Number(r.free_balance) + Number(r.paid_balance),
+          earning: Number(r.earning_balance),
+          role: r.role,
+        };
+      }
     }
 
     return {
@@ -438,6 +469,10 @@ export class PointsService {
       limit,
       summary: {
         sum_point: Number(sumRows[0].sum_point),
+        coin_earn: Number(sumRows[0].coin_earn),
+        coin_use: Number(sumRows[0].coin_use),
+        earning_earn: Number(sumRows[0].earning_earn),
+        earning_use: Number(sumRows[0].earning_use),
         searched_member,
       },
     };

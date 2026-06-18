@@ -149,14 +149,16 @@ export default function SearchPopular() {
       </div>
 
       {/* ── 순위 조회 ── */}
-      <div>
-        <div className="mb-2">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">인기검색어 순위</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">집계 기간별 검색어 랭킹 (실검색 기준)</p>
+      <div className="space-y-2">
+        {/* 타이틀 — 한 줄, 부제 인라인 (조밀) */}
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">인기검색어 순위</h1>
+          <span className="text-xs text-gray-500 dark:text-gray-400">집계 기간별 검색어 랭킹 (실검색 기준)</span>
         </div>
 
-        <div className="flex flex-wrap gap-2 items-center mb-3">
-          <span className="text-xs text-gray-500 mr-1">집계 기간</span>
+        {/* 집계 기간 칩 — 한 줄 */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-gray-500">집계 기간</span>
           {PERIODS.map((p) => (
             <Chip key={p.days} label={p.label} active={days === p.days} onClick={() => setDays(p.days)} />
           ))}

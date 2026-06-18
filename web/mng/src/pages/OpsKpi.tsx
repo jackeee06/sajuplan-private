@@ -178,7 +178,8 @@ export default function OpsKpi() {
                       <Td align="left">
                         <Link
                           to={`/members/counselors/${r.counselor_id}`}
-                          className="text-brand-600 hover:underline font-medium"
+                          className="inline-block max-w-[150px] truncate align-bottom text-brand-600 hover:underline font-medium"
+                          title={String(r.nickname || r.mb_id || '')}
                         >
                           {r.nickname || r.mb_id || `#${r.counselor_id}`}
                         </Link>

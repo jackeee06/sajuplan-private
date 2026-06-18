@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
+import { DateField } from '../components/DateField'
 import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Badge, BadgeColor, inputCls } from '../components/table'
 
 /**
@@ -115,11 +116,11 @@ export default function RefundList() {
           </div>
           <div className="w-[150px]">
             <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 시작</label>
-            <input type="date" value={frDate} onChange={(e) => { setFrDate(e.target.value); setPage(0) }} className={inputCls} />
+            <DateField value={frDate} onChange={(v) => { setFrDate(v); setPage(0) }} placeholder="시작일" />
           </div>
           <div className="w-[150px]">
             <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 종료</label>
-            <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(0) }} className={inputCls} />
+            <DateField value={toDate} onChange={(v) => { setToDate(v); setPage(0) }} placeholder="종료일" />
           </div>
           {data && (
             <span className="text-xs text-gray-500 pb-2">
@@ -167,12 +168,12 @@ export default function RefundList() {
                   </Td>
                   <Td align="left">
                     {r.member_mb_id ? (
-                      <Link to={`/members/customers/${r.member_id}`} onClick={(e) => e.stopPropagation()} className="text-brand-600 hover:underline font-medium">{r.member_mb_id}</Link>
+                      <Link to={`/members/customers/${r.member_id}`} onClick={(e) => e.stopPropagation()} className="inline-block max-w-[150px] truncate align-bottom text-brand-600 hover:underline font-medium" title={String(r.member_mb_id ?? '')}>{r.member_mb_id}</Link>
                     ) : <span className="text-gray-300">—</span>}
                   </Td>
                   <Td align="left">
                     {r.counselor_id && r.counselor_mb_id ? (
-                      <Link to={`/members/counselors/${r.counselor_id}`} onClick={(e) => e.stopPropagation()} className="text-brand-600 hover:underline font-medium">{r.counselor_nickname || r.counselor_mb_id}</Link>
+                      <Link to={`/members/counselors/${r.counselor_id}`} onClick={(e) => e.stopPropagation()} className="inline-block max-w-[150px] truncate align-bottom text-brand-600 hover:underline font-medium" title={String(r.counselor_nickname || r.counselor_mb_id || '')}>{r.counselor_nickname || r.counselor_mb_id}</Link>
                     ) : <span className="text-gray-300">—</span>}
                   </Td>
                   <Td align="right" className="font-medium tabular-nums">{r.amount.toLocaleString()}P</Td>

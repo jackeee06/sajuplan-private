@@ -155,7 +155,7 @@ export default function PushNotifications() {
                 <Td align="left" className="text-xs text-gray-500 tabular-nums">{formatDT(h.created_at)}</Td>
                 <Td align="left" className="text-xs text-gray-600">{h.category ?? <span className="text-gray-300">—</span>}</Td>
                 <Td align="left" className="text-xs font-medium">{h.title}</Td>
-                <Td align="left" className="text-xs text-gray-500">{h.mb_id ?? <span className="text-gray-300">—</span>}</Td>
+                <Td align="left" className="text-xs text-gray-500"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(h.mb_id ?? '')}>{h.mb_id ?? <span className="text-gray-300">—</span>}</span></Td>
                 <Td align="left" className="text-xs text-brand-600 max-w-[280px] truncate">
                   {h.link_url ? <a href={h.link_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="hover:underline">{h.link_url}</a> : <span className="text-gray-300">—</span>}
                 </Td>
@@ -207,7 +207,7 @@ export default function PushNotifications() {
               </div>
               <div className="flex gap-3">
                 <span className="w-16 shrink-0 text-[11px] font-medium text-gray-500 pt-0.5">대상</span>
-                <span className="text-sm text-gray-800 dark:text-gray-200">{detail.mb_id ?? '(브로드캐스트)'}</span>
+                <span className="inline-block max-w-[150px] truncate align-bottom text-sm text-gray-800 dark:text-gray-200" title={String(detail.mb_id ?? '')}>{detail.mb_id ?? '(브로드캐스트)'}</span>
               </div>
               <div>
                 <div className="text-[11px] font-medium text-gray-500 mb-0.5">제목</div>

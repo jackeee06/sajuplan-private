@@ -3,6 +3,7 @@ import { Search } from 'lucide-react'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
+import { DateField } from '../components/DateField'
 
 interface Item {
   id: number
@@ -99,12 +100,11 @@ export default function ShortCallRefundList() {
   }
 
   return (
-    <div className="space-y-3">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">고객보호비용 내역</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          30초 미만 단기 통화·채팅 자동 환원 건 — m2net 청구서 대조용
-        </p>
+    <div className="space-y-2">
+      {/* 타이틀 — 한 줄, 부제 인라인 (조밀) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">고객보호비용 내역</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">30초 미만 단기 통화·채팅 자동 환원 건 — m2net 청구서 대조용</span>
       </div>
 
       <div className="rounded-lg border border-amber-200 bg-amber-50/40 dark:border-amber-900/40 dark:bg-amber-900/10 p-3.5 text-[13px] leading-[160%] text-gray-700 dark:text-gray-300 w-fit max-w-full">
@@ -126,47 +126,30 @@ export default function ShortCallRefundList() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="w-[160px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">발생일 시작</label>
-            <input
-              type="date"
-              value={pending.from}
-              onChange={(e) => setPending((p) => ({ ...p, from: e.target.value }))}
-              className={inputCls}
-            />
-          </div>
-          <div className="w-[160px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">발생일 종료</label>
-            <input
-              type="date"
-              value={pending.to}
-              onChange={(e) => setPending((p) => ({ ...p, to: e.target.value }))}
-              className={inputCls}
-            />
-          </div>
-          <div className="flex gap-2 ml-auto">
-            <button onClick={onSearch} className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium">
-              <Search className="w-4 h-4" /> 조회
-            </button>
-            <button onClick={onReset} className="px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
-              최근 7일
-            </button>
-          </div>
-        </div>
+      {/* 툴바 — 기간 + 조회 + 빠른 기간 칩을 한 줄에 (좌측 정렬, 카드·여백 제거) */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <DateField value={pending.from} onChange={(v) => setPending((p) => ({ ...p, from: v }))} placeholder="시작일" />
+        <span className="text-xs text-gray-400">~</span>
+        <DateField value={pending.to} onChange={(v) => setPending((p) => ({ ...p, to: v }))} placeholder="종료일" />
+        <button onClick={onSearch} className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium">
+          <Search className="w-4 h-4" /> 조회
+        </button>
+        <button onClick={onReset} className="px-2.5 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">
+          최근 7일
+        </button>
+
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
         {/* [2026-06-02] 빠른 기간 칩 — 사장님 합의 (오늘/어제/최근7일/이번달/지난달) */}
-        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-          <DateRangeChips
-            from={pending.from}
-            to={pending.to}
-            onPick={(r) => {
-              setPending(r)
-              setFrom(r.from)
-              setTo(r.to)
-            }}
-          />
-        </div>
+        <DateRangeChips
+          from={pending.from}
+          to={pending.to}
+          onPick={(r) => {
+            setPending(r)
+            setFrom(r.from)
+            setTo(r.to)
+          }}
+        />
       </div>
 
       {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}
@@ -231,11 +214,11 @@ export default function ShortCallRefundList() {
                   <Td align="right">{r.unit_cost_snapshot !== null ? won.format(r.unit_cost_snapshot) : '—'}</Td>
                   <Td>
                     <div className="font-medium">{r.counselor_nickname ?? '—'}</div>
-                    <div className="text-xs text-gray-500">{r.counselor_mb_id ?? `#${r.counselor_id ?? ''}`}</div>
+                    <div className="text-xs text-gray-500 max-w-[150px] truncate" title={r.counselor_mb_id ?? ''}>{r.counselor_mb_id ?? `#${r.counselor_id ?? ''}`}</div>
                   </Td>
                   <Td>
                     <div className="font-medium">{r.member_name ?? '—'}</div>
-                    <div className="text-xs text-gray-500">{r.member_mb_id ?? `#${r.member_id ?? ''}`}</div>
+                    <div className="text-xs text-gray-500 max-w-[150px] truncate" title={r.member_mb_id ?? ''}>{r.member_mb_id ?? `#${r.member_id ?? ''}`}</div>
                   </Td>
                   <Td>{r.reason}</Td>
                   <Td className="font-mono text-xs">{r.callid ?? '—'}</Td>

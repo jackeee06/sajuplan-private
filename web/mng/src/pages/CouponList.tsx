@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Search, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Chip, PaginationBar, inputCls } from '../components/table'
+import { DateField } from '../components/DateField'
 
 /**
  * sample/adm/shop_admin/couponlist.php (메뉴 350510 "쿠폰관리") 정확 매핑.
@@ -86,49 +87,38 @@ export default function CouponList() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="space-y-3 max-w-[1100px]">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">쿠폰 관리</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">발행/지급 쿠폰 목록</p>
-        </div>
-        <Link to="/coupons/new" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium">
-          <Plus className="w-4 h-4" /> 쿠폰 추가
-        </Link>
+    <div className="space-y-2 max-w-[1100px]">
+      {/* 타이틀 — 한 줄, 부제 인라인 (조밀) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">쿠폰 관리</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">발행/지급 쿠폰 목록</span>
       </div>
 
-      {data && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip label="전체" value={data.total} />
-        </div>
-      )}
+      {/* 툴바 — 추가 + 검색기준/검색어/기간을 한 줄에 (좌측 정렬, 카드·여백 제거) */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Link to="/coupons/new" className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium whitespace-nowrap">
+          <Plus className="w-4 h-4" /> 쿠폰 추가
+        </Link>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="w-[140px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색기준</label>
-            <select value={pending.sfl} onChange={(e) => setPending({ ...pending, sfl: e.target.value as Sfl })} className={inputCls}>
-              {SFL_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-            </select>
-          </div>
-          <div className="w-[240px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색어</label>
-            <input type="text" value={pending.stx} onChange={(e) => setPending({ ...pending, stx: e.target.value })} placeholder="검색어" className={inputCls} onKeyDown={(e) => e.key === 'Enter' && setFilter({ ...filter, ...pending, page: 1 })} />
-          </div>
-          <div className="w-[160px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">시작일</label>
-            <input type="date" value={pending.fr_date} onChange={(e) => setPending({ ...pending, fr_date: e.target.value })} className={inputCls} />
-          </div>
-          <div className="w-[160px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">종료일</label>
-            <input type="date" value={pending.to_date} onChange={(e) => setPending({ ...pending, to_date: e.target.value })} className={inputCls} />
-          </div>
-          <div className="ml-auto">
-            <button onClick={() => setFilter({ ...filter, ...pending, page: 1 })} className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium">
-              <Search className="w-4 h-4" /> 검색
-            </button>
-          </div>
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+        <div className="w-[120px]">
+          <select value={pending.sfl} onChange={(e) => setPending({ ...pending, sfl: e.target.value as Sfl })} className={inputCls}>
+            {SFL_OPTIONS.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
+          </select>
         </div>
+        <div className="w-[200px]">
+          <input type="text" value={pending.stx} onChange={(e) => setPending({ ...pending, stx: e.target.value })} placeholder="검색어" className={inputCls} onKeyDown={(e) => e.key === 'Enter' && setFilter({ ...filter, ...pending, page: 1 })} />
+        </div>
+        <DateField value={pending.fr_date} onChange={(v) => setPending({ ...pending, fr_date: v })} placeholder="시작일" />
+        <DateField value={pending.to_date} onChange={(v) => setPending({ ...pending, to_date: v })} placeholder="종료일" />
+        <button onClick={() => setFilter({ ...filter, ...pending, page: 1 })} className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium">
+          <Search className="w-4 h-4" /> 검색
+        </button>
+
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+        {data && <Chip label="전체" value={data.total} />}
       </div>
 
       {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}
@@ -161,8 +151,8 @@ export default function CouponList() {
                 <Td align="left" className="text-gray-500">{c.target || <span className="text-gray-300">-</span>}</Td>
                 <Td align="left">
                   {c.member_id && c.mb_id ? (
-                    <Link to={`/members/customers/${c.member_id}`} onClick={(e) => e.stopPropagation()} className="text-brand-600 hover:underline font-medium">{c.mb_id}</Link>
-                  ) : <span className="text-gray-400">{c.mb_id || '-'}</span>}
+                    <Link to={`/members/customers/${c.member_id}`} onClick={(e) => e.stopPropagation()} className="inline-block max-w-[150px] truncate align-bottom text-brand-600 hover:underline font-medium" title={String(c.mb_id ?? '')}>{c.mb_id}</Link>
+                  ) : <span className="inline-block max-w-[150px] truncate align-bottom text-gray-400" title={String(c.mb_id ?? '')}>{c.mb_id || '-'}</span>}
                 </Td>
                 <Td align="left" className="text-xs text-gray-500 tabular-nums">
                   {c.starts_at ? formatYMD(c.starts_at) : '-'} ~ {c.ends_at ? formatYMD(c.ends_at) : '-'}

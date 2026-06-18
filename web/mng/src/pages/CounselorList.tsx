@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Search, BookOpen, ChevronDown, ChevronRight, Save, TrendingUp } from 'lucide-react'
 import { api } from '../lib/api'
+import { DateField } from '../components/DateField'
 import {
   Th,
   Td,
@@ -584,23 +585,13 @@ export default function CounselorList() {
               className={inputCls}
             />
           </div>
-          <div className="w-[160px]">
+          <div>
             <label className="block text-[11px] font-medium text-gray-500 mb-1">가입 시작</label>
-            <input
-              type="date"
-              value={pending.fr_date}
-              onChange={(e) => setPending((p) => ({ ...p, fr_date: e.target.value }))}
-              className={inputCls}
-            />
+            <DateField value={pending.fr_date} onChange={(v) => setPending((p) => ({ ...p, fr_date: v }))} placeholder="시작일" />
           </div>
-          <div className="w-[160px]">
+          <div>
             <label className="block text-[11px] font-medium text-gray-500 mb-1">가입 종료</label>
-            <input
-              type="date"
-              value={pending.to_date}
-              onChange={(e) => setPending((p) => ({ ...p, to_date: e.target.value }))}
-              className={inputCls}
-            />
+            <DateField value={pending.to_date} onChange={(v) => setPending((p) => ({ ...p, to_date: v }))} placeholder="종료일" />
           </div>
           <div className="flex gap-2 ml-auto">
             <button
@@ -663,7 +654,7 @@ export default function CounselorList() {
                   {fmtDate(c.created_at, { withTime: false })}
                 </Td>
                 <Td align="left">
-                  <div className="font-medium text-gray-900 dark:text-gray-100">{c.mb_id ?? '-'}</div>
+                  <div className="font-medium text-gray-900 dark:text-gray-100"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(c.mb_id ?? '')}>{c.mb_id ?? '-'}</span></div>
                 </Td>
                 <Td align="left">{c.name}</Td>
                 <Td align="left" className="text-gray-600">{c.nickname}</Td>

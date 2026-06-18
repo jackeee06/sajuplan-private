@@ -387,7 +387,7 @@ function HistoryPanel({ filterKind, headerLabel }: { filterKind: Target; headerL
               <Td align="left" className="text-xs text-gray-600 tabular-nums">{it.attended_date}</Td>
               <Td align="left">
                 <span className="font-medium">{it.nickname || it.name || '-'}</span>
-                <span className="text-xs text-gray-400 ml-2">{it.mb_id}</span>
+                <span className="inline-block max-w-[150px] truncate align-bottom text-xs text-gray-400 ml-2" title={String(it.mb_id ?? '')}>{it.mb_id}</span>
               </Td>
               <Td align="right" className="tabular-nums">{it.consecutive_days}일</Td>
               <Td align="right" className="tabular-nums">{it.base_coin.toLocaleString()}</Td>

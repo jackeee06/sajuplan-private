@@ -104,6 +104,19 @@ export function IdCell({ id }: { id: number | string }) {
   )
 }
 
+/**
+ * 긴 mb_id / 소셜 로그인 UID(예: aWl_8Z…sg_N) 표시용 — 말줄임 + hover 시 전체값(title).
+ * 폭을 고정해 표가 가로로 늘어나는 걸 막는다. 전체 값은 툴팁/드래그복사로 보존(화면만 잘림).
+ */
+export function IdText({ value, max = 130, className = '' }: { value: string | null | undefined; max?: number; className?: string }) {
+  if (!value) return <span className="text-gray-300">-</span>
+  return (
+    <span className={`inline-block align-bottom truncate ${className}`} style={{ maxWidth: max }} title={value}>
+      {value}
+    </span>
+  )
+}
+
 export function EmptyRow({ colSpan, loading }: { colSpan: number; loading?: boolean }) {
   return (
     <tr>

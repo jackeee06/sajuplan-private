@@ -4,6 +4,7 @@ import { Search, Download } from 'lucide-react'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
+import { DateField } from '../components/DateField'
 import {
   Th,
   Td,
@@ -220,23 +221,13 @@ export default function PaymentList() {
               onKeyDown={(e) => e.key === 'Enter' && onSearch()}
             />
           </div>
-          <div className="w-[160px]">
+          <div>
             <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 시작</label>
-            <input
-              type="date"
-              value={pending.fr_date}
-              onChange={(e) => setPending({ ...pending, fr_date: e.target.value })}
-              className={inputCls}
-            />
+            <DateField value={pending.fr_date} onChange={(v) => setPending({ ...pending, fr_date: v })} placeholder="시작일" />
           </div>
-          <div className="w-[160px]">
+          <div>
             <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 종료</label>
-            <input
-              type="date"
-              value={pending.to_date}
-              onChange={(e) => setPending({ ...pending, to_date: e.target.value })}
-              className={inputCls}
-            />
+            <DateField value={pending.to_date} onChange={(v) => setPending({ ...pending, to_date: v })} placeholder="종료일" />
           </div>
           <div className="ml-auto">
             <button

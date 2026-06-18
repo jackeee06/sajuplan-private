@@ -83,54 +83,49 @@ export default function PromoterList() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="space-y-3">
-      {/* 페이지 타이틀 + 등록 버튼 (좌측 정렬) */}
-      <div className="flex flex-col items-start gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">모집인 관리(서포터즈)</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">신규 회원을 데려온 모집인(서포터즈) 현황·보상 정산</p>
-        </div>
+    <div className="space-y-2">
+      {/* 타이틀 — 한 줄, 부제 인라인 (조밀) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">모집인 관리(서포터즈)</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">신규 회원을 데려온 모집인(서포터즈) 현황·보상 정산</span>
+      </div>
+
+      {/* 툴바 — 등록 + 검색 + 상태필터를 한 줄에 (좌측 정렬, 카드·여백 제거) */}
+      <div className="flex flex-wrap items-center gap-1.5">
         <button
           onClick={() => navigate('/promoters/new')}
-          className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium whitespace-nowrap"
+          className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium whitespace-nowrap"
         >
           <UserPlus className="w-4 h-4" /> 모집인 등록
         </button>
-      </div>
 
-      {/* 검색 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="w-[260px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
-            <input
-              type="text"
-              value={pendingStx}
-              onChange={(e) => setPendingStx(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && onSearch()}
-              placeholder="이름 / 전화 / 코드"
-              className={inputCls}
-            />
-          </div>
-          <div className="flex gap-2 ml-auto">
-            <button
-              onClick={onSearch}
-              className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium"
-            >
-              <Search className="w-4 h-4" /> 검색
-            </button>
-            <button
-              onClick={onReset}
-              className="px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-            >
-              초기화
-            </button>
-          </div>
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+        <div className="w-[200px]">
+          <input
+            type="text"
+            value={pendingStx}
+            onChange={(e) => setPendingStx(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && onSearch()}
+            placeholder="이름 / 전화 / 코드"
+            className={inputCls}
+          />
         </div>
-      </div>
+        <button
+          onClick={onSearch}
+          className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium"
+        >
+          <Search className="w-4 h-4" /> 검색
+        </button>
+        <button
+          onClick={onReset}
+          className="px-2.5 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+        >
+          초기화
+        </button>
 
-      {/* 상태 필터 칩 */}
-      <div className="flex flex-wrap gap-2">
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
         {STATUS_FILTERS.map((f) => (
           <Chip
             key={f.key || 'all'}

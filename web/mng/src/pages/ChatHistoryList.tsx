@@ -4,6 +4,7 @@ import { Search } from 'lucide-react'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
+import { DateField } from '../components/DateField'
 import {
   Th,
   Td,
@@ -97,23 +98,13 @@ export default function ChatHistoryList() {
               onKeyDown={(e) => e.key === 'Enter' && setFilter({ ...filter, ...pending, page: 1 })}
             />
           </div>
-          <div className="w-[160px]">
+          <div>
             <label className="block text-[11px] font-medium text-gray-500 mb-1">시작일</label>
-            <input
-              type="date"
-              value={pending.fr_date}
-              onChange={(e) => setPending({ ...pending, fr_date: e.target.value })}
-              className={inputCls}
-            />
+            <DateField value={pending.fr_date} onChange={(v) => setPending({ ...pending, fr_date: v })} placeholder="시작일" />
           </div>
-          <div className="w-[160px]">
+          <div>
             <label className="block text-[11px] font-medium text-gray-500 mb-1">종료일</label>
-            <input
-              type="date"
-              value={pending.to_date}
-              onChange={(e) => setPending({ ...pending, to_date: e.target.value })}
-              className={inputCls}
-            />
+            <DateField value={pending.to_date} onChange={(v) => setPending({ ...pending, to_date: v })} placeholder="종료일" />
           </div>
           <div className="ml-auto">
             <button
@@ -166,7 +157,8 @@ export default function ChatHistoryList() {
                     <Link
                       to={`/members/customers/${r.member_id}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="text-brand-600 hover:underline font-medium"
+                      className="text-brand-600 hover:underline font-medium inline-block max-w-[150px] truncate align-bottom"
+                      title={String(r.member_mb_id ?? '')}
                     >
                       {r.member_mb_id}
                     </Link>
@@ -179,7 +171,8 @@ export default function ChatHistoryList() {
                     <Link
                       to={`/members/counselors/${r.counselor_id}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="text-brand-600 hover:underline font-medium"
+                      className="text-brand-600 hover:underline font-medium inline-block max-w-[150px] truncate align-bottom"
+                      title={String(r.counselor_nickname || r.counselor_mb_id || '')}
                     >
                       {r.counselor_nickname || r.counselor_mb_id || `#${r.counselor_id}`}
                     </Link>

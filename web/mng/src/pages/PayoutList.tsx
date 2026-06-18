@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
+import { DateField } from '../components/DateField'
 import {
   Th, Td, Tr, TableShell, THead, TBody, EmptyRow,
   Badge, BadgeColor, Chip, PaginationBar, inputCls, num,
@@ -342,8 +343,8 @@ export default function PayoutList() {
         </div>
       )}
 
-      {/* 통계 카드 + 검색 + CSV 한 줄 — 와이드 모니터 가로 활용 */}
-      <div className="flex flex-wrap gap-2 items-end">
+      {/* 통계 카드 — 한 줄 */}
+      <div className="flex flex-wrap gap-2">
         <StatCard
           title="처리 대기"
           value={pending}
@@ -373,45 +374,43 @@ export default function PayoutList() {
           color={stale > 0 ? 'red' : 'gray'}
           warn={stale > 0}
         />
+      </div>
 
-        {/* 검색 + CSV — 통계카드 바로 옆 좌측 응집 (왼쪽 정렬 + 조밀 원칙) */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-end gap-2">
-            <div className="w-[200px]">
-              <label className="block text-[11px] font-medium text-gray-500 mb-1">상담사 ID</label>
-              <input
-                type="text"
-                value={counselorMbId}
-                onChange={(e) => setCounselorMbId(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); refresh() } }}
-                placeholder="mb_id 검색"
-                className={inputCls}
-              />
-            </div>
-            <div className="w-[140px]">
-              <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 시작</label>
-              <input type="date" value={frDate} onChange={(e) => { setFrDate(e.target.value); setPage(1) }} className={inputCls} />
-            </div>
-            <div className="w-[140px]">
-              <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 종료</label>
-              <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1) }} className={inputCls} />
-            </div>
-          </div>
-          <DateRangeChips
-            from={frDate}
-            to={toDate}
-            onPick={(r) => { setFrDate(r.from); setToDate(r.to); setPage(1) }}
+      {/* 툴바 — 검색 + 기간 + 빠른칩 + CSV 를 한 줄(좌측 정렬)로 */}
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="w-[180px]">
+          <label className="block text-[11px] font-medium text-gray-500 mb-1">상담사 ID</label>
+          <input
+            type="text"
+            value={counselorMbId}
+            onChange={(e) => setCounselorMbId(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); refresh() } }}
+            placeholder="mb_id 검색"
+            className={inputCls}
           />
-          <a
-            href={`${API_BASE}/admin/payouts/csv-pending`}
-            className="inline-flex items-center gap-1.5 h-[42px] px-3 rounded-md border border-brand-300 text-brand-700 bg-white hover:bg-brand-50 dark:bg-gray-900 dark:border-brand-500/40 dark:text-brand-300 dark:hover:bg-brand-500/10 text-sm font-medium whitespace-nowrap self-end"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="대기 상태인 신청만 CSV 다운로드 — 은행 일괄이체용"
-          >
-            <Download className="w-4 h-4" /> 대기 CSV
-          </a>
         </div>
+        <div>
+          <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 시작</label>
+          <DateField value={frDate} onChange={(v) => { setFrDate(v); setPage(1) }} placeholder="시작일" />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 종료</label>
+          <DateField value={toDate} onChange={(v) => { setToDate(v); setPage(1) }} placeholder="종료일" />
+        </div>
+        <DateRangeChips
+          from={frDate}
+          to={toDate}
+          onPick={(r) => { setFrDate(r.from); setToDate(r.to); setPage(1) }}
+        />
+        <a
+          href={`${API_BASE}/admin/payouts/csv-pending`}
+          className="inline-flex items-center gap-1.5 h-[42px] px-3 rounded-md border border-brand-300 text-brand-700 bg-white hover:bg-brand-50 dark:bg-gray-900 dark:border-brand-500/40 dark:text-brand-300 dark:hover:bg-brand-500/10 text-sm font-medium whitespace-nowrap"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="대기 상태인 신청만 CSV 다운로드 — 은행 일괄이체용"
+        >
+          <Download className="w-4 h-4" /> 대기 CSV
+        </a>
       </div>
 
       {/* 상태 칩 — 표준 패턴 (active=brand, dot으로 의미 분리) */}
@@ -500,7 +499,7 @@ export default function PayoutList() {
                       <div className="font-medium text-gray-900 dark:text-gray-100">
                         {r.counselor_nickname || r.counselor_name || '-'}
                       </div>
-                      <div className="text-[10px] text-gray-500">{r.counselor_mb_id}</div>
+                      <div className="text-[10px] text-gray-500"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(r.counselor_mb_id ?? '')}>{r.counselor_mb_id}</span></div>
                     </div>
                   </Td>
                   <Td align="center" className="text-[11px] text-gray-600">

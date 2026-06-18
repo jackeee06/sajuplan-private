@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { TONE_BADGE_CLS, labelActorType } from '../lib/labels'
+import { DateField } from './DateField'
 
 interface PointHistoryItem {
   id: number
@@ -163,12 +164,7 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
 
             <div>
               <label className="block text-xs text-gray-500 mb-1">소멸 예정일 (옵션)</label>
-              <input
-                type="date"
-                value={expireDate}
-                onChange={(e) => setExpireDate(e.target.value)}
-                className="w-[160px] px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none"
-              />
+              <DateField value={expireDate} onChange={(v) => setExpireDate(v)} placeholder="소멸 예정일" />
             </div>
 
             <div>
@@ -247,7 +243,7 @@ export default function PointAdjustPanel({ memberId, currentPoint, onAdjusted }:
       {/* 최근 이력 */}
       <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 dark:border-gray-800">
-          <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">최근 포인트 이력</div>
+          <div className="text-sm font-semibold text-gray-700 dark:text-gray-200">최근 코인·수익금 내역</div>
           <Link
             to={`/points/history?member=${memberId}`}
             className="text-xs text-brand-600 hover:underline"

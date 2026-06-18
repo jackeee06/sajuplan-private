@@ -105,7 +105,7 @@ function PolicyPanel() {
   }
 
   return (
-    <div className="border border-amber-200 bg-amber-50 rounded-xl px-5 py-4 flex flex-wrap items-center gap-4">
+    <div className="border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800 rounded-lg px-3.5 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
       <div className="flex items-center gap-2 text-amber-700 font-semibold text-sm">
         <Settings2 className="w-4 h-4" />
         추천 정책 <span className="text-amber-500 text-xs font-normal">(슈퍼 전용 — 저장 즉시 신규 추천부터 적용)</span>
@@ -196,28 +196,18 @@ export default function ReferralList() {
   }
 
   return (
-    <div className="space-y-4 text-sm max-w-[1100px]">
+    <div className="space-y-2 text-sm max-w-[1100px]">
       {/* 슈퍼 전용 정책 패널 */}
       {admin?.is_super && <PolicyPanel />}
 
-      {/* 타이틀 + 등록 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">추천수익금</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            수익금의 N% · N개월 한정 · 매월 1일 정산 자동 처리 (전월 수익금 기준)
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium"
-        >
-          <Plus className="w-4 h-4" /> 새 추천 등록
-        </button>
+      {/* 타이틀 — 한 줄, 부제 인라인 */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">추천수익금</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">수익금의 N% · N개월 한정 · 매월 1일 정산 자동 처리 (전월 수익금 기준)</span>
       </div>
 
-      {/* 필터 */}
-      <div className="flex items-end gap-3 flex-wrap">
+      {/* 툴바 — 대상월 + 상태 + 새 추천 등록 한 줄(좌측 정렬) */}
+      <div className="flex flex-wrap items-end gap-2">
         <div className="w-[140px]">
           <label className="block text-[11px] font-medium text-gray-500 mb-1">대상 월</label>
           <input
@@ -236,29 +226,35 @@ export default function ReferralList() {
             <option value="disabled">비활성</option>
           </select>
         </div>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white font-medium whitespace-nowrap self-end"
+        >
+          <Plus className="w-4 h-4" /> 새 추천 등록
+        </button>
       </div>
 
-      {/* 요약 카드 — 콘텐츠 기반 폭으로 좌측 응집 */}
-      <div className="flex flex-wrap gap-2">
-        <div className="px-3 py-2 rounded-lg bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-700 min-w-[140px]">
+      {/* 요약 카드 — 콘텐츠 폭으로 조밀하게 */}
+      <div className="flex flex-wrap gap-1.5">
+        <div className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-200 dark:bg-gray-900 dark:border-gray-700">
           <div className="text-[11px] text-gray-500">활성 관계</div>
-          <div className="text-lg font-semibold tabular-nums text-gray-900 dark:text-gray-100">{summary.active}</div>
+          <div className="text-base font-semibold tabular-nums text-gray-900 dark:text-gray-100">{summary.active}</div>
         </div>
-        <div className="px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800 min-w-[140px]">
+        <div className="px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800">
           <div className="text-[11px] text-blue-700 dark:text-blue-300">이번 달 지급대상</div>
-          <div className="text-lg font-semibold tabular-nums text-blue-700 dark:text-blue-300">{summary.eligible}</div>
+          <div className="text-base font-semibold tabular-nums text-blue-700 dark:text-blue-300">{summary.eligible}</div>
         </div>
-        <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800 min-w-[140px]">
+        <div className="px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800">
           <div className="text-[11px] text-emerald-700 dark:text-emerald-300">지급 완료</div>
-          <div className="text-lg font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{summary.paid}</div>
+          <div className="text-base font-semibold tabular-nums text-emerald-700 dark:text-emerald-300">{summary.paid}</div>
         </div>
-        <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800 min-w-[140px]">
+        <div className="px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800">
           <div className="text-[11px] text-amber-700 dark:text-amber-300">미지급</div>
-          <div className="text-lg font-semibold tabular-nums text-amber-700 dark:text-amber-300">{summary.pending}</div>
+          <div className="text-base font-semibold tabular-nums text-amber-700 dark:text-amber-300">{summary.pending}</div>
         </div>
-        <div className="px-3 py-2 rounded-lg bg-brand-50 border border-brand-200 dark:bg-brand-900/20 dark:border-brand-800 min-w-[160px]">
+        <div className="px-2.5 py-1.5 rounded-lg bg-brand-50 border border-brand-200 dark:bg-brand-900/20 dark:border-brand-800">
           <div className="text-[11px] text-brand-700 dark:text-brand-300">미지급 합계</div>
-          <div className="text-lg font-semibold tabular-nums text-brand-700 dark:text-brand-300">{fmt(summary.totalExpected)}원</div>
+          <div className="text-base font-semibold tabular-nums text-brand-700 dark:text-brand-300">{fmt(summary.totalExpected)}원</div>
         </div>
       </div>
 
@@ -295,11 +291,11 @@ export default function ReferralList() {
                 <Td align="right" className="text-gray-400 tabular-nums">{it.id}</Td>
                 <Td align="left">
                   <div className="font-medium text-gray-900 dark:text-gray-100">{it.referrer_nickname ?? '-'}</div>
-                  <div className="text-[10px] text-gray-400">{it.referrer_mb_id ?? `#${it.referrer_id}`}</div>
+                  <div className="text-[10px] text-gray-400"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(it.referrer_mb_id ?? '')}>{it.referrer_mb_id ?? `#${it.referrer_id}`}</span></div>
                 </Td>
                 <Td align="left">
                   <div className="font-medium text-gray-900 dark:text-gray-100">{it.referee_nickname ?? '-'}</div>
-                  <div className="text-[10px] text-gray-400">{it.referee_mb_id ?? `#${it.referee_id}`}</div>
+                  <div className="text-[10px] text-gray-400"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(it.referee_mb_id ?? '')}>{it.referee_mb_id ?? `#${it.referee_id}`}</span></div>
                 </Td>
                 <Td align="left" className="text-xs text-gray-600 tabular-nums">{fmtDate(it.registered_at)}</Td>
                 <Td align="left" className="text-xs text-gray-600 tabular-nums">{fmtDate(it.expires_at)}</Td>

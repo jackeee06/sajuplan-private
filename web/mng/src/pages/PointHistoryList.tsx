@@ -4,6 +4,7 @@ import { Search } from 'lucide-react'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
+import { DateField } from '../components/DateField'
 import {
   Th,
   Td,
@@ -19,12 +20,12 @@ import {
 } from '../components/table'
 
 /**
- * sample/adm/point_list.php (메뉴 350430 "포인트 관리") 정확 매핑.
+ * 코인·수익금 통합원장 — 전 회원의 모든 잔액(무료/유료 코인 + 상담사 수익금) 증감을
+ * 한 타임라인에 기록한 감사·정정용 master 원장 (관리자 전용).
  *
- * 컬럼: 내용 / 구분 / 처리자 / 아이디 / 닉네임 / 포인트 / 일시 / 만료일 / 포인트합
- * 검색: 회원아이디(mb_id) / 내용(po_content)
- * 상단: 전체 N건 + (회원 검색 시: 회원 잔액 / 그 외: 전체 합계)
- * 하단: 개별회원 포인트 증감 폼
+ * 컬럼: 내용 / 구분 / 처리자 / 아이디 / 닉네임 / 증감 / 일시 / 만료일 / 잔액
+ * 검색: 회원아이디(mb_id) / 내용
+ * 하단: 개별회원 잔액 증감 폼 (코인/수익금 수동 정정)
  */
 
 interface Item {
@@ -44,6 +45,7 @@ interface Item {
   expire_date: string | null
   rel_table: string | null
   rel_id: string | null
+  balance_kind: string | null
   actor_admin_mb_id: string | null
   actor_type: string
   created_at: string
@@ -56,7 +58,11 @@ interface Resp {
   limit: number
   summary: {
     sum_point: number
-    searched_member: { mb_id: string; nickname: string; point: number } | null
+    coin_earn: number
+    coin_use: number
+    earning_earn: number
+    earning_use: number
+    searched_member: { mb_id: string; nickname: string; point: number; coin: number; earning: number; role: string | null } | null
   }
 }
 
@@ -162,7 +168,7 @@ export default function PointHistoryList() {
     setAdjError(null)
     setAdjSuccess(null)
     if (!adj.mbId.trim()) return setAdjError('회원아이디를 입력하세요.')
-    if (!adj.reason.trim()) return setAdjError('포인트 내용을 입력하세요.')
+    if (!adj.reason.trim()) return setAdjError('내용을 입력하세요.')
     const point = Number(adj.point)
     if (!Number.isInteger(point) || point === 0)
       return setAdjError('포인트는 0이 아닌 정수여야 합니다.')
@@ -178,7 +184,7 @@ export default function PointHistoryList() {
           expireDays: adj.expireDays ? Number(adj.expireDays) : undefined,
         }),
       })
-      setAdjSuccess(`적용 완료. 변경 후 잔액 ${res.balanceAfter.toLocaleString()}P`)
+      setAdjSuccess(`적용 완료. 변경 후 잔액 ${res.balanceAfter.toLocaleString()}`)
       setAdj({ mbId: '', reason: '', point: '', expireDays: '' })
       setFilter((f) => ({ ...f }))
     } catch (e) {
@@ -193,11 +199,14 @@ export default function PointHistoryList() {
 
   return (
     <div className="space-y-3 max-w-[1100px]">
-      {/* 타이틀 */}
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-          {presetMember ? '회원 포인트 이력' : '포인트 관리'}
+      {/* 타이틀 — 한 줄, 부제 인라인 */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+          {presetMember ? '회원 코인·수익금 내역' : '코인·수익금 통합원장'}
         </h1>
+        {!presetMember && (
+          <span className="text-xs text-gray-500 dark:text-gray-400">전 회원 코인·수익금 증감을 한 곳에 — 감사·정정용 master 기록</span>
+        )}
         {presetMember && (
           <Link
             to={`/members/customers/${presetMember}`}
@@ -208,25 +217,36 @@ export default function PointHistoryList() {
         )}
       </div>
 
-      {/* 상단 칩 */}
+      {/* 목적 안내 배너 — "이게 뭐고 언제 쓰나" */}
+      {!presetMember && (
+        <div className="rounded-md border border-brand-100 bg-brand-50/40 dark:bg-brand-900/10 dark:border-brand-900 px-3 py-2 text-[12px] leading-relaxed text-gray-700 dark:text-gray-300 space-y-0.5">
+          <div><strong className="text-brand-700 dark:text-brand-300">📒 이 화면은</strong> 전 회원의 <b>코인(고객)·수익금(상담사)</b>이 <b>언제·왜·얼마</b> 움직였는지 다 적힌 <b>원본 장부</b>입니다.</div>
+          <div className="text-gray-500 dark:text-gray-400">🔍 "코인/수익금이 이상해요" 분쟁·추적 땐 위 검색에 <b>회원아이디</b> → 그 사람 흐름만 추려집니다. · ✍️ 맨 아래에서 직접 정정.</div>
+        </div>
+      )}
+
+      {/* 상단 — 종류별 요약(코인/수익금) 또는 검색 회원 잔액 */}
       {data && !presetMember && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Chip label="전체목록" active onClick={onReset} />
           <Chip label="전체" value={data.total} />
           {sm ? (
-            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium bg-brand-50 text-brand-700 border border-brand-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
-              <span>{sm.mb_id}님 잔액</span>
-              <span className="font-semibold tabular-nums">{sm.point.toLocaleString()}점</span>
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+              <span className="text-gray-500">{sm.mb_id} 잔액</span>
+              <span className="px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200">코인 <b className="tabular-nums">{sm.coin.toLocaleString()}</b></span>
+              <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">수익금 <b className="tabular-nums">{sm.earning.toLocaleString()}원</b></span>
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-medium bg-brand-50 text-brand-700 border border-brand-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
-              <span>전체 합계</span>
-              <span className="font-semibold tabular-nums">
-                {data.summary.sum_point.toLocaleString()}점
+            <>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs bg-sky-50 text-sky-700 border border-sky-200">
+                <b>코인</b> 적립 <b className="tabular-nums text-emerald-600">+{(data.summary.coin_earn ?? 0).toLocaleString()}</b>
+                <span className="text-sky-300">·</span> 사용 <b className="tabular-nums text-rose-600">−{(data.summary.coin_use ?? 0).toLocaleString()}</b>
               </span>
-            </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs bg-amber-50 text-amber-700 border border-amber-200">
+                <b>수익금</b> 적립 <b className="tabular-nums text-emerald-600">+{(data.summary.earning_earn ?? 0).toLocaleString()}</b>
+                <span className="text-amber-300">·</span> 정산·차감 <b className="tabular-nums text-rose-600">−{(data.summary.earning_use ?? 0).toLocaleString()}</b>
+              </span>
+            </>
           )}
         </div>
       )}
@@ -262,21 +282,11 @@ export default function PointHistoryList() {
             </div>
             <div className="w-[160px]">
               <label className="block text-[11px] font-medium text-gray-500 mb-1">시작일</label>
-              <input
-                type="date"
-                value={pending.fr_date}
-                onChange={(e) => setPending({ ...pending, fr_date: e.target.value })}
-                className={inputCls}
-              />
+              <DateField value={pending.fr_date} onChange={(v) => setPending({ ...pending, fr_date: v })} placeholder="시작일" />
             </div>
             <div className="w-[160px]">
               <label className="block text-[11px] font-medium text-gray-500 mb-1">종료일</label>
-              <input
-                type="date"
-                value={pending.to_date}
-                onChange={(e) => setPending({ ...pending, to_date: e.target.value })}
-                className={inputCls}
-              />
+              <DateField value={pending.to_date} onChange={(v) => setPending({ ...pending, to_date: v })} placeholder="종료일" />
             </div>
             <div className="ml-auto">
               <button
@@ -315,10 +325,10 @@ export default function PointHistoryList() {
           <Th align="left">처리자</Th>
           <Th align="left">아이디</Th>
           <Th align="left">닉네임</Th>
-          <Th align="right">포인트</Th>
+          <Th align="right">증감</Th>
           <Th align="left">일시</Th>
           <Th align="left">만료일</Th>
-          <Th align="right">포인트합</Th>
+          <Th align="right">잔액</Th>
         </THead>
         <TBody>
           {loading && !data ? (
@@ -329,6 +339,9 @@ export default function PointHistoryList() {
             data.items.map((h) => {
               const variation = h.earn_point - h.use_point
               const flow = classifyFlow(h)
+              // 코인(고객) vs 수익금(상담사) — balance_kind 기준(정확). 행 배경 + 라벨로 명시.
+              const isEarning = h.balance_kind === 'earning'
+              const rowBg = isEarning ? 'bg-amber-50/60 dark:bg-amber-900/10' : 'bg-sky-50/40 dark:bg-sky-900/10'
               const flowShadow = flow === 'earning'
                 ? 'shadow-[inset_4px_0_0_0_#f59e0b]'
                 : flow === 'consume'
@@ -339,7 +352,7 @@ export default function PointHistoryList() {
               return (
                 <tr
                   key={h.id}
-                  className={`border-b border-gray-100 dark:border-gray-800 last:border-b-0 hover:bg-brand-50/40 dark:hover:bg-brand-500/5 transition-colors ${flowShadow}`}
+                  className={`${rowBg} border-b border-gray-100 dark:border-gray-800 last:border-b-0 hover:bg-brand-50/50 dark:hover:bg-brand-500/5 transition-colors ${flowShadow}`}
                 >
                   <Td align="left" className="text-gray-700 max-w-[280px] truncate">
                     {flow === 'earning' && (
@@ -353,7 +366,16 @@ export default function PointHistoryList() {
                     )}
                     {h.content || <span className="text-gray-300">-</span>}
                   </Td>
-                  <Td align="center">{renderLevelBadge(h.member_level, h.member_role)}</Td>
+                  <Td align="center">
+                    <div className="inline-flex items-center justify-center gap-1 whitespace-nowrap">
+                      {renderLevelBadge(h.member_level, h.member_role)}
+                      {isEarning ? (
+                        <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200 font-medium">수익금</span>
+                      ) : (
+                        <span className="text-[10px] px-1 py-0.5 rounded bg-sky-100 text-sky-700 border border-sky-200 font-medium">코인</span>
+                      )}
+                    </div>
+                  </Td>
                   <Td align="left" className="text-xs text-gray-500">
                     {h.actor_admin_mb_id || labelActor(h.actor_type)}
                   </Td>
@@ -361,7 +383,8 @@ export default function PointHistoryList() {
                     {h.member_id && h.mb_id ? (
                       <Link
                         to={`/members/customers/${h.member_id}`}
-                        className="text-brand-600 hover:underline font-medium"
+                        className="text-brand-600 hover:underline font-medium inline-block max-w-[150px] truncate align-bottom"
+                        title={h.mb_id}
                       >
                         {h.mb_id}
                       </Link>
@@ -421,7 +444,7 @@ export default function PointHistoryList() {
       {!presetMember && (
         <section className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl max-w-[800px]">
           <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 text-sm font-semibold text-gray-700 dark:text-gray-200">
-            개별회원 포인트 증감 설정
+            개별회원 잔액 증감 (코인/수익금 수동 정정)
           </div>
           <div className="p-4 space-y-3">
             {adjError && (
@@ -445,7 +468,7 @@ export default function PointHistoryList() {
                 className={`w-[240px] ${inputCls}`}
               />
               <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                포인트 내용 <span className="text-rose-500">*</span>
+                내용 <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
@@ -454,7 +477,7 @@ export default function PointHistoryList() {
                 className={`w-[400px] ${inputCls}`}
               />
               <label className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                포인트 <span className="text-rose-500">*</span>
+                증감액 <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"

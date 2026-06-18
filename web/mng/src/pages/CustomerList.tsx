@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { api } from '../lib/api'
+import { DateField } from '../components/DateField'
 
 interface Customer {
   id: number
@@ -186,23 +187,13 @@ export default function CustomerList() {
               className={inputCls}
             />
           </div>
-          <div className="w-[160px]">
+          <div>
             <label className="block text-[11px] font-medium text-gray-500 mb-1">가입일 시작</label>
-            <input
-              type="date"
-              value={pending.fr_date}
-              onChange={(e) => setPending((p) => ({ ...p, fr_date: e.target.value }))}
-              className={inputCls}
-            />
+            <DateField value={pending.fr_date} onChange={(v) => setPending((p) => ({ ...p, fr_date: v }))} placeholder="시작일" />
           </div>
-          <div className="w-[160px]">
+          <div>
             <label className="block text-[11px] font-medium text-gray-500 mb-1">가입일 종료</label>
-            <input
-              type="date"
-              value={pending.to_date}
-              onChange={(e) => setPending((p) => ({ ...p, to_date: e.target.value }))}
-              className={inputCls}
-            />
+            <DateField value={pending.to_date} onChange={(v) => setPending((p) => ({ ...p, to_date: v }))} placeholder="종료일" />
           </div>
           <div className="flex gap-2 ml-auto">
             <button
@@ -272,7 +263,7 @@ export default function CustomerList() {
                   <Td align="right" className="text-gray-400 tabular-nums group-hover:text-brand-600 group-hover:font-medium">{m.id}</Td>
                   <Td align="left" className="text-xs text-gray-500 tabular-nums">{fmtDate(m.created_at)}</Td>
                   <Td align="left">
-                    <div className="font-medium text-gray-900 dark:text-gray-100">{m.mb_id ?? '-'}</div>
+                    <div className="font-medium text-gray-900 dark:text-gray-100"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(m.mb_id ?? '')}>{m.mb_id ?? '-'}</span></div>
                     {m.social_provider && (
                       <div className="text-[10px] text-gray-400">via {m.social_provider}</div>
                     )}

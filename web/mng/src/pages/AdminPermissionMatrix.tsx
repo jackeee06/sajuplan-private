@@ -12,7 +12,7 @@ const RESOURCE_LABELS: Record<string, string> = {
   'sales.consultations': '매출 - 사용(상담) 내역',
   'sales.charge_amounts': '매출 - 충전금액 설정',
   'sales.payments': '매출 - 결제 내역',
-  'sales.points': '매출 - 포인트 관리',
+  'sales.points': '매출 - 코인·수익금 원장',
   'sales.settlements': '매출 - 정산 이력',
   'consultation.reviews': '상담 - 상담후기',
   'consultation.chat': '상담 - 채팅내역',

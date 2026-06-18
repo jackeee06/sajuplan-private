@@ -40,31 +40,27 @@ export default function EventsList() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="space-y-3 max-w-[1100px]">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">이벤트 관리</h1>
-          {data && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            총 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건
-          </p>}
-        </div>
-        <Link to="/events/new" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium">
-          <Plus className="w-4 h-4" /> 이벤트 추가
-        </Link>
+    <div className="space-y-2 max-w-[1100px]">
+      {/* 타이틀 — 한 줄, 부제 인라인 (조밀) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">이벤트 관리</h1>
+        {data && <span className="text-xs text-gray-500 dark:text-gray-400">총 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건</span>}
       </div>
 
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="w-[260px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
-            <input type="text" value={pending.q} onChange={(e) => setPending({ q: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && setFilter({ q: pending.q, page: 1 })} placeholder="제목/본문 검색" className={inputCls} />
-          </div>
-          <div className="ml-auto">
-            <button onClick={() => setFilter({ q: pending.q, page: 1 })} className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium">
-              <Search className="w-4 h-4" /> 검색
-            </button>
-          </div>
+      {/* 툴바 — 추가 + 검색을 한 줄에 (좌측 정렬, 카드·여백 제거) */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Link to="/events/new" className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium whitespace-nowrap">
+          <Plus className="w-4 h-4" /> 이벤트 추가
+        </Link>
+
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+        <div className="w-[200px]">
+          <input type="text" value={pending.q} onChange={(e) => setPending({ q: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && setFilter({ q: pending.q, page: 1 })} placeholder="제목/본문 검색" className={inputCls} />
         </div>
+        <button onClick={() => setFilter({ q: pending.q, page: 1 })} className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium">
+          <Search className="w-4 h-4" /> 검색
+        </button>
       </div>
 
       <TableShell>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Search } from 'lucide-react'
 import { api } from '../lib/api'
+import { DateField } from '../components/DateField'
 import {
   Th,
   Td,
@@ -53,37 +54,29 @@ export default function SearchKeywords() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="space-y-3 max-w-[1100px]">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">인기검색어 관리</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">사용자 검색어 로그</p>
+    <div className="space-y-2 max-w-[1100px]">
+      {/* 타이틀 — 한 줄, 부제 인라인 (조밀) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">인기검색어 관리</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">사용자 검색어 로그</span>
+        {data && (
+          <span className="text-xs text-gray-500">
+            · 전체 <span className="text-brand-600 font-semibold">{data.total.toLocaleString()}</span>건
+          </span>
+        )}
       </div>
 
-      {data && (
-        <div className="text-xs text-gray-500">
-          전체 <span className="text-brand-600 font-semibold">{data.total.toLocaleString()}</span>건
-        </div>
-      )}
-
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="w-[160px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">시작일</label>
-            <input type="date" value={pending.fr_date} onChange={(e) => setPending({ ...pending, fr_date: e.target.value })} className={inputCls} />
-          </div>
-          <div className="w-[160px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">종료일</label>
-            <input type="date" value={pending.to_date} onChange={(e) => setPending({ ...pending, to_date: e.target.value })} className={inputCls} />
-          </div>
-          <div className="ml-auto">
-            <button
-              onClick={() => setFilter({ ...filter, ...pending, page: 1 })}
-              className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium"
-            >
-              <Search className="w-4 h-4" /> 검색
-            </button>
-          </div>
-        </div>
+      {/* 툴바 — 기간 + 검색을 한 줄에 (좌측 정렬, 카드·여백 제거) */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <DateField value={pending.fr_date} onChange={(v) => setPending({ ...pending, fr_date: v })} placeholder="시작일" />
+        <span className="text-xs text-gray-400">~</span>
+        <DateField value={pending.to_date} onChange={(v) => setPending({ ...pending, to_date: v })} placeholder="종료일" />
+        <button
+          onClick={() => setFilter({ ...filter, ...pending, page: 1 })}
+          className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium"
+        >
+          <Search className="w-4 h-4" /> 검색
+        </button>
       </div>
 
       <TableShell>
@@ -104,7 +97,7 @@ export default function SearchKeywords() {
               <Tr key={i.id}>
                 <Td align="left" className="text-xs text-gray-600 tabular-nums">{formatDT(i.created_at)}</Td>
                 <Td align="left" className="font-medium">{i.keyword}</Td>
-                <Td align="left" className="text-gray-500">{i.member_mb_id ?? <span className="text-gray-300">-</span>}</Td>
+                <Td align="left" className="text-gray-500"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(i.member_mb_id ?? '')}>{i.member_mb_id ?? <span className="text-gray-300">-</span>}</span></Td>
                 <Td align="right" className="tabular-nums text-gray-700">{i.result_count ?? <span className="text-gray-300">-</span>}</Td>
                 <Td align="left" className="text-xs text-gray-400 font-mono">{i.search_ip ?? <span className="text-gray-300">-</span>}</Td>
               </Tr>

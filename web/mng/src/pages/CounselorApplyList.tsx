@@ -4,6 +4,7 @@ import { Search, ImageIcon, FileText } from 'lucide-react'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
+import { DateField } from '../components/DateField'
 import {
   Th,
   Td,
@@ -159,18 +160,53 @@ export default function CounselorApplyList() {
   }
 
   return (
-    <div className="space-y-3 max-w-[1100px]">
-      {/* 타이틀 */}
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">상담사 신청 내역</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          사용자 가입 페이지에서 접수된 상담사 신청 — 사진/사업자 파일 확인 후 상담사로 등록하세요.
-        </p>
+    <div className="space-y-2 max-w-[1100px]">
+      {/* 타이틀 — 한 줄, 부제 인라인 (조밀) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">상담사 신청 내역</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">사용자 가입 페이지에서 접수된 상담사 신청 — 사진/사업자 파일 확인 후 상담사로 등록</span>
       </div>
 
-      {/* 상태 칩 */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-xs text-gray-500 mr-1">상태</span>
+      {/* 툴바 — 검색 + 기간 + 상태/종류 필터를 한 줄에 (좌측 정렬, 카드·여백 제거) */}
+      <form className="flex flex-wrap items-center gap-1.5" onSubmit={onSearch}>
+        <div className="w-[240px]">
+          <input
+            type="text"
+            value={pendingQ}
+            onChange={(e) => setPendingQ(e.target.value)}
+            placeholder="휴대폰 / 이메일 / 예명 / 실명 / 제목"
+            className={inputCls}
+          />
+        </div>
+        <button
+          type="submit"
+          className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium"
+        >
+          <Search className="w-4 h-4" /> 검색
+        </button>
+        <button
+          type="button"
+          onClick={onReset}
+          className="px-2.5 py-1.5 text-sm rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+        >
+          초기화
+        </button>
+
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+        <DateField value={frDate} onChange={(v) => { setFrDate(v); setPage(1) }} placeholder="시작일" />
+        <span className="text-xs text-gray-400">~</span>
+        <DateField value={toDate} onChange={(v) => { setToDate(v); setPage(1) }} placeholder="종료일" />
+        <DateRangeChips
+          from={frDate}
+          to={toDate}
+          onPick={(r) => { setFrDate(r.from); setToDate(r.to); setPage(1) }}
+        />
+      </form>
+
+      {/* 상태 / 종류 칩 — 한 줄 */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-gray-500">상태</span>
         {STATUS_FILTERS.map((f) => (
           <Chip
             key={f.value}
@@ -183,11 +219,10 @@ export default function CounselorApplyList() {
             }}
           />
         ))}
-      </div>
 
-      {/* 종류 칩 */}
-      <div className="flex flex-wrap gap-2 items-center">
-        <span className="text-xs text-gray-500 mr-1">종류</span>
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+        <span className="text-xs text-gray-500">종류</span>
         {CATEGORY_FILTERS.map((f) => (
           <Chip
             key={f.value}
@@ -200,52 +235,6 @@ export default function CounselorApplyList() {
             }}
           />
         ))}
-      </div>
-
-      {/* 검색 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
-        <form className="flex flex-wrap gap-3 items-end" onSubmit={onSearch}>
-          <div className="w-[260px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
-            <input
-              type="text"
-              value={pendingQ}
-              onChange={(e) => setPendingQ(e.target.value)}
-              placeholder="휴대폰 / 이메일 / 예명 / 실명 / 제목"
-              className={inputCls}
-            />
-          </div>
-          <div className="w-[150px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 시작</label>
-            <input type="date" value={frDate} onChange={(e) => { setFrDate(e.target.value); setPage(1) }} className={inputCls} />
-          </div>
-          <div className="w-[150px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">기간 종료</label>
-            <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1) }} className={inputCls} />
-          </div>
-          <div className="flex gap-2 ml-auto">
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium"
-            >
-              <Search className="w-4 h-4" /> 검색
-            </button>
-            <button
-              type="button"
-              onClick={onReset}
-              className="px-3 py-2 text-sm rounded-md border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-            >
-              초기화
-            </button>
-          </div>
-        </form>
-        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-          <DateRangeChips
-            from={frDate}
-            to={toDate}
-            onPick={(r) => { setFrDate(r.from); setToDate(r.to); setPage(1) }}
-          />
-        </div>
       </div>
 
       {error && (

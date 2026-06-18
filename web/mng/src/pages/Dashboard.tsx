@@ -503,7 +503,7 @@ export default function Dashboard() {
                   <span className={`flex-shrink-0 w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold ${i === 0 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'}`}>
                     {i + 1}
                   </span>
-                  <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{c.nickname ?? c.mb_id ?? `#${c.id}`}</span>
+                  <span className="font-medium text-gray-800 dark:text-gray-100 truncate max-w-[150px]" title={String(c.nickname ?? c.mb_id ?? '')}>{c.nickname ?? c.mb_id ?? `#${c.id}`}</span>
                 </Link>
                 <span className="text-[11px] font-semibold tabular-nums text-emerald-600 flex-shrink-0 ml-2">{c.count}건</span>
               </li>
@@ -518,8 +518,8 @@ export default function Dashboard() {
             ) : counselorPanel.inactive_7d.map((c) => (
               <li key={c.id} className="py-1 flex items-center justify-between text-xs">
                 <Link to={`/members/counselors/${c.id}`} className="min-w-0 flex-1 hover:text-brand-600">
-                  <span className="font-medium text-gray-800 dark:text-gray-100">{c.nickname ?? c.mb_id ?? `#${c.id}`}</span>
-                  <span className="text-[10px] text-gray-400 ml-1">{c.mb_id ?? ''}</span>
+                  <span className="inline-block max-w-[150px] truncate align-bottom font-medium text-gray-800 dark:text-gray-100" title={String(c.nickname ?? c.mb_id ?? '')}>{c.nickname ?? c.mb_id ?? `#${c.id}`}</span>
+                  <span className="inline-block max-w-[150px] truncate align-bottom text-[10px] text-gray-400 ml-1" title={String(c.mb_id ?? '')}>{c.mb_id ?? ''}</span>
                 </Link>
                 <span className="text-[10px] text-rose-500 tabular-nums flex-shrink-0 ml-2">
                   {c.last_at ? `${formatRelative(c.last_at)} 전` : '활동 0'}

@@ -185,8 +185,8 @@ export default function PostReports() {
                       <span className="text-gray-500 tabular-nums text-xs">#{r.post_id}</span>
                     )}
                   </Td>
-                  <Td align="left" className="text-xs">{r.reporter_mb_id ?? <span className="text-gray-300">-</span>}</Td>
-                  <Td align="left" className="text-xs">{r.target_mb_id ?? <span className="text-gray-300">-</span>}</Td>
+                  <Td align="left" className="text-xs"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(r.reporter_mb_id ?? '')}>{r.reporter_mb_id ?? <span className="text-gray-300">-</span>}</span></Td>
+                  <Td align="left" className="text-xs"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(r.target_mb_id ?? '')}>{r.target_mb_id ?? <span className="text-gray-300">-</span>}</span></Td>
                   <Td align="left" className="text-gray-600 max-w-[220px] truncate text-xs">{r.reason ?? <span className="text-gray-300">-</span>}</Td>
                   <Td align="center"><Badge color={s.color}>{s.label}</Badge></Td>
                   <Td align="center">

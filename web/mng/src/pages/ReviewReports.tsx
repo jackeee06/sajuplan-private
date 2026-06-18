@@ -156,7 +156,9 @@ export default function ReviewReports() {
                     {r.review_title ?? <span className="text-gray-400">(삭제됨)</span>}
                   </Td>
                   <Td align="left" className="text-gray-700">
-                    {r.reporter_nickname || r.reporter_mb_id || `#${r.reporter_member_id}`}
+                    <span className="inline-block max-w-[150px] truncate align-bottom" title={String(r.reporter_nickname || r.reporter_mb_id || '')}>
+                      {r.reporter_nickname || r.reporter_mb_id || `#${r.reporter_member_id}`}
+                    </span>
                   </Td>
                   <Td align="center">
                     <Badge color={st.color}>{st.label}</Badge>

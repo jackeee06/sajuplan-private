@@ -107,7 +107,7 @@ export default function CounselorOpsSummary() {
             운영 현황 — {c.nickname ?? '—'}
           </h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {c.mb_id ?? ''} · {c.name ?? ''} · {c.grade_label} · 현재 상태: <span className="font-medium">{stateLabel}</span>
+            <span className="inline-block max-w-[150px] truncate align-bottom" title={String(c.mb_id ?? '')}>{c.mb_id ?? ''}</span> · {c.name ?? ''} · {c.grade_label} · 현재 상태: <span className="font-medium">{stateLabel}</span>
           </p>
         </div>
         <button

@@ -131,7 +131,7 @@ export default function Sidebar() {
                     <li><NavLink to="/ops-kpi" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 운영 KPI</NavLink></li>
                     <li><NavLink to="/charge-amounts" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>충전금액 설정</NavLink></li>
                     <li><NavLink to="/payments" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>결제 내역</NavLink></li>
-                    <li><NavLink to="/points/history" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>포인트 관리</NavLink></li>
+                    <li><NavLink to="/points/history" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>코인·수익금 원장</NavLink></li>
                     <li><NavLink to="/settlements" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>정산 이력</NavLink></li>
                     <li><NavLink to="/payouts" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 선지급 관리</NavLink></li>
                     <li><NavLink to="/referrals" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 추천수익금</NavLink></li>

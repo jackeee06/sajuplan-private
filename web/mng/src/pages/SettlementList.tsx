@@ -4,6 +4,7 @@ import { Search } from 'lucide-react'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
+import { DateField } from '../components/DateField'
 import {
   Th,
   Td,
@@ -328,11 +329,11 @@ export default function SettlementList() {
             </div>
             <div className="w-[150px]">
               <label className="block text-[11px] font-medium text-gray-500 mb-1">시작 월</label>
-              <input type="date" value={pending.fr_date} onChange={(e) => setPending({ ...pending, fr_date: e.target.value })} className={inputCls} />
+              <DateField value={pending.fr_date} onChange={(v) => setPending({ ...pending, fr_date: v })} placeholder="시작일" />
             </div>
             <div className="w-[150px]">
               <label className="block text-[11px] font-medium text-gray-500 mb-1">종료 월</label>
-              <input type="date" value={pending.to_date} onChange={(e) => setPending({ ...pending, to_date: e.target.value })} className={inputCls} />
+              <DateField value={pending.to_date} onChange={(v) => setPending({ ...pending, to_date: v })} placeholder="종료일" />
             </div>
             <div className="ml-auto">
               <button onClick={onSearch} className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium">
@@ -388,11 +389,11 @@ export default function SettlementList() {
               <Tr key={vm.key}>
                 <Td align="left">
                   {vm.member_id && vm.mb_id ? (
-                    <Link to={`/members/counselors/${vm.member_id}`} className="text-brand-600 hover:underline font-medium">
+                    <Link to={`/members/counselors/${vm.member_id}`} className="text-brand-600 hover:underline font-medium inline-block max-w-[150px] truncate align-bottom" title={String(vm.mb_id ?? '')}>
                       {vm.mb_id}
                     </Link>
                   ) : (
-                    <span className="text-gray-500">{vm.mb_id || '-'}</span>
+                    <span className="inline-block max-w-[150px] truncate align-bottom text-gray-500" title={String(vm.mb_id ?? '')}>{vm.mb_id || '-'}</span>
                   )}
                 </Td>
                 <Td align="left">{vm.name || <span className="text-gray-300">-</span>}</Td>

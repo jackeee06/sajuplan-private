@@ -5,6 +5,7 @@ import { api } from '../lib/api'
 import { openPostcode } from '../lib/daumPostcode'
 import PointAdjustPanel from '../components/PointAdjustPanel'
 import MemberCoinTimeline from '../components/MemberCoinTimeline'
+import { DateField } from '../components/DateField'
 
 interface CustomerPayload {
   mb_id: string
@@ -195,7 +196,7 @@ export default function CustomerForm() {
           </select>
         </Row>
         <Row label="생년월일">
-          <input type="date" value={data.birth_date} onChange={(e) => set('birth_date', e.target.value)} className={inputCls} />
+          <DateField value={data.birth_date} onChange={(v) => set('birth_date', v)} placeholder="생년월일" />
         </Row>
         <Row label="포인트" hint={isNew ? '초기 지급 포인트' : '직접 수정 불가 — 포인트 조정 기능으로 변경 (이력 기록)'}>
           <input

@@ -99,51 +99,44 @@ export default function CouponZoneList() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="space-y-3">
-      {/* 타이틀 + 추가 */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">쿠폰존 관리</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">다운로드/코드입력/포인트추가 쿠폰</p>
-        </div>
+    <div className="space-y-2">
+      {/* 타이틀 — 한 줄, 부제 인라인 (조밀) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">쿠폰존 관리</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">다운로드/코드입력/포인트추가 쿠폰</span>
+      </div>
+
+      {/* 툴바 — 추가 + 검색 + 칩을 한 줄에 (좌측 정렬, 카드·여백 제거) */}
+      <div className="flex flex-wrap items-center gap-1.5">
         <Link
           to="/coupon-zones/new"
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium"
+          className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium whitespace-nowrap"
         >
           <Plus className="w-4 h-4" /> 쿠폰 추가
         </Link>
-      </div>
 
-      {/* 상단 칩 */}
-      {data && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip label="전체" value={data.total} />
-        </div>
-      )}
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
 
-      {/* 검색 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="w-[260px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
-            <input
-              type="text"
-              value={pending}
-              onChange={(e) => setPending(e.target.value)}
-              placeholder="쿠폰이름 검색"
-              className={inputCls}
-              onKeyDown={(e) => e.key === 'Enter' && setFilter({ stx: pending, page: 1 })}
-            />
-          </div>
-          <div className="ml-auto">
-            <button
-              onClick={() => setFilter({ stx: pending, page: 1 })}
-              className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium"
-            >
-              <Search className="w-4 h-4" /> 검색
-            </button>
-          </div>
+        <div className="w-[200px]">
+          <input
+            type="text"
+            value={pending}
+            onChange={(e) => setPending(e.target.value)}
+            placeholder="쿠폰이름 검색"
+            className={inputCls}
+            onKeyDown={(e) => e.key === 'Enter' && setFilter({ stx: pending, page: 1 })}
+          />
         </div>
+        <button
+          onClick={() => setFilter({ stx: pending, page: 1 })}
+          className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium"
+        >
+          <Search className="w-4 h-4" /> 검색
+        </button>
+
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+        {data && <Chip label="전체" value={data.total} />}
       </div>
 
       {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}

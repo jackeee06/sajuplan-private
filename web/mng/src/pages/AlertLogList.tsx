@@ -73,9 +73,10 @@ export default function AlertLogList() {
 
   return (
     <div className="space-y-4 max-w-[1100px]">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">알림 이력</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">발송된 모든 알림과 현재 시스템 점검 상태 — 불안하면 여기서 상세를 확인하세요.</p>
+      {/* 타이틀 — 한 줄, 부제 인라인 (조밀) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">알림 이력</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">발송된 모든 알림과 현재 시스템 점검 상태 — 불안하면 여기서 상세를 확인하세요.</span>
       </div>
 
       {/* 현재 시스템 점검 */}

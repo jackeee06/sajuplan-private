@@ -4,6 +4,7 @@ import { Search, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
+import { DateField } from '../components/DateField'
 import SeedReviewModal from '../components/SeedReviewModal'
 import ReviewEditModal from '../components/ReviewEditModal'
 import {
@@ -106,7 +107,7 @@ const POLICY_INFO: Record<string, { rows: { label: string; value: string }[] } |
   },
 }
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = 50
 
 export default function PostList() {
   const { slug = 'review' } = useParams<{ slug: string }>()
@@ -234,30 +235,21 @@ export default function PostList() {
   const policy = POLICY_INFO[slug] ?? null
 
   return (
-    <div className="space-y-3 max-w-[1100px]">
-      {/* 타이틀 */}
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{info.title}</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{info.desc}</p>
-        </div>
-        {isReview && (
-          <button
-            onClick={() => setSeedOpen(true)}
-            className="shrink-0 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white font-medium whitespace-nowrap"
-          >
-            + 시딩 후기 작성
-          </button>
-        )}
+    <div className="space-y-2 max-w-[1100px]">
+      {/* 타이틀 — 한 줄, 부제 인라인 (조밀) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{info.title}</h1>
+        {info.desc && <span className="text-xs text-gray-500 dark:text-gray-400">{info.desc}</span>}
+        {data && <span className="text-xs text-gray-500 dark:text-gray-400">· 전체 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건</span>}
       </div>
 
       {/* 운영 정책 안내 박스 */}
       {policy && (
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 w-fit max-w-full">
           <p className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-1">
             📋 운영 정책 — 고객 문의 시 참고
           </p>
-          <table className="w-full text-[12px] border-collapse">
+          <table className="w-auto text-[12px] border-collapse">
             <tbody>
               {policy.rows.map((row) => (
                 <tr key={row.label} className="border-t border-blue-100 dark:border-blue-800/50 first:border-t-0">
@@ -274,66 +266,59 @@ export default function PostList() {
         </div>
       )}
 
-      {/* 상단 카운트 */}
-      {data && (
-        <div className="text-xs text-gray-500">
-          전체 <span className="text-brand-600 font-semibold">{data.total.toLocaleString()}</span>건
-        </div>
-      )}
-
-      {/* 검색 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="w-[260px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
-            <input
-              type="text"
-              value={pending.q}
-              onChange={(e) => setPending({ ...pending, q: e.target.value })}
-              placeholder="제목 / 내용 / 회원 검색"
-              className={inputCls}
-              onKeyDown={(e) => e.key === 'Enter' && setFilter({ ...filter, ...pending, page: 1 })}
-            />
-          </div>
-          <div className="w-[160px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">시작일</label>
-            <input
-              type="date"
-              value={pending.fr_date}
-              onChange={(e) => setPending({ ...pending, fr_date: e.target.value })}
-              className={inputCls}
-            />
-          </div>
-          <div className="w-[160px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">종료일</label>
-            <input
-              type="date"
-              value={pending.to_date}
-              onChange={(e) => setPending({ ...pending, to_date: e.target.value })}
-              className={inputCls}
-            />
-          </div>
-          <div className="ml-auto">
+      {/* 툴바 — 시딩 + 검색 + 기간 + 날짜칩을 한 줄에 (좌측 정렬, 카드·여백 제거) */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {isReview && (
+          <>
             <button
-              onClick={() => setFilter({ ...filter, ...pending, page: 1 })}
-              className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium"
+              onClick={() => setSeedOpen(true)}
+              className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white font-medium whitespace-nowrap"
             >
-              <Search className="w-4 h-4" /> 검색
+              + 시딩 후기 작성
             </button>
-          </div>
-        </div>
-        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-          <DateRangeChips
-            from={pending.fr_date}
-            to={pending.to_date}
-            allowAll={isReview}
-            onPick={(r) => {
-              const next = { ...pending, fr_date: r.from, to_date: r.to }
-              setPending(next)
-              setFilter((f) => ({ ...f, ...next, page: 1 }))
-            }}
+            <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+          </>
+        )}
+
+        <div className="w-[140px]">
+          <input
+            type="text"
+            value={pending.q}
+            onChange={(e) => setPending({ ...pending, q: e.target.value })}
+            placeholder="제목 / 내용 / 회원 검색"
+            className={inputCls}
+            onKeyDown={(e) => e.key === 'Enter' && setFilter({ ...filter, ...pending, page: 1 })}
           />
         </div>
+        <DateField
+          value={pending.fr_date}
+          onChange={(v) => setPending({ ...pending, fr_date: v })}
+          placeholder="시작일"
+        />
+        <DateField
+          value={pending.to_date}
+          onChange={(v) => setPending({ ...pending, to_date: v })}
+          placeholder="종료일"
+        />
+        <button
+          onClick={() => setFilter({ ...filter, ...pending, page: 1 })}
+          className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium"
+        >
+          <Search className="w-4 h-4" /> 검색
+        </button>
+
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+        <DateRangeChips
+          from={pending.fr_date}
+          to={pending.to_date}
+          allowAll={isReview}
+          onPick={(r) => {
+            const next = { ...pending, fr_date: r.from, to_date: r.to }
+            setPending(next)
+            setFilter((f) => ({ ...f, ...next, page: 1 }))
+          }}
+        />
       </div>
 
       {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}
@@ -422,7 +407,8 @@ export default function PostList() {
                       <Link
                         to={`/members/customers/${p.member_id}`}
                         onClick={(e) => e.stopPropagation()}
-                        className="text-brand-600 hover:underline font-medium"
+                        className="inline-block max-w-[150px] truncate align-bottom text-brand-600 hover:underline font-medium"
+                        title={String(p.mb_id ?? '')}
                       >
                         {p.mb_id}
                       </Link>
