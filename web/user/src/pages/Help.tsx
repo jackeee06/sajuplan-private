@@ -2,7 +2,6 @@
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import FloatingActions from '../components/FloatingActions'
-import Pagination from '../components/Pagination'
 import {
   faqsApi,
   settingsApi,
@@ -11,7 +10,6 @@ import {
 } from '../lib/api'
 import { openExternalUrl } from '../lib/native-bridge'
 
-const PAGE_SIZE = 5
 const ALL_LABEL = '전체'
 
 /**
@@ -36,8 +34,6 @@ export default function Help() {
   const [error, setError] = useState<string | null>(null)
 
   const [category, setCategory] = useState<string>(ALL_LABEL)
-  const [catOpen, setCatOpen] = useState(false)
-  const [page, setPage] = useState(1)
   const [openId, setOpenId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -74,8 +70,6 @@ export default function Help() {
     return faqs.filter((f) => f.category_title === category)
   }, [category, faqs])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
   const isEmpty = !loading && filtered.length === 0
 
   const handleInquiry = () => {
@@ -99,7 +93,7 @@ export default function Help() {
           <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
         </button>
         <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">
-          이용안내
+          자주 묻는 질문
         </h1>
       </header>
 
@@ -119,14 +113,24 @@ export default function Help() {
               </span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleInquiry}
-            className="mt-4 w-full h-[44px] rounded-full border border-[#f472b6] bg-white flex items-center justify-center gap-1.5 text-[15px] font-medium text-[#ec4899]"
-          >
-            <img src="/img/ic_write_p.svg" alt="" className="w-5 h-5" />
-            카카오 1:1 문의
-          </button>
+          {/* 문의는 마이 > 고객센터 문의 타일이 메인. 여기선 보조 진입만 작게 */}
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => navigate('/mypage/support-inquiries/new')}
+              className="h-9 px-4 rounded-full border border-[#f472b6] bg-white text-[#ec4899] flex items-center justify-center text-[13px] font-medium"
+            >
+              1:1 문의하기
+            </button>
+            <button
+              type="button"
+              onClick={handleInquiry}
+              className="h-9 px-3 rounded-full bg-white flex items-center justify-center gap-1.5 text-[13px] text-[#6A7282]"
+            >
+              <img src="/img/ic_write_p.svg" alt="" className="w-4 h-4" />
+              카카오톡 채널
+            </button>
+          </div>
         </section>
 
         <section className="mt-6">
@@ -134,65 +138,31 @@ export default function Help() {
             자주 묻는 질문
           </h2>
 
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setCatOpen((o) => !o)}
-              aria-haspopup="listbox"
-              aria-expanded={catOpen}
-              className="w-full h-[48px] px-4 rounded-full bg-[#F9FAFB] border border-[#F3F4F6] flex items-center justify-between text-[15px] text-[#1E2939]"
-            >
-              <span className={category === ALL_LABEL ? 'text-[#99A1AF]' : 'text-[#1E2939]'}>
-                {category === ALL_LABEL ? '카테고리 선택' : category}
-              </span>
-              <svg
-                viewBox="0 0 16 16"
-                className={`w-4 h-4 transition-transform ${catOpen ? 'rotate-180' : ''}`}
-                fill="none"
-                aria-hidden
-              >
-                <path
-                  d="M4 6L8 10L12 6"
-                  stroke="#6A7282"
-                  strokeWidth="1.4"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-            {catOpen && (
-              <ul
-                role="listbox"
-                aria-label="카테고리"
-                className="absolute top-[calc(100%+4px)] left-0 right-0 z-50 max-h-[260px] overflow-y-auto bg-white rounded-[12px] border border-[#E5E7EB] shadow-[0_8px_20px_rgba(16,24,40,0.08)] py-1"
-              >
-                {[ALL_LABEL, ...categories.map((c) => c.title)].map((c) => {
-                  const selected = c === category
-                  return (
-                    <li key={c}>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={selected}
-                        onClick={() => {
-                          setCategory(c)
-                          setCatOpen(false)
-                          setPage(1)
-                          setOpenId(null)
-                        }}
-                        className={`w-full px-4 py-2.5 text-left text-[15px] leading-5 ${
-                          selected
-                            ? 'text-[#ec4899] font-medium bg-[#fdf2f8]'
-                            : 'text-[#1E2939] hover:bg-[#F9FAFB]'
-                        }`}
-                      >
-                        {c}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
+          {/* 카테고리 탭 — 가로 스크롤 pill (전부 보임, 1탭 선택) */}
+          <div className="-mx-4 px-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
+            <div className="flex gap-2 w-max pb-0.5">
+              {[ALL_LABEL, ...categories.map((c) => c.title)].map((c) => {
+                const selected = c === category
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => {
+                      setCategory(c)
+                      setOpenId(null)
+                    }}
+                    className={`shrink-0 h-9 px-4 rounded-full text-[14px] font-medium whitespace-nowrap transition-colors ${
+                      selected
+                        ? 'bg-[#f472b6] text-white'
+                        : 'bg-[#F9FAFB] text-[#6A7282] border border-[#F3F4F6]'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </section>
 
@@ -218,7 +188,7 @@ export default function Help() {
           </section>
         ) : (
           <ul className="mt-2 flex flex-col">
-            {pageItems.map((f) => {
+            {filtered.map((f) => {
               const open = openId === f.id
               return (
                 <li key={f.id} className="border-b border-[#F3F4F6]">
@@ -260,10 +230,6 @@ export default function Help() {
               )
             })}
           </ul>
-        )}
-
-        {!loading && !error && !isEmpty && (
-          <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
         )}
       </main>
 

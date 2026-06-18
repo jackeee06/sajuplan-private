@@ -173,7 +173,7 @@ export default function FaqList() {
                   {openCat[c.id] ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
                   <span className="font-semibold text-sm text-gray-900 dark:text-gray-100">{c.title}</span>
                   <span className="text-xs text-gray-500">({c.faq_count}건)</span>
-                  {!c.is_active && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">비노출</span>}
+                  {!c.is_active && <span className="text-[10px] whitespace-nowrap px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">비노출</span>}
                 </button>
                 <div className="flex items-center gap-1.5">
                   <button onClick={() => setFaqModal({ categoryId: c.id, question: '', answer: '', display_order: 0, is_active: true })} className="text-xs px-2 py-1 rounded-md border border-brand-200 text-brand-700 hover:bg-brand-50 font-medium">
@@ -191,7 +191,7 @@ export default function FaqList() {
                         <th className="px-4 py-2 text-left font-medium w-16 whitespace-nowrap">번호</th>
                         <th className="px-4 py-2 text-left font-medium">질문</th>
                         <th className="px-4 py-2 text-left font-medium w-16">순서</th>
-                        <th className="px-4 py-2 text-left font-medium w-16">노출</th>
+                        <th className="px-4 py-2 text-left font-medium w-20 whitespace-nowrap">노출</th>
                         <th className="px-4 py-2 text-right font-medium whitespace-nowrap">관리</th>
                       </tr>
                     </thead>
@@ -208,11 +208,11 @@ export default function FaqList() {
                             <td className="px-4 py-2 text-xs text-gray-400 tabular-nums">{i + 1}</td>
                             <td className="px-4 py-2 max-w-[600px] truncate font-medium">{f.question}</td>
                             <td className="px-4 py-2 text-xs text-gray-500 tabular-nums">{f.display_order}</td>
-                            <td className="px-4 py-2">
+                            <td className="px-4 py-2 whitespace-nowrap">
                               {f.is_active ? (
-                                <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">노출</span>
+                                <span className="inline-flex items-center whitespace-nowrap px-2 py-0.5 text-[11px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">노출</span>
                               ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-full bg-gray-50 text-gray-600 border border-gray-200">비노출</span>
+                                <span className="inline-flex items-center whitespace-nowrap px-2 py-0.5 text-[11px] font-medium rounded-full bg-gray-50 text-gray-600 border border-gray-200">비노출</span>
                               )}
                             </td>
                             <td className="px-4 py-2 text-right whitespace-nowrap">
