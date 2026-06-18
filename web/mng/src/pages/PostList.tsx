@@ -96,6 +96,13 @@ const POLICY_INFO: Record<string, { rows: { label: string; value: string }[] } |
       { label: '신고 처리', value: '동일 후기에 신고 3회 이상 → 자동 숨김. 관리자 복원 가능' },
     ],
   },
+  qa: {
+    rows: [
+      { label: '게시판 성격', value: '회원이 올린 일반 상담 관련 문의 게시판' },
+      { label: '답변', value: '관리자가 답변을 등록·수정·삭제. 목록에서 행을 클릭하면 답변 작성창이 열림' },
+      { label: '검색', value: '제목·내용·회원으로 검색, 기간(작성일) 필터 지원' },
+    ],
+  },
   qa_counselor: {
     rows: [
       { label: '작성 제한', value: '같은 상담사에게 하루 최대 5개. 다른 상담사에게는 별도 5개 허용' },

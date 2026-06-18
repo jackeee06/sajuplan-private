@@ -345,6 +345,37 @@ export function PaginationBar({
   )
 }
 
+/**
+ * 운영 정책/안내 박스 — 리스트 상단의 파란 안내 카드 (상담후기 관리 표준).
+ * 관리자가 고객 문의 응대 시 참고하는 규칙·분류·상태 의미를 라벨/값 표로 보여준다.
+ * w-fit 이라 내용 폭에 맞게 좌측 정렬된다.
+ */
+export function InfoBox({
+  title = '📋 운영 정책 — 고객 문의 시 참고',
+  rows,
+}: {
+  title?: string
+  rows: { label: string; value: ReactNode }[]
+}) {
+  return (
+    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 w-fit max-w-full">
+      <p className="text-[11px] font-semibold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-1">{title}</p>
+      <table className="w-auto text-[12px] border-collapse">
+        <tbody>
+          {rows.map((row, i) => (
+            <tr key={i} className="border-t border-blue-100 dark:border-blue-800/50 first:border-t-0">
+              <td className="py-1.5 pr-4 font-medium text-blue-800 dark:text-blue-300 whitespace-nowrap w-[120px] align-top">
+                {row.label}
+              </td>
+              <td className="py-1.5 text-gray-700 dark:text-gray-300 leading-relaxed">{row.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 /** 결과 카운트(상단) — "전체 N건" 형태, 강조숫자는 brand */
 export function ResultCount({ total, unit = '건' }: { total: number; unit?: string }) {
   return (

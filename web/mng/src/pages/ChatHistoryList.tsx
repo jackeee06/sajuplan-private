@@ -15,6 +15,7 @@ import {
   EmptyRow,
   NumCell,
   PaginationBar,
+  InfoBox,
   inputCls,
 } from '../components/table'
 
@@ -72,61 +73,58 @@ export default function ChatHistoryList() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
 
   return (
-    <div className="space-y-3 max-w-[1100px]">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">채팅내역 리스트</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">상담사-회원 채팅 룸 이력</p>
+    <div className="space-y-2 max-w-[1100px]">
+      {/* 타이틀 — 한 줄, 부제·카운트 인라인 (상담후기 관리 표준) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">채팅내역 리스트</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">상담사-회원 채팅 룸 이력</span>
+        {data && (
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            · 전체 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건
+          </span>
+        )}
       </div>
 
-      {data && (
-        <div className="text-xs text-gray-500">
-          전체 <span className="text-brand-600 font-semibold">{data.total.toLocaleString()}</span>건
-        </div>
-      )}
+      {/* 운영 안내 */}
+      <InfoBox
+        title="📋 채팅내역 안내"
+        rows={[
+          { label: '대상', value: '상담사 ↔ 회원 간 채팅 상담 룸 이력 (선결제 채팅 포함)' },
+          { label: '룸ID', value: '한 건의 채팅 상담을 식별하는 값 — 행을 클릭하면 대화 내용 상세로 이동' },
+          { label: '검색', value: '회원 / 상담사 / 룸ID 로 검색, 기간(시작일)으로 필터' },
+        ]}
+      />
 
-      {/* 검색 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="w-[260px]">
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">검색</label>
-            <input
-              type="text"
-              value={pending.q}
-              onChange={(e) => setPending({ ...pending, q: e.target.value })}
-              placeholder="회원 / 상담사 / 룸ID"
-              className={inputCls}
-              onKeyDown={(e) => e.key === 'Enter' && setFilter({ ...filter, ...pending, page: 1 })}
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">시작일</label>
-            <DateField value={pending.fr_date} onChange={(v) => setPending({ ...pending, fr_date: v })} placeholder="시작일" />
-          </div>
-          <div>
-            <label className="block text-[11px] font-medium text-gray-500 mb-1">종료일</label>
-            <DateField value={pending.to_date} onChange={(v) => setPending({ ...pending, to_date: v })} placeholder="종료일" />
-          </div>
-          <div className="ml-auto">
-            <button
-              onClick={() => setFilter({ ...filter, ...pending, page: 1 })}
-              className="px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1.5 font-medium"
-            >
-              <Search className="w-4 h-4" /> 검색
-            </button>
-          </div>
-        </div>
-        {/* [2026-06-02] 빠른 기간 칩 — 사장님 합의 (오늘/어제/최근7일/이번달/지난달) */}
-        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-          <DateRangeChips
-            from={pending.fr_date}
-            to={pending.to_date}
-            onPick={(r) => {
-              const next = { ...pending, fr_date: r.from, to_date: r.to }
-              setPending(next)
-              setFilter((f) => ({ ...f, ...next, page: 1 }))
-            }}
+      {/* 툴바 — 검색 + 기간 + 날짜칩 한 줄 (카드·여백 제거, 상담후기 표준) */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <div className="w-[200px]">
+          <input
+            type="text"
+            value={pending.q}
+            onChange={(e) => setPending({ ...pending, q: e.target.value })}
+            placeholder="회원 / 상담사 / 룸ID"
+            className={inputCls}
+            onKeyDown={(e) => e.key === 'Enter' && setFilter({ ...filter, ...pending, page: 1 })}
           />
         </div>
+        <DateField value={pending.fr_date} onChange={(v) => setPending({ ...pending, fr_date: v })} placeholder="시작일" />
+        <DateField value={pending.to_date} onChange={(v) => setPending({ ...pending, to_date: v })} placeholder="종료일" />
+        <button
+          onClick={() => setFilter({ ...filter, ...pending, page: 1 })}
+          className="px-3 py-1.5 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white inline-flex items-center gap-1 font-medium"
+        >
+          <Search className="w-4 h-4" /> 검색
+        </button>
+        <span className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+        <DateRangeChips
+          from={pending.fr_date}
+          to={pending.to_date}
+          onPick={(r) => {
+            const next = { ...pending, fr_date: r.from, to_date: r.to }
+            setPending(next)
+            setFilter((f) => ({ ...f, ...next, page: 1 }))
+          }}
+        />
       </div>
 
       {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm">{error}</div>}

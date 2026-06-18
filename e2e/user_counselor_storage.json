@@ -2,10 +2,10 @@
   "cookies": [
     {
       "name": "sjm_user",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMDIiLCJtYl9pZCI6ImR1bW15XzAxIiwicm9sZSI6ImNvdW5zZWxvciIsImxldmVsIjo1LCJpYXQiOjE3ODE4MTcxNjYsImV4cCI6MTc4MzAyNjc2NiwiaXNzIjoic2FqdW1vb24tdXNlciJ9.rOdkZh2lWVNA-lXrl7mGR3XVlkClmnr74_G56U5J9pk",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMDIiLCJtYl9pZCI6ImR1bW15XzAxIiwicm9sZSI6ImNvdW5zZWxvciIsImxldmVsIjo1LCJpYXQiOjE3ODE4MTc4MDYsImV4cCI6MTc4MzAyNzQwNiwiaXNzIjoic2FqdW1vb24tdXNlciJ9.4VrJHLifX6tJKOUHXqmWjtFJ4dkWoODU6bwQ42WyaqM",
       "domain": ".sajuplan.com",
       "path": "/",
-      "expires": 1783026767.119564,
+      "expires": 1783027407.197158,
       "httpOnly": true,
       "secure": true,
       "sameSite": "None"

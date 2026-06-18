@@ -2,6 +2,18 @@ import { useCallback, useEffect, useState } from 'react'
 import { Search } from 'lucide-react'
 import { api } from '../lib/api'
 import { FILE_BASE } from '../lib/runtime-env'
+import {
+  Th,
+  Td,
+  Tr,
+  TableShell,
+  THead,
+  TBody,
+  EmptyRow,
+  Badge,
+  PaginationBar,
+  InfoBox,
+} from '../components/table'
 
 /**
  * 상담사 → 운영자 1:1 고객센터 문의 관리.
@@ -54,8 +66,8 @@ interface DetailDto {
 const CATEGORIES = ['이용안내', '상담', '정산', '서비스상품']
 const PAGE_SIZE = 20
 
-const inputCls =
-  'text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-violet-300'
+const ctrlCls =
+  'text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400'
 
 function fmt(iso: string | null): string {
   if (!iso) return '-'
@@ -147,23 +159,35 @@ export default function CounselorInquiryList() {
   const resolveImg = (u: string) => (u.startsWith('/') ? `${FILE_BASE}${u}` : u)
 
   return (
-    <div className="p-4 sm:p-6">
-      <div className="mb-4">
-        <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">상담사 문의 (고객센터)</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          상담사가 마이페이지 "문의하기"로 보낸 문의를 확인하고 답변합니다. 답변하면 상담사 화면에 "답변완료"로 표시됩니다.
-        </p>
+    <div className="space-y-2 max-w-[1100px]">
+      {/* 타이틀 — 한 줄, 부제·카운트 인라인 (상담후기 관리 표준) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">상담사 고객센터 문의</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">상담사가 마이페이지 "문의하기"로 보낸 문의 — 확인 후 답변</span>
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          · 전체 <span className="text-brand-600 font-semibold tabular-nums">{total.toLocaleString()}</span>건
+        </span>
       </div>
 
-      {/* 필터 */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      {/* 운영 안내 */}
+      <InfoBox
+        title="📋 고객센터 문의 안내"
+        rows={[
+          { label: '분류', value: '이용안내 / 상담 / 정산 / 서비스상품' },
+          { label: '상태', value: '답변대기(미응답) → 답변완료. 답변을 저장하면 상담사 화면에 "답변완료"로 표시됨' },
+          { label: '답변', value: '행을 클릭해 본문·첨부 확인 후 운영팀 답변 등록. 답변 삭제 시 다시 답변대기로 전환' },
+        ]}
+      />
+
+      {/* 툴바 — 상태·분류·검색 한 줄 (좌측 정렬) */}
+      <div className="flex flex-wrap items-center gap-1.5">
         <select
           value={status}
           onChange={(e) => {
             setStatus(e.target.value)
             setPage(1)
           }}
-          className={inputCls}
+          className={ctrlCls}
         >
           <option value="">전체 상태</option>
           <option value="pending">답변대기</option>
@@ -175,7 +199,7 @@ export default function CounselorInquiryList() {
             setCategory(e.target.value)
             setPage(1)
           }}
-          className={inputCls}
+          className={ctrlCls}
         >
           <option value="">전체 분류</option>
           {CATEGORIES.map((c) => (
@@ -195,100 +219,54 @@ export default function CounselorInquiryList() {
               }
             }}
             placeholder="제목·내용·상담사 검색"
-            className={`${inputCls} pl-8 w-56`}
+            className={`${ctrlCls} pl-8 w-48`}
           />
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         </div>
-        <span className="ml-auto text-sm text-gray-500">
-          전체 <span className="font-semibold text-violet-600">{total.toLocaleString()}</span>건
-        </span>
       </div>
 
-      {error && <p className="mb-2 text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-rose-500">{error}</p>}
 
       {/* 목록 */}
-      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
-            <tr>
-              <th className="px-3 py-2 text-left font-medium">상태</th>
-              <th className="px-3 py-2 text-left font-medium">분류</th>
-              <th className="px-3 py-2 text-left font-medium">제목</th>
-              <th className="px-3 py-2 text-left font-medium">상담사</th>
-              <th className="px-3 py-2 text-left font-medium">작성일</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-10 text-center text-gray-400">
-                  불러오는 중…
-                </td>
-              </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-3 py-10 text-center text-gray-400">
-                  문의가 없습니다.
-                </td>
-              </tr>
-            ) : (
-              items.map((it) => (
-                <tr
-                  key={it.id}
-                  onClick={() => openDetail(it.id)}
-                  className="border-t border-gray-100 dark:border-gray-800 cursor-pointer hover:bg-violet-50/60 dark:hover:bg-gray-800"
-                >
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        it.status === 'answered'
-                          ? 'bg-violet-100 text-violet-700'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      {it.status === 'answered' ? '답변완료' : '답변대기'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-violet-600">{it.category}</td>
-                  <td className="px-3 py-2 text-gray-900 dark:text-gray-100">
-                    {it.title}
-                    {it.photo_count > 0 && (
-                      <span className="ml-1 text-xs text-gray-400">📷{it.photo_count}</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-600">
+      <TableShell>
+        <THead>
+          <Th align="center">상태</Th>
+          <Th align="left">분류</Th>
+          <Th align="left">제목</Th>
+          <Th align="left">상담사</Th>
+          <Th align="left">작성일</Th>
+        </THead>
+        <TBody>
+          {loading ? (
+            <EmptyRow colSpan={5} loading />
+          ) : items.length === 0 ? (
+            <EmptyRow colSpan={5} />
+          ) : (
+            items.map((it) => (
+              <Tr key={it.id} onClick={() => openDetail(it.id)}>
+                <Td align="center">
+                  <Badge color={it.status === 'answered' ? 'indigo' : 'gray'}>
+                    {it.status === 'answered' ? '답변완료' : '답변대기'}
+                  </Badge>
+                </Td>
+                <Td align="left" className="text-brand-600">{it.category}</Td>
+                <Td align="left" className="text-gray-800 dark:text-gray-100">
+                  {it.title}
+                  {it.photo_count > 0 && <span className="ml-1 text-xs text-gray-400">📷{it.photo_count}</span>}
+                </Td>
+                <Td align="left" className="text-gray-600">
+                  <span className="inline-block max-w-[150px] truncate align-bottom" title={String(it.counselor_name || it.mb_id || '')}>
                     {it.counselor_name ?? it.mb_id ?? `#${it.member_id}`}
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-500">{fmt(it.created_at)}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                  </span>
+                </Td>
+                <Td align="left" className="text-gray-500 tabular-nums">{fmt(it.created_at)}</Td>
+              </Tr>
+            ))
+          )}
+        </TBody>
+      </TableShell>
 
-      {/* 페이지네이션 */}
-      {totalPages > 1 && (
-        <div className="mt-3 flex items-center justify-center gap-2 text-sm">
-          <button
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            className="px-3 py-1 rounded border border-gray-200 disabled:opacity-40"
-          >
-            이전
-          </button>
-          <span className="px-2">
-            {page} / {totalPages}
-          </span>
-          <button
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            className="px-3 py-1 rounded border border-gray-200 disabled:opacity-40"
-          >
-            다음
-          </button>
-        </div>
-      )}
+      <PaginationBar page={page} totalPages={totalPages} total={total} pageSize={PAGE_SIZE} onChange={setPage} />
 
       {/* 상세 + 답변 모달 */}
       {detail && (

@@ -13,6 +13,7 @@ import {
   Badge,
   BadgeColor,
   PaginationBar,
+  InfoBox,
 } from '../components/table'
 
 /**
@@ -102,12 +103,28 @@ export default function ReviewReports() {
   const totalPages = data ? Math.max(1, Math.ceil(data.total / 30)) : 1
 
   return (
-    <div className="space-y-3 max-w-[1100px]">
-      {/* 타이틀 */}
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">후기 신고 관리</h1>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">사용자가 신고한 후기 목록 — 검토 후 처리 (숨김/반려)</p>
+    <div className="space-y-2 max-w-[1100px]">
+      {/* 타이틀 — 한 줄, 부제·카운트 인라인 (상담후기 관리 표준) */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">후기 신고 관리</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">사용자가 신고한 후기 — 검토 후 숨김/반려</span>
+        {data && (
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            · 전체 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건
+          </span>
+        )}
       </div>
+
+      {/* 운영 정책 안내 */}
+      <InfoBox
+        title="📋 신고 처리 안내"
+        rows={[
+          { label: '신고 사유', value: '욕설·비방 / 허위 사실 / 광고·스팸 / 개인정보 노출 / 기타' },
+          { label: '자동 숨김', value: '동일 후기에 신고 3회 이상 누적 시 자동 숨김 처리됨 (관리자 복원 가능)' },
+          { label: '처리 상태', value: '대기(미검토) → 검토 완료 / 숨김(노출 차단) / 반려(신고 기각)' },
+          { label: '처리 방법', value: '행을 클릭하면 후기 본문·신고자 확인 후 상태 변경 + 관리자 메모 저장' },
+        ]}
+      />
 
       {/* 필터 칩 */}
       <div className="flex flex-wrap gap-2">
