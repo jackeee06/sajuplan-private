@@ -25,6 +25,16 @@ import {
   secsToMin,
 } from '../components/table'
 
+/**
+ * 회원에게 노출되는 상담사 번호 = m2net 원본 dtmfno + 150 (1~999 정상 순번만).
+ * 90001~ 더미/미등록, csrid, padded id 등은 null → 미표시.
+ * user 프론트 formatCounselorNo 와 동일 규칙 (고객이 말하는 "258번"과 일치시키기 위함).
+ */
+function counselorDisplayNo(dtmfno: string | null): number | null {
+  const n = dtmfno == null ? NaN : Number(dtmfno)
+  return Number.isFinite(n) && n > 0 && n < 1000 ? n + 150 : null
+}
+
 interface Counselor {
   id: number
   mb_id: string | null
@@ -670,8 +680,19 @@ export default function CounselorList() {
                 <Td align="left" className="font-mono text-xs text-gray-600">
                   {fmtPhone(c.phone)}
                 </Td>
-                <Td align="left" className="font-mono text-xs text-gray-600">
-                  {c.dtmfno ?? <span className="text-gray-300">-</span>}
+                <Td align="left" className="text-xs">
+                  {(() => {
+                    const no = counselorDisplayNo(c.dtmfno)
+                    if (no == null) return <span className="text-gray-300">-</span>
+                    return (
+                      <div className="leading-tight">
+                        <div className="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
+                          {no}<span className="text-[10px] font-normal text-gray-400">번</span>
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-mono">원본 {c.dtmfno}</div>
+                      </div>
+                    )
+                  })()}
                 </Td>
                 <Td align="left" className="font-mono text-xs text-gray-600">
                   {c.csrid ?? <span className="text-gray-300">-</span>}
