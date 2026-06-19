@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { BookOpen, Smartphone } from 'lucide-react'
 import {
   CATEGORY_META,
@@ -14,12 +14,16 @@ import {
  * 푸시 알림 가이드 — 운영자 참조 페이지.
  *
  * 한 페이지에 모든 푸시 항목을 카테고리별 그리드로 나열.
- * Ctrl+F 검색 친화 · 인쇄 가능 · 별도 필터 없음 (사장님 요구).
+ * Ctrl+F 검색 친화 · 인쇄 가능.
+ * 상단 스티키 카테고리 탭으로 분류별 필터 (2026-06-19, 스크롤 피로 감소 — 사장님 요구).
  */
+type CatFilter = 'all' | keyof typeof CATEGORY_META
+
 export default function PushGuide() {
   const grouped = useMemo(() => groupByCategory(), [])
   const totals = useMemo(() => countByStatus(), [])
   const catCounts = useMemo(() => countByCategory(), [])
+  const [activeCat, setActiveCat] = useState<CatFilter>('all')
 
   return (
     <div className="max-w-[1500px] space-y-4">
@@ -48,17 +52,6 @@ export default function PushGuide() {
             <span className="tabular-nums">{totals[key as keyof typeof totals]}건</span>
           </span>
         ))}
-        <span className="text-gray-300 dark:text-gray-600">|</span>
-        {Object.entries(CATEGORY_META).map(([key, meta]) => (
-          <span
-            key={key}
-            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border"
-            style={{ backgroundColor: meta.bg, borderColor: meta.color + '33', color: meta.color }}
-          >
-            <span className="font-medium">{meta.label}</span>
-            <span className="tabular-nums">{catCounts[key as keyof typeof catCounts]}</span>
-          </span>
-        ))}
       </div>
 
       {/* ─── 안내 박스 ─── */}
@@ -68,10 +61,49 @@ export default function PushGuide() {
         새 푸시 추가 시 같은 PR 에서 이 데이터(<code className="px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-[11px]">web/mng/src/data/pushCatalog.ts</code>)도 함께 업데이트하면 항상 최신 상태로 유지됩니다.
       </div>
 
+      {/* ─── 카테고리 필터 탭 (스티키) ─── */}
+      <div className="sticky top-0 z-10 -mx-1 px-1 py-2 bg-white/90 dark:bg-gray-950/90 backdrop-blur-sm border-b border-gray-100 dark:border-gray-800">
+        <div className="flex flex-wrap gap-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveCat('all')}
+            aria-pressed={activeCat === 'all'}
+            className={`px-3 py-1.5 rounded-full text-[13px] font-medium border transition-colors ${
+              activeCat === 'all'
+                ? 'bg-gray-900 text-white border-gray-900 dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100'
+                : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700'
+            }`}
+          >
+            전체 <span className="tabular-nums opacity-70">{PUSH_CATALOG.length}</span>
+          </button>
+          {(Object.keys(CATEGORY_META) as Array<keyof typeof CATEGORY_META>).map((key) => {
+            const meta = CATEGORY_META[key]
+            const active = activeCat === key
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveCat(key)}
+                aria-pressed={active}
+                className="px-3 py-1.5 rounded-full text-[13px] font-medium border transition-colors"
+                style={
+                  active
+                    ? { backgroundColor: meta.color, borderColor: meta.color, color: '#fff' }
+                    : { backgroundColor: meta.bg, borderColor: meta.color + '33', color: meta.color }
+                }
+              >
+                {meta.label} <span className="tabular-nums opacity-80">{catCounts[key as keyof typeof catCounts]}</span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
       {/* ─── 카테고리별 섹션 ─── */}
       {(Object.keys(CATEGORY_META) as Array<keyof typeof CATEGORY_META>).map((catKey) => {
         const items = grouped[catKey]
         if (items.length === 0) return null
+        if (activeCat !== 'all' && activeCat !== catKey) return null
         const meta = CATEGORY_META[catKey]
         return (
           <section key={catKey} className="space-y-2" id={`cat-${catKey}`}>
