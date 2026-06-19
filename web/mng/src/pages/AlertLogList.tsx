@@ -80,7 +80,7 @@ export default function AlertLogList() {
       </div>
 
       {/* 현재 시스템 점검 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 w-fit max-w-full">
         <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">🩺 현재 시스템 점검</h2>
         {!health ? (
           <p className="text-xs text-gray-400">불러오는 중…</p>

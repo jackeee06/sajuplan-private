@@ -105,7 +105,7 @@ function PolicyPanel() {
   }
 
   return (
-    <div className="border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800 rounded-lg px-3.5 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+    <div className="border border-amber-200 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-800 rounded-lg px-3.5 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 w-fit max-w-full">
       <div className="flex items-center gap-2 text-amber-700 font-semibold text-sm">
         <Settings2 className="w-4 h-4" />
         추천 정책 <span className="text-amber-500 text-xs font-normal">(슈퍼 전용 — 저장 즉시 신규 추천부터 적용)</span>
