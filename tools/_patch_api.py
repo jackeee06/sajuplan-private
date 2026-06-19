@@ -32,6 +32,10 @@ import paramiko
 # 2026-05-17: 상담사 후기 알림톡 추가
 # audit A~G 전체 변경분 외과 패치 (18개 파일) — 이전 배포 분
 FILES = [
+    # 2026-06-19: 회원 → 운영자 고객센터 1:1 문의 (앱 내 작성 → post_qa → 관리자 답변 → FCM 푸시)
+    ("api/src/user/support-inquiry/support-inquiry.service.ts", "src/user/support-inquiry/support-inquiry.service.ts"),
+    ("api/src/user/support-inquiry/support-inquiry.controller.ts", "src/user/support-inquiry/support-inquiry.controller.ts"),
+    ("api/src/user/support-inquiry/support-inquiry.module.ts", "src/user/support-inquiry/support-inquiry.module.ts"),
     # 2026-06-14: 상담사→운영자 1:1 고객센터 문의 정식 연결 (그동안 시안 mock 이던 자리)
     ("api/db/migrations/20260614000000_counselor_inquiry.sql", "db/migrations/20260614000000_counselor_inquiry.sql"),
     ("api/src/user/counselor-mypage-inquiry/counselor-mypage-inquiry.service.ts", "src/user/counselor-mypage-inquiry/counselor-mypage-inquiry.service.ts"),
@@ -89,6 +93,7 @@ FILES = [
     ("api/src/user/chat/chat.service.ts", "src/user/chat/chat.service.ts"),
     ("api/src/pg-callbacks/m2net-push.service.ts", "src/pg-callbacks/m2net-push.service.ts"),
     ("api/src/user/notifications/notifications.controller.ts", "src/user/notifications/notifications.controller.ts"),
+    ("api/src/user/notifications/notifications.service.ts", "src/user/notifications/notifications.service.ts"),
     ("api/src/user/counselor-apply/counselor-apply.service.ts", "src/user/counselor-apply/counselor-apply.service.ts"),
     ("api/src/admin/counselor-apply/counselor-apply.service.ts", "src/admin/counselor-apply/counselor-apply.service.ts"),
     # 2026-05-22: counselor-apply 승인 흐름에서 m2net 연동 실패 시 OpsAlert 발송 (csrid 누락 운영자가 인지 못하던 문제)
@@ -153,6 +158,8 @@ FILES = [
     ("api/src/admin/consultations/consultations.service.ts", "src/admin/consultations/consultations.service.ts"),
     # 2026-06-18: 영업이익 컬럼 슈퍼전용 게이트 — controller 가 is_super 를 service 로 전달 (누락 시 슈퍼도 빈칸)
     ("api/src/admin/consultations/consultations.controller.ts", "src/admin/consultations/consultations.controller.ts"),
+    # 2026-06-19: dtmfno 중복 방지 — 수동 입력 친절 검사(members.service) + partial UNIQUE 마이그레이션
+    ("api/db/migrations/20260619000000_member_dtmfno_unique.sql", "db/migrations/20260619000000_member_dtmfno_unique.sql"),
     # 2026-06-02: BigInt 비교 전체 Number() 처리 (postgres.js v3 bigint→BigInt 타입 이슈)
     ("api/src/user/counselor-reviews/counselor-reviews.service.ts", "src/user/counselor-reviews/counselor-reviews.service.ts"),
     ("api/src/user/chat/chat.service.ts", "src/user/chat/chat.service.ts"),

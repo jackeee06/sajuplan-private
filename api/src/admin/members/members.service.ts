@@ -277,6 +277,27 @@ export class MembersService {
     });
   }
 
+  /**
+   * 수동 입력된 dtmfno 가 이미 다른 상담사에게 쓰이는지 검사 — 중복이면 ConflictException.
+   * 자동배정(nextAvailableDtmfno)은 빈 번호만 고르므로 안전하지만, 폼에서 직접 입력한 값은
+   * 검사를 안 하면 중복(예: 선샤인 108 = 청풍 108)이 생길 수 있어 진입점에서 막는다.
+   * (DB 의 partial UNIQUE 인덱스가 최종 방어선 — 이건 친절 메시지용 선검사)
+   */
+  private async assertDtmfnoFree(dtmfno: string, excludeId?: number): Promise<void> {
+    if (!dtmfno) return;
+    const rows = await this.sql<{ id: number; nickname: string | null }[]>`
+      SELECT id, nickname FROM member
+       WHERE role = 'counselor' AND dtmfno = ${dtmfno}
+       ${excludeId !== undefined ? this.sql`AND id <> ${excludeId}` : this.sql``}
+       LIMIT 1
+    `;
+    if (rows.length > 0) {
+      throw new ConflictException(
+        `상담사 번호 ${dtmfno} 는 이미 다른 상담사(${rows[0].nickname ?? rows[0].id})가 사용 중입니다. 다른 번호를 쓰거나, 비워두면 자동으로 빈 번호가 배정됩니다.`,
+      );
+    }
+  }
+
   // ─────────────────────────────────────────────
   // 기본 조회 (기존 호환)
   // ─────────────────────────────────────────────
@@ -1010,6 +1031,7 @@ export class MembersService {
 
     // dtmfno: 빈값 비허용. 입력이 비어있거나 숫자 외 문자 포함이면 1부터 비어있는 가장 작은 번호로 자동 부여.
     const dtmfnoInputRaw = (input.dtmfno ?? '').replace(/[^0-9]/g, '');
+    if (dtmfnoInputRaw) await this.assertDtmfnoFree(dtmfnoInputRaw); // 수동 입력이면 중복 검사
     const dtmfnoFinal = dtmfnoInputRaw || (await this.nextAvailableDtmfno());
 
     // 1) member insert (csrid 는 m2net 응답으로 추후 갱신)
@@ -1325,6 +1347,7 @@ export class MembersService {
     // dtmfno: 빈값 비허용. 입력이 명시되었지만 비어있으면 1부터 비어있는 번호로 자동 부여.
     if (input.dtmfno !== undefined) {
       const cleaned = (input.dtmfno ?? '').replace(/[^0-9]/g, '');
+      if (cleaned) await this.assertDtmfnoFree(cleaned, id); // 수동 입력이면 본인 제외 중복 검사
       updates.dtmfno = cleaned || (await this.nextAvailableDtmfno(id));
     }
     setIf('csrid');
