@@ -94,6 +94,8 @@ function ScrollToTop() {
         window.scrollTo(0, 0)
       }
       document.querySelectorAll('main, [data-scroll-root], .overflow-auto, .overflow-y-auto').forEach((el) => {
+        // 사이드바 등 스크롤 위치를 유지해야 하는 영역은 제외 (페이지 이동해도 메뉴 위치 보존)
+        if ((el as HTMLElement).closest('[data-keep-scroll]')) return
         ;(el as HTMLElement).scrollTop = 0
       })
       document.documentElement.scrollTop = 0

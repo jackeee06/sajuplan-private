@@ -77,7 +77,7 @@ export default function Sidebar() {
         </NavLink>
       </div>
 
-      <div className="flex flex-col flex-1 overflow-y-auto">
+      <div className="flex flex-col flex-1 overflow-y-auto" data-keep-scroll>
         <nav>
           <div className="mb-1">
             <h3 className="mb-1 text-[9px] font-semibold uppercase leading-3 text-gray-400 dark:text-gray-500">관리 메뉴</h3>
@@ -157,14 +157,14 @@ export default function Sidebar() {
               <li>
                 <button onClick={() => toggle('consultation')} className={groupBtnCls('consultation')}>
                   <Headphones className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1 text-left">상담관리</span>
+                  <span className="flex-1 text-left">상담·문의 관리</span>
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open.consultation ? 'rotate-180' : ''}`} />
                 </button>
                 {open.consultation && (
                   <ul className="flex flex-col gap-0 mt-0 pl-6">
                     <li><NavLink to="/posts/review" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담후기 관리</NavLink></li>
                     <li><NavLink to="/review-reports" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>후기 신고 관리</NavLink></li>
-                    <li><NavLink to="/posts/qa" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담문의</NavLink></li>
+                    <li><NavLink to="/posts/qa" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>고객센터 문의(회원)</NavLink></li>
                     <li><NavLink to="/posts/qa_counselor" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>1:1문의(상담사)</NavLink></li>
                     <li><NavLink to="/counselor-inquiries" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>상담사 고객센터 문의</NavLink></li>
                     <li><NavLink to="/chat-history" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>채팅내역 리스트</NavLink></li>
