@@ -106,11 +106,11 @@ export default function PostReports() {
       </div>
 
       {/* 신고 처리 정책 안내 */}
-      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 w-fit max-w-full">
         <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 mb-2">
           📋 신고 처리 정책 — 고객 문의 시 참고
         </p>
-        <table className="w-full text-[12px] border-collapse">
+        <table className="w-auto text-[12px] border-collapse">
           <tbody>
             {[
               { label: '자동 숨김', value: '동일 글에 신고 3회 이상 누적 시 자동 비공개 처리 (후기·문의 공통)' },
