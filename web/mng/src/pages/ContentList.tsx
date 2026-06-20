@@ -54,7 +54,7 @@ export default function ContentList() {
 
   return (
     <div className="space-y-3 max-w-[1100px]">
-      <div className="flex items-center justify-between">
+      <div className="space-y-2">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">내용 관리</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

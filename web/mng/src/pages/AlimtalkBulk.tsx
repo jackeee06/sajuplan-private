@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
 import { defaultLast7Days } from '../lib/dateRange'
 import { DateRangeChips } from '../components/DateRangeChips'
@@ -46,11 +47,7 @@ const TARGET_LABEL: Record<string, string> = {
   phones: '직접 입력',
 }
 
-type Tab = 'send' | 'history'
-
 export default function AlimtalkBulk() {
-  const [tab, setTab] = useState<Tab>('send')
-
   // 발송 폼
   const [templates, setTemplates] = useState<Template[]>([])
   const [tplCode, setTplCode] = useState('')
@@ -74,13 +71,12 @@ export default function AlimtalkBulk() {
   }, [])
 
   useEffect(() => {
-    if (tab !== 'history') return
     setLogsLoading(true)
     const logParams = new URLSearchParams({ limit: '100' })
     if (frDate) logParams.set('fr_date', frDate)
     if (toDate) logParams.set('to_date', toDate)
     Promise.all([
-      api<JobRow[]>('/admin/alimtalk-bulk/jobs?limit=20'),
+      api<JobRow[]>('/admin/alimtalk-bulk/jobs?limit=50'),
       api<LogRow[]>(`/admin/alimtalk-bulk/logs?${logParams}`),
     ])
       .then(([j, l]) => {
@@ -89,7 +85,7 @@ export default function AlimtalkBulk() {
       })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLogsLoading(false))
-  }, [tab, result, frDate, toDate])
+  }, [result, frDate, toDate])
 
   const selectedTpl = templates.find((t) => t.template_code === tplCode)
 
@@ -133,34 +129,23 @@ export default function AlimtalkBulk() {
   return (
     <div className="space-y-3 max-w-[1100px]">
       <div>
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">일괄 알림톡 발송</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">알림톡 발송 (수동)</h1>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          템플릿 선택 후 회원/상담사 전원 또는 특정 번호로 발송. 모든 결과는 자동 기록.
+          관리자가 직접 회원/상담사에게 알림톡을 일괄 발송하는 화면입니다.
         </p>
       </div>
 
-      <div className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
-        <button
-          onClick={() => setTab('send')}
-          className={`px-4 py-2 text-sm border-b-2 -mb-px ${
-            tab === 'send' ? 'border-brand-600 text-brand-600 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          발송
-        </button>
-        <button
-          onClick={() => setTab('history')}
-          className={`px-4 py-2 text-sm border-b-2 -mb-px ${
-            tab === 'history' ? 'border-brand-600 text-brand-600 font-medium' : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          이력
-        </button>
+      {/* 안내: 수동 vs 자동, 템플릿 출처 */}
+      <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-900/20 p-3 text-xs text-amber-900 dark:text-amber-200 space-y-1 max-w-[760px]">
+        <div className="font-semibold">📌 알아두세요</div>
+        <div>• <b>이 화면 = 수동 일괄발송</b>이고, 아래 "발송 이력"도 <b>수동으로 보낸 건만</b> 보여줍니다.</div>
+        <div>• <b>자동 알림톡</b>(가입 인증·후기 도착·가상계좌 안내·정산·일일요약 등)은 <b>시스템이 이벤트마다 자동으로 발송</b>합니다. 자동 발송분을 포함한 전체 발송 기록은 <Link to="/alert-logs" className="underline font-medium">알림톡 이력</Link> 메뉴에서 확인하세요.</div>
+        <div>• <b>알림톡 템플릿(양식)</b>의 등록·검수·승인은 <b>카카오 비즈(BizM) 콘솔</b>에서 관리됩니다. 이 화면에선 이미 등록된 템플릿을 골라 보낼 뿐입니다.</div>
       </div>
 
       {error && <div className="p-3 rounded-lg bg-rose-50 text-rose-700 text-sm w-fit max-w-full">{error}</div>}
 
-      {tab === 'send' ? (
+      {/* ── 수동 발송 폼 ── */}
         <div className="space-y-3">
           <div>
             <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 block mb-1">템플릿</label>
@@ -246,7 +231,8 @@ export default function AlimtalkBulk() {
             {sending ? '발송 중... (최대 수분)' : '일괄 발송'}
           </button>
         </div>
-      ) : (
+
+      {/* ── 일괄 발송 이력 (수동 발송분만) ── */}
         <div className="space-y-3">
           {/* 일괄 작업 요약 */}
           <section>
@@ -331,7 +317,6 @@ export default function AlimtalkBulk() {
             )}
           </section>
         </div>
-      )}
     </div>
   )
 }

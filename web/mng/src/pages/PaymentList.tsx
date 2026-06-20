@@ -142,8 +142,8 @@ export default function PaymentList() {
 
   return (
     <div className="space-y-3">
-      {/* 타이틀 + 엑셀 */}
-      <div className="flex items-center justify-between">
+      {/* 타이틀 + 엑셀 (좌측 정렬) */}
+      <div className="space-y-2">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">결제 내역</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">결제·충전 이력 (카드 / 가상계좌 / 취소)</p>

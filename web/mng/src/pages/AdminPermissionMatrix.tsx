@@ -29,7 +29,7 @@ const RESOURCE_LABELS: Record<string, string> = {
 
   'misc.wish': '기타 - 소원다락방',
   'misc.wish_event': '기타 - 소원다락방 EVENT',
-  'misc.qa': '기타 - 상담문의',
+  'misc.qa': '기타 - 고객센터 문의(회원)',
   'misc.qa_counselor': '기타 - 1:1문의',
   'config.settings': '설정 - 기본환경설정',
   'config.permissions': '설정 - 권한관리',

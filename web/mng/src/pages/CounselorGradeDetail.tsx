@@ -125,7 +125,7 @@ export default function CounselorGradeDetail() {
         // 당월 진행상황 — 상담사 본인 API를 관리자가 대신 조회 (해당 상담사 mbId 로 우회 불필요, user API라 못 씀)
         // admin용 전용 API 없으므로 realtime-upgrades 만 사용
         api<{ items: Array<{ grade_before: string; grade_after: string; last_month_seconds: string; created_at: string }> }>(
-          `/admin/grade/counselor/${memberId}/realtime-upgrades?limit=10`,
+          `/admin/grade/counselor/${memberId}/realtime-upgrades?limit=50`,
         ).catch(() => ({ items: [] })),
       ])
       setDetail(d)

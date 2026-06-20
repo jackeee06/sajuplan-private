@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger, NotFoundException } fr
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { SmsService } from '../../user/sms/sms.service';
 import { SettlementCronService } from '../../cron/settlement-cron.service';
+import { InboxService } from '../../shared/inbox/inbox.service';
 
 /**
  * sample/adm/settlement_list.php (메뉴 350450 "정산이력") 정확 매핑.
@@ -79,6 +80,7 @@ export class SettlementsService {
     @Inject(SQL) private readonly sql: Sql,
     private readonly sms: SmsService,
     private readonly settlementCron: SettlementCronService,
+    private readonly inbox: InboxService,
   ) {}
 
   /**
@@ -446,6 +448,7 @@ export class SettlementsService {
    */
   private async notifySettlementComplete(id: number): Promise<void> {
     const rows = await this.sql<{
+      member_id: number | null;
       mb_id: string | null;
       month: string;
       price: number;
@@ -453,18 +456,32 @@ export class SettlementsService {
       nickname: string | null;
       name: string | null;
     }[]>`
-      SELECT s.mb_id, s.month, s.price, m.phone, m.nickname, m.name
+      SELECT s.member_id, s.mb_id, s.month, s.price, m.phone, m.nickname, m.name
         FROM settlement_monthly s
         LEFT JOIN member m ON m.id = s.member_id
        WHERE s.id = ${id}
        LIMIT 1
     `;
     const r = rows[0];
-    if (!r?.phone) {
-      this.logger.warn(`[notifySettlementComplete] phone 없음 id=${id} mb_id=${r?.mb_id}`);
+    if (!r) return;
+    const displayName = (r.nickname || r.name || '상담사').trim();
+
+    // 알림함 기록 (종모양) — phone 없어도 내역은 남김
+    if (r.member_id) {
+      await this.inbox.record({
+        memberId: r.member_id,
+        code: 'settlement',
+        title: '정산이 완료되었습니다',
+        content: `${r.month} 정산 실지급액 ${r.price.toLocaleString()}원이 처리되었습니다.`,
+        linkUrl: '/counselor/mypage/settlement/history',
+        viaAlimtalk: !!r.phone,
+      });
+    }
+
+    if (!r.phone) {
+      this.logger.warn(`[notifySettlementComplete] phone 없음 id=${id} mb_id=${r.mb_id}`);
       return;
     }
-    const displayName = (r.nickname || r.name || '상담사').trim();
     await this.sms.sendAlimtalkByCode(
       'settlement_complete',
       r.phone,

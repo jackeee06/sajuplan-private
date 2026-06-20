@@ -145,7 +145,7 @@ export default function FaqList() {
 
   return (
     <div className="space-y-3 max-w-[900px]">
-      <div className="flex items-center justify-between">
+      <div className="space-y-2">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">FAQ 관리</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">자주하시는 질문 카테고리 + 상세 항목</p>
@@ -162,7 +162,7 @@ export default function FaqList() {
         <div className="p-6 text-sm text-gray-500">로딩...</div>
       ) : cats.length === 0 ? (
         <div className="p-6 text-sm text-gray-400 text-center bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
-          카테고리가 없습니다. 우측 상단 "FAQ 카테고리 추가" 버튼으로 시작하세요.
+          카테고리가 없습니다. 위쪽 "FAQ 카테고리 추가" 버튼으로 시작하세요.
         </div>
       ) : (
         <div className="space-y-3">

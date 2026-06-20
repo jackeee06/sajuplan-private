@@ -15,7 +15,7 @@ import { ApiError, historyApi, type ConsultHistoryItem } from '../lib/api'
  *  - 후기 작성됨: "후기 보러가기" → /mypage/my-reviews/:review_id
  */
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 50 // 첫 화면에 충분히 보이게 50줄 + 페이지네이션 (2026-06-19)
 
 const BADGE_BG: Record<ConsultHistoryItem['counselor_badge'], string> = {
   타로: '#ec4899',

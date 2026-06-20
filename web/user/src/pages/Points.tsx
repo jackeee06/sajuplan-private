@@ -23,7 +23,7 @@ export default function Points() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
 
-  const PAGE_SIZE = 20
+  const PAGE_SIZE = 50 // 첫 화면에 충분히 보이게 50줄 + 더보기 (2026-06-19)
 
   // 첫 로드: 잔액 + 1페이지 동시 조회
   useEffect(() => {

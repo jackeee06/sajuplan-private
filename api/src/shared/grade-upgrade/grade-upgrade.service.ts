@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SQL, type Sql } from '../db/db.module';
 import { SmsService } from '../../user/sms/sms.service';
 import { PushService } from '../push/push.service';
+import { InboxService } from '../inbox/inbox.service';
 
 /**
  * 실시간 등급 승급 서비스 (2026-06-07 신설).
@@ -51,6 +52,7 @@ export class GradeUpgradeService {
     @Inject(SQL) private readonly sql: Sql,
     private readonly sms: SmsService,
     private readonly push: PushService,
+    private readonly inbox: InboxService,
   ) {}
 
   /**
@@ -186,6 +188,17 @@ export class GradeUpgradeService {
               hours: hoursStr,
             });
           }
+
+          // 알림함 기록 (종모양)
+          await this.inbox.record({
+            memberId: counselorId,
+            code: 'grade',
+            title: `🎉 ${gradeLabel}로 승급되었습니다!`,
+            content: `당월 ${hoursStr}시간 달성으로 즉시 승급됐어요. 단가를 변경해보세요.`,
+            linkUrl: '/counselor/mypage',
+            viaPush: true,
+            viaAlimtalk: !!phone,
+          });
         });
       });
     } catch (e) {

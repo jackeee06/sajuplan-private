@@ -1,5 +1,6 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
+import { PushService } from '../../shared/push/push.service';
 
 /**
  * 게시판 통합 service.
@@ -76,7 +77,12 @@ export interface PostFilter {
 
 @Injectable()
 export class PostsService {
-  constructor(@Inject(SQL) private readonly sql: Sql) {}
+  private readonly logger = new Logger(PostsService.name);
+
+  constructor(
+    @Inject(SQL) private readonly sql: Sql,
+    private readonly push: PushService,
+  ) {}
 
   private resolveSlug(slug: string): SlugConfig {
     const cfg = SLUG_MAP[slug as PostSlug];
@@ -316,14 +322,42 @@ export class PostsService {
       replied_by: adminName ?? `admin:${adminId}`,
       replied_by_id: adminId,
     };
-    const result = await this.sql`
+    const updated = await this.sql<{ member_id: number | null }[]>`
       UPDATE post_qa
          SET extras = COALESCE(extras, '{}'::jsonb) || jsonb_build_object('admin_reply', ${this.sql.json(reply)}::jsonb),
              updated_at = now()
        WHERE id = ${id}
+      RETURNING member_id
     `;
-    if (result.count === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
+    if (updated.length === 0) throw new NotFoundException('문의를 찾을 수 없습니다.');
+
+    // 회원에게 FCM 푸시 — 답변 등록 안내 (앱 내 1:1 문의 답변 통지). fire-and-forget.
+    void this.notifySupportAnswer(id, updated[0].member_id).catch((e) =>
+      this.logger.warn(`[replyToQa] 답변 푸시 실패 id=${id}: ${e instanceof Error ? e.message : String(e)}`),
+    );
+
     return { ok: true, reply };
+  }
+
+  /** 회원 1:1 문의(post_qa) 답변 시 작성자에게 FCM 푸시 — event_url 로 내 문의 상세 이동 */
+  private async notifySupportAnswer(qnaId: number, memberId: number | null): Promise<void> {
+    if (!memberId) return;
+    const tokenRows = await this.sql<{ token: string }[]>`
+      SELECT token FROM member_push_token
+       WHERE member_id = ${memberId} AND is_active = TRUE AND token IS NOT NULL AND token <> ''
+       LIMIT 10
+    `;
+    const tokens = tokenRows.map((t) => t.token).filter(Boolean);
+    if (tokens.length === 0) return;
+    await this.push.sendToTokens(tokens, {
+      title: '문의 답변이 등록되었습니다',
+      body: '고객센터 1:1 문의에 답변이 달렸습니다. 탭하여 확인하세요.',
+      data: {
+        type: 'support_answer',
+        qna_id: String(qnaId),
+        event_url: `/mypage/support-inquiries/${qnaId}`,
+      },
+    });
   }
 
   /** 어드민 답변 삭제 — extras.admin_reply 제거. */

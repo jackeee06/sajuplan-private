@@ -42,19 +42,28 @@
 
 ---
 
-## 등급 구조 (현재 설정값)
+## 등급 구조
+
+> ⚠️ **숫자는 고정 규칙이 아니다.** 임계값·정산률·단가 옵션은 사장님이 수시로 바꾸는 운영 파라미터이며, **유일한 진실원은 DB `setting` 테이블 (`namespace='grade'`)**. 아래 표는 어느 키에 그 값이 들어있는지를 가리킬 뿐, 구체 수치는 아래 명령으로 **현재값을 직접 확인**한다.
+>
+> ```bash
+> SSHPASS=$(.env.local) python tools/_check_grade_rates.py   # setting namespace='grade' 실값 출력
+> # 또는: SELECT key, value FROM setting WHERE namespace='grade' ORDER BY key;
+> ```
 
 | 등급 | 코드 | 승급 임계값(당월 누적 상담시간) | 단가 선택지(30초당) | 정산률 |
 |------|------|----------------------|-----------------|--------|
-| 예비파트너 | preliminary | — (신규 기본) | 800, 1,000원 | **40%** |
-| 파트너 1 | partner1 | 20시간 이상 | 800, 1,000원 | **52%** |
-| 파트너 2 | partner2 | 40시간 이상 | 1,000, 1,200원 | **56%** |
-| 파트너 3 | partner3 | 70시간 이상 | 1,000, 1,200, 1,300원 | **60%** |
-| 파트너 4 | partner4 | 90시간 이상 | 1,000, 1,200, 1,300, 1,400, 1,500원 | **63%** |
-| 파트너 5 | partner5 | 120시간 이상 | 1,200, 1,300, 1,400, 1,500, 1,800, 2,000원 | **70%** |
+| 예비파트너 | preliminary | — (신규 기본) | `options.preliminary` | `revenue_rate.preliminary` |
+| 파트너 1 | partner1 | `thresholds.partner1` | `options.partner1` | `revenue_rate.partner1` |
+| 파트너 2 | partner2 | `thresholds.partner2` | `options.partner2` | `revenue_rate.partner2` |
+| 파트너 3 | partner3 | `thresholds.partner3` | `options.partner3` | `revenue_rate.partner3` |
+| 파트너 4 | partner4 | `thresholds.partner4` | `options.partner4` | `revenue_rate.partner4` |
+| 파트너 5 | partner5 | `thresholds.partner5` | `options.partner5` | `revenue_rate.partner5` |
 
-> 임계값 기준: **당월 누적 상담 시간** (전화 + 채팅 합산, 매월 1일 초기화).
-> 정산률: 회원이 사용한 코인 중 상담사에게 돌아가는 비율.
+> - 임계값(`thresholds.*`): **당월 누적 상담 시간(시간 단위)** 기준, 전화 + 채팅 합산, 매월 1일 초기화.
+> - 정산률(`revenue_rate.*`): 0~1 사이 decimal (예: 0.52 = 52%). 회원이 쓴 코인 중 상담사 몫 비율.
+> - 단가 옵션(`options.*`): 콤마 구분 값(예: `800,1000`). 신규 기본 단가는 `default_new_unit_cost`.
+> - (참고 스냅샷 — 변동 가능, 단정 금지) 2026-06-19 실값: 임계 20/40/70/90/120h, 정산률 0.40 / 0.52 / 0.57 / 0.60 / 0.63 / 0.70.
 
 ---
 

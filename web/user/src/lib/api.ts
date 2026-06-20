@@ -1440,6 +1440,50 @@ export const myQnaApi = {
 }
 
 // ─────────────────────────────────────────────
+// 고객센터 1:1 문의 (회원 → 운영자). 앱 "이용안내 > 1:1 문의".
+// ─────────────────────────────────────────────
+
+export interface SupportInquiryItem {
+  id: number
+  category: string | null
+  title: string
+  content: string
+  is_secret: boolean
+  has_reply: boolean
+  status: '답변완료' | '답변대기'
+  created_at: string
+}
+
+export interface SupportInquiryDetailDto extends SupportInquiryItem {
+  reply: {
+    content: string
+    replied_at: string | null
+    replied_by: string | null
+  } | null
+}
+
+export const supportInquiryApi = {
+  categories: () => api.get<{ items: string[] }>('/user/support-inquiries/categories'),
+  list: (params?: { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams()
+    if (params?.limit) qs.set('limit', String(params.limit))
+    if (params?.offset) qs.set('offset', String(params.offset))
+    const q = qs.toString()
+    return api.get<{ items: SupportInquiryItem[]; total: number }>(
+      `/user/support-inquiries${q ? `?${q}` : ''}`,
+    )
+  },
+  detail: (id: number | string) =>
+    api.get<SupportInquiryDetailDto>(`/user/support-inquiries/${id}`),
+  create: (body: { category: string; title: string; content: string; is_secret?: boolean }) =>
+    api.post<{ id: number }>('/user/support-inquiries', body),
+  update: (id: number | string, body: { title: string; content: string }) =>
+    api.patch<{ id: number }>(`/user/support-inquiries/${id}`, body),
+  remove: (id: number | string) =>
+    api.delete<{ ok: true }>(`/user/support-inquiries/${id}`),
+}
+
+// ─────────────────────────────────────────────
 // 상담사 마이페이지 — 고객 문의 관리
 // ─────────────────────────────────────────────
 
@@ -1473,7 +1517,12 @@ export interface CounselorCustomerQnaDetailDto {
 
 export const counselorCustomerQnaApi = {
   pendingCounts: () =>
-    api.get<{ pending_qna: number; pending_review: number }>('/user/counselor/customer-qnas/pending-counts'),
+    api.get<{
+      pending_qna: number
+      pending_review: number
+      recent_qna_title: string | null
+      recent_review_title: string | null
+    }>('/user/counselor/customer-qnas/pending-counts'),
   list: (params?: { limit?: number; offset?: number }) => {
     const qs = new URLSearchParams()
     if (params?.limit) qs.set('limit', String(params.limit))
@@ -1916,6 +1965,12 @@ export interface PublicNotificationItem {
   content: string
   link_url: string | null
   category: string | null
+  /** 이벤트 코드 — 아이콘/라벨 매핑 (chat_request/review/grade/settlement/coupon...) */
+  code: string | null
+  /** FCM 푸시로도 발송됨 (채널 뱃지) */
+  via_push: boolean
+  /** 카카오 알림톡으로도 발송됨 (채널 뱃지) */
+  via_alimtalk: boolean
   read: boolean
   /** ISO 8601 */
   created_at: string
@@ -1924,6 +1979,9 @@ export interface PublicNotificationItem {
 export const notificationsApi = {
   list: () =>
     api.get<{ items: PublicNotificationItem[] }>('/user/notifications'),
+  /** 안 읽은 알림 개수 — 종모양 뱃지용 (비로그인 0) */
+  unreadCount: () =>
+    api.get<{ count: number }>('/user/notifications/unread-count'),
   read: (id: number) =>
     api.post<{ ok: true }>(`/user/notifications/${id}/read`),
   readAll: () =>
@@ -2359,4 +2417,20 @@ export const promoterApi = {
   /** [회원] 추천 코드 사후 등록 */
   applyReferral: (code: string) =>
     api.post<{ ok: boolean; message: string }>('/user/promoter/referral', { code }),
+  /** [회원] 친구초대 활성화 — 본인 코드/공유링크 반환 (코인형 모집인 보장, 멱등) */
+  enableInvite: () =>
+    api.post<{ code: string; promoterId: number; shareUrl: string; rewardType: 'cash' | 'coin' }>(
+      '/user/promoter/invite/enable',
+    ),
+  /** [회원] 내 초대 현황 — 친구 수·받은 코인·타임라인 */
+  inviteDashboard: () =>
+    api.get<{
+      enabled: boolean
+      code: string | null
+      shareUrl: string | null
+      rewardType: 'cash' | 'coin' | null
+      friendCount: number
+      totalCoins: number
+      timeline: { maskedName: string; usedAmount: number; rewardAmount: number; status: string; createdAt: string }[]
+    }>('/user/promoter/invite/dashboard'),
 }

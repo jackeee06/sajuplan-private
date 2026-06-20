@@ -27,7 +27,7 @@ function pathToGroup(pathname: string): MenuKey | null {
   if (pathname.startsWith('/search-keywords') || pathname.startsWith('/search-popular') || pathname.startsWith('/faqs')
       || pathname.startsWith('/notices') || pathname.startsWith('/events') || pathname.startsWith('/post-reports')
       || pathname.startsWith('/posts-overview')) return 'board'
-  if (pathname.startsWith('/push-notifications') || pathname.startsWith('/push-guide') || pathname.startsWith('/alert-guide') || pathname.startsWith('/alimtalk')) return 'notification'
+  if (pathname.startsWith('/push-notifications') || pathname.startsWith('/notification-history') || pathname.startsWith('/push-guide') || pathname.startsWith('/alert-guide') || pathname.startsWith('/alert-logs') || pathname.startsWith('/alimtalk')) return 'notification'
   if (pathname.startsWith('/coupon-coin-guide')) return 'sales'
   if (pathname.startsWith('/banners') || pathname.startsWith('/popup-layers')) return 'misc'
   if (pathname.startsWith('/admin-users')) return 'permission'
@@ -201,12 +201,14 @@ export default function Sidebar() {
                 </button>
                 {open.notification && (
                   <ul className="flex flex-col gap-0 mt-0 pl-6">
-                    <li><NavLink to="/push-notifications" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>푸시 알림</NavLink></li>
-                    <li><NavLink to="/push-guide" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📱 푸시 가이드</NavLink></li>
-                    <li><NavLink to="/alert-guide" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>🔔 알림 가이드</NavLink></li>
-                    <li><NavLink to="/alert-logs" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📋 알림 이력</NavLink></li>
-                    <li><NavLink to="/alimtalk-bulk" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>⭐ 알림톡 발송</NavLink></li>
-                    <li><NavLink to="/alimtalk-templates" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>알림톡 템플릿</NavLink></li>
+                    <li><NavLink to="/push-notifications" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📤 알림 보내기(수동)</NavLink></li>
+                    <li><NavLink to="/notification-history" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>🔔 알림 이력</NavLink></li>
+                    <li><NavLink to="/alimtalk-bulk" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>💬 알림톡 발송(수동)</NavLink></li>
+                    <li><NavLink to="/alert-logs" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📋 알림톡 발송 이력</NavLink></li>
+                    <li aria-hidden className="my-1.5 mx-2 border-t border-gray-200 dark:border-gray-700" />
+                    <li><NavLink to="/alert-guide" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📖 알림 전체 가이드</NavLink></li>
+                    <li><NavLink to="/push-guide" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📱 푸시 가이드(참고)</NavLink></li>
+                    <li><NavLink to="/alimtalk-templates" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>🧾 알림톡 템플릿(자동)</NavLink></li>
                   </ul>
                 )}
               </li>
@@ -233,17 +235,17 @@ export default function Sidebar() {
                 )}
               </li>
 
-              {/* 기타 — 배너/팝업/사주메인 (CS 문의류는 상담관리로 이동: 2026-05-19) */}
+              {/* 콘텐츠/노출 — 홈에 띄우는 배너·팝업 (알림과 다른 용도: 보내는 게 아니라 게시) */}
               <li>
                 <button onClick={() => toggle('misc')} className={groupBtnCls('misc')}>
                   <MoreHorizontal className="w-4 h-4 flex-shrink-0" />
-                  <span className="flex-1 text-left">기타</span>
+                  <span className="flex-1 text-left">콘텐츠/노출</span>
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open.misc ? 'rotate-180' : ''}`} />
                 </button>
                 {open.misc && (
                   <ul className="flex flex-col gap-0 mt-0 pl-6">
-                    <li><NavLink to="/banners" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>배너관리</NavLink></li>
-                    <li><NavLink to="/popup-layers" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>팝업레이어 관리</NavLink></li>
+                    <li><NavLink to="/banners" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>🖼 상단 배너</NavLink></li>
+                    <li><NavLink to="/popup-layers" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>🪧 팝업 모달</NavLink></li>
 
                   </ul>
                 )}

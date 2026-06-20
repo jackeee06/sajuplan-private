@@ -1,5 +1,6 @@
 ﻿import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
+import NotificationBell from '../components/NotificationBell'
 import FloatingActions from '../components/FloatingActions'
 
 /**
@@ -18,7 +19,7 @@ interface MenuItem {
 
 const MENU_ITEMS: MenuItem[] = [
   { to: '/mypage/events', label: '이벤트', icon: '/img/ic_my_event.svg' },
-  { to: '/mypage/help', label: '이용안내', icon: '/img/ic_my_book.svg' },
+  { to: '/mypage/help', label: '자주 묻는 질문', icon: '/img/ic_my_book.svg' },
   { to: '/mypage/notices', label: '공지사항', icon: '/img/ic_my_notice.svg' },
   { to: '/mypage/new-counselors', label: '신규상담사', icon: '/img/ic_my_headset.svg' },
   { to: '/mypage/counselor-apply', label: '상담사 신청 및 기타 문의', icon: '/img/ic_my_user_plus.svg' },
@@ -45,9 +46,7 @@ export default function MyPage() {
           <Link to="/search" aria-label="검색" className="w-[30px] h-[30px] flex items-center justify-center">
             <img src="/img/ic_hd_search.svg" alt="" className="w-7 h-7" />
           </Link>
-          <Link to="/notifications" aria-label="알림" className="w-[30px] h-[30px] flex items-center justify-center">
-            <img src="/img/ic_hd_push.svg" alt="" className="w-7 h-7" />
-          </Link>
+          <NotificationBell />
         </div>
       </header>
 

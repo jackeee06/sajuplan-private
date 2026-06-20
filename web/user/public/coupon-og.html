@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- ───────────────────────────────────────────────────────────────
+         만원 무료코인 쿠폰 공유 OG 페이지.
+         카카오톡 등에 링크를 "붙여넣기"로 전달해도 쿠폰 카드(이미지)가 뜨게 한다.
+         (SPA 본문은 JS라 카카오 크롤러가 못 읽으므로, 정적 OG 메타가 박힌 이 페이지를 봇에만 서빙)
+         nginx 가 kakaotalk-scrap 봇에게만 이 파일을 물려준다(418 분기). 사람은 SPA(/event, /s/{코드}).
+         ─────────────────────────────────────────────────────────────── -->
+    <title>사주플랜 만원 무료코인 쿠폰</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="🎁 사주플랜 만원 무료코인 쿠폰" />
+    <meta property="og:description" content="지금 가입하면 만원 무료코인! 친구가 보낸 쿠폰을 받아보세요 — 사주플랜" />
+    <meta property="og:image" content="https://sajuplan.com/img/coupon-invite-v3.png" />
+    <meta property="og:url" content="https://sajuplan.com/event" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="🎁 사주플랜 만원 무료코인 쿠폰" />
+    <meta name="twitter:description" content="지금 가입하면 만원 무료코인! 친구가 보낸 쿠폰을 받아보세요 — 사주플랜" />
+    <meta name="twitter:image" content="https://sajuplan.com/img/coupon-invite-v3.png" />
+
+    <script>
+      // 봇은 JS 미실행(위 OG 만 읽음). 사람이 이 정적 파일을 직접 열면 쿠폰 페이지로 보냄.
+      //   /s/{코드} 로 들어온 경우 코드 보존해서 랜딩으로, 그 외엔 /event 로.
+      (function () {
+        try {
+          var m = window.location.pathname.match(/\/s\/([0-9A-Za-z]+)/);
+          window.location.replace(m ? '/s/' + encodeURIComponent(m[1]) : '/event');
+        } catch (e) {
+          window.location.replace('/event');
+        }
+      })();
+    </script>
+  </head>
+  <body style="font-family: 'Pretendard', sans-serif; text-align: center; padding: 40px 20px; color: #6a7282">
+    <p>사주플랜 쿠폰으로 이동 중…</p>
+    <p><a href="/event" style="color: #ec4899">눌러도 이동하지 않으면 여기를 누르세요</a></p>
+  </body>
+</html>

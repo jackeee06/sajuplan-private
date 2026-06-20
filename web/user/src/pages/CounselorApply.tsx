@@ -1,11 +1,10 @@
 ﻿import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
+import NotificationBell from '../components/NotificationBell'
 import FloatingActions from '../components/FloatingActions'
 import Pagination from '../components/Pagination'
-import { counselorApplyApi, settingsApi, type CounselorApplyListItem } from '../lib/api'
-import { openExternalUrl } from '../lib/native-bridge'
-import { useAlert } from '../lib/use-alert'
+import { counselorApplyApi, type CounselorApplyListItem } from '../lib/api'
 
 const PAGE_SIZE = 10
 
@@ -36,13 +35,11 @@ function formatDate(s: string): string {
  */
 export default function CounselorApply() {
   const navigate = useNavigate()
-  const { showAlert, alertUI } = useAlert()
   const [page, setPage] = useState(1)
   const [items, setItems] = useState<CounselorApplyListItem[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [kakaoChannelUrl, setKakaoChannelUrl] = useState<string>('')
 
   useEffect(() => {
     let mounted = true
@@ -67,29 +64,6 @@ export default function CounselorApply() {
     }
   }, [page])
 
-  // 카카오 채널 URL — settings 의 site.kakao_channel_url. 1회 로드.
-  useEffect(() => {
-    let mounted = true
-    settingsApi.public()
-      .then((s) => {
-        if (!mounted) return
-        const url = s['site.kakao_channel_url'] || s['kakao_channel_url'] || ''
-        if (url) setKakaoChannelUrl(url)
-      })
-      .catch(() => {
-        /* 로드 실패해도 1:1 문의 버튼은 비활성 안 시킴 — 클릭 시 안내 */
-      })
-    return () => { mounted = false }
-  }, [])
-
-  const handleKakaoInquiry = () => {
-    if (kakaoChannelUrl) {
-      openExternalUrl(kakaoChannelUrl)
-    } else {
-      void showAlert('카카오 채널이 설정되지 않았습니다. 운영자에게 문의해주세요.')
-    }
-  }
-
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
@@ -104,63 +78,25 @@ export default function CounselorApply() {
           <img src="/img/ic_hd_back.svg" alt="" className="w-[30px] h-[30px]" />
         </button>
         <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">
-          상담사 신청 및 기타 문의
+          상담사 신청
         </h1>
         <div className="flex items-center gap-3">
           <Link to="/search" aria-label="검색" className="w-[30px] h-[30px] flex items-center justify-center">
             <img src="/img/ic_hd_search.svg" alt="" className="w-7 h-7" />
           </Link>
-          <Link to="/notifications" aria-label="알림" className="w-[30px] h-[30px] flex items-center justify-center">
-            <img src="/img/ic_hd_push.svg" alt="" className="w-7 h-7" />
-          </Link>
+          <NotificationBell />
         </div>
       </header>
 
       <main className="flex-1">
-        <section className="px-4 pt-2">
-          <div className="w-full aspect-[335/96] rounded-[16px] overflow-hidden bg-[#F3F4F6]">
-            <img
-              src="/img/event_summer_festa.png"
-              alt="SUMMER FESTA 이벤트 광고"
-              className="w-full h-full object-cover"
-            />
-          </div>
-        </section>
-
-        <section className="px-4 mt-3">
-          <div className="rounded-[16px] bg-[#F9FAFB] p-4">
-            <div className="flex items-center gap-3">
-              <img src="/img/ic_my_phone.svg" alt="" className="w-9 h-9" />
-              <div className="flex flex-col">
-                <span className="text-[15px] leading-[140%] font-bold text-[#ec4899]">
-                  고객센터 <span className="text-[#030712]">010-8702-9996</span>
-                </span>
-                <span className="text-[12px] leading-[140%] text-[#4A5565]">
-                  운영시간: 9시~18시 (주말 및 공휴일 휴무)
-                </span>
-                <span className="text-[12px] leading-[140%] text-[#4A5565]">
-                  점심시간: 12시~13시
-                </span>
-              </div>
-            </div>
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={handleKakaoInquiry}
-                className="flex-[0.45] h-[40px] rounded-full border border-[#f472b6] bg-white flex items-center justify-center gap-1 text-[14px] font-medium text-[#ec4899]"
-              >
-                <img src="/img/ic_write_p.svg" alt="" className="w-4 h-4" />
-                1:1 문의
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate('/mypage/counselor-apply/new')}
-                className="flex-[0.55] h-[40px] rounded-full bg-[#f472b6] text-[14px] font-medium text-white"
-              >
-                상담사 신청 작성
-              </button>
-            </div>
-          </div>
+        <section className="px-4 pt-3">
+          <button
+            type="button"
+            onClick={() => navigate('/mypage/counselor-apply/new')}
+            className="w-full h-[48px] rounded-full bg-[#f472b6] text-[15px] font-semibold text-white"
+          >
+            상담사 신청 작성
+          </button>
         </section>
 
         <section className="px-4 pt-4 pb-2">
@@ -234,7 +170,6 @@ export default function CounselorApply() {
 
       <FloatingActions bottomOffset={100} />
       <BottomNav />
-      {alertUI}
     </div>
   )
 }

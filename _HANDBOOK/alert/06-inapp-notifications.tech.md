@@ -1,4 +1,4 @@
-# [AI 전용] 인앱 알림 — 기술 상세 (2026-06-11 개편 반영)
+# [AI 전용] 통합 알림함 — 기술 상세 (2026-06-20 통합 인박스 반영)
 
 ## DB — `notification_log` (⚠️ 옛 문서의 'notification' 단수 테이블은 오류. 실제는 notification_log)
 
@@ -11,12 +11,39 @@ notification_log
 - content TEXT
 - link_url VARCHAR NULL     — 클릭 시 이동 경로 (내부 '/path' 또는 외부 'https://...')
 - category VARCHAR          — '전체공지' | '일반회원' | '상담사' | '개별'
-- viewed_by TEXT[]          — 읽은 사용자 mb_id 배열 (per-user read 추적)
+- code VARCHAR NULL         — 이벤트 코드(아이콘/라벨 매핑). 'chat_request'|'call_request'|'qna_ask'|'qna_answer'|'qna_reported'|'review'|'grade'|'absent'|'chat_cancelled'|'settlement'|'payout'|'coupon' ...
+- via_inapp BOOLEAN  def t  — 종모양 노출 여부 (목록은 이게 true 만 조회)
+- via_push BOOLEAN   def f  — FCM 푸시로도 발송됐는가 (📲푸시 뱃지)
+- via_alimtalk BOOLEAN def f — 카카오 알림톡으로도 발송됐는가 (💬카톡 뱃지)  ← 마이그 20260619200000
+- viewed_by JSONB          — 읽은 사용자 mb_id 배열(jsonb). per-user read 추적
 - created_at TIMESTAMPTZ
+- INDEX idx_notification_log_member_time (member_id, created_at DESC)  ← 마이그 20260619200000
 ```
 
-- **read 판정은 per-user**: `viewed_by` 배열에 본인 mb_id 포함 여부 (`read = !!myMbId && viewers.includes(myMbId)`). 전역 is_read 아님.
-- 비로그인은 mb_id 없음 → 전체공지가 항상 unread 로 보임 (마중배너에 그 수만큼 뜸).
+- 마이그레이션: `20260619000000_notification_channels.sql`(via_inapp/via_push) + `20260619200000_notification_inbox.sql`(via_alimtalk + member_time 인덱스).
+- **read 판정은 per-user**: `viewed_by` 에 본인 mb_id 포함 여부 (`read = !!myMbId && viewers.includes(myMbId)`). 전역 is_read 아님. 읽음 처리는 `viewed_by ? mb_id` 추가.
+- 비로그인은 mb_id 없음 → 전체공지가 항상 unread 로 보임.
+
+## ★ 통합 인박스 기록 — `InboxService` (2026-06-20)
+
+핵심 설계: **비즈니스 이벤트 발생 지점에서 한 행만 기록**하고, 실제 나간 채널을 플래그로 박는다. → 한 사건 = 한 줄(중복 없음), event_key 플러밍 불필요.
+
+- `api/src/shared/inbox/inbox.service.ts` — `InboxService.record({ memberId, code, title, content?, linkUrl?, viaPush?, viaAlimtalk? })`.
+  - `via_inapp` 는 항상 true(종모양 노출), `category='개별'`, mb_id 는 member 조회로 채움.
+  - **best-effort**: 절대 throw 안 함(try/catch + warn). 본 비즈니스/머니 흐름 무영향.
+  - `@Global() InboxModule`(`shared/inbox/inbox.module.ts`) → AppModule 1회 import, 어디서든 주입.
+- **이벤트 발송 지점(record 호출처)** — 각 지점은 푸시/알림톡 보낸 직후 1회 호출:
+  - 채팅요청 `consult.service.ts notifyCounselorChatRequest`(code `chat_request`)
+  - 채팅 자동취소 `consult.service.ts notifyMemberChatAutoCancelled`(`chat_cancelled`)
+  - 상담사 부재 `consult.service.ts notifyCounselorAutoAbsent`(`absent`)
+  - 문의도착 `qna.service.ts notifyQaAsk`(`qna_ask`) / 답변 `notifyQaAnswer`(`qna_answer`) / 신고 `sendReportPush`(`qna_reported`)
+  - 후기 `reviews.service.ts notifyCounselorOfReview`(`review`)
+  - 전화요청 `counselors.service.ts requestConsult`(`call_request`, viaPush/viaAlimtalk=실제 발송결과)
+  - 등급승급 `grade-upgrade.service.ts checkAndUpgrade`(`grade`)
+  - 정산완료 `admin/settlements.service.ts notifySettlementComplete`(`settlement`)
+  - 선지급 `admin/payouts.service.ts`(rejected/paid) + `user/counselor-mypage-payout.service.ts`(received) → `payout`
+  - 쿠폰 `admin/coupon-zones.service.ts notifyCouponCode`(`coupon`)
+- **🔒 보안 — record 미호출(원천 차단)**: 인증번호(`register_num_v2`)·임시비번(`register_idpw1`)·운영자 OpsAlert(`ops_admin_alert`)·가상계좌(PII)는 **record 를 부르지 않는다**. 전화번호 매칭/블랙리스트 필터가 아니라 호출 자체를 안 해서 민감정보가 알림함에 들어올 경로가 없음.
 
 ## 노출 규칙 — `api/src/user/notifications/notifications.service.ts`
 
@@ -28,7 +55,8 @@ notification_log
 ## API — `web/user/src/lib/api.ts` (notificationsApi)
 
 - `list()` → `GET /api/user/notifications` → `{ items: PublicNotificationItem[] }`
-  - `PublicNotificationItem = { id, title, content, link_url, category, read, created_at }`
+  - `PublicNotificationItem = { id, title, content, link_url, category, code, via_push, via_alimtalk, read, created_at }` (code/via_* 는 2026-06-20 추가)
+- `unreadCount()` → `GET /api/user/notifications/unread-count` → `{ count }` (종모양 뱃지용, OptionalUserGuard — 비로그인 0). 서비스 `unreadCount()`: list 와 동일 노출 규칙 + `NOT (viewed_by ? mb_id)` COUNT.
 - `read(id)` → `POST /api/user/notifications/:id/read`
 - `readAll()` → `POST /api/user/notifications/read-all`
 
@@ -40,12 +68,20 @@ notification_log
 - 보라→핑크 그라데이션 카드 + 흔들리는 🔔 + 슬라이드/바운스 등장 (컴포넌트 내 `<style>` 주입: `njbSlide`/`njbRing`).
 - 탭 → `<Link to="/notifications">`. X → `sessionStorage('notif_greet_banner_dismissed_v1')` (세션 동안 숨김).
 
+### ⓪ 종모양 뱃지 — `web/user/src/components/NotificationBell.tsx` (2026-06-20)
+- 헤더 종모양🔔 + 안읽음 빨간 숫자 뱃지(`99+` cap) + 안읽음>0 시 `nbBounce` 까딱.
+- `notificationsApi.unreadCount()` 폴링(마운트 + `setInterval 60s` + `useRefreshOnFocus`).
+- 헤더 7곳 인라인 벨을 이 컴포넌트로 교체: Home(`containerClassName="w-10 h-10"`), MemberMyPage, CounselorMyPage, MyPage, CounselorList, Favorites, CounselorApply.
+
 ### ② 알림함 — `web/user/src/pages/Notifications.tsx`
 - 카드형 `<ul>` (`bg-[#f6f7f9]`, 흰 카드 + 그림자, `space-y-2.5`).
-- `catMeta(category)` → `{ label, icon, color, bg }` (**export 됨** → NotificationDetail 이 재사용):
-  - 전체공지 📢 `#8259F5` / 상담사 👤 `#00BBA7` / 일반회원 👥 `#3B82F6` / 개별 🔔 `#ec4899`
+- `metaFor(n) = codeMeta(n.code) ?? catMeta(n.category)` — **code 우선**, 없으면 category.
+  - `codeMeta(code)`(**export**): chat_request 💬 / call_request 📞 / qna_ask ❓ / qna_answer 💡 / qna_reported 🚨 / review ⭐ / grade 🎉 / absent 🌙 / chat_cancelled ⏱️ / settlement 💰 / payout 💸 / coupon 🎁
+  - `catMeta(category)`(**export**): 전체공지 📢 `#8259F5` / 상담사 👤 `#00BBA7` / 일반회원 👥 `#3B82F6` / 개별 🔔 `#ec4899`
+- **채널 뱃지**: `n.via_push && <ChannelBadge '푸시'>` / `n.via_alimtalk && <ChannelBadge '카톡'>` (라벨 행에 회색 pill).
 - 안읽음: 빨간 점(`#ef4444`) + 굵은 제목 / 읽음: `opacity-60` + 흐린 색 + "읽음".
 - `onItemClick`: 미읽음+로그인이면 `read(id)` 비동기 + optimistic 갱신 → `navigate('/notifications/'+id, { state:{ notification:{...n, read:true} } })`.
+- 상세(`NotificationDetail.tsx`)도 `codeMeta(code) ?? catMeta(category)` + `📲 푸시`/`💬 카톡` 뱃지 표시.
 
 ### ③ 알림 상세 — `web/user/src/pages/NotificationDetail.tsx` (라우트 `/notifications/:id`)
 - router state 로 알림 객체 받으면 즉시 표시. 없으면(딥링크 진입) `list()` 재조회 후 id 매칭 (**단건 조회 API 없음**).
@@ -55,8 +91,11 @@ notification_log
 
 ## 발송(쌓기) / 정리
 
-- 발송: `api/src/admin/notifications/notifications.service.ts` → `notification_log` INSERT (관리자 푸시 발송 시).
-- **테스트/누적 정리**: 관리자 화면 `PushNotifications`(`/mng`) → "발송 이력 → 내역 비우기" → `DELETE FROM notification_log` (`clearPushHistory`, controller `@Delete('push-history')`).
+- 관리자 발송: `admin/notifications.service.ts sendPush({channels:{inapp,push}})` → `notification_log` INSERT(**`via_inapp`/`via_push` 플래그**). 관리자 "알림 보내기"(`/push-notifications`)에서 [🔔인앱][📲푸시] 채널 선택(2026-06-19, 마이그 `20260619000000_notification_channels`).
+- **이벤트 발송(2026-06-20)**: 위 §통합 인박스 12종 이벤트는 발송 지점에서 `InboxService.record(...)` 로 `notification_log` 에 개별행 INSERT(`category='개별'`, `code`, `via_push`/`via_alimtalk` 플래그). 종모양이 "모든 알림 한 곳"이 된 핵심.
+- **종모양 노출 필터(★)**: 사용자 조회(`user/notifications.service.ts list()`)는 `WHERE via_inapp = true` → **푸시-only(via_inapp=false)는 종모양에서 제외**. 이벤트성 인앱(플래그 미지정)은 default `via_inapp=true` → 정상 노출.
+- 관리자 이력 채널 필터: `pushHistory({channel:'inapp'|'push'})`. 검증 스펙 `e2e/tests/109-notification-channels.spec.ts` + 통합 인박스 `e2e/tests/110-notification-inbox.spec.ts`(안읽음카운트 API·채널/코드 필드·벨 이동·문의→상담사 알림함 기록 양방향).
+- **테스트/누적 정리**: 관리자 "알림 보내기" → "보낸 이력 → 내역 비우기" → `DELETE FROM notification_log` (`clearPushHistory`, `@Delete('push-history')`).
 
 ## 운영 SQL
 

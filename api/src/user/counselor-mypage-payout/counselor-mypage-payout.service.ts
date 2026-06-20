@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { SQL, type Sql, type TxSql } from '../../shared/db/db.module';
 import { SmsService } from '../sms/sms.service';
+import { InboxService } from '../../shared/inbox/inbox.service';
 
 /**
  * 선지급(early payout) 시스템 — 상담사 마이페이지 read-only 정보.
@@ -101,6 +102,7 @@ export class UserCounselorMypagePayoutService {
   constructor(
     @Inject(SQL) private readonly sql: Sql,
     private readonly sms: SmsService,
+    private readonly inbox: InboxService,
   ) {}
 
   /**
@@ -472,6 +474,15 @@ export class UserCounselorMypagePayoutService {
         amount: result.requested_amount.toLocaleString(),
       }).catch((e) => this.logger.warn(`payout_request_received 알림톡 실패: ${(e as Error).message}`));
     }
+    // 알림함 기록 (종모양)
+    await this.inbox.record({
+      memberId: params.memberId,
+      code: 'payout',
+      title: '선지급 신청이 접수되었습니다',
+      content: `신청 금액 ${result.requested_amount.toLocaleString()}원이 접수되었습니다. 처리 결과를 알려드릴게요.`,
+      linkUrl: '/counselor/mypage/payout',
+      viaAlimtalk: !!result.phone,
+    });
 
     // phone 은 응답에 노출 X
     const { phone: _ph, ...out } = result;

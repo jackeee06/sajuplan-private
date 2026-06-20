@@ -6,6 +6,7 @@ import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { runtimeEnv } from '../shared/env/runtime-env';
 import { PromoterPublicService } from './promoter.service';
+import { PromoterCoreService } from '../shared/promoter/promoter-core.service';
 import { PromoterAuthGuard, PROMOTER_COOKIE, type PromoterRequest } from './promoter-auth.guard';
 
 /** 공개 모집인 API — 가드 없는 공개 엔드포인트 + OTP 세션(PromoterAuthGuard). */
@@ -13,8 +14,26 @@ import { PromoterAuthGuard, PROMOTER_COOKIE, type PromoterRequest } from './prom
 export class PromoterController {
   constructor(
     private readonly svc: PromoterPublicService,
+    private readonly core: PromoterCoreService,
     private readonly config: ConfigService,
   ) {}
+
+  /**
+   * 코드 박힌 쿠폰 이미지 (공개·무인증) — 카카오 공유/미리보기용.
+   *   /api/promoter/coupon-image/0572.png 처럼 .png 확장자 허용(카카오 친화).
+   *   즉석 합성·무저장. 코드별 URL이라 카카오 캐시 자동 회피.
+   */
+  @Get('coupon-image/:code')
+  async couponImage(@Param('code') code: string, @Res() res: Response) {
+    const clean = (code ?? '').replace(/\.png$/i, '');
+    try {
+      const buf = await this.core.renderCouponImage(clean);
+      res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' });
+      res.end(buf);
+    } catch {
+      res.status(404).end();
+    }
+  }
 
   /** 코드 유효성 — 가입 화면에서 prefill 검증 (이름 미반환). */
   @Get('by-code/:code')

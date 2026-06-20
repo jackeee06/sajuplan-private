@@ -24,6 +24,7 @@ export class NotificationsController {
     return this.svc.pushHistory({
       q: q.q || undefined,
       category: q.category || undefined,
+      channel: q.channel || undefined, // 'inapp' | 'push'
       page: q.page ? Number(q.page) : undefined,
       limit: q.limit ? Number(q.limit) : undefined,
     });
@@ -43,12 +44,13 @@ export class NotificationsController {
 
   /** 푸시 발송: target=all|user|counselor|member_id */
   @Post('push-send')
-  pushSend(@Body() body: { target: string; title: string; content?: string; link_url?: string }) {
+  pushSend(@Body() body: { target: string; title: string; content?: string; link_url?: string; channels?: { inapp?: boolean; push?: boolean } }) {
     return this.svc.sendPush({
       target: body.target,
       title: body.title,
       content: body.content,
       link_url: body.link_url,
+      channels: body.channels,
     });
   }
 

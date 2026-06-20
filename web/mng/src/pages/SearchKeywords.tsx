@@ -32,7 +32,7 @@ interface Resp {
   limit: number
 }
 
-const PAGE_SIZE = 30
+const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 50) // 첫 화면 50줄 (2026-06-19)
 
 export default function SearchKeywords() {
   const [filter, setFilter] = useState({ fr_date: '', to_date: '', page: 1 })
@@ -45,6 +45,7 @@ export default function SearchKeywords() {
     if (filter.fr_date) params.set('fr_date', filter.fr_date)
     if (filter.to_date) params.set('to_date', filter.to_date)
     params.set('page', String(filter.page))
+    params.set('limit', String(PAGE_SIZE))
     setLoading(true)
     api<Resp>(`/admin/board-ops/search-keywords?${params}`)
       .then(setData)

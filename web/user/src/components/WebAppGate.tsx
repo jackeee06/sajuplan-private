@@ -24,10 +24,16 @@ function shouldGate(): boolean {
   if (typeof window === 'undefined') return false
   if (isNativeApp()) return false
   if (navigator.webdriver) return false
-  // 모집인(서포터즈) 랜딩(/s/:code) · 대시보드(/promoter) 는 앱이 없는
-  // 모집인·피모집자가 일반 브라우저에서 여는 화면이므로 게이트 예외.
+  // 모집인(서포터즈) 랜딩(/s/:code) · 대시보드(/promoter) · 공개 쿠폰 이벤트(/event) 는
+  // 앱이 없는 모집인·직원·가족·피모집자가 일반 브라우저에서 여는 화면이므로 게이트 예외.
   const path = window.location.pathname
-  if (path.startsWith('/s/') || path === '/promoter' || path.startsWith('/promoter/')) {
+  if (
+    path.startsWith('/s/') ||
+    path === '/promoter' ||
+    path.startsWith('/promoter/') ||
+    path === '/event' ||
+    path.startsWith('/event/')
+  ) {
     return false
   }
   try {

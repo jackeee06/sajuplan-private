@@ -1,7 +1,8 @@
 {
   "_comment": "알림 3채널 매트릭스 단일 출처(SSOT). 이 파일이 진실원천 — /alert-guide 페이지가 API로 읽어 렌더. 수정 후 _sync_handbook.py 로 prod 동기화. 표시 META/타입/헬퍼는 web/mng/src/data/alertCatalog.ts(코드).",
-  "_updated": "2026-06-18",
+  "_updated": "2026-06-20",
   "_note_fcm_expansion": "\"알림톡 전체 → FCM 푸시도 보내자\" 확대안은 보류(park). 나중 재검토. 현재 둘다=상담요청/문의/등급승급/후기, 알림톡만=정산/선지급/쿠폰 등.",
+  "_note_inbox": "2026-06-20 통합 알림함: 이 매트릭스의 발송형 이벤트는 푸시/알림톡과 함께 종모양 알림함(notification_log)에도 한 줄로 기록됨(InboxService.record, code+via_push/via_alimtalk 플래그). 안읽음 종모양 뱃지. 보안 제외=인증번호/임시비번/운영자OpsAlert/가상계좌. 상세=_HANDBOOK/alert/06-inapp-notifications(.tech).md",
   "items": [
     {
       "id": "consult_request_arrived",

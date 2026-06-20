@@ -45,7 +45,7 @@ export default function PopupLayerList() {
 
   return (
     <div className="space-y-3 max-w-[1100px]">
-      <div className="flex items-center justify-between">
+      <div className="space-y-2">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">팝업레이어 관리</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">메인 화면 자동 노출 팝업 ({items.length}건)</p>
@@ -53,6 +53,13 @@ export default function PopupLayerList() {
         <Link to="/popup-layers/new" className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium">
           <Plus className="w-4 h-4" /> 팝업 추가
         </Link>
+      </div>
+
+      {/* 안내 — 보여주는 알림(콘텐츠) */}
+      <div className="rounded-lg border border-sky-200 bg-sky-50 dark:border-sky-800/60 dark:bg-sky-900/20 p-3 text-xs text-sky-900 dark:text-sky-200 space-y-1 max-w-[820px]">
+        <div className="font-semibold">📌 팝업 모달 = 홈에 띄우는 콘텐츠 (상시 노출 · 알림과 다른 용도)</div>
+        <div>• 앱/홈 진입 시 뜨는 <b>모달 팝업</b>("오늘 하루 보지 않기")입니다. <b>여기서 직접 등록·수정·삭제</b>할 수 있어요 (위쪽 [팝업 추가] 버튼).</div>
+        <div>• 등록해두면 <b>노출 기간 동안 계속 보입니다</b> (한 번 보내고 끝나는 알림과 다른 방식).</div>
       </div>
 
       <TableShell>

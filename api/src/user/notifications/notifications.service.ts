@@ -7,6 +7,12 @@ export interface PublicNotificationItem {
   content: string;
   link_url: string | null;
   category: string | null;
+  /** 이벤트 코드 — 화면 아이콘/라벨 매핑 키 (chat_request/review/grade/settlement/coupon...) */
+  code: string | null;
+  /** FCM 푸시로도 발송됐는가 (채널 뱃지) */
+  via_push: boolean;
+  /** 카카오 알림톡으로도 발송됐는가 (채널 뱃지) */
+  via_alimtalk: boolean;
   read: boolean;
   created_at: string;
 }
@@ -51,21 +57,26 @@ export class UserNotificationsService {
         : ['전체공지'];
     }
 
+    type Row = {
+      id: number;
+      title: string;
+      content: string;
+      link_url: string | null;
+      category: string | null;
+      code: string | null;
+      via_push: boolean | null;
+      via_alimtalk: boolean | null;
+      viewed_by: string[] | null;
+      created_at: Date | null;
+    };
+
     const rows = memberId !== null
-      ? await this.sql<
-          {
-            id: number;
-            title: string;
-            content: string;
-            link_url: string | null;
-            category: string | null;
-            viewed_by: string[] | null;
-            created_at: Date | null;
-          }[]
-        >`
-          SELECT id, title, content, link_url, category, viewed_by, created_at
+      ? await this.sql<Row[]>`
+          SELECT id, title, content, link_url, category, code,
+                 via_push, via_alimtalk, viewed_by, created_at
             FROM notification_log
            WHERE created_at >= now() - interval '6 months'
+             AND via_inapp = true
              AND (
                member_id = ${memberId}
                OR (member_id IS NULL AND mb_id = 'all' AND category = ANY(${this.sql.array(cats)}::text[]))
@@ -73,20 +84,12 @@ export class UserNotificationsService {
            ORDER BY created_at DESC NULLS LAST, id DESC
            LIMIT 200
         `
-      : await this.sql<
-          {
-            id: number;
-            title: string;
-            content: string;
-            link_url: string | null;
-            category: string | null;
-            viewed_by: string[] | null;
-            created_at: Date | null;
-          }[]
-        >`
-          SELECT id, title, content, link_url, category, viewed_by, created_at
+      : await this.sql<Row[]>`
+          SELECT id, title, content, link_url, category, code,
+                 via_push, via_alimtalk, viewed_by, created_at
             FROM notification_log
            WHERE created_at >= now() - interval '6 months'
+             AND via_inapp = true
              AND member_id IS NULL AND mb_id = 'all'
              AND category = '전체공지'
            ORDER BY created_at DESC NULLS LAST, id DESC
@@ -101,12 +104,47 @@ export class UserNotificationsService {
         content: r.content,
         link_url: r.link_url,
         category: r.category,
+        code: r.code,
+        via_push: !!r.via_push,
+        via_alimtalk: !!r.via_alimtalk,
         read: !!myMbId && viewers.includes(myMbId),
         created_at: r.created_at ? r.created_at.toISOString() : '',
       };
     });
 
     return { items };
+  }
+
+  /**
+   * 안 읽은 알림 개수 — 종모양 뱃지용. 비로그인은 0.
+   * list() 와 동일한 노출 규칙 + viewed_by 에 본인 mb_id 없는 것만 카운트.
+   */
+  async unreadCount(memberId: number | null): Promise<{ count: number }> {
+    if (memberId === null) return { count: 0 };
+
+    const me = await this.sql<{ mb_id: string | null; role: string }[]>`
+      SELECT mb_id, role FROM member WHERE id = ${memberId} LIMIT 1
+    `;
+    if (me.length === 0) return { count: 0 };
+    const mbId = me[0].mb_id ?? '';
+    if (!mbId) return { count: 0 };
+    const cats =
+      me[0].role === 'user' ? ['전체공지', '일반회원']
+      : me[0].role === 'counselor' ? ['전체공지', '상담사']
+      : ['전체공지'];
+
+    const r = await this.sql<{ cnt: string }[]>`
+      SELECT COUNT(*)::text AS cnt
+        FROM notification_log
+       WHERE created_at >= now() - interval '6 months'
+         AND via_inapp = true
+         AND (
+           member_id = ${memberId}
+           OR (member_id IS NULL AND mb_id = 'all' AND category = ANY(${this.sql.array(cats)}::text[]))
+         )
+         AND NOT (COALESCE(viewed_by, '[]'::jsonb) ? ${mbId})
+    `;
+    return { count: Number(r[0]?.cnt ?? 0) };
   }
 
   /**

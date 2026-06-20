@@ -21,7 +21,7 @@ export function Th({ children, align = 'left', className }: { children: ReactNod
   const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
   return (
     <th
-      className={`px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap ${alignCls} ${className ?? ''}`}
+      className={`px-1.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 whitespace-nowrap ${alignCls} ${className ?? ''}`}
     >
       {children}
     </th>
@@ -38,7 +38,7 @@ export function Td({
   className?: string
 }) {
   const alignCls = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
-  return <td className={`px-2 py-1 whitespace-nowrap ${alignCls} ${className ?? ''}`}>{children}</td>
+  return <td className={`px-1.5 py-1 whitespace-nowrap ${alignCls} ${className ?? ''}`}>{children}</td>
 }
 
 export function THead({ children, sticky }: { children: ReactNode; sticky?: boolean }) {
@@ -410,6 +410,13 @@ export function fmtDate(s: string | null, opts?: { withTime?: boolean }): string
     minute: '2-digit',
     hour12: false,
   })
+}
+
+export function fmtTime(s: string | null): string {
+  if (!s) return ''
+  const d = new Date(s)
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 export function fmtPhone(p: string | null): string {

@@ -15,7 +15,7 @@ interface Notice {
   updated_at: string
 }
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 50) // 첫 화면 50줄 (2026-06-19)
 
 export default function NoticesList() {
   const navigate = useNavigate()
@@ -28,6 +28,7 @@ export default function NoticesList() {
     const p = new URLSearchParams()
     if (filter.q) p.set('q', filter.q)
     p.set('page', String(filter.page))
+    p.set('limit', String(PAGE_SIZE))
     setLoading(true)
     api<{ items: Notice[]; total: number }>(`/admin/notices?${p}`).then(setData).finally(() => setLoading(false))
   }, [filter])

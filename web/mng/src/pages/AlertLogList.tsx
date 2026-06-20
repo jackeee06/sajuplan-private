@@ -65,7 +65,7 @@ export default function AlertLogList() {
 
   useEffect(() => { api<{ checks: HealthCheck[] }>('/admin/alert-logs/health').then(setHealth).catch(() => {}) }, [])
   useEffect(() => {
-    api<{ items: LogItem[]; total: number }>(`/admin/alert-logs?page=${page}${onlyFail ? '&only_fail=1' : ''}`)
+    api<{ items: LogItem[]; total: number }>(`/admin/alert-logs?page=${page}&limit=200${onlyFail ? '&only_fail=1' : ''}`)
       .then(setData).catch(() => {})
   }, [page, onlyFail])
 
@@ -75,8 +75,8 @@ export default function AlertLogList() {
     <div className="space-y-4 max-w-[1100px]">
       {/* 타이틀 — 한 줄, 부제 인라인 (조밀) */}
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">알림 이력</h1>
-        <span className="text-xs text-gray-500 dark:text-gray-400">발송된 모든 알림과 현재 시스템 점검 상태 — 불안하면 여기서 상세를 확인하세요.</span>
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-100">알림톡 이력</h1>
+        <span className="text-xs text-gray-500 dark:text-gray-400">발송된 알림톡(카카오) 전체 기록과 현재 시스템 점검 상태 — 불안하면 여기서 상세를 확인하세요.</span>
       </div>
 
       {/* 현재 시스템 점검 */}
@@ -116,7 +116,7 @@ export default function AlertLogList() {
       </div>
 
       {/* 발송 이력 */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
         <span className="text-xs text-gray-500">전체 <span className="text-brand-600 font-semibold">{data?.total?.toLocaleString() ?? 0}</span>건</span>
         <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
           <input type="checkbox" checked={onlyFail} onChange={(e) => { setOnlyFail(e.target.checked); setPage(1) }} />
@@ -160,7 +160,7 @@ export default function AlertLogList() {
         <div className="flex justify-center gap-2 text-sm">
           <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 rounded-md border border-gray-200 disabled:opacity-40">이전</button>
           <span className="px-2 py-1.5 text-gray-500">{page}페이지</span>
-          <button disabled={page * 30 >= data.total} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 rounded-md border border-gray-200 disabled:opacity-40">다음</button>
+          <button disabled={page * 200 >= data.total} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 rounded-md border border-gray-200 disabled:opacity-40">다음</button>
         </div>
       )}
 

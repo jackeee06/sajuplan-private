@@ -1,5 +1,8 @@
 import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import sharp from 'sharp';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { SQL, type Sql, type TxSql } from '../db/db.module';
 import { SmsService } from '../../user/sms/sms.service';
 
@@ -165,7 +168,12 @@ export class PromoterCoreService {
    * 유료 사용 적립 — 트랜잭션 내부에서 호출(consultation/선결제 차감과 원자성).
    *  - paidAmount: 유료 사용분(종량=amt_pro / 선결제=takePaid)
    *  - 멱등: (source_table, source_id) UNIQUE
-   *  - 반환: 신규 적립 시 {promoterId, rewardAmount}, 중복/대상아님이면 null
+   *  - 현금형(reward_type='cash'): promoter_reward 원장만 적립(기존). 수동 정산 대상.
+   *  - 코인형(reward_type='coin'): 추가로 초대한 회원(promoter.member_id)의 free_balance 즉시 코인 적립.
+   *      · balance_kind='consumer' → 상담사 수익금(earning)·정산 무침범 (회사 부담 마케팅 코인).
+   *      · member.point 미러 동기화. 멱등은 promoter_reward INSERT 게이트가 보장(1회만 실행).
+   *      · m2net 잔액 동기화(addMemberCoin)는 HTTP라 호출자가 커밋 후 수행(반환값 사용).
+   *  - 반환: 신규 적립 시 {promoterId, rewardAmount, rewardType, beneficiaryMemberId}, 중복/대상아님이면 null
    */
   async accrueInTx(
     tx: TxSql,
@@ -176,12 +184,20 @@ export class PromoterCoreService {
       sourceId: number;
       usageLabel: string;
     },
-  ): Promise<{ promoterId: number; rewardAmount: number } | null> {
+  ): Promise<
+    | { promoterId: number; rewardAmount: number; rewardType: 'cash' | 'coin'; beneficiaryMemberId: number | null }
+    | null
+  > {
     const paid = Math.trunc(Number(args.paidAmount));
     if (!Number.isFinite(paid) || paid <= 0) return null;
-    const ref = await tx<{ promoter_id: number; rate_snapshot: string }[]>`
-      SELECT promoter_id, rate_snapshot FROM promoter_referral
-       WHERE member_id = ${args.memberId} AND reward_until >= CURRENT_DATE
+    const ref = await tx<
+      { promoter_id: number; rate_snapshot: string; reward_type: string | null; beneficiary_member_id: number | null }[]
+    >`
+      SELECT pr.promoter_id, pr.rate_snapshot,
+             p.reward_type, p.member_id AS beneficiary_member_id
+        FROM promoter_referral pr
+        JOIN promoter p ON p.id = pr.promoter_id
+       WHERE pr.member_id = ${args.memberId} AND pr.reward_until >= CURRENT_DATE
        LIMIT 1
     `;
     if (!ref[0]) return null;
@@ -200,7 +216,46 @@ export class PromoterCoreService {
       RETURNING id
     `;
     if (ins.length === 0) return null; // 멱등 — 이미 적립됨
-    return { promoterId: ref[0].promoter_id, rewardAmount: reward };
+    const rewardId = ins[0].id;
+    const rewardType: 'cash' | 'coin' = ref[0].reward_type === 'coin' ? 'coin' : 'cash';
+    const beneficiaryMemberId =
+      ref[0].beneficiary_member_id != null ? Number(ref[0].beneficiary_member_id) : null;
+
+    // ── 코인형: 초대한 회원 A(beneficiary)의 free_balance 즉시 적립 (회사 부담 마케팅 코인) ──
+    //    creditPointToMember(auth.service) 와 동일 정석 패턴. balance_kind='consumer' → earning/정산 무침범.
+    if (rewardType === 'coin' && beneficiaryMemberId) {
+      let pt = await tx<{ free_balance: number; paid_balance: number }[]>`
+        SELECT free_balance, paid_balance FROM point WHERE member_id = ${beneficiaryMemberId} FOR UPDATE
+      `;
+      if (pt.length === 0) {
+        await tx`INSERT INTO point (member_id, free_balance, paid_balance, total_earned, total_used)
+                 VALUES (${beneficiaryMemberId}, 0, 0, 0, 0) ON CONFLICT (member_id) DO NOTHING`;
+        pt = await tx<{ free_balance: number; paid_balance: number }[]>`
+          SELECT free_balance, paid_balance FROM point WHERE member_id = ${beneficiaryMemberId} FOR UPDATE
+        `;
+      }
+      const balanceAfter = Number(pt[0].free_balance) + Number(pt[0].paid_balance) + reward;
+      await tx`
+        INSERT INTO point_history (
+          member_id, content, earn_point, use_point, balance_after,
+          is_paid, rel_table, rel_id, rel_action, actor_type, balance_kind
+        ) VALUES (
+          ${beneficiaryMemberId}, ${`친구초대 보상 — ${args.usageLabel.slice(0, 80)}`}, ${reward}, 0, ${balanceAfter},
+          false, 'promoter_reward', ${String(rewardId)},
+          ${`promoter_reward@${rewardId}@invite_coin`}, 'system', 'consumer'
+        )
+        ON CONFLICT DO NOTHING
+      `;
+      await tx`UPDATE point SET free_balance = free_balance + ${reward},
+                                total_earned = total_earned + ${reward},
+                                updated_at = now()
+                WHERE member_id = ${beneficiaryMemberId}`;
+      await tx`UPDATE member SET point = (SELECT free_balance + paid_balance FROM point WHERE member_id = ${beneficiaryMemberId}),
+                                 updated_at = now()
+                WHERE id = ${beneficiaryMemberId}`;
+    }
+
+    return { promoterId: ref[0].promoter_id, rewardAmount: reward, rewardType, beneficiaryMemberId };
   }
 
   /**
@@ -371,5 +426,146 @@ export class PromoterCoreService {
         createdAt: t.created_at,
       })),
     };
+  }
+
+  /** 친구초대 공유 링크 베이스 (모집인 랜딩 /s/{code}). */
+  private static readonly SHARE_BASE = 'https://sajuplan.com/s/';
+
+  /**
+   * 회원 친구초대 활성화 — 코인형 모집인 보장(없으면 생성), 본인 코드 반환.
+   *  - 회원(앱) 전용. 친구가 코드로 가입 후 유료 사용 시 회원에게 코인 적립(reward_type='coin').
+   *  - 이미 이 회원/전화로 등록된 모집인이 있으면 그대로 재사용(현금형이면 현금형 유지 — 본인 선택 존중).
+   *    → phone UNIQUE 충돌 방지 + 외부영업 겸업 회원 보호.
+   */
+  async ensureCoinPromoterForMember(
+    memberId: number,
+  ): Promise<{ code: string; promoterId: number; shareUrl: string; rewardType: 'cash' | 'coin' }> {
+    const m = await this.sql<{ name: string | null; nickname: string | null; phone: string | null }[]>`
+      SELECT name, nickname, phone FROM member WHERE id = ${memberId} LIMIT 1
+    `;
+    if (!m[0]) throw new BadRequestException('회원을 찾을 수 없습니다.');
+    const phoneDigits = (m[0].phone ?? '').replace(/\D/g, '');
+
+    const existing = await this.sql<{ id: number; code: string; reward_type: string | null }[]>`
+      SELECT id, code, reward_type FROM promoter
+       WHERE member_id = ${memberId}
+          OR (${phoneDigits} <> '' AND phone = ${phoneDigits})
+       ORDER BY (member_id = ${memberId}) DESC, id
+       LIMIT 1
+    `;
+    if (existing[0]) {
+      // member_id 연결이 비어 있던 기존 모집인(전화로만 매칭)이면 회원 연결 보강.
+      await this.sql`UPDATE promoter SET member_id = ${memberId}, updated_at = now()
+                      WHERE id = ${existing[0].id} AND member_id IS NULL`;
+      return {
+        code: existing[0].code,
+        promoterId: existing[0].id,
+        shareUrl: PromoterCoreService.SHARE_BASE + existing[0].code,
+        rewardType: existing[0].reward_type === 'coin' ? 'coin' : 'cash',
+      };
+    }
+
+    const name = (m[0].nickname || m[0].name || '회원').toString().trim().slice(0, 100);
+    const code = await this.generateUniqueCode(phoneDigits || String(memberId));
+    const phoneForRow = phoneDigits || `M${memberId}`; // phone NOT NULL UNIQUE — 폰 없으면 회원ID 기반 대체
+    const rows = await this.sql<{ id: number }[]>`
+      INSERT INTO promoter (name, phone, code, member_id, reward_type, is_active, status)
+      VALUES (${name}, ${phoneForRow}, ${code}, ${memberId}, 'coin', true, 'active')
+      RETURNING id
+    `;
+    this.logger.log(`[promoter invite] 코인형 모집인 생성 member=${memberId} code=${code}`);
+    return {
+      code,
+      promoterId: rows[0].id,
+      shareUrl: PromoterCoreService.SHARE_BASE + code,
+      rewardType: 'coin',
+    };
+  }
+
+  /**
+   * 회원 친구초대 현황 (마이페이지). 활성화 전이면 enabled=false.
+   *  - totalCoins: 받은 코인 누적(환불 void 여도 코인은 회수 안 하므로 전체 합산 = 실제 받은 코인).
+   */
+  async getMemberInviteDashboard(memberId: number): Promise<{
+    enabled: boolean;
+    code: string | null;
+    shareUrl: string | null;
+    rewardType: 'cash' | 'coin' | null;
+    friendCount: number;
+    totalCoins: number;
+    timeline: { maskedName: string; usedAmount: number; rewardAmount: number; status: string; createdAt: string }[];
+  }> {
+    const p = await this.sql<{ id: number; code: string; reward_type: string | null }[]>`
+      SELECT id, code, reward_type FROM promoter WHERE member_id = ${memberId} ORDER BY id LIMIT 1
+    `;
+    if (!p[0]) {
+      return { enabled: false, code: null, shareUrl: null, rewardType: null, friendCount: 0, totalCoins: 0, timeline: [] };
+    }
+    const promoterId = p[0].id;
+    const agg = await this.sql<{ friends: string; coins: string }[]>`
+      SELECT
+        (SELECT COUNT(*) FROM promoter_referral WHERE promoter_id = ${promoterId})::text AS friends,
+        COALESCE((SELECT SUM(reward_amount) FROM promoter_reward WHERE promoter_id = ${promoterId}), 0)::text AS coins
+    `;
+    const tl = await this.sql<
+      { name: string | null; reward_amount: number; base_paid: number; status: string; created_at: string }[]
+    >`
+      SELECT m.name, r.reward_amount, r.base_paid, r.status, r.created_at
+        FROM promoter_reward r
+        LEFT JOIN member m ON m.id = r.member_id
+       WHERE r.promoter_id = ${promoterId}
+       ORDER BY r.created_at DESC
+       LIMIT 50
+    `;
+    return {
+      enabled: true,
+      code: p[0].code,
+      shareUrl: PromoterCoreService.SHARE_BASE + p[0].code,
+      rewardType: p[0].reward_type === 'coin' ? 'coin' : 'cash',
+      friendCount: Number(agg[0]?.friends ?? 0),
+      totalCoins: Number(agg[0]?.coins ?? 0),
+      timeline: tl.map((t) => ({
+        maskedName: PromoterCoreService.maskName(t.name),
+        usedAmount: Number(t.base_paid),
+        rewardAmount: Number(t.reward_amount),
+        status: t.status,
+        createdAt: t.created_at,
+      })),
+    };
+  }
+
+  // ── 코드 박힌 쿠폰 이미지 즉석 합성 (서버 폰트 불필요) ──
+  //   베이스(디자인+한글)는 미리 만든 PNG, 코드는 미리 만든 숫자 글리프 PNG 를 합성만 한다.
+  //   에셋: process.cwd()/assets/coupon/{coupon-base.png, glyph-*.png, coupon-layout.json}
+  //   무저장(요청 시 메모리 합성). 베이스/글리프/레이아웃은 1회 읽어 캐시.
+  private static couponDir = join(process.cwd(), 'assets', 'coupon');
+  private static couponBase: Buffer | null = null;
+  private static couponLayout: { centerX: number; top: number; glyphW: number; glyphH: number } | null = null;
+  private static glyphCache = new Map<string, Buffer>();
+
+  /** 코드(예 '0572','A0572')를 큰 글씨로 박은 쿠폰 PNG 버퍼. 코드 없으면 베이스만. */
+  async renderCouponImage(code: string): Promise<Buffer> {
+    const dir = PromoterCoreService.couponDir;
+    if (!PromoterCoreService.couponBase) {
+      PromoterCoreService.couponBase = readFileSync(join(dir, 'coupon-base.png'));
+    }
+    if (!PromoterCoreService.couponLayout) {
+      PromoterCoreService.couponLayout = JSON.parse(readFileSync(join(dir, 'coupon-layout.json'), 'utf8'));
+    }
+    const layout = PromoterCoreService.couponLayout!;
+    const base = PromoterCoreService.couponBase!;
+    const chars = (code ?? '').toUpperCase().replace(/[^0-9A]/g, '').slice(0, 8).split('');
+    if (chars.length === 0) return base;
+    const totalW = chars.length * layout.glyphW;
+    const startX = Math.round(layout.centerX - totalW / 2);
+    const overlays = chars.map((ch, i) => {
+      let g = PromoterCoreService.glyphCache.get(ch);
+      if (!g) {
+        g = readFileSync(join(dir, `glyph-${ch}.png`));
+        PromoterCoreService.glyphCache.set(ch, g);
+      }
+      return { input: g, left: startX + i * layout.glyphW, top: layout.top };
+    });
+    return sharp(base).composite(overlays).png().toBuffer();
   }
 }

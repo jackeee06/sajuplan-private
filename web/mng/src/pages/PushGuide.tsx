@@ -130,11 +130,18 @@ export default function PushGuide() {
 function PushCard({ item }: { item: PushCatalogItem }) {
   const cat = CATEGORY_META[item.category]
   const status = STATUS_META[item.status]
+  // 실제 발송 중인 건 status==='done'(구현 완료) 하나뿐. 나머지(빌드대기/설계만)는
+  // 아직 발송 안 됨 → 회색 muted 로 "안 쓰는 카드"임을 한눈에. 발송 중 1건만 초록 강조.
+  const live = item.status === 'done'
 
   return (
     <article
       id={item.id}
-      className="rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 text-[12.5px] leading-relaxed hover:border-brand-300 dark:hover:border-brand-700 transition-colors"
+      className={`rounded-md border p-3 text-[12.5px] leading-relaxed transition ${
+        live
+          ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 border-l-[3px] border-l-green-500 hover:border-brand-300 dark:hover:border-brand-700'
+          : 'bg-gray-200 dark:bg-gray-900/60 border-gray-300/80 dark:border-gray-800 opacity-70 hover:opacity-100 hover:border-gray-400 dark:hover:border-gray-600'
+      }`}
     >
       {/* 헤더: 아이콘 + 이름 + 상태 */}
       <header className="flex items-start justify-between gap-2 mb-1.5">

@@ -168,8 +168,8 @@ export default function ConsultationList() {
 
   return (
     <div className="space-y-3">
-      {/* 타이틀 + 엑셀 */}
-      <div className="flex items-center justify-between">
+      {/* 타이틀 + 엑셀 (좌측 정렬) */}
+      <div className="space-y-2">
         <div>
           <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">사용(상담) 내역</h1>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">상담 종료된 사용 이력</p>

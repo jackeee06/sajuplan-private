@@ -70,17 +70,19 @@ export interface MemberMenuItem {
 }
 
 export const MEMBER_MAIN_MENU: MemberMenuItem[] = [
+  { to: '/mypage/invite', label: '친구 초대', icon: '/img/ic_my_event.svg' },
   { to: '/mypage/coupons', label: '쿠폰', icon: '/img/ic_my_coupon.svg' },
   { to: '/mypage/points', label: '코인 내역', icon: '/img/ic_my_history.svg' },
   { to: '/mypage/history', label: '상담 내역', icon: '/img/ic_my_phone.svg' },
   { to: '/mypage/my-reviews', label: '나의 상담후기', icon: '/img/ic_my_review.svg' },
   { to: '/mypage/my-qnas', label: '나의 상담문의', icon: '/img/ic_my_inquiry.svg' },
+  { to: '/mypage/support-inquiries', label: '고객센터 문의', icon: '/img/ic_my_headset.svg' },
 ]
 
 /** 회원 메인 추가메뉴 — 비회원과 동일 5개 */
 export const MEMBER_EXTRA_MENU: MemberMenuItem[] = [
   { to: '/mypage/events', label: '이벤트', icon: '/img/ic_my_event.svg' },
-  { to: '/mypage/help', label: '이용안내', icon: '/img/ic_my_book.svg' },
+  { to: '/mypage/help', label: '자주 묻는 질문', icon: '/img/ic_my_book.svg' },
   { to: '/mypage/notices', label: '공지사항', icon: '/img/ic_my_notice.svg' },
   { to: '/mypage/new-counselors', label: '신규상담사', icon: '/img/ic_my_headset.svg' },
   { to: '/mypage/counselor-apply', label: '상담사 신청', icon: '/img/ic_my_user_plus.svg' },

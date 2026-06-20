@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
+import NotificationBell from '../components/NotificationBell'
 import FloatingActions from '../components/FloatingActions'
 import ConfirmModal from '../components/ConfirmModal'
 import UploadedImage from '../components/UploadedImage'
@@ -85,9 +86,7 @@ export default function MemberMyPage() {
           <Link to="/search" aria-label="검색" className="w-[30px] h-[30px] flex items-center justify-center">
             <img src="/img/ic_hd_search.svg" alt="" className="w-7 h-7" />
           </Link>
-          <Link to="/notifications" aria-label="알림" className="w-[30px] h-[30px] flex items-center justify-center">
-            <img src="/img/ic_hd_push.svg" alt="" className="w-7 h-7" />
-          </Link>
+          <NotificationBell />
         </div>
       </header>
 
@@ -175,14 +174,17 @@ export default function MemberMyPage() {
         {/* 추천 코드 사후 입력 — 가입 후 7일 내·미귀속 회원에게만 노출(아니면 렌더 X) */}
         <PromoterReferralPrompt />
 
-        <section className="pt-6">
-          <h3 className="text-[14px] leading-[140%] text-[#99A1AF] mb-1">마이페이지</h3>
-          <ul className="flex flex-col">
+        <section className="pt-5">
+          <h3 className="text-[13px] leading-[140%] text-[#99A1AF] mb-2">마이페이지</h3>
+          <ul className="grid grid-cols-2 gap-2">
             {MEMBER_MAIN_MENU.map((it) => (
               <li key={it.to}>
-                <Link to={it.to} className="h-14 flex items-center gap-3">
-                  <img src={it.icon} alt="" className="w-7 h-7" />
-                  <span className="text-[17px] leading-[140%] font-semibold text-[#030712]">
+                <Link
+                  to={it.to}
+                  className="flex items-center gap-2.5 h-[52px] px-3.5 rounded-[14px] bg-[#F9FAFB] border border-[#F3F4F6] active:bg-[#fdf2f8] transition-colors"
+                >
+                  <img src={it.icon} alt="" className="w-6 h-6 shrink-0" />
+                  <span className="text-[15px] leading-[125%] font-semibold text-[#030712] truncate">
                     {it.label}
                   </span>
                 </Link>
@@ -191,14 +193,17 @@ export default function MemberMyPage() {
           </ul>
         </section>
 
-        <section className="pt-6">
-          <h3 className="text-[14px] leading-[140%] text-[#99A1AF] mb-1">추가메뉴</h3>
-          <ul className="flex flex-col">
+        <section className="pt-5">
+          <h3 className="text-[13px] leading-[140%] text-[#99A1AF] mb-2">추가메뉴</h3>
+          <ul className="grid grid-cols-2 gap-2">
             {MEMBER_EXTRA_MENU.map((it) => (
               <li key={it.to}>
-                <Link to={it.to} className="h-14 flex items-center gap-3">
-                  <img src={it.icon} alt="" className="w-7 h-7" />
-                  <span className="text-[17px] leading-[140%] font-semibold text-[#030712]">
+                <Link
+                  to={it.to}
+                  className="flex items-center gap-2.5 h-[52px] px-3.5 rounded-[14px] bg-[#F9FAFB] border border-[#F3F4F6] active:bg-[#fdf2f8] transition-colors"
+                >
+                  <img src={it.icon} alt="" className="w-6 h-6 shrink-0" />
+                  <span className="text-[15px] leading-[125%] font-semibold text-[#030712] truncate">
                     {it.label}
                   </span>
                 </Link>
@@ -210,10 +215,10 @@ export default function MemberMyPage() {
         <button
           type="button"
           onClick={() => setLogoutOpen(true)}
-          className="mt-2 h-14 flex items-center gap-3 text-[#FB2C36]"
+          className="mt-3 w-full h-[52px] flex items-center justify-center gap-2 rounded-[14px] bg-[#F9FAFB] border border-[#F3F4F6] text-[#FB2C36]"
         >
-          <img src="/img/ic_my_logout.svg" alt="" className="w-7 h-7" />
-          <span className="text-[17px] leading-[140%] font-semibold">로그아웃</span>
+          <img src="/img/ic_my_logout.svg" alt="" className="w-5 h-5" />
+          <span className="text-[15px] font-semibold">로그아웃</span>
         </button>
       </main>
 

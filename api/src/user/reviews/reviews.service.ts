@@ -3,6 +3,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
 import { SmsService } from '../sms/sms.service';
 import { PushService } from '../../shared/push/push.service';
 import { M2netService } from '../../shared/m2net/m2net.service';
+import { InboxService } from '../../shared/inbox/inbox.service';
 
 export interface PublicRecentReview {
   id: number;
@@ -41,6 +42,7 @@ export class UserReviewsService {
     private readonly sms: SmsService,
     private readonly m2net: M2netService,
     private readonly push: PushService,
+    private readonly inbox: InboxService,
   ) {}
 
   async recent(params: {
@@ -878,6 +880,17 @@ export class UserReviewsService {
     } catch (e) {
       this.logger.warn(`[notifyCounselorOfReview] FCM 예외 counselorId=${counselorId}: ${e instanceof Error ? e.message : String(e)}`);
     }
+
+    // ── ③ 알림함 기록 (종모양) ──────────────────────────────
+    await this.inbox.record({
+      memberId: counselorId,
+      code: 'review',
+      title: '새 후기가 도착했습니다',
+      content: '새로운 상담 후기가 남겨졌어요. 확인 후 답변을 남겨보세요.',
+      linkUrl: `/counselor/mypage/reviews/${reviewId}`,
+      viaPush: true,
+      viaAlimtalk: !!c.phone,
+    });
   }
 
   /**

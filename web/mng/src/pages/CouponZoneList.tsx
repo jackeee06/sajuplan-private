@@ -60,7 +60,7 @@ const CP_METHOD_LABEL: Record<number, string> = {
   4: '포인트',
 }
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 50) // 첫 화면 50줄 (2026-06-19)
 
 export default function CouponZoneList() {
   const navigate = useNavigate()

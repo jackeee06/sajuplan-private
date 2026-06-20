@@ -4,6 +4,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
 import { M2netService } from '../../shared/m2net/m2net.service';
 import { SmsService } from '../sms/sms.service';
 import { PushService } from '../../shared/push/push.service';
+import { InboxService } from '../../shared/inbox/inbox.service';
 
 export interface PublicCounselor {
   id: number;
@@ -127,6 +128,7 @@ export class UserCounselorsService {
     private readonly sms: SmsService,
     private readonly push: PushService,
     private readonly config: ConfigService,
+    private readonly inbox: InboxService,
   ) {}
 
   /**
@@ -255,6 +257,16 @@ export class UserCounselorsService {
     this.logger.log(
       `[requestConsult] member=${params.requesterId}(${requesterNick}) → counselor=${params.counselorId}(${counselorDisplayName}) alimtalk=${alimtalkOk} push=${pushOk}`,
     );
+
+    await this.inbox.record({
+      memberId: params.counselorId,
+      code: 'call_request',
+      title: '상담 요청이 도착했습니다',
+      content: `${requesterNick} 님이 상담을 요청했습니다. 지금 접속해주세요.`,
+      linkUrl: '/counselor',
+      viaPush: pushOk,
+      viaAlimtalk: alimtalkOk,
+    });
 
     return { ok: true, notified: { alimtalk: alimtalkOk, push: pushOk } };
   }

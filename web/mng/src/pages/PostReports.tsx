@@ -43,7 +43,7 @@ const STATUS_MAP: Record<number, { label: string; color: BadgeColor }> = {
   2: { label: '반려', color: 'gray' },
 }
 
-const PAGE_SIZE = 30
+const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 50) // 첫 화면 50줄 (2026-06-19)
 
 // counselor_qna 신고 횟수 캐시 (post_id → count)
 type HiddenMap = Record<number, boolean>
@@ -59,6 +59,7 @@ export default function PostReports() {
     if (filter.status !== '') params.set('status', filter.status)
     if (filter.board !== '') params.set('board_slug', filter.board)
     params.set('page', String(filter.page))
+    params.set('limit', String(PAGE_SIZE))
     setLoading(true)
     api<Resp>(`/admin/board-ops/reports?${params}`)
       .then((d) => {

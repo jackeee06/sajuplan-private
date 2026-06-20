@@ -478,9 +478,9 @@ export default function PromoterDashboard() {
         open={shareOpen}
         onClose={() => setShareOpen(false)}
         shareUrl={myLink}
-        title="사주플랜 서포터즈"
-        description={data ? `회원가입 시 추천 코드 ${data.code} 를 꼭 입력해주세요! (입력해야 추천이 적용돼요)` : '사주·타로·신점 상담 사주플랜'}
-        imageUrl="/apple-touch-icon.png"
+        title="🎁 사주플랜 만원 무료코인 쿠폰"
+        description={data ? `가입할 때 추천코드 ${data.code} 입력! 지금 가입하면 만원 공짜` : '지금 가입하면 만원이 공짜!'}
+        imageUrl="/img/coupon-invite-v3.png"
       />
 
       <AlertModal open={!!alertMsg} message={alertMsg ?? ''} onClose={() => setAlertMsg(null)} />

@@ -11,6 +11,7 @@ import { SQL, type Sql } from '../../shared/db/db.module';
 import { M2netService } from '../../shared/m2net/m2net.service';
 import { PushService } from '../../shared/push/push.service';
 import { SmsService } from '../sms/sms.service';
+import { InboxService } from '../../shared/inbox/inbox.service';
 
 export interface PhoneConsultResult {
   /** 사용자가 dial 해야 하는 대표번호 (선불=070, 후불=060) */
@@ -49,6 +50,7 @@ export class UserConsultService {
     private readonly config: ConfigService,
     private readonly sms: SmsService,
     private readonly push: PushService,
+    private readonly inbox: InboxService,
   ) {}
 
   /** wss 접속 베이스 URL — env 미설정 시 sample/chat_test/cn.php 와 동일한 기본값 */
@@ -600,6 +602,17 @@ export class UserConsultService {
         `[notifyCounselorChatRequest] FCM 예외 counselorId=${counselorId}: ${e instanceof Error ? e.message : String(e)}`,
       );
     }
+
+    // ── ③ 알림함 기록 (종모양) — 푸시/카톡이 휘발돼도 내역으로 남김 ──────────────
+    await this.inbox.record({
+      memberId: counselorId,
+      code: 'chat_request',
+      title: '채팅 상담 요청이 도착했습니다',
+      content: `${memberName} 님이 채팅상담을 신청했습니다. 3분 안에 입장해주세요.`,
+      linkUrl: `/chat/${chatRoomId}`,
+      viaPush: true,
+      viaAlimtalk: !!csr.phone,
+    });
   }
 
   /**
@@ -741,6 +754,15 @@ export class UserConsultService {
         `[notifyMemberChatAutoCancelled] BizM 발송 실패 memberId=${memberId} reason=${r.reason}`,
       );
     }
+
+    await this.inbox.record({
+      memberId,
+      code: 'chat_cancelled',
+      title: '채팅 상담 요청이 자동 취소되었습니다',
+      content: `${counselorName} 상담사가 3분 내 입장하지 않아 요청이 자동 취소되었습니다.`,
+      linkUrl: null,
+      viaAlimtalk: !!mb.phone,
+    });
   }
 
   /**
@@ -775,6 +797,15 @@ export class UserConsultService {
         `[notifyCounselorAutoAbsent] BizM 발송 실패 counselorId=${counselorId} reason=${r.reason}`,
       );
     }
+
+    await this.inbox.record({
+      memberId: counselorId,
+      code: 'absent',
+      title: '상담 부재 안내',
+      content: `${displayName} 님, 고객 상담 요청에 응답이 없어 안내드립니다. 상담 가능 상태를 확인해주세요.`,
+      linkUrl: '/counselor/mypage',
+      viaAlimtalk: true,
+    });
   }
 
   // ============================================================

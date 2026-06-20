@@ -7,7 +7,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import UploadedImage from '../components/UploadedImage'
 import { ApiError, reviewsApi, settingsApi, type MyReviewItem } from '../lib/api'
 
-const PAGE_SIZE = 10
+const PAGE_SIZE = 50 // 첫 화면에 충분히 보이게 50줄 + 더보기 (2026-06-19). 썸네일은 lazy 로드
 
 const BADGE_BG: Record<MyReviewItem['counselor_badge'], string> = {
   타로: '#ec4899',
@@ -296,6 +296,7 @@ export default function MyReviews() {
                   src={r.photo_url}
                   srcWebp={r.photo_url_webp}
                   alt=""
+                  loading="lazy"
                   className="w-[60px] h-[60px] rounded-[8px] object-cover shrink-0"
                 />
               )}

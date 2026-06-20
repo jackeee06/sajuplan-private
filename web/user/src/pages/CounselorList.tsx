@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
+import NotificationBell from '../components/NotificationBell'
 import CounselorCard from '../components/CounselorCard'
 import FloatingActions from '../components/FloatingActions'
 import { ApiError, counselorsApi, statsApi, type PublicCounselor } from '../lib/api'
@@ -177,9 +178,7 @@ export default function CounselorList() {
           <Link to="/search" aria-label="검색" className="w-[30px] h-[30px] flex items-center justify-center">
             <img src="/img/ic_hd_search.svg" alt="" className="w-7 h-7" />
           </Link>
-          <Link to="/notifications" aria-label="알림" className="w-[30px] h-[30px] flex items-center justify-center">
-            <img src="/img/ic_hd_push.svg" alt="" className="w-7 h-7" />
-          </Link>
+          <NotificationBell />
         </div>
       </header>
 

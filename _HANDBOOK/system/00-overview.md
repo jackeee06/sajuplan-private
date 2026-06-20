@@ -120,17 +120,13 @@ m2net push (END_CALL / END_CHAT) 수신 → `consultation` INSERT → 회원 `pa
 
 ## 상담사 등급 시스템
 
-| 등급 | 기준(당월 누적 상담) | 정산률 |
-|---|---|---|
-| 예비파트너 | 신규 | 40% |
-| 파트너1 | 5시간+ | 45% |
-| 파트너2 | 15시간+ | 50% |
-| 파트너3 | 30시간+ | 55% |
-| 파트너4 | 50시간+ | 60% |
-| 파트너5 | 80시간+ | 70% |
+예비파트너 → 파트너1~5 (코드: `preliminary`, `partner1`~`partner5`).
 
-- **승급**: 당월 누적 달성 즉시 실시간 자동 승급 (2026-06-07 신설)
+> ⚠️ **임계값·정산률 숫자는 여기 적지 않는다.** 수시로 바뀌는 운영값이라 유일한 진실원은 DB `setting` 테이블(`namespace='grade'`). 현재값은 `SELECT key, value FROM setting WHERE namespace='grade'` 또는 `python tools/_check_grade_rates.py` 로 확인. 상세는 [counselor/02-grade-pricing](../counselor/02-grade-pricing.md).
+
+- **승급**: 당월 누적 상담시간(`thresholds.*`) 달성 즉시 실시간 자동 승급 (2026-06-07 신설)
 - **강등**: 매월 1일 크론에서만 처리 (한 단계씩만)
+- 정산률 = `revenue_rate.*` (0~1 decimal), 상담 종료 시점 등급으로 earning 에 선반영
 
 ---
 

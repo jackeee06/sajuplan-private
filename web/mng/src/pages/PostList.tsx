@@ -80,7 +80,7 @@ const SLUG_INFO: Record<string, { title: string; desc: string }> = {
   review: { title: '상담후기 관리', desc: '회원이 작성한 상담사 후기' },
   wish: { title: '소원다락방', desc: '회원이 등록한 소원' },
   wish_event: { title: '소원다락방 EVENT', desc: '소원다락방 이벤트 게시글' },
-  qa: { title: '상담문의', desc: '일반 상담 관련 문의' },
+  qa: { title: '고객센터 문의(회원)', desc: '회원이 앱 "이용안내 > 1:1 문의"로 보낸 문의 — 운영자가 답변' },
   qa_counselor: { title: '1:1문의(상담사)', desc: '상담사 1:1 문의게시판' },
 }
 
@@ -98,9 +98,11 @@ const POLICY_INFO: Record<string, { rows: { label: string; value: string }[] } |
   },
   qa: {
     rows: [
-      { label: '게시판 성격', value: '회원이 올린 일반 상담 관련 문의 게시판' },
-      { label: '답변', value: '관리자가 답변을 등록·수정·삭제. 목록에서 행을 클릭하면 답변 작성창이 열림' },
-      { label: '검색', value: '제목·내용·회원으로 검색, 기간(작성일) 필터 지원' },
+      { label: '게시판 성격', value: '회원이 앱 "이용안내 > 1:1 문의"로 보낸 고객센터 문의 — 특정 상담사 대상 아님 (상담사 지정은 "1:1문의(상담사)")' },
+      { label: '작성', value: '회원이 앱에서 분류·제목·내용으로 작성 (기본 비밀글, 하루 최대 10건)' },
+      { label: '문의 답변', value: '운영자(관리자)가 답변 등록·수정·삭제 → 회원에게 앱 푸시 알림. 1문의 1답변(다시 답하면 덮어쓰기)' },
+      { label: '수정·삭제', value: '회원은 답변이 달리기 전까지만 본인 문의 수정·삭제 가능' },
+      { label: '비밀글', value: '비공개 — 작성자 본인과 운영자만 열람' },
     ],
   },
   qa_counselor: {

@@ -26,6 +26,7 @@ import { UserCounselorMypageGradeModule } from './counselor-mypage-grade/counsel
 import { UserCounselorMypagePayoutModule } from './counselor-mypage-payout/counselor-mypage-payout.module';
 import { CounselorMypageMemoModule } from './counselor-mypage-memo/counselor-mypage-memo.module';
 import { CounselorMypageInquiryModule } from './counselor-mypage-inquiry/counselor-mypage-inquiry.module';
+import { UserSupportInquiryModule } from './support-inquiry/support-inquiry.module';
 import { AppVersionModule } from './app-version/app-version.module';
 import { UserPopupsModule } from './popups/popups.module';
 
@@ -58,6 +59,7 @@ import { UserPopupsModule } from './popups/popups.module';
     UserCounselorMypagePayoutModule,
     CounselorMypageMemoModule,
     CounselorMypageInquiryModule,
+    UserSupportInquiryModule,
     AppVersionModule,
     UserPopupsModule,
   ],

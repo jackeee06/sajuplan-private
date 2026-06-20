@@ -4,7 +4,7 @@ import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 import BottomNav from '../components/BottomNav'
 import { ApiError, notificationsApi, type PublicNotificationItem } from '../lib/api'
 import { openExternalUrl } from '../lib/native-bridge'
-import { catMeta } from './Notifications'
+import { catMeta, codeMeta } from './Notifications'
 
 /**
  * 알림 상세 — /notifications/:id
@@ -70,7 +70,7 @@ export default function NotificationDetail() {
     }
   }
 
-  const c = item ? catMeta(item.category) : null
+  const c = item ? (codeMeta(item.code) ?? catMeta(item.category)) : null
   const hasLink = !!item?.link_url?.trim()
 
   return (
@@ -116,6 +116,12 @@ export default function NotificationDetail() {
                   <span>{c.icon}</span>
                   {c.label}
                 </span>
+              )}
+              {item.via_push && (
+                <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-[#f3f4f6] text-[12px] leading-none font-medium text-[#6b7280]">📲 푸시</span>
+              )}
+              {item.via_alimtalk && (
+                <span className="inline-flex items-center h-[22px] px-2 rounded-full bg-[#fef3e2] text-[12px] leading-none font-medium text-[#d97706]">💬 카톡</span>
               )}
             </div>
             <h2 className="mt-2 text-[18px] leading-[140%] font-bold text-[#030712]">{item.title}</h2>

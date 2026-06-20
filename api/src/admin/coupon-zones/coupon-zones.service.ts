@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { SmsService } from '../../user/sms/sms.service';
+import { InboxService } from '../../shared/inbox/inbox.service';
 
 /**
  * sample/adm/shop_admin/couponzonelist.php (메뉴 350520 "쿠폰존관리") 정확 매핑.
@@ -66,6 +67,7 @@ export class CouponZonesService {
   constructor(
     @Inject(SQL) private readonly sql: Sql,
     private readonly sms: SmsService,
+    private readonly inbox: InboxService,
   ) {}
 
   async findAll(stx?: string, page = 1, limit = 20) {
@@ -265,6 +267,15 @@ export class CouponZonesService {
       `[coupon_req2 start] zone_id=${zone.id} cp_id=${zone.cp_id} members=${members.length}`,
     );
     for (const m of members) {
+      // 알림함 기록 (종모양) — phone 유무와 무관하게 쿠폰 발급은 내역으로 남김
+      await this.inbox.record({
+        memberId: m.member_id,
+        code: 'coupon',
+        title: '쿠폰이 발급되었습니다',
+        content: `${zone.subject} 쿠폰이 발급되었어요. 유효기간: ${validity}`,
+        linkUrl: '/mypage/coupons',
+        viaAlimtalk: !!m.phone,
+      });
       if (!m.phone) {
         this.logger.warn(`[coupon_req2 skip] member_id=${m.member_id} 휴대폰 없음`);
         await this.recordNotifyResult(zone.id, m.member_id, false, 'phone_missing');

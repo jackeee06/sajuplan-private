@@ -89,7 +89,7 @@ export default function ReviewReports() {
     setLoading(true)
     setError(null)
     api<{ items: ReportListItem[]; total: number }>(
-      `/admin/review-reports?status=${encodeURIComponent(statusFilter)}&page=${page}&limit=30`,
+      `/admin/review-reports?status=${encodeURIComponent(statusFilter)}&page=${page}&limit=50`,
     )
       .then((r) => setData(r))
       .catch((e) => setError(e instanceof ApiError ? e.message : '불러오기 실패'))
@@ -100,7 +100,7 @@ export default function ReviewReports() {
     load()
   }, [statusFilter, page])
 
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / 30)) : 1
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / 50)) : 1
 
   return (
     <div className="space-y-2 max-w-[1100px]">
@@ -192,7 +192,7 @@ export default function ReviewReports() {
           page={page}
           totalPages={totalPages}
           total={data.total}
-          pageSize={30}
+          pageSize={50}
           onChange={setPage}
           unit="건"
         />

@@ -21,6 +21,7 @@ import {
   inputCls,
   num,
   fmtDate,
+  fmtTime,
   fmtPhone,
   secsToMin,
 } from '../components/table'
@@ -626,7 +627,7 @@ export default function CounselorList() {
       {data && !loading && <ResultCount total={data.total} unit="명" />}
 
       {/* 표 */}
-      <TableShell minWidth="min-w-[1800px]">
+      <TableShell minWidth="min-w-[1280px]">
         <THead>
           <Th align="right">번호</Th>
           <Th align="left">가입일</Th>
@@ -661,10 +662,13 @@ export default function CounselorList() {
               <Tr key={c.id} onClick={() => navigate(`/members/counselors/${c.id}`)}>
                 <IdCell id={c.id} />
                 <Td align="left" className="text-xs text-gray-500 tabular-nums">
-                  {fmtDate(c.created_at, { withTime: false })}
+                  <div className="leading-tight">
+                    <div>{fmtDate(c.created_at, { withTime: false })}</div>
+                    <div className="text-[10px] text-gray-400">{fmtTime(c.created_at)}</div>
+                  </div>
                 </Td>
                 <Td align="left">
-                  <div className="font-medium text-gray-900 dark:text-gray-100"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(c.mb_id ?? '')}>{c.mb_id ?? '-'}</span></div>
+                  <div className="font-medium text-gray-900 dark:text-gray-100"><span className="inline-block max-w-[72px] truncate align-bottom" title={String(c.mb_id ?? '')}>{c.mb_id ?? '-'}</span></div>
                 </Td>
                 <Td align="left">{c.name}</Td>
                 <Td align="left" className="text-gray-600">{c.nickname}</Td>

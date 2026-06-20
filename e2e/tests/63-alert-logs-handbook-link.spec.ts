@@ -9,11 +9,13 @@ const MNG = 'https://sajuplan.com/mng'
 test.use({ viewport: { width: 1366, height: 950 } })
 
 test('전체메뉴에 알림 이력 등록 + 운영바이블 alert/08 노출', async ({ page }) => {
-  // 1) 전체 메뉴(인덱스)에 "알림 이력"
+  // 1) 전체 메뉴(인덱스)에 "알림톡 발송 이력"(=alert/08, /alert-logs)
+  //    [2026-06-20] 메뉴 라벨 개편: 옛 "📋 알림 이력" → "📋 알림톡 발송 이력"
+  //    (별도로 "🔔 알림 이력" = /notification-history = 통합 알림함 alert/06 신설)
   await page.goto(`${MNG}/all-menus`)
   await page.waitForLoadState('load').catch(() => {})
   await page.waitForTimeout(1500)
-  await expect(page.getByText('📋 알림 이력').first(), '전체메뉴에 알림 이력 없음').toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('📋 알림톡 발송 이력').first(), '전체메뉴에 알림톡 발송 이력 없음').toBeVisible({ timeout: 10_000 })
   await page.screenshot({ path: `${SHOT}/01_all_menus.png` })
 
   // 2) 운영바이블에 alert/08 문서 노출

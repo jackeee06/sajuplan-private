@@ -18,7 +18,7 @@ export class AlertLogsService {
   /** 알림 발송 이력 목록 */
   async list(params: { page?: number; limit?: number; template?: string; onlyFail?: boolean }) {
     const page = Math.max(1, Math.trunc(params.page ?? 1));
-    const limit = Math.min(100, Math.max(1, Math.trunc(params.limit ?? 30)));
+    const limit = Math.min(200, Math.max(1, Math.trunc(params.limit ?? 30))); // 로그 훑어보기용 상한 200 (2026-06-19)
     const offset = (page - 1) * limit;
 
     const conds: ReturnType<Sql>[] = [];

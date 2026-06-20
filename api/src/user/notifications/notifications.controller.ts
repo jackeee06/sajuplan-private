@@ -37,6 +37,17 @@ export class UserNotificationsController {
   }
 
   /**
+   * 안 읽은 알림 개수 — 종모양 뱃지용. 비로그인은 0.
+   * 가벼운 폴링 대상이라 OptionalUserGuard(비로그인 허용).
+   */
+  @Get('unread-count')
+  @UseGuards(OptionalUserGuard)
+  unreadCount(@Req() req: OptionalUserRequest) {
+    const memberId = req.user?.sub ?? null;
+    return this.svc.unreadCount(memberId);
+  }
+
+  /**
    * [2026-05-27] 실시간 알림 polling — 채팅/전화 5분 잔여 등.
    *  - 클라이언트가 30초 주기로 호출.
    *  - 큐에서 모든 알림 꺼내고 비움 (한 번만 표시).

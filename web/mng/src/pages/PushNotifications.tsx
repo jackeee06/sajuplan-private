@@ -1,250 +1,20 @@
 import { useEffect, useState } from 'react'
-import { Search, Send, Bell, Trash2, X, CheckCircle, AlertCircle } from 'lucide-react'
+import { Send, Bell, CheckCircle, AlertCircle } from 'lucide-react'
 import { api } from '../lib/api'
-import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow, Chip } from '../components/table'
 
-interface HistoryRow {
-  id: number
-  member_id: number | null
-  mb_id: string | null
-  member_name: string | null
-  title: string
-  content: string
-  link_url: string | null
-  category: string | null
-  created_at: string
-}
-
-type CategoryFilter = '' | '전체공지' | '일반회원' | '상담사'
-
+/**
+ * 알림 보내기(수동) — 인앱·푸시 통합 발송(작성 전용). 보낸 이력은 별도 "알림 이력"(/notification-history).
+ *   푸시는 항상 인앱과 함께 발송(2026-06-19) — 폰 알림 지워도 종모양에서 내용 복구.
+ */
 export default function PushNotifications() {
-  const [filter, setFilter] = useState<{ q: string; sfl: 'title' | 'content' | 'mb_id'; category: CategoryFilter; page: number }>({
-    q: '', sfl: 'title', category: '', page: 1,
-  })
-  const [pending, setPending] = useState({ q: '', sfl: 'title' as 'title' | 'content' | 'mb_id' })
-  const [data, setData] = useState<{ items: HistoryRow[]; total: number } | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [reload, setReload] = useState(0)
-  const [detail, setDetail] = useState<HistoryRow | null>(null)
-
-  const onDeleteRow = async (h: HistoryRow) => {
-    if (!window.confirm(`이 알림을 삭제하시겠습니까?\n\n[${h.category ?? ''}] ${h.title}\n\n삭제 후 복구할 수 없습니다.`)) return
-    try {
-      await api(`/admin/notifications/push-history/${h.id}`, { method: 'DELETE' })
-      setDetail((d) => (d && d.id === h.id ? null : d))
-      // 낙관적 제거 — 삭제한 행을 즉시 목록에서 빼서 사용자가 바로 사라짐을 본다.
-      setData((prev) =>
-        prev ? { items: prev.items.filter((x) => x.id !== h.id), total: Math.max(0, prev.total - 1) } : prev,
-      )
-      setReload((x) => x + 1) // 서버 기준 재동기화
-    } catch (e) {
-      alert(`삭제 실패: ${e instanceof Error ? e.message : ''}`)
-    }
-  }
-
-  useEffect(() => {
-    const p = new URLSearchParams()
-    if (filter.q) p.set('q', filter.q)
-    if (filter.category) p.set('category', filter.category)
-    p.set('page', String(filter.page))
-    setLoading(true)
-    api<{ items: HistoryRow[]; total: number }>(`/admin/notifications/push-history?${p}`)
-      .then(setData)
-      .finally(() => setLoading(false))
-  }, [filter, reload])
-
   return (
-    <div className="space-y-3 max-w-[1500px]">
+    <div className="space-y-3 max-w-[760px]">
       <div className="flex items-center gap-2">
         <Bell className="w-5 h-5 text-brand-600" />
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">푸시 알림</h1>
-        <span className="text-xs text-gray-500">— 발송 (좌측) + 내역 (우측)</span>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">알림 보내기(수동) <span className="text-sm font-normal text-gray-400">(인앱·푸시)</span></h1>
+        <span className="text-xs text-gray-500">— 보낸 기록은 <a href="/mng/notification-history" className="text-brand-600 underline">알림 이력</a></span>
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-      {/* ─── 좌: 발송 폼 ─── */}
-      <Compose onSent={() => setReload((r) => r + 1)} />
-
-      {/* ─── 우: 발송 이력 ─── */}
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">푸시알림 내역</h2>
-          <div className="flex items-center gap-3">
-            {data && <span className="text-xs text-gray-500">
-              총 <span className="text-brand-600 font-semibold tabular-nums">{data.total.toLocaleString()}</span>건
-            </span>}
-            <button
-              onClick={async () => {
-                if (!data || data.total === 0) return
-                if (!window.confirm(`푸시알림 발송 내역 ${data.total.toLocaleString()}건을 모두 삭제하시겠습니까?\n\n삭제 후 복구할 수 없습니다.`)) return
-                try {
-                  const r = await api<{ ok: true; deleted: number }>('/admin/notifications/push-history', { method: 'DELETE' })
-                  alert(`${r.deleted.toLocaleString()}건 삭제되었습니다.`)
-                  setReload((x) => x + 1)
-                } catch (e) {
-                  alert(`삭제 실패: ${e instanceof Error ? e.message : ''}`)
-                }
-              }}
-              disabled={!data || data.total === 0}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-rose-200 dark:border-rose-700 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30 disabled:opacity-40"
-            >
-              <Trash2 className="w-3 h-3" /> 내역 비우기
-            </button>
-          </div>
-        </div>
-
-        {/* 카테고리 필터 칩 */}
-        <div className="flex flex-wrap items-center gap-2">
-          {([
-            { v: '', label: '전체목록' },
-            { v: '전체공지', label: '전체공지' },
-            { v: '일반회원', label: '일반회원' },
-            { v: '상담사', label: '상담사' },
-          ] as const).map((c) => (
-            <Chip
-              key={c.v}
-              label={c.label}
-              active={filter.category === c.v}
-              onClick={() => setFilter((f) => ({ ...f, category: c.v as CategoryFilter, page: 1 }))}
-            />
-          ))}
-        </div>
-
-        {/* 검색 */}
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2.5 w-fit max-w-full">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <select value={pending.sfl} onChange={(e) => setPending({ ...pending, sfl: e.target.value as 'title' | 'content' | 'mb_id' })} className={cls}>
-              <option value="title">제목</option>
-              <option value="content">본문</option>
-              <option value="mb_id">아이디</option>
-            </select>
-            <input
-              type="text"
-              value={pending.q}
-              onChange={(e) => setPending({ ...pending, q: e.target.value })}
-              onKeyDown={(e) => e.key === 'Enter' && setFilter({ ...filter, q: pending.q, sfl: pending.sfl, page: 1 })}
-              placeholder="검색어"
-              className={`w-60 ${cls}`}
-            />
-            <button
-              onClick={() => setFilter({ ...filter, q: pending.q, sfl: pending.sfl, page: 1 })}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white"
-            >
-              <Search className="w-4 h-4" /> 검색
-            </button>
-          </div>
-        </div>
-
-        {/* 표 */}
-        <TableShell>
-          <THead>
-            <Th align="left">일시</Th>
-            <Th align="left">분류</Th>
-            <Th align="left">제목</Th>
-            <Th align="left">아이디</Th>
-            <Th align="left">URL</Th>
-            <Th align="center">관리</Th>
-          </THead>
-          <TBody>
-            {loading && !data ? (
-              <EmptyRow colSpan={6} loading />
-            ) : !data || data.items.length === 0 ? (
-              <EmptyRow colSpan={6} />
-            ) : data.items.map((h) => (
-              <Tr key={h.id} onClick={() => setDetail(h)}>
-                <Td align="left" className="text-xs text-gray-500 tabular-nums">{formatDT(h.created_at)}</Td>
-                <Td align="left" className="text-xs text-gray-600">{h.category ?? <span className="text-gray-300">—</span>}</Td>
-                <Td align="left" className="text-xs font-medium">{h.title}</Td>
-                <Td align="left" className="text-xs text-gray-500"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(h.mb_id ?? '')}>{h.mb_id ?? <span className="text-gray-300">—</span>}</span></Td>
-                <Td align="left" className="text-xs text-brand-600 max-w-[280px] truncate">
-                  {h.link_url ? <a href={h.link_url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="hover:underline">{h.link_url}</a> : <span className="text-gray-300">—</span>}
-                </Td>
-                <Td align="center">
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onDeleteRow(h) }}
-                    title="이 알림 삭제"
-                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </Td>
-              </Tr>
-            ))}
-          </TBody>
-        </TableShell>
-      </section>
-      </div>
-
-      {/* ─── 행 클릭 시 상세(본문 포함) 팝업 ─── */}
-      {detail && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-          onClick={() => setDetail(null)}
-        >
-          <div
-            className="w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-5 space-y-3"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">알림 상세</h3>
-              <button
-                type="button"
-                onClick={() => setDetail(null)}
-                className="w-7 h-7 inline-flex items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="space-y-2.5 text-sm">
-              <div className="flex gap-3">
-                <span className="w-16 shrink-0 text-[11px] font-medium text-gray-500 pt-0.5">분류</span>
-                <span className="text-sm text-gray-800 dark:text-gray-200">{detail.category ?? '—'}</span>
-              </div>
-              <div className="flex gap-3">
-                <span className="w-16 shrink-0 text-[11px] font-medium text-gray-500 pt-0.5">발송시각</span>
-                <span className="text-sm text-gray-800 dark:text-gray-200 tabular-nums">{formatDT(detail.created_at)}</span>
-              </div>
-              <div className="flex gap-3">
-                <span className="w-16 shrink-0 text-[11px] font-medium text-gray-500 pt-0.5">대상</span>
-                <span className="inline-block max-w-[150px] truncate align-bottom text-sm text-gray-800 dark:text-gray-200" title={String(detail.mb_id ?? '')}>{detail.mb_id ?? '(브로드캐스트)'}</span>
-              </div>
-              <div>
-                <div className="text-[11px] font-medium text-gray-500 mb-0.5">제목</div>
-                <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{detail.title}</div>
-              </div>
-              <div>
-                <div className="text-[11px] font-medium text-gray-500 mb-0.5">본문</div>
-                <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap rounded-md bg-gray-50 dark:bg-gray-800 p-2.5 min-h-[56px]">
-                  {detail.content || <span className="text-gray-400">(본문 없음)</span>}
-                </div>
-              </div>
-              {detail.link_url && (
-                <div>
-                  <div className="text-[11px] font-medium text-gray-500 mb-0.5">URL</div>
-                  <a href={detail.link_url} target="_blank" rel="noreferrer" className="text-sm text-brand-600 break-all hover:underline">{detail.link_url}</a>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center justify-between pt-1">
-              <button
-                type="button"
-                onClick={() => onDeleteRow(detail)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs rounded-md border border-rose-200 dark:border-rose-700 text-rose-600 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-900/30"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> 삭제
-              </button>
-              <button
-                type="button"
-                onClick={() => setDetail(null)}
-                className="px-4 py-1.5 text-sm rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-700"
-              >
-                닫기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Compose onSent={() => {}} />
     </div>
   )
 }
@@ -264,25 +34,45 @@ const TARGET_GUIDE: Record<TargetKind, { icon: string; label: string; desc: stri
   all:       { icon: '👥', label: '전체공지', desc: '앱을 설치한 모든 사용자에게 발송' },
   user:      { icon: '🧑', label: '일반회원', desc: '회원가입한 일반 사용자에게 발송' },
   counselor: { icon: '👨‍🏫', label: '상담사',   desc: '등록된 모든 상담사에게 발송' },
-  member:    { icon: '👤', label: '개별회원', desc: '특정 회원 1명에게만 발송 (이름/닉네임/mb_id 로 검색)' },
+  member:    { icon: '👤', label: '개별회원', desc: '특정 회원에게만 발송 — 여러 명 선택 가능 (이름/닉네임/mb_id 로 검색)' },
 }
 
 function Compose({ onSent }: { onSent: () => void }) {
-  const [target, setTarget] = useState<TargetKind>('all')
-  const [memberId, setMemberId] = useState('')
-  const [memberLabel, setMemberLabel] = useState('')
+  const [target, setTarget] = useState<TargetKind | ''>('') // 디폴트 미선택 — 반드시 골라야 발송(오발송 방지)
+  const [selectedMembers, setSelectedMembers] = useState<MemberMini[]>([]) // 개별회원 다중 선택
+  // 브로드캐스트 대상 수 — 클릭 확인창 + 안내에 사용 (백엔드 발송 기준: all = user + counselor)
+  const [counts, setCounts] = useState<{ all: number; user: number; counselor: number } | null>(null)
   const [searchQ, setSearchQ] = useState('')
   const [searchResults, setSearchResults] = useState<MemberMini[]>([])
   const [searching, setSearching] = useState(false)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [linkUrl, setLinkUrl] = useState('')
+  const [chInapp, setChInapp] = useState(true)
+  const [chPush, setChPush] = useState(false) // 디폴트 푸시 off — 의식적으로 켜야 발송(안전)
   const [sending, setSending] = useState(false)
-  const [result, setResult] = useState<{ ok: boolean; recipients?: number; pushed?: { success: number; failure: number; error?: string }; error?: string; at?: Date } | null>(null)
+  const [result, setResult] = useState<{ ok: boolean; recipients?: number; pushed?: { success: number; failure: number; error?: string }; channels?: { inapp: boolean; push: boolean }; error?: string; at?: Date } | null>(null)
 
-  // 회원 검색 (debounce 400ms)
+  // 브로드캐스트 대상 수 조회 (마운트 1회) — 일반회원/상담사 total, 전체=합산
   useEffect(() => {
-    if (target !== 'member' || memberId) {
+    let alive = true
+    Promise.all([
+      api<{ total?: number }>('/admin/members?role=user&limit=1'),
+      api<{ total?: number }>('/admin/members?role=counselor&limit=1'),
+    ])
+      .then(([u, c]) => {
+        if (!alive) return
+        const user = Number(u.total ?? 0)
+        const counselor = Number(c.total ?? 0)
+        setCounts({ user, counselor, all: user + counselor })
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  // 회원 검색 (debounce 400ms) — 다중 선택이라 이미 고른 사람이 있어도 계속 검색 가능
+  useEffect(() => {
+    if (target !== 'member') {
       setSearchResults([])
       return
     }
@@ -295,7 +85,6 @@ function Compose({ onSent }: { onSent: () => void }) {
       setSearching(true)
       try {
         // /admin/members?q= 사용 — role 무관 전체 회원 (상담사 포함) 검색.
-        //   "상담사도 회원이다" 본질 반영 — 사장님 (상담사) 본인도 검색 결과에 나옴.
         const qs = new URLSearchParams({ q, limit: '10' })
         const r = await api<{ items?: MemberMini[] }>(`/admin/members?${qs}`)
         setSearchResults((r.items ?? []) as MemberMini[])
@@ -306,32 +95,48 @@ function Compose({ onSent }: { onSent: () => void }) {
       }
     }, 400)
     return () => clearTimeout(t)
-  }, [searchQ, target, memberId])
+  }, [searchQ, target])
 
   const onSelectMember = (m: MemberMini) => {
-    setMemberId(String(m.id))
-    setMemberLabel(`${m.nickname || m.name} (${m.mb_id}, #${m.id}, ${m.role === 'counselor' ? '상담사' : '회원'})`)
+    setSelectedMembers((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]))
     setSearchQ('')
     setSearchResults([])
+  }
+  const removeMember = (id: number) => setSelectedMembers((prev) => prev.filter((m) => m.id !== id))
+
+  // 브로드캐스트(전체공지/일반회원/상담사) 선택 시 대규모 발송 경고 — 대상 수 포함. 취소하면 선택 안 함.
+  const confirmBroadcast = (t: TargetKind): boolean => {
+    if (t === 'member') return true
+    const n = t === 'all' ? counts?.all : t === 'user' ? counts?.user : counts?.counselor
+    const cntStr = n != null ? `약 ${n.toLocaleString()}명` : '다수'
+    let head: string
+    if (t === 'all') head = `정말 "전체공지"를 발송하시겠습니까?\n\n⚠️ 앱 설치자 전원(비가입자 포함)에게 발송됩니다.\n가입 회원 기준 ${cntStr}.`
+    else if (t === 'user') head = `정말 "일반회원" 전체에게 발송하시겠습니까?\n\n⚠️ 일반회원 ${cntStr} 모두에게 발송됩니다.`
+    else head = `정말 "상담사" 전체에게 발송하시겠습니까?\n\n⚠️ 상담사 ${cntStr} 모두에게 발송됩니다.`
+    return window.confirm(`${head}\n\n계속하시겠습니까?`)
   }
 
   const onSend = async () => {
     setResult(null)
     if (!title.trim()) return setResult({ ok: false, error: '알림내용을 입력하세요.' })
+    if (!chInapp && !chPush) return setResult({ ok: false, error: '보낼 방법(인앱·푸시) 중 하나 이상 선택하세요.' })
+    if (!target) return setResult({ ok: false, error: '발송 대상을 먼저 선택하세요.' })
 
-    let effectiveTarget = target as string
+    let effectiveTarget: string = target
     let confirmLabel: string = TARGET_GUIDE[target].label
     if (target === 'member') {
-      if (!/^\d+$/.test(memberId)) return setResult({ ok: false, error: '회원을 검색하여 선택하세요.' })
-      effectiveTarget = memberId
-      confirmLabel = memberLabel || `개별회원 (ID=${memberId})`
+      if (selectedMembers.length === 0) return setResult({ ok: false, error: '회원을 1명 이상 검색하여 추가하세요.' })
+      effectiveTarget = selectedMembers.map((m) => m.id).join(',')
+      const names = selectedMembers.map((m) => m.nickname || m.name).join(', ')
+      confirmLabel = `개별회원 ${selectedMembers.length}명 — ${names}`
     }
 
     // 확인 다이얼로그 강화 — 미리보기 + 대상명 + 경고
     const lines = [
-      `📨 푸시 알림 발송 확인`,
+      `📨 알림 발송 확인`,
       ``,
       `대상: ${confirmLabel}`,
+      `방법: ${[chInapp && '인앱(종모양)', chPush && '푸시(FCM)'].filter(Boolean).join(' + ')}`,
       `제목: ${title}`,
     ]
     if (content) lines.push(`본문: ${content.slice(0, 80)}${content.length > 80 ? '...' : ''}`)
@@ -341,13 +146,12 @@ function Compose({ onSent }: { onSent: () => void }) {
 
     setSending(true)
     try {
-      // url 자동 정규화 — 사용자가 'www.example.com' 같이 스킴 없이 입력해도 'https://' 자동 prepend
       const normalizedLink = normalizeLinkUrl(linkUrl)
       const res = await api<{ ok: boolean; recipients: number; pushed: { success: number; failure: number; error?: string } }>(
         '/admin/notifications/push-send',
-        { method: 'POST', body: JSON.stringify({ target: effectiveTarget, title, content, link_url: normalizedLink }) },
+        { method: 'POST', body: JSON.stringify({ target: effectiveTarget, title, content, link_url: normalizedLink, channels: { inapp: chInapp, push: chPush } }) },
       )
-      setResult({ ok: true, recipients: res.recipients, pushed: res.pushed, at: new Date() })
+      setResult({ ok: true, recipients: res.recipients, pushed: res.pushed, channels: { inapp: chInapp, push: chPush }, at: new Date() })
       setTitle(''); setContent(''); setLinkUrl('')
       onSent()
     } catch (e) {
@@ -357,21 +161,21 @@ function Compose({ onSent }: { onSent: () => void }) {
     }
   }
 
-  const guide = TARGET_GUIDE[target]
+  const guide = target ? TARGET_GUIDE[target] : null
 
   return (
     <section className="space-y-2">
-      <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">푸시 알림 입력</h2>
+      <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">알림 작성</h2>
 
       {/* 가이드 박스 */}
       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 rounded-xl p-3 text-xs">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-0.5 flex-1 min-w-0">
-            <div className="font-semibold flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> 푸시알림 전송방법</div>
+            <div className="font-semibold flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> 알림 작성·발송 방법</div>
             <div><b>1.</b> 발송 대상 (구분) 을 선택합니다.</div>
             <div><b>2.</b> 알림내용 (제목) 과 본문을 입력합니다.</div>
             <div><b>3.</b> 주소: 공지사항 URL 또는 외부 사이트 URL (선택)</div>
-            <div><b>4.</b> [푸시알림 보내기] 클릭 → 확인 → 발송</div>
+            <div><b>4.</b> <b>보낼 방법(인앱·푸시)</b> 을 고른 뒤 [알림 보내기] → 확인 → 발송</div>
           </div>
           <a
             href="/mng/notices/new"
@@ -395,9 +199,11 @@ function Compose({ onSent }: { onSent: () => void }) {
                 key={t}
                 type="button"
                 onClick={() => {
+                  if (t === target) return // 이미 선택된 칩 재클릭 — 확인창 반복 방지
+                  if (!confirmBroadcast(t)) return // 취소 시 선택 안 함
                   setTarget(t)
                   if (t !== 'member') {
-                    setMemberId(''); setMemberLabel(''); setSearchQ(''); setSearchResults([])
+                    setSelectedMembers([]); setSearchQ(''); setSearchResults([])
                   }
                 }}
                 className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${
@@ -411,61 +217,93 @@ function Compose({ onSent }: { onSent: () => void }) {
             ))}
           </div>
           <div className="text-[11.5px] text-gray-600 dark:text-gray-400 flex items-center gap-1 pt-0.5">
-            <span className="text-base leading-none">{guide.icon}</span>
-            <span>{guide.desc}</span>
+            {guide
+              ? (<><span className="text-base leading-none">{guide.icon}</span><span>{guide.desc}</span></>)
+              : (<span className="text-rose-500">⚠ 발송 대상을 먼저 선택하세요 (기본값 없음 — 오발송 방지)</span>)}
           </div>
+          {target && target !== 'member' && (
+            <div className="text-[11.5px] font-medium text-rose-600 dark:text-rose-400 pt-0.5">
+              📣 이 발송은 {(() => {
+                const n = target === 'all' ? counts?.all : target === 'user' ? counts?.user : counts?.counselor
+                return n != null ? `약 ${n.toLocaleString()}명` : '다수'
+              })()}에게 일괄 발송됩니다.
+            </div>
+          )}
         </div>
 
-        {/* 개별회원 — 검색 박스 */}
+        {/* 개별회원 — 다중 선택 (검색해서 칩으로 누적 추가) */}
         {target === 'member' && (
           <div className="space-y-1.5">
-            <label className="text-[11px] font-medium text-gray-500">회원 검색 <span className="text-rose-500">*</span></label>
-            {memberId ? (
-              <div className="flex items-center gap-2 px-3 py-2 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-md">
-                <span className="text-sm font-medium text-brand-700 dark:text-brand-300 flex-1 min-w-0 truncate">✓ {memberLabel}</span>
-                <button
-                  type="button"
-                  onClick={() => { setMemberId(''); setMemberLabel(''); setSearchQ('') }}
-                  className="text-xs text-rose-600 hover:underline shrink-0"
-                >
-                  변경
-                </button>
+            <label className="text-[11px] font-medium text-gray-500">
+              회원 검색 <span className="text-rose-500">*</span>
+              <span className="ml-1 text-gray-400 font-normal">여러 명 추가 가능</span>
+            </label>
+
+            {/* 선택된 회원 칩 */}
+            {selectedMembers.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {selectedMembers.map((m) => (
+                  <span
+                    key={m.id}
+                    className="inline-flex items-center gap-1 pl-2 pr-1 py-1 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-700 rounded-md text-xs text-brand-700 dark:text-brand-300"
+                  >
+                    <span className="font-medium">{m.nickname || m.name}</span>
+                    <span className="text-[10px] text-gray-400">{m.mb_id}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeMember(m.id)}
+                      className="w-4 h-4 flex items-center justify-center rounded text-rose-500 hover:bg-rose-100 dark:hover:bg-rose-900/40"
+                      aria-label={`${m.nickname || m.name} 제거`}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+                <span className="text-[11px] text-gray-500">총 {selectedMembers.length}명</span>
               </div>
-            ) : (
-              <div className="relative">
-                <input
-                  type="text"
-                  value={searchQ}
-                  onChange={(e) => setSearchQ(e.target.value)}
-                  placeholder="이름, 닉네임, 아이디로 검색 (2자 이상)"
-                  className={`${cls} w-full`}
-                />
-                {searching && <div className="text-[10.5px] text-gray-400 mt-1">검색 중…</div>}
-                {!searching && searchQ.trim().length >= 2 && searchResults.length === 0 && (
-                  <div className="text-[10.5px] text-gray-400 mt-1">일치하는 회원 없음</div>
-                )}
-                {searchResults.length > 0 && (
-                  <div className="absolute z-20 mt-1 w-full max-h-60 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg">
-                    {searchResults.map((m) => (
+            )}
+
+            {/* 검색 입력 — 항상 노출 (계속 추가 가능) */}
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+                placeholder="이름, 닉네임, 아이디로 검색 (2자 이상) → 결과 클릭하여 추가"
+                className={`${cls} w-full`}
+              />
+              {searching && <div className="text-[10.5px] text-gray-400 mt-1">검색 중…</div>}
+              {!searching && searchQ.trim().length >= 2 && searchResults.length === 0 && (
+                <div className="text-[10.5px] text-gray-400 mt-1">일치하는 회원 없음</div>
+              )}
+              {searchResults.length > 0 && (
+                <div className="absolute z-20 mt-1 w-full max-h-60 overflow-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg">
+                  {searchResults.map((m) => {
+                    const already = selectedMembers.some((x) => x.id === m.id)
+                    return (
                       <button
                         key={m.id}
                         type="button"
+                        disabled={already}
                         onClick={() => onSelectMember(m)}
-                        className="w-full text-left px-3 py-2 hover:bg-brand-50 dark:hover:bg-brand-900/30 border-b border-gray-100 dark:border-gray-700 last:border-b-0"
+                        className={`w-full text-left px-3 py-2 border-b border-gray-100 dark:border-gray-700 last:border-b-0 ${
+                          already ? 'opacity-50 cursor-not-allowed' : 'hover:bg-brand-50 dark:hover:bg-brand-900/30'
+                        }`}
                       >
                         <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           {m.nickname || m.name}
                           <span className="ml-1.5 text-[10px] font-normal text-gray-400">
                             {m.role === 'counselor' ? '상담사' : '회원'}
                           </span>
+                          {already && <span className="ml-1.5 text-[10px] font-normal text-brand-500">✓ 추가됨</span>}
                         </div>
                         <div className="text-[11px] text-gray-500">{m.mb_id} · #{m.id}</div>
                       </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -520,16 +358,34 @@ function Compose({ onSent }: { onSent: () => void }) {
           )}
         </div>
 
+        {/* 보낼 방법 (채널) */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-medium text-gray-500">보낼 방법 (채널) <span className="text-rose-500">*</span></label>
+          <div className="flex flex-wrap gap-2">
+            <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm select-none ${chPush ? 'cursor-not-allowed' : 'cursor-pointer'} ${(chInapp || chPush) ? 'bg-brand-50 dark:bg-brand-900/30 border-brand-400 dark:border-brand-600 text-brand-700 dark:text-brand-300' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'}`}>
+              <input type="checkbox" checked={chInapp || chPush} disabled={chPush} onChange={(e) => setChInapp(e.target.checked)} />
+              🔔 인앱(종모양){chPush && <span className="ml-0.5 text-[10px] text-gray-400">🔒 자동</span>}
+            </label>
+            <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm cursor-pointer select-none ${chPush ? 'bg-brand-50 dark:bg-brand-900/30 border-brand-400 dark:border-brand-600 text-brand-700 dark:text-brand-300' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'}`}>
+              <input type="checkbox" checked={chPush} onChange={(e) => { const v = e.target.checked; setChPush(v); if (v) setChInapp(true) }} />
+              📲 푸시(FCM)
+            </label>
+          </div>
+          <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-0.5">
+            💡 <b>인앱</b>=앱 켜고 종모양🔔에서 봄 · <b>푸시</b>=앱 꺼도 폰 알림으로 도착. <b>푸시는 항상 인앱과 함께 발송</b>됩니다 (폰 알림을 지워도 종모양에서 내용을 다시 볼 수 있게). 카카오톡은 → <a href="/mng/alimtalk-bulk" className="text-brand-600 underline">알림톡 발송</a>
+          </div>
+        </div>
+
         {/* 발송 버튼 */}
         <div className="pt-1">
           <button
             type="button"
             onClick={onSend}
-            disabled={sending || !title.trim() || (target === 'member' && !memberId)}
+            disabled={sending || !target || !title.trim() || (target === 'member' && selectedMembers.length === 0) || (!chInapp && !chPush)}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-md bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="w-4 h-4" />
-            {sending ? '발송 중…' : '푸시알림 보내기'}
+            {sending ? '발송 중…' : '알림 보내기'}
           </button>
         </div>
       </div>
@@ -543,16 +399,19 @@ function Compose({ onSent }: { onSent: () => void }) {
             </div>
             <div className="text-[13px] text-gray-700 dark:text-gray-200 flex flex-wrap gap-x-3 gap-y-0.5">
               <span>대상 <span className="font-semibold tabular-nums">{result.recipients ?? 0}</span>명</span>
-              <span className="text-emerald-700 dark:text-emerald-300">
-                성공 <span className="font-semibold tabular-nums">{result.pushed?.success ?? 0}</span>건
-              </span>
-              {(result.pushed?.failure ?? 0) > 0 && (
-                <span className="text-rose-600 dark:text-rose-400">
-                  실패 <span className="font-semibold tabular-nums">{result.pushed?.failure}</span>건
-                </span>
-              )}
+              {result.channels?.inapp && <span className="text-violet-600 dark:text-violet-300">🔔 인앱 기록 완료</span>}
               {result.at && <span className="text-gray-400 text-xs">{result.at.toLocaleTimeString()}</span>}
             </div>
+            {result.channels?.push && (
+              <div className="text-[12px] text-gray-600 dark:text-gray-300">
+                📲 푸시(FCM): 토큰 <span className="tabular-nums">{(result.pushed?.success ?? 0) + (result.pushed?.failure ?? 0)}</span>개 중 성공 <span className="tabular-nums text-emerald-700 dark:text-emerald-300">{result.pushed?.success ?? 0}</span>
+                {(result.pushed?.failure ?? 0) > 0 && (result.pushed?.success ?? 0) === 0 && (
+                  <div className="text-[11.5px] text-rose-600 dark:text-rose-400 mt-0.5">
+                    ⚠ 푸시 토큰이 모두 실패했습니다. 이 숫자는 <b>사람 수가 아니라 그 대상의 누적 토큰 수</b>입니다 (만료 토큰 정리 또는 FCM 점검 필요).
+                  </div>
+                )}
+              </div>
+            )}
             {result.pushed?.error && (
               <div className="text-[11.5px] text-amber-700 dark:text-amber-300">⚠ {result.pushed.error}</div>
             )}
@@ -575,11 +434,6 @@ const cls = 'px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 bg
 
 /**
  * 푸시 link_url 정규화 — 사용자 친화 자동 처리.
- *   - 빈 값 → 빈 문자열
- *   - http(s):// 이미 있음 → 그대로
- *   - '/' 로 시작 → 내부 path (그대로, 앱이 webUrl 기준으로 처리)
- *   - 도메인 패턴 (점 포함, 'www.foo.com' 또는 'foo.com') → 'https://' prepend → 외부 URL
- *   - 그 외 → 그대로 (백엔드/앱 측에서 추가 처리)
  */
 function normalizeLinkUrl(raw: string): string {
   const s = (raw || '').trim()
@@ -588,12 +442,4 @@ function normalizeLinkUrl(raw: string): string {
   if (s.startsWith('/')) return s
   if (/^[a-z0-9-]+(\.[a-z0-9-]+)+(\/|$)/i.test(s)) return `https://${s}`
   return s
-}
-
-function formatDT(s: string): string {
-  if (!s) return '-'
-  const dt = new Date(s)
-  if (isNaN(dt.getTime())) return s
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`
 }

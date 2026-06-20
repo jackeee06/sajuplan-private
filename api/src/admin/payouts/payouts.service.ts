@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { SQL, type Sql, type TxSql } from '../../shared/db/db.module';
 import { SmsService } from '../../user/sms/sms.service';
+import { InboxService } from '../../shared/inbox/inbox.service';
 
 /**
  * 어드민 — 선지급(early payout) 일괄 처리 (Phase 3).
@@ -35,6 +36,7 @@ export class AdminPayoutsService {
   constructor(
     @Inject(SQL) private readonly sql: Sql,
     private readonly sms: SmsService,
+    private readonly inbox: InboxService,
   ) {}
 
   /**
@@ -280,7 +282,7 @@ export class AdminPayoutsService {
         INSERT INTO payout_request_log (request_id, from_status, to_status, changed_by, reason)
         VALUES (${params.id}, 'pending', 'rejected', ${`admin:${params.adminId}`}, ${reason})
       `;
-      return { phone: r.phone, amount: r.requested_amount, reason };
+      return { phone: r.phone, amount: r.requested_amount, reason, counselorId: r.counselor_id };
     });
 
     // 카톡 발송 (트랜잭션 외부)
@@ -290,6 +292,15 @@ export class AdminPayoutsService {
         reason: result.reason,
       }).catch((e) => this.logger.warn(`payout_request_rejected 알림톡 실패: ${(e as Error).message}`));
     }
+    // 알림함 기록 (종모양)
+    await this.inbox.record({
+      memberId: result.counselorId,
+      code: 'payout',
+      title: '선지급 신청이 반려되었습니다',
+      content: `신청 ${result.amount.toLocaleString()}원이 반려되었습니다. 사유: ${result.reason}`,
+      linkUrl: '/counselor/mypage/payout',
+      viaAlimtalk: !!result.phone,
+    });
     return { ok: true };
   }
 
@@ -355,6 +366,7 @@ export class AdminPayoutsService {
     actual: number;
     bankName: string;
     bankAccountMasked: string;
+    counselorId: number;
   }> {
     const rows = await tx<{
       id: number;
@@ -420,6 +432,7 @@ export class AdminPayoutsService {
       actual: r.actual_payout,
       bankName: r.bank_name_snapshot,
       bankAccountMasked: masked,
+      counselorId: r.counselor_id,
     };
   }
 
@@ -431,7 +444,17 @@ export class AdminPayoutsService {
     actual: number;
     bankName: string;
     bankAccountMasked: string;
+    counselorId: number;
   }): Promise<void> {
+    // 알림함 기록 (종모양) — phone 없어도 내역은 남김
+    await this.inbox.record({
+      memberId: info.counselorId,
+      code: 'payout',
+      title: '선지급이 입금되었습니다',
+      content: `실지급 ${info.actual.toLocaleString()}원이 ${info.bankName} ${info.bankAccountMasked} 계좌로 입금되었습니다.`,
+      linkUrl: '/counselor/mypage/payout',
+      viaAlimtalk: !!info.phone,
+    });
     if (!info.phone) return;
     await this.sms.sendAlimtalkByCode('payout_request_paid', info.phone, {
       amount: info.amount.toLocaleString(),

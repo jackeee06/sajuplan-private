@@ -1,6 +1,7 @@
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useState, type MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { notificationsApi } from '../lib/api'
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus'
 
 /**
  * 새 알림 "마중" 배너 — 홈 진입 시 안 읽은 알림이 있으면 화사하게 안내.
@@ -9,7 +10,7 @@ import { notificationsApi } from '../lib/api'
  *  - 안 읽은 수 0 이면 미노출. 점검 배너(긴급) 바로 아래에 위치.
  *  - 폰 아이콘 배지("2")와 앱 안 알림을 이어주는 "여기 있어요" 안내 역할.
  */
-const DISMISS_KEY = 'notif_greet_banner_dismissed_v1'
+const DISMISS_KEY = 'notif_greet_banner_dismissed_v2'
 
 const STYLE = `
 @keyframes njbSlide{0%{transform:translateY(-130%);opacity:0}65%{transform:translateY(7%);opacity:1}85%{transform:translateY(-2%)}100%{transform:translateY(0);opacity:1}}
@@ -20,36 +21,39 @@ const STYLE = `
 
 export default function NotificationGreetBanner() {
   const [unread, setUnread] = useState(0)
-  const [dismissed, setDismissed] = useState(false)
+  // 닫을 당시의 안 읽은 수 — 그보다 더 늘면(=새 알림 도착) 다시 노출한다.
+  const [dismissedAt, setDismissedAt] = useState<number | null>(() => {
+    if (typeof sessionStorage === 'undefined') return null
+    const v = sessionStorage.getItem(DISMISS_KEY)
+    return v === null ? null : Number(v) || 0
+  })
 
-  useEffect(() => {
-    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(DISMISS_KEY) === '1') {
-      setDismissed(true)
-    }
-  }, [])
-
-  useEffect(() => {
-    let alive = true
+  // 안 읽은 수 재조회 — 마운트 + 백그라운드 복귀 시(useRefreshOnFocus).
+  const reload = useCallback(() => {
     notificationsApi
       .list()
       .then((res) => {
-        if (!alive) return
-        const cnt = (res.items ?? []).filter((n) => !n.read).length
-        setUnread(cnt)
+        setUnread((res.items ?? []).filter((n) => !n.read).length)
       })
       .catch(() => {})
-    return () => {
-      alive = false
-    }
   }, [])
 
-  if (dismissed || unread <= 0) return null
+  useEffect(() => {
+    reload()
+  }, [reload])
+
+  // 앱이 떠 있는 채로 새 알림이 와도, 새로고침 없이 화면 복귀만으로 배너가 뜬다.
+  useRefreshOnFocus(reload)
+
+  // 닫은 적이 없거나, 닫은 뒤 안 읽은 수가 더 늘었으면 노출.
+  const visible = unread > 0 && (dismissedAt === null || unread > dismissedAt)
+  if (!visible) return null
 
   const onDismiss = (e: MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setDismissed(true)
-    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(DISMISS_KEY, '1')
+    setDismissedAt(unread)
+    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(DISMISS_KEY, String(unread))
   }
 
   return (

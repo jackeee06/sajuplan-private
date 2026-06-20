@@ -10,6 +10,7 @@ import {
 import { SQL, type Sql } from '../../shared/db/db.module';
 import { PushService } from '../../shared/push/push.service';
 import { SmsService } from '../sms/sms.service';
+import { InboxService } from '../../shared/inbox/inbox.service';
 
 export interface CounselorQnaListItem {
   id: number;
@@ -116,6 +117,7 @@ export class UserCounselorQnaService {
     @Inject(SQL) private readonly sql: Sql,
     private readonly sms: SmsService,
     private readonly push: PushService,
+    private readonly inbox: InboxService,
   ) {}
 
   /** 특정 상담사의 문의 목록 + 총 건수 */
@@ -708,8 +710,13 @@ export class UserCounselorQnaService {
   }
 
   /** 상담사 마이페이지 — 미처리(미답변) 건수 반환 */
-  async getPendingCounts(counselorId: number): Promise<{ pending_qna: number; pending_review: number }> {
-    const [qnaRows, reviewRows] = await Promise.all([
+  async getPendingCounts(counselorId: number): Promise<{
+    pending_qna: number;
+    pending_review: number;
+    recent_qna_title: string | null;
+    recent_review_title: string | null;
+  }> {
+    const [qnaRows, reviewRows, recentQnaRows, recentReviewRows] = await Promise.all([
       this.sql<{ cnt: string }[]>`
         SELECT COUNT(*)::text AS cnt
           FROM counselor_qna q
@@ -726,10 +733,41 @@ export class UserCounselorQnaService {
              SELECT 1 FROM post_review_reply rp WHERE rp.review_id = r.id
            )
       `,
+      // 가장 최근 미답변 문의 1건 — 카드 미리보기용("어떤 문의인지" 한눈에)
+      this.sql<{ title: string | null; content: string | null }[]>`
+        SELECT q.title, q.content
+          FROM counselor_qna q
+         WHERE q.counselor_id = ${counselorId}
+           AND NOT EXISTS (
+             SELECT 1 FROM counselor_qna_reply r WHERE r.qna_id = q.id
+           )
+         ORDER BY q.created_at DESC
+         LIMIT 1
+      `,
+      // 가장 최근 미답변 후기 1건 — 카드 미리보기용
+      this.sql<{ title: string | null; content: string | null }[]>`
+        SELECT r.title, r.content
+          FROM post_review r
+         WHERE r.counselor_id = ${counselorId}
+           AND NOT EXISTS (
+             SELECT 1 FROM post_review_reply rp WHERE rp.review_id = r.id
+           )
+         ORDER BY r.created_at DESC
+         LIMIT 1
+      `,
     ]);
+    // 제목 우선, 없으면 본문 앞부분 — 공백 정리 후 24자 컷
+    const preview = (row?: { title: string | null; content: string | null }): string | null => {
+      if (!row) return null;
+      const raw = (row.title?.trim() || row.content?.trim() || '').replace(/\s+/g, ' ');
+      if (!raw) return null;
+      return raw.length > 24 ? raw.slice(0, 24) + '…' : raw;
+    };
     return {
       pending_qna: Number(qnaRows[0]?.cnt ?? 0),
       pending_review: Number(reviewRows[0]?.cnt ?? 0),
+      recent_qna_title: preview(recentQnaRows[0]),
+      recent_review_title: preview(recentReviewRows[0]),
     };
   }
 
@@ -885,6 +923,14 @@ export class UserCounselorQnaService {
        WHERE member_id = ${authorId} AND is_active = TRUE
     `;
     const tokens = tokenRows.map((t) => t.token).filter(Boolean);
+    await this.inbox.record({
+      memberId: authorId,
+      code: 'qna_reported',
+      title: '내 문의가 신고됐습니다',
+      content: '게시된 문의에 신고가 접수되었습니다. 내용을 확인해주세요.',
+      linkUrl: '/mypage/my-qnas',
+      viaPush: tokens.length > 0,
+    });
     if (tokens.length === 0) return;
     await this.push.sendToTokens(tokens, {
       title: '내 문의가 신고됐습니다',
@@ -965,6 +1011,16 @@ export class UserCounselorQnaService {
     } catch (e) {
       this.logger.warn(`qa_ask FCM 예외 counselor=${counselorId}: ${(e as Error).message}`);
     }
+
+    await this.inbox.record({
+      memberId: counselorId,
+      code: 'qna_ask',
+      title: '새 문의가 도착했습니다',
+      content: '상담 문의가 접수되었습니다. 확인 후 답변을 남겨주세요.',
+      linkUrl: `/counselor/mypage/customer-qnas/${qnaId}`,
+      viaPush: true,
+      viaAlimtalk: true,
+    });
   }
 
   /**
@@ -1022,6 +1078,16 @@ export class UserCounselorQnaService {
       );
       if (!res.ok) {
         this.logger.warn(`qa_answer2 거부 qna=${qnaId} reason=${res.reason} raw=${res.raw ?? ''}`);
+      }
+      if (r.member_id) {
+        await this.inbox.record({
+          memberId: r.member_id,
+          code: 'qna_answer',
+          title: '문의 답변이 등록되었습니다',
+          content: `${counselorName || '상담사'} 님이 내 문의에 답변을 남겼어요. 확인해보세요.`,
+          linkUrl: qnaPath,
+          viaAlimtalk: true,
+        });
       }
     } catch (e) {
       this.logger.warn(`qa_answer2 발송 예외 qna=${qnaId}: ${(e as Error).message}`);

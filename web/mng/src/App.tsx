@@ -51,6 +51,7 @@ import AlimtalkBulk from './pages/AlimtalkBulk'
 import PostsOverview from './pages/PostsOverview'
 import PopupLayerForm from './pages/PopupLayerForm'
 import PushNotifications from './pages/PushNotifications'
+import NotificationHistory from './pages/NotificationHistory'
 import AlertLogList from './pages/AlertLogList'
 import PushGuide from './pages/PushGuide'
 import AlertGuide from './pages/AlertGuide'
@@ -188,6 +189,7 @@ export default function App() {
 
               {/* 알림 */}
               <Route path="/push-notifications" element={<PushNotifications />} />
+              <Route path="/notification-history" element={<NotificationHistory />} />
               <Route path="/push-guide" element={<PushGuide />} />
               <Route path="/alert-guide" element={<AlertGuide />} />
               <Route path="/alert-logs" element={<AlertLogList />} />

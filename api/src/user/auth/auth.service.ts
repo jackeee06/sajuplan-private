@@ -877,7 +877,7 @@ export class AuthService {
     >`
       SELECT id, mb_id, name, email, social_provider FROM member
        WHERE (email = ${e} OR social_email = ${e})
-         AND role = 'user'
+         AND role <> 'admin'
          AND left_at IS NULL
        ORDER BY id DESC LIMIT 1
     `;

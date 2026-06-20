@@ -1,10 +1,11 @@
-﻿import { useEffect, useState } from 'react'
+﻿import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MobileHeader from '../components/MobileHeader'
 import BottomNav from '../components/BottomNav'
 import { ApiError, notificationsApi, type PublicNotificationItem } from '../lib/api'
 import { API_BASE } from '../lib/runtime-env'
 import { useAlert } from '../lib/use-alert'
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus'
 
 /**
  * 알림 내역 — Figma node 163:23156 (있음), 163:27007 (비어있음)
@@ -23,19 +24,21 @@ export default function Notifications() {
   const [error, setError] = useState<string | null>(null)
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     notificationsApi
       .list()
       .then((res) => {
         setItems(res.items)
-        // 로그인 여부는 markRead/All 가능 여부에서 추론 — 빈 응답일 땐 추론 불가하니 별도 me() 호출
-        // 단순화를 위해, 알림이 read 상태로 1건이라도 있으면 로그인된 상태로 간주.
-        // 정확도 위해 me 도 시도해보지만 401 은 무시.
+        setError(null)
       })
       .catch((e: unknown) => {
         const msg = e instanceof ApiError ? e.message : '알림을 불러오지 못했습니다.'
         setError(msg)
       })
+  }, [])
+
+  useEffect(() => {
+    load()
 
     // 로그인 여부 확인 (모두 읽음 버튼 노출용)
     fetch(`${API_BASE}/user/auth/me`, {
@@ -43,7 +46,10 @@ export default function Notifications() {
     })
       .then((r) => setLoggedIn(r.ok))
       .catch(() => setLoggedIn(false))
-  }, [])
+  }, [load])
+
+  // 알림함을 열어둔 채 새 알림이 와도, 화면 복귀 시 자동으로 목록 갱신.
+  useRefreshOnFocus(load)
 
   const onReadAll = async () => {
     if (!items || items.length === 0) return
@@ -97,7 +103,7 @@ export default function Notifications() {
         ) : (
           <ul className="px-3 py-3 space-y-2.5">
             {items.map((n) => {
-              const c = catMeta(n.category)
+              const c = metaFor(n)
               return (
                 <li key={n.id}>
                   <button
@@ -114,9 +120,11 @@ export default function Notifications() {
                       {c.icon}
                     </span>
                     <span className="flex-1 min-w-0">
-                      <span className="flex items-center gap-1.5">
+                      <span className="flex items-center gap-1.5 flex-wrap">
                         <span className="text-[11px] font-semibold" style={{ color: c.color }}>{c.label}</span>
                         {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444]" />}
+                        {n.via_push && <ChannelBadge label="푸시" />}
+                        {n.via_alimtalk && <ChannelBadge label="카톡" />}
                       </span>
                       <span className={`block text-[15px] mt-0.5 ${n.read ? 'font-semibold text-[#374151]' : 'font-bold text-[#111827]'}`}>
                         {n.title}
@@ -156,8 +164,10 @@ function fmtDate(iso: string): string {
   return `${y}.${m}.${day}`
 }
 
-/** 카테고리별 아이콘·컬러 (알림 리스트 시안 A) */
-export function catMeta(category: string | null): { label: string; icon: string; color: string; bg: string } {
+interface NotiMeta { label: string; icon: string; color: string; bg: string }
+
+/** 카테고리별 아이콘·컬러 (브로드캐스트 — 전체공지/상담사/일반회원) */
+export function catMeta(category: string | null): NotiMeta {
   switch (category) {
     case '전체공지': return { label: '전체공지', icon: '📢', color: '#8259F5', bg: '#efeafe' }
     case '상담사':   return { label: '상담사', icon: '👤', color: '#00BBA7', bg: '#e3f7f4' }
@@ -165,6 +175,39 @@ export function catMeta(category: string | null): { label: string; icon: string;
     case '개별':     return { label: '알림', icon: '🔔', color: '#ec4899', bg: '#fdeef6' }
     default:         return { label: category || '알림', icon: '🔔', color: '#8259F5', bg: '#efeafe' }
   }
+}
+
+/** 이벤트 코드별 아이콘·컬러 (개별 알림 — 채팅요청/후기/등급 등) */
+export function codeMeta(code: string | null): NotiMeta | null {
+  switch (code) {
+    case 'chat_request':  return { label: '채팅 상담요청', icon: '💬', color: '#ec4899', bg: '#fdeef6' }
+    case 'call_request':  return { label: '전화 상담요청', icon: '📞', color: '#ec4899', bg: '#fdeef6' }
+    case 'qna_ask':       return { label: '새 문의', icon: '❓', color: '#3B82F6', bg: '#e8f1fe' }
+    case 'qna_answer':    return { label: '문의 답변', icon: '💡', color: '#3B82F6', bg: '#e8f1fe' }
+    case 'qna_reported':  return { label: '문의 신고', icon: '🚨', color: '#ef4444', bg: '#fdeaea' }
+    case 'review':        return { label: '새 후기', icon: '⭐', color: '#f59e0b', bg: '#fef3e2' }
+    case 'grade':         return { label: '등급 승급', icon: '🎉', color: '#8259F5', bg: '#efeafe' }
+    case 'absent':        return { label: '상담 부재 안내', icon: '🌙', color: '#6b7280', bg: '#f1f3f5' }
+    case 'chat_cancelled':return { label: '채팅 자동취소', icon: '⏱️', color: '#6b7280', bg: '#f1f3f5' }
+    case 'settlement':    return { label: '정산 완료', icon: '💰', color: '#00BBA7', bg: '#e3f7f4' }
+    case 'payout':        return { label: '선지급', icon: '💸', color: '#00BBA7', bg: '#e3f7f4' }
+    case 'coupon':        return { label: '쿠폰 발급', icon: '🎁', color: '#ec4899', bg: '#fdeef6' }
+    default:              return null
+  }
+}
+
+/** code 우선, 없으면 category 기준 메타 */
+function metaFor(n: PublicNotificationItem): NotiMeta {
+  return codeMeta(n.code) ?? catMeta(n.category)
+}
+
+/** 채널 뱃지 (📲푸시 / 💬카톡) — 어떤 경로로도 왔는지 한눈에 */
+function ChannelBadge({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center px-1.5 h-[15px] rounded-full bg-[#f3f4f6] text-[10px] font-medium text-[#6b7280] leading-none">
+      {label}
+    </span>
+  )
 }
 
 function EmptyState() {

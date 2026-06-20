@@ -21,6 +21,7 @@ import { AdminModule } from './admin/admin.module';
 import { UserModule } from './user/user.module';
 import { SharedModule } from './shared/shared.module';
 import { AlertsModule } from './shared/alerts/alerts.module';
+import { InboxModule } from './shared/inbox/inbox.module';
 import { M2netPushModule } from './pg-callbacks/m2net-push.module';
 import { CronModule } from './cron/cron.module';
 import { PromoterPublicModule } from './promoter/promoter.module';
@@ -44,6 +45,7 @@ import { PromoterPublicModule } from './promoter/promoter.module';
     ]),
     SharedModule,
     AlertsModule,
+    InboxModule,
     AdminModule,
     UserModule,
     M2netPushModule,

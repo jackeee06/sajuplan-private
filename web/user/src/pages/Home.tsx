@@ -2,6 +2,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus'
 import BottomNav from '../components/BottomNav'
+import NotificationBell from '../components/NotificationBell'
 import CounselorCard from '../components/CounselorCard'
 import CounselorIncomingBanner from '../components/CounselorIncomingBanner'
 import FavoriteCounselorBanner from '../components/FavoriteCounselorBanner'
@@ -214,9 +215,7 @@ export default function Home() {
           <Link to="/search" aria-label="검색" className="w-10 h-10 flex items-center justify-center">
             <img src="/img/ic_hd_search.svg" alt="" className="w-7 h-7" />
           </Link>
-          <Link to="/notifications" aria-label="알림" className="w-10 h-10 flex items-center justify-center">
-            <img src="/img/ic_hd_push.svg" alt="" className="w-7 h-7" />
-          </Link>
+          <NotificationBell containerClassName="w-10 h-10" />
         </div>
       </header>
 

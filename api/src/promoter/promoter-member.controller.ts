@@ -26,4 +26,20 @@ export class PromoterMemberController {
   apply(@Req() req: UserAuthedRequest, @Body() body: { code?: string }) {
     return this.core.applyReferralPostSignup(req.user.sub, body?.code ?? '');
   }
+
+  /**
+   * 친구초대 활성화 — 코인형 모집인 보장 후 본인 코드/공유링크 반환.
+   * 회원이 마이페이지 '친구 초대하기'를 누르면 호출. 멱등(이미 있으면 재사용).
+   */
+  @Post('invite/enable')
+  @HttpCode(200)
+  enableInvite(@Req() req: UserAuthedRequest) {
+    return this.core.ensureCoinPromoterForMember(req.user.sub);
+  }
+
+  /** 내 초대 현황 — 데려온 친구 수·받은 코인·타임라인 (마이페이지) */
+  @Get('invite/dashboard')
+  inviteDashboard(@Req() req: UserAuthedRequest) {
+    return this.core.getMemberInviteDashboard(req.user.sub);
+  }
 }

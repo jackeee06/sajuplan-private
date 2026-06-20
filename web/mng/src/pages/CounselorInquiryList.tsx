@@ -64,7 +64,7 @@ interface DetailDto {
 }
 
 const CATEGORIES = ['이용안내', '상담', '정산', '서비스상품']
-const PAGE_SIZE = 20
+const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 50) // 첫 화면 50줄 (2026-06-19)
 
 const ctrlCls =
   'text-sm rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400'

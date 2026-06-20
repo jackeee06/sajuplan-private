@@ -107,7 +107,7 @@ const CATEGORY_BADGE_COLOR: Record<string, BadgeColor> = {
   other: 'gray',
 }
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 50) // 첫 화면 50줄 (2026-06-19)
 
 export default function CounselorApplyList() {
   const navigate = useNavigate()
@@ -252,8 +252,10 @@ export default function CounselorApplyList() {
           <Th align="right">번호</Th>
           <Th align="center">종류</Th>
           <Th align="center">상태</Th>
-          <Th align="left">예명 / 실명</Th>
-          <Th align="left">분야 / 지역</Th>
+          <Th align="left">예명</Th>
+          <Th align="left">실명</Th>
+          <Th align="left">분야</Th>
+          <Th align="left">지역</Th>
           <Th align="left">휴대폰</Th>
           <Th align="left">이메일</Th>
           <Th align="left">회원</Th>
@@ -262,9 +264,9 @@ export default function CounselorApplyList() {
         </THead>
         <TBody>
           {loading ? (
-            <EmptyRow colSpan={10} loading />
+            <EmptyRow colSpan={12} loading />
           ) : !data || data.items.length === 0 ? (
-            <EmptyRow colSpan={10} />
+            <EmptyRow colSpan={12} />
           ) : (
             data.items.map((it) => {
               const catKey = it.category && it.category !== 'general' ? it.category : 'application'
@@ -281,15 +283,17 @@ export default function CounselorApplyList() {
                       {STATUS_LABEL[it.status] ?? it.status}
                     </Badge>
                   </Td>
-                  <Td align="left">
-                    <div className="font-medium text-gray-900 dark:text-gray-100">
-                      {it.pen_name ?? '-'}
-                    </div>
-                    <div className="text-[11px] text-gray-500">{it.real_name ?? '-'}</div>
+                  <Td align="left" className="font-medium text-gray-900 dark:text-gray-100">
+                    {it.pen_name ?? '-'}
                   </Td>
-                  <Td align="left" className="text-xs">
-                    <div className="text-gray-700">{it.field ?? '-'}</div>
-                    <div className="text-[11px] text-gray-500">{it.region ?? '-'}</div>
+                  <Td align="left" className="text-xs text-gray-500">
+                    {it.real_name ?? '-'}
+                  </Td>
+                  <Td align="left" className="text-xs text-gray-700">
+                    {it.field ?? '-'}
+                  </Td>
+                  <Td align="left" className="text-xs text-gray-500">
+                    {it.region ?? '-'}
                   </Td>
                   <Td align="left" className="font-mono text-xs text-gray-600">
                     {it.applicant_phone ?? <span className="text-gray-300">-</span>}
@@ -304,7 +308,12 @@ export default function CounselorApplyList() {
                         onClick={(e) => e.stopPropagation()}
                         className="text-brand-600 hover:underline"
                       >
-                        {it.member_mb_id ?? it.member_name ?? `#${it.member_id}`}
+                        <span
+                          className="inline-block max-w-[96px] truncate align-bottom"
+                          title={String(it.member_mb_id ?? it.member_name ?? `#${it.member_id}`)}
+                        >
+                          {it.member_mb_id ?? it.member_name ?? `#${it.member_id}`}
+                        </span>
                       </Link>
                     ) : (
                       <span className="text-gray-400">비회원</span>

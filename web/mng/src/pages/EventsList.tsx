@@ -18,7 +18,7 @@ interface EventItem {
   updated_at: string
 }
 
-const PAGE_SIZE = 20
+const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 50) // 첫 화면 50줄 (2026-06-19)
 
 export default function EventsList() {
   const navigate = useNavigate()
@@ -31,6 +31,7 @@ export default function EventsList() {
     const p = new URLSearchParams()
     if (filter.q) p.set('q', filter.q)
     p.set('page', String(filter.page))
+    p.set('limit', String(PAGE_SIZE))
     setLoading(true)
     api<{ items: EventItem[]; total: number }>(`/admin/events?${p}`)
       .then(setData)

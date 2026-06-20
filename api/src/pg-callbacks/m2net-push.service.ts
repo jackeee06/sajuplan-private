@@ -15,6 +15,14 @@ import { AlertsService } from '../shared/alerts/alerts.service';
 import { GradeUpgradeService } from '../shared/grade-upgrade/grade-upgrade.service';
 import { PromoterCoreService } from '../shared/promoter/promoter-core.service';
 
+/** 모집인 적립 결과 — 코인형이면 beneficiaryMemberId 의 free_balance 가 이미 적립됨(커밋 후 m2net 동기화 필요). */
+type PromoterAccrual = {
+  promoterId: number;
+  rewardAmount: number;
+  rewardType: 'cash' | 'coin';
+  beneficiaryMemberId: number | null;
+};
+
 /**
  * 엠투넷(M2NET) Push 콜백 처리.
  *
@@ -64,6 +72,32 @@ export class M2netPushService {
     private readonly gradeUpgrade: GradeUpgradeService,
     private readonly promoter: PromoterCoreService,
   ) {}
+
+  /**
+   * 코인형 모집인(친구초대) 보상 — 커밋 후 m2net 잔액 동기화.
+   *   DB free_balance 적립은 accrueInTx(트랜잭션 내부)에서 이미 완료됨. 여기서는 m2net 미터에만 +코인 반영
+   *   (회원이 그 코인을 실제 상담에 쓸 수 있도록). HTTP라 트랜잭션 밖에서 best-effort. 실패해도 본 처리 영향 X.
+   */
+  private async syncInviteCoinReward(accrual: PromoterAccrual | null): Promise<void> {
+    if (!accrual || accrual.rewardType !== 'coin' || !accrual.beneficiaryMemberId || accrual.rewardAmount <= 0) return;
+    try {
+      const rows = await this.sql<{ m2net_membid: string | null }[]>`
+        SELECT m2net_membid FROM member WHERE id = ${accrual.beneficiaryMemberId} LIMIT 1
+      `;
+      const mb = rows[0]?.m2net_membid;
+      if (!mb) return;
+      const sync = await this.m2net.addMemberCoin(mb, accrual.rewardAmount);
+      if (!sync.ok) {
+        this.logger.warn(
+          `[invite-coin] m2net 동기화 실패 — 사주플랜 +${accrual.rewardAmount} 코인은 적립됐으나 m2net 미반영. member=${accrual.beneficiaryMemberId} err=${sync.error ?? 'unknown'}`,
+        );
+      } else {
+        this.logger.log(`[invite-coin] 친구초대 코인 +${accrual.rewardAmount} member=${accrual.beneficiaryMemberId} m2net 동기화 완료`);
+      }
+    } catch (e) {
+      this.logger.error(`[invite-coin] 동기화 오류 member=${accrual.beneficiaryMemberId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 
   /**
    * [2026-05-27] 전화 통화 5분 잔여 알림 setTimeout 등록.
@@ -428,7 +462,7 @@ export class M2netPushService {
             const requiredCost = Math.ceil((cm * 60) / us) * uc;
             if (requiredCost > 0) {
               // 모집인 적립 결과(트랜잭션 외부에서 알림톡 발송용)
-              let prepaidAccrual: { promoterId: number; rewardAmount: number } | null = null;
+              let prepaidAccrual: PromoterAccrual | null = null;
               let prepaidLabel = '';
               await this.sql.begin(async (tx) => {
                 // member.point 잔액 확인 (FOR UPDATE — 동시 차감 방지)
@@ -507,11 +541,10 @@ export class M2netPushService {
               );
               // 모집인 실시간 적립 알림톡 (커밋 후·게이트)
               if (prepaidAccrual) {
-                void this.promoter.sendAccrualAlimtalk(
-                  (prepaidAccrual as { promoterId: number; rewardAmount: number }).promoterId,
-                  prepaidLabel,
-                  (prepaidAccrual as { promoterId: number; rewardAmount: number }).rewardAmount,
-                );
+                // 클로저 내부 할당이라 TS 가 외부 흐름에서 null 로 좁힘 → 명시 캐스팅(기존 패턴)
+                const pa = prepaidAccrual as PromoterAccrual;
+                void this.promoter.sendAccrualAlimtalk(pa.promoterId, prepaidLabel, pa.rewardAmount);
+                void this.syncInviteCoinReward(pa);
               }
             }
           }
@@ -830,9 +863,9 @@ export class M2netPushService {
     // [Audit B-#3] DB 레벨 중복 INSERT 차단 — UNIQUE 제약 (uq_consultation_call_callid,
     // uq_consultation_chat_roomid) 위반 시 ON CONFLICT DO NOTHING 으로 graceful skip.
     const svcType = isCall ? '[전화]' : '[채팅]';
-    let txResult: { dup: boolean; consultationId?: number; shortCallRefund?: boolean; promoterAccrual?: { promoterId: number; rewardAmount: number } | null; promoterUsageLabel?: string };
+    let txResult: { dup: boolean; consultationId?: number; shortCallRefund?: boolean; promoterAccrual?: PromoterAccrual | null; promoterUsageLabel?: string };
     try {
-      txResult = await this.sql.begin(async (tx): Promise<{ dup: boolean; consultationId?: number; shortCallRefund?: boolean; promoterAccrual?: { promoterId: number; rewardAmount: number } | null; promoterUsageLabel?: string }> => {
+      txResult = await this.sql.begin(async (tx): Promise<{ dup: boolean; consultationId?: number; shortCallRefund?: boolean; promoterAccrual?: PromoterAccrual | null; promoterUsageLabel?: string }> => {
         const inserted = await tx<{ id: number }[]>`
           INSERT INTO consultation (
             member_id, mb_id, counselor_id, csrid, cpid, dtmfno,
@@ -950,7 +983,7 @@ export class M2netPushService {
         //   종량제 전화/채팅: 회원이 실제 유료 차감(amtPro)된 경우에만 적립.
         //   선결제 채팅(amt=0, amtPro=0)은 여기서 안 잡히고 START_CHAT 차감 시점에 별도 적립(takePaid 기준).
         //   단기통화환불/단기채팅환불/후불/환불대상 은 회원이 실질 결제 안 했으므로 제외.
-        let promoterAccrual: { promoterId: number; rewardAmount: number } | null = null;
+        let promoterAccrual: PromoterAccrual | null = null;
         const promoterUsageLabel = `${svcType}${amtPro.toLocaleString()}원 사용`;
         if (
           endsHere && memberId !== null && consultationId > 0
@@ -998,6 +1031,7 @@ export class M2netPushService {
         txResult.promoterUsageLabel ?? '',
         txResult.promoterAccrual.rewardAmount,
       );
+      void this.syncInviteCoinReward(txResult.promoterAccrual);
     }
 
     // ─── 단기통화 자동 환불 — m2net 측 잔액 복구 (트랜잭션 외부) ───

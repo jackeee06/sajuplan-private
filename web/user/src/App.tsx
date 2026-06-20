@@ -44,6 +44,9 @@ import MyReviewNew from './pages/MyReviewNew'
 import MyReviewEdit from './pages/MyReviewEdit'
 import MyQnas from './pages/MyQnas'
 import MyQnaDetail from './pages/MyQnaDetail'
+import SupportInquiries from './pages/SupportInquiries'
+import SupportInquiryNew from './pages/SupportInquiryNew'
+import SupportInquiryDetail from './pages/SupportInquiryDetail'
 import Coupons from './pages/Coupons'
 import Payments from './pages/Payments'
 import Points from './pages/Points'
@@ -93,6 +96,8 @@ import CounselorApplyDone from './pages/CounselorApplyDone'
 import CounselorApplyDetail from './pages/CounselorApplyDetail'
 import RecruiterLanding from './pages/RecruiterLanding'
 import PromoterDashboard from './pages/PromoterDashboard'
+import InviteFriends from './pages/InviteFriends'
+import SignupCouponEvent from './pages/SignupCouponEvent'
 
 /** 구 URL (/counselors/:id/reviews, /qna) → ?tab= 방식으로 리다이렉트 */
 function TabRedirect({ tab }: { tab: string }) {
@@ -155,6 +160,10 @@ export default function App() {
         <Route path="/mypage/my-reviews/:id" element={<MyReviewDetail />} />
         <Route path="/mypage/my-qnas" element={<MyQnas />} />
         <Route path="/mypage/my-qnas/:id" element={<MyQnaDetail />} />
+        <Route path="/mypage/support-inquiries" element={<SupportInquiries />} />
+        <Route path="/mypage/support-inquiries/new" element={<SupportInquiryNew />} />
+        <Route path="/mypage/support-inquiries/:id" element={<SupportInquiryDetail />} />
+        <Route path="/mypage/invite" element={<InviteFriends />} />
         <Route path="/mypage/coupons" element={<Coupons />} />
         <Route path="/mypage/payments" element={<Payments />} />
         <Route path="/mypage/points" element={<Points />} />
@@ -207,6 +216,8 @@ export default function App() {
         {/* 모집인(서포터즈) — QR/링크 랜딩 + 모집인 대시보드 (앱 게이트 예외) */}
         <Route path="/s/:code" element={<RecruiterLanding />} />
         <Route path="/promoter" element={<PromoterDashboard />} />
+        {/* 공개 쿠폰 이벤트 페이지 — 직원·가족·지인 호의 공유용(로그인·앱 불필요, 게이트 예외) */}
+        <Route path="/event" element={<SignupCouponEvent />} />
         {/* 추후: /chat/:id, /bookmarks, /point, /mypage/inquiry/new */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

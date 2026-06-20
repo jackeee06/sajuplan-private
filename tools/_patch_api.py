@@ -32,6 +32,11 @@ import paramiko
 # 2026-05-17: 상담사 후기 알림톡 추가
 # audit A~G 전체 변경분 외과 패치 (18개 파일) — 이전 배포 분
 FILES = [
+    # 2026-06-19: 통합 알림함 — 모든 알림(푸시·인앱·카톡) 종모양 단일 창구 + 안읽음 뱃지 + 채널 뱃지
+    ("api/db/migrations/20260619200000_notification_inbox.sql", "db/migrations/20260619200000_notification_inbox.sql"),
+    ("api/src/shared/inbox/inbox.service.ts", "src/shared/inbox/inbox.service.ts"),
+    ("api/src/shared/inbox/inbox.module.ts", "src/shared/inbox/inbox.module.ts"),
+    ("api/src/admin/coupon-zones/coupon-zones.service.ts", "src/admin/coupon-zones/coupon-zones.service.ts"),
     # 2026-06-19: 회원 → 운영자 고객센터 1:1 문의 (앱 내 작성 → post_qa → 관리자 답변 → FCM 푸시)
     ("api/src/user/support-inquiry/support-inquiry.service.ts", "src/user/support-inquiry/support-inquiry.service.ts"),
     ("api/src/user/support-inquiry/support-inquiry.controller.ts", "src/user/support-inquiry/support-inquiry.controller.ts"),
@@ -253,6 +258,22 @@ FILES = [
     ("api/src/promoter/promoter-member.controller.ts", "src/promoter/promoter-member.controller.ts"),
     ("api/src/promoter/promoter.module.ts", "src/promoter/promoter.module.ts"),
     ("api/src/promoter/promoter-auth.guard.ts", "src/promoter/promoter-auth.guard.ts"),
+    # 2026-06-19: 친구초대(회원→회원) 코인형 보상 — promoter.reward_type + m2net-push 코인 적립 분기
+    ("api/db/migrations/20260619100000_promoter_reward_type.sql", "db/migrations/20260619100000_promoter_reward_type.sql"),
+    # 2026-06-20: 코드 박힌 쿠폰 이미지 즉석 합성 에셋 (서버 폰트 불필요, sharp composite). process.cwd()/assets/coupon
+    ("api/assets/coupon/coupon-base.png", "assets/coupon/coupon-base.png"),
+    ("api/assets/coupon/coupon-layout.json", "assets/coupon/coupon-layout.json"),
+    ("api/assets/coupon/glyph-0.png", "assets/coupon/glyph-0.png"),
+    ("api/assets/coupon/glyph-1.png", "assets/coupon/glyph-1.png"),
+    ("api/assets/coupon/glyph-2.png", "assets/coupon/glyph-2.png"),
+    ("api/assets/coupon/glyph-3.png", "assets/coupon/glyph-3.png"),
+    ("api/assets/coupon/glyph-4.png", "assets/coupon/glyph-4.png"),
+    ("api/assets/coupon/glyph-5.png", "assets/coupon/glyph-5.png"),
+    ("api/assets/coupon/glyph-6.png", "assets/coupon/glyph-6.png"),
+    ("api/assets/coupon/glyph-7.png", "assets/coupon/glyph-7.png"),
+    ("api/assets/coupon/glyph-8.png", "assets/coupon/glyph-8.png"),
+    ("api/assets/coupon/glyph-9.png", "assets/coupon/glyph-9.png"),
+    ("api/assets/coupon/glyph-A.png", "assets/coupon/glyph-A.png"),
 ]
 
 
