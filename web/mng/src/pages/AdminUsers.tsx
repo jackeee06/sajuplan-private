@@ -117,12 +117,10 @@ export default function AdminUsers() {
 
   return (
     <div className="space-y-3 max-w-[1100px]">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">관리자 계정</h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">※ 신규 관리자는 별도 레코드. 기존 회원의 등급(mb_level)·권한은 변경 안 됨.</p>
-        </div>
-        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium">
+      <div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">관리자 계정</h1>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">※ 신규 관리자는 별도 레코드. 기존 회원의 등급(mb_level)·권한은 변경 안 됨.</p>
+        <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 mt-3 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-medium">
           <Plus className="w-4 h-4" /> 관리자 추가
         </button>
       </div>

@@ -5,10 +5,12 @@
       "Bash(rm \"/c/Users/USER/.claude/projects/c--claudeworkspace-sajumoon/memory/work_in_progress.md\")",
       "Bash(rm .git/index.lock && echo \"lock removed\")",
       "Bash(touch /tmp/deploy_api.log)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(rm -f \"C:/Users/USER/.claude/projects/c--claudeworkspace-sajumoon/lessonbook_session_dump.txt\" && echo \"정리 완료\")"
     ],
     "additionalDirectories": [
-      "C:\\claudeworkspace\\sajumoon\\.git"
+      "C:\\claudeworkspace\\sajumoon\\.git",
+      "C:\\Users\\USER\\.claude\\projects\\c--claudeworkspace-sajumoon"
     ]
   }
 }

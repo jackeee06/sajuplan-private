@@ -18,13 +18,16 @@ export class DashboardService {
 
     const [memberStats, counselorStates, balance, todayActive] = await Promise.all([
       this.sql<
-        { total: string; today: string; this_month: string; counselors: string }[]
+        { total: string; today: string; yesterday: string; this_month: string; counselors: string; new_csr_today: string; new_csr_yesterday: string }[]
       >`
         SELECT
           (SELECT count(*) FROM member WHERE left_at IS NULL) AS total,
           (SELECT count(*) FROM member WHERE created_at::date = CURRENT_DATE) AS today,
+          (SELECT count(*) FROM member WHERE created_at::date = CURRENT_DATE - 1) AS yesterday,
           (SELECT count(*) FROM member WHERE created_at >= date_trunc('month', CURRENT_DATE)) AS this_month,
-          (SELECT count(*) FROM member WHERE role = 'counselor' AND left_at IS NULL) AS counselors
+          (SELECT count(*) FROM member WHERE role = 'counselor' AND left_at IS NULL) AS counselors,
+          (SELECT count(*) FROM member WHERE role = 'counselor' AND created_at::date = CURRENT_DATE) AS new_csr_today,
+          (SELECT count(*) FROM member WHERE role = 'counselor' AND created_at::date = CURRENT_DATE - 1) AS new_csr_yesterday
       `,
       this.sql<{ state: string; cnt: string }[]>`
         SELECT state, count(*) AS cnt
@@ -66,6 +69,7 @@ export class DashboardService {
       members: {
         total: Number(memberStats[0].total),
         today: Number(memberStats[0].today),
+        yesterday: Number(memberStats[0].yesterday),
         this_month: Number(memberStats[0].this_month),
       },
       counselors: {
@@ -74,6 +78,8 @@ export class DashboardService {
         busy: busy || 6,
         absent: absent || 4,
         today_active: Number(todayActive.cnt),
+        new_today: Number(memberStats[0].new_csr_today),
+        new_yesterday: Number(memberStats[0].new_csr_yesterday),
       },
       balance: {
         free: Number(balance.free),
@@ -474,29 +480,39 @@ export class DashboardService {
   }> {
     const empty = { today_active: [], inactive_7d: [], unreplied_reviews: [] };
     try {
-      // 오늘 활성 — 오늘 상담 건수 많은 상담사 TOP5
+      // 오늘 활성 — 오늘 실제 완료 상담 건수 많은 상담사 TOP5.
+      //   ⚠️ consultation 은 통화 1건이 여러 행(TRY_OK·CONNECT_CSR·DISCONNECT 등)으로 쌓임.
+      //      예전엔 COUNT(c.id) 전체 행을 세서 '12건'처럼 실제(3건)보다 4배 부풀려졌음(2026-06-23 수정).
+      //      완료 행(DISCONNECT/END_CHAT)만 = 실제 상담 건수.
       const todayActive = await this.sql<{ id: number; mb_id: string | null; nickname: string | null; cnt: string }[]>`
-        SELECT m.id, m.mb_id, m.nickname, COUNT(c.id)::text AS cnt
+        SELECT m.id, m.mb_id, m.nickname, COUNT(*)::text AS cnt
           FROM consultation c
           JOIN member m ON m.id = c.counselor_id
          WHERE c.created_at::date = CURRENT_DATE
+           AND c.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
          GROUP BY m.id, m.mb_id, m.nickname
-         ORDER BY COUNT(c.id) DESC
+         ORDER BY COUNT(*) DESC
          LIMIT 5
       `;
 
-      // 7일 0건 — 활성 상담사 중 최근 7일 상담 없는 사람 (이탈 위험)
+      // 7일 0건 — "예전엔 상담했는데 최근 7일 끊긴" 진짜 이탈 위험 상담사.
+      //   ⚠️ 가입만 하고 첫 상담 전인 신규 상담사는 제외(EXISTS) — 그건 '이탈'이 아니라
+      //      '아직 시작 전'이라 이탈 위험으로 잡으면 오해(2026-06-23). 신규는 '어제 신규 상담사' KPI 에서 본다.
+      //   정렬: 마지막 상담 시점 최신순(= 막 끊긴 사람 우선, 재독려 가치 높음).
       const inactive7d = await this.sql<{ id: number; mb_id: string | null; nickname: string | null; last_at: string | null }[]>`
         SELECT m.id, m.mb_id, m.nickname,
                (SELECT MAX(created_at)::text FROM consultation WHERE counselor_id = m.id) AS last_at
           FROM member m
          WHERE m.role = 'counselor' AND m.left_at IS NULL
+           AND EXISTS (
+             SELECT 1 FROM consultation c0 WHERE c0.counselor_id = m.id
+           )
            AND NOT EXISTS (
              SELECT 1 FROM consultation c
               WHERE c.counselor_id = m.id
                 AND c.created_at >= NOW() - INTERVAL '7 days'
            )
-         ORDER BY m.created_at DESC
+         ORDER BY (SELECT MAX(created_at) FROM consultation WHERE counselor_id = m.id) DESC
          LIMIT 5
       `;
 

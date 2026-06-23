@@ -183,7 +183,7 @@ export default function GradeManagement() {
   }, [dist])
 
   return (
-    <div className="space-y-3 max-w-[1100px]">
+    <div className="space-y-3 max-w-[1400px]">
       {/* 최상단 — 핵심 액션/정보 3개를 한 줄 가로로 (좌측 정렬, 빈 여백 제거) */}
       <div className="flex flex-wrap items-center gap-2">
         <Link
@@ -267,6 +267,8 @@ export default function GradeManagement() {
             </div>
           </section>
 
+          {/* 2)+3) 등급 변동 · 정책 변경 이력 — 좌우 2단 (xl↑, 좁으면 세로) */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
           {/* 2) 최근 등급 변동 — 0건일 때 긍정 메시지 */}
           <section>
             <h2 className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
@@ -350,6 +352,7 @@ export default function GradeManagement() {
               </TBody>
             </TableShell>
           </section>
+          </div>
         </>
       )}
     </div>

@@ -29,6 +29,7 @@ interface MemberRow {
   social_provider: string | null;
   intercept_until: Date | null;
   left_at: Date | null;
+  is_owner: boolean;
   profile_stored_name?: string | null;
   profile_stored_name_webp?: string | null;
 }
@@ -44,6 +45,8 @@ export interface UserLoginResult {
   point: number;
   /** 푸시알림 전체 수신 동의 — 앱 설정 토글로 변경 */
   push_all: boolean;
+  /** 사업 주인(공동대표) 여부 — 모집인 초대 버튼 등 주인 전용 UI 게이트 */
+  is_owner: boolean;
   /** 프로필 사진 URL — 미등록 시 null */
   profile_image: string | null;
   /** 프로필 사진 WebP — 있으면 picture/source 우선 사용 */
@@ -74,7 +77,7 @@ export class AuthService {
   ): Promise<UserLoginResult> {
     const rows = await this.sql<MemberRow[]>`
       SELECT m.id, m.mb_id, m.password, m.name, m.nickname, m.email,
-             m.role, m.level, m.point, m.push_all, m.social_provider, m.intercept_until, m.left_at,
+             m.role, m.level, m.point, m.push_all, m.social_provider, m.intercept_until, m.left_at, m.is_owner,
              (SELECT mf.stored_name      FROM member_file mf
                WHERE mf.member_id = m.id AND mf.kind = 'profile'
                ORDER BY mf.id DESC LIMIT 1) AS profile_stored_name,
@@ -113,7 +116,7 @@ export class AuthService {
   async findActiveById(id: number): Promise<UserLoginResult> {
     const rows = await this.sql<MemberRow[]>`
       SELECT m.id, m.mb_id, m.password, m.name, m.nickname, m.email,
-             m.role, m.level, m.point, m.push_all, m.social_provider, m.intercept_until, m.left_at,
+             m.role, m.level, m.point, m.push_all, m.social_provider, m.intercept_until, m.left_at, m.is_owner,
              (SELECT mf.stored_name      FROM member_file mf
                WHERE mf.member_id = m.id AND mf.kind = 'profile'
                ORDER BY mf.id DESC LIMIT 1) AS profile_stored_name,
@@ -228,6 +231,7 @@ export class AuthService {
       level: mb.level,
       point: mb.point,
       push_all: mb.push_all,
+      is_owner: mb.is_owner ?? false,
       profile_image: mb.profile_stored_name ? `/uploads/member/${mb.profile_stored_name}` : null,
       profile_image_webp: mb.profile_stored_name_webp ? `/uploads/member/${mb.profile_stored_name_webp}` : null,
     };

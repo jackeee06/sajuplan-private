@@ -1,0 +1,4 @@
+﻿순번,알림톡명(코드),한글 용도,받는 사람,버튼명,이동 명칭,이동 URL(앱 경로),현재 url 변수(코드 발송값),비고
+1,chat_request_to_counselor,채팅 상담요청,상담사,채팅응답하기,채팅방 입장,/chat/{chatRoomId},chat/{chatRoomId},"변수=chatRoomId. 코드값에 앞 / 없음 → 앱에서 / 붙여 처리하거나 서버에서 통일. (최우선: 3분 타임)"
+2,qa_ask_v2,문의 도착,상담사,문의내용 확인하기,고객 문의 상세(확인·답변),/counselor/mypage/customer-qnas/{qnaId},/counselor/mypage/customer-qnas/{qnaId},"변수=qnaId. 코드값=앱경로 일치 ✓"
+3,review_for_counselor_v2,새 후기 도착,상담사,후기 확인하기,받은 후기 상세(확인·답글),/counselor/mypage/reviews/{reviewId},counselor-mypage/reviews/{reviewId},"변수=reviewId. ⚠️ 코드값 counselor-mypage(하이픈) ≠ 앱경로 /counselor/mypage → 형식 정비 필요"

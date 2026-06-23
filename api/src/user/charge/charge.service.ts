@@ -882,41 +882,15 @@ export class ChargeService {
     const amount = Number(payload.amount) || 0;
     const coinamt = Number(payload.coinamt) || 0;
 
-    // [Audit E-C5] 위조 방어 — payload.membid 가 위조 가능하므로 DB 진실원천으로 교차 검증.
-    //   1) 자동결제 등록된 회원만 통과 (auto_enabled 카드 보유)
-    //   2) amount 가 등록된 자동결제 패키지 금액과 일치해야 함
-    //   둘 다 통과해도 m2net 매뉴얼이 도착하면 IP/HMAC 추가 (defense in depth).
-    const autoCheck = await this.sql<{
-      auto_pkg_amount: number | null;
-    }[]>`
-      SELECT asg.amount AS auto_pkg_amount
-        FROM payment_method pm
-        LEFT JOIN account_setting asg ON asg.id = pm.auto_package_id
-       WHERE pm.member_id = ${member.id}
-         AND pm.auto_enabled = TRUE
-         AND pm.is_active = TRUE
-       ORDER BY pm.id DESC
-       LIMIT 1
-    `;
-    if (autoCheck.length === 0) {
-      // 자동결제 등록 없는 회원에 push 도착 → 위조 의심
-      void this.opsAlert.send(
-        '⚠️ autopay-push 위조 의심 (자동결제 미등록)',
-        `membid=${membid} member_id=${member.id}\noid=${oid} amount=${amount}\n자동결제 등록 안 된 회원에게 push 도착.`,
-      );
-      throw new BadRequestException('자동결제 미등록 회원');
-    }
-    const expectedAmount = autoCheck[0].auto_pkg_amount;
-    if (expectedAmount !== null && Number(expectedAmount) !== amount) {
-      // 금액이 등록된 패키지와 불일치 → 위조 또는 PG 측 오류
-      void this.opsAlert.send(
-        '⚠️ autopay-push 금액 불일치',
-        `member_id=${member.id} membid=${membid}\noid=${oid}\n등록 금액=${expectedAmount} push 금액=${amount}`,
-      );
-      throw new BadRequestException(`자동결제 등록 금액과 불일치 (expected=${expectedAmount} got=${amount})`);
-    }
+    // ── 검사 순서 주의(2026-06-22 버그수정) ─────────────────────────────
+    //   [중복방지 dedup] 을 [위조 방어 auto_enabled 체크] 보다 *먼저* 한다.
+    //   이유: 우리 autoPayCharge 가 이미 처리한 자동충전은 자체 oid(AUTO_PAY_CARD_*)인데,
+    //   m2net 사후 push 는 m2net 자체 oid 라 위 oid 멱등(866)에 안 걸린다. 이때 auto_enabled 가
+    //   (충전 후 해제 등으로) FALSE 면, 정상 거래의 사후통지인데도 '미등록 위조'로 오판해
+    //   불필요한 운영경보를 쐈다. → dedup 을 먼저 걸어 정상 사후통지는 조용히 종료시킨다.
+    // ────────────────────────────────────────────────────────────────────
 
-    // 2) 중복 적립 방지 — `autoPayCharge` 가 이미 자체 oid(`AUTO_PAY_CARD_*`) 로 row INSERT
+    // 1) 중복 적립 방지 — `autoPayCharge` 가 이미 자체 oid(`AUTO_PAY_CARD_*`) 로 row INSERT
     //    한 케이스. m2net push 는 사후 통지일 뿐.
     //
     //    Race: autoPayCharge 가 INSERT(status='pending') → m2net.autoPayRequest() 응답 대기 중에
@@ -969,6 +943,36 @@ export class ChargeService {
         );
       }
       return { ok: true, dedup: true };
+    }
+
+    // 2) [위조 방어] 위 dedup 도 아닌데 push 도착 → 우리가 처리한 자동충전이 아니므로,
+    //    payload.membid 위조 가능성 대비 DB 진실원천으로 교차검증(자동결제 등록 + 금액 일치).
+    const autoCheck = await this.sql<{ auto_pkg_amount: number | null }[]>`
+      SELECT asg.amount AS auto_pkg_amount
+        FROM payment_method pm
+        LEFT JOIN account_setting asg ON asg.id = pm.auto_package_id
+       WHERE pm.member_id = ${member.id}
+         AND pm.auto_enabled = TRUE
+         AND pm.is_active = TRUE
+       ORDER BY pm.id DESC
+       LIMIT 1
+    `;
+    if (autoCheck.length === 0) {
+      // 우리 처리 거래도 없고 자동결제 등록도 없는데 push 도착 → 진짜 위조 의심 (쉬운 말 경보)
+      void this.opsAlert.send(
+        '⚠️ 등록 안 한 회원에게 자동충전 결제알림 — 위조 가능성',
+        `회원: ${member.mb_name ?? member.mb_id ?? member.id}(${member.id})\n금액: ${amount.toLocaleString()}원\n자동충전을 등록하지 않은 회원에게 결제 알림이 도착했습니다.\n가짜(위조) 결제일 수 있어 막았습니다. 확인이 필요합니다.\n(주문번호=${oid})`,
+      );
+      throw new BadRequestException('자동결제 미등록 회원');
+    }
+    const expectedAmount = autoCheck[0].auto_pkg_amount;
+    if (expectedAmount !== null && Number(expectedAmount) !== amount) {
+      // 금액이 등록된 패키지와 불일치 → 위조 또는 PG 측 오류 (쉬운 말 경보)
+      void this.opsAlert.send(
+        '⚠️ 자동충전 금액이 등록값과 다름 — 확인 필요',
+        `회원: ${member.mb_name ?? member.mb_id ?? member.id}(${member.id})\n등록 금액: ${Number(expectedAmount).toLocaleString()}원 / 들어온 알림 금액: ${amount.toLocaleString()}원\n금액이 안 맞아 막았습니다. 확인이 필요합니다.\n(주문번호=${oid})`,
+      );
+      throw new BadRequestException(`자동결제 등록 금액과 불일치 (expected=${expectedAmount} got=${amount})`);
     }
 
     // 3) 매칭되는 기존 row 없음 — m2net 가 단독으로 자동결제 처리한 케이스. 신규 INSERT + 적립.

@@ -90,11 +90,15 @@ export default function PostReports() {
     load()
   }
 
-  const toggleQnaHidden = async (qnaId: number, hide: boolean) => {
+  const toggleQnaHidden = async (qnaId: number, hide: boolean, reportId: number) => {
     const label = hide ? '숨김' : '복원'
-    if (!confirm(`문의 #${qnaId}를 [${label}] 처리하시겠습니까?`)) return
+    const statusLabel = hide ? '처리됨' : '대기'
+    if (!confirm(`문의 #${qnaId}를 [${label}] 처리하시겠습니까?\n글이 ${hide ? '가려지고' : '다시 보이고'}, 신고 상태가 [${statusLabel}]으로 바뀝니다.`)) return
     await api(`/admin/board-ops/qna/${qnaId}/hidden`, { method: 'PATCH', body: JSON.stringify({ hidden: hide }) })
+    // 숨김=처리됨(1) / 복원=대기(0) 로 신고 상태도 함께 동기화 — 숨김했는데 '대기'로 남아 헷갈리던 것 수정(2026-06-23)
+    await api(`/admin/board-ops/reports/${reportId}`, { method: 'PATCH', body: JSON.stringify({ status: hide ? 1 : 0 }) })
     setHiddenMap((prev) => ({ ...prev, [qnaId]: hide }))
+    load()
   }
 
   const totalPages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1
@@ -200,8 +204,8 @@ export default function PostReports() {
                       )}
                       {isQna && (
                         isHidden
-                          ? <button onClick={() => toggleQnaHidden(r.post_id, false)} className="text-[11px] px-2 py-1 rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50">복원</button>
-                          : <button onClick={() => toggleQnaHidden(r.post_id, true)} className="text-[11px] px-2 py-1 rounded-md border border-red-200 text-red-600 hover:bg-red-50">숨김</button>
+                          ? <button onClick={() => toggleQnaHidden(r.post_id, false, r.id)} className="text-[11px] px-2 py-1 rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50">복원</button>
+                          : <button onClick={() => toggleQnaHidden(r.post_id, true, r.id)} className="text-[11px] px-2 py-1 rounded-md border border-red-200 text-red-600 hover:bg-red-50">숨김</button>
                       )}
                     </div>
                   </Td>

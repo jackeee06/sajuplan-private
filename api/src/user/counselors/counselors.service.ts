@@ -260,6 +260,7 @@ export class UserCounselorsService {
 
     await this.inbox.record({
       memberId: params.counselorId,
+      actorMemberId: params.requesterId,
       code: 'call_request',
       title: '상담 요청이 도착했습니다',
       content: `${requesterNick} 님이 상담을 요청했습니다. 지금 접속해주세요.`,

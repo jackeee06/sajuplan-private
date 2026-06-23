@@ -49,7 +49,7 @@ interface Filter {
   page: number
 }
 
-const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 10)
+const PAGE_SIZE = 100 // 고객 리스트는 한 화면 100줄 고정 (2026-06-23, 공통 env 50 무시)
 
 export default function CustomerList() {
   const navigate = useNavigate()
@@ -234,6 +234,7 @@ export default function CustomerList() {
                 <Th align="right">번호</Th>
                 <Th align="left">가입일</Th>
                 <Th align="left">아이디</Th>
+                <Th align="center">가입</Th>
                 <Th align="left">이름</Th>
                 <Th align="left">휴대폰</Th>
                 <Th align="left">권한</Th>
@@ -251,9 +252,9 @@ export default function CustomerList() {
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {loading ? (
-                <tr><td colSpan={16} className="px-3 py-12 text-center text-gray-400">로딩...</td></tr>
+                <tr><td colSpan={17} className="px-3 py-12 text-center text-gray-400">로딩...</td></tr>
               ) : !data || data.items.length === 0 ? (
-                <tr><td colSpan={16} className="px-3 py-16 text-center text-gray-400">자료가 없습니다.</td></tr>
+                <tr><td colSpan={17} className="px-3 py-16 text-center text-gray-400">자료가 없습니다.</td></tr>
               ) : data.items.map((m) => (
                 <tr
                   key={m.id}
@@ -263,9 +264,19 @@ export default function CustomerList() {
                   <Td align="right" className="text-gray-400 tabular-nums group-hover:text-brand-600 group-hover:font-medium">{m.id}</Td>
                   <Td align="left" className="text-xs text-gray-500 tabular-nums">{fmtDate(m.created_at)}</Td>
                   <Td align="left">
-                    <div className="font-medium text-gray-900 dark:text-gray-100"><span className="inline-block max-w-[150px] truncate align-bottom" title={String(m.mb_id ?? '')}>{m.mb_id ?? '-'}</span></div>
-                    {m.social_provider && (
-                      <div className="text-[10px] text-gray-400">via {m.social_provider}</div>
+                    <span className="font-medium text-gray-900 dark:text-gray-100" title={String(m.mb_id ?? '')}>
+                      {m.mb_id ? (m.mb_id.length > 10 ? m.mb_id.slice(0, 10) + '…' : m.mb_id) : '-'}
+                    </span>
+                  </Td>
+                  <Td align="center">
+                    {m.social_provider === 'kakao' ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#FEE500] text-[#3C1E1E]">카카오</span>
+                    ) : m.social_provider === 'naver' ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#03C75A] text-white">네이버</span>
+                    ) : m.social_provider ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">{m.social_provider}</span>
+                    ) : (
+                      <span className="text-gray-300 text-[10px]">일반</span>
                     )}
                   </Td>
                   <Td align="left">{m.name}</Td>

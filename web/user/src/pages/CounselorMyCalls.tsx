@@ -25,6 +25,7 @@ export default function CounselorMyCalls() {
   const [items, setItems] = useState<ConsultHistoryItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [otherRoleCount, setOtherRoleCount] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -35,6 +36,7 @@ export default function CounselorMyCalls() {
         if (cancelled) return
         setItems(res.items)
         setTotal(res.total)
+        setOtherRoleCount((res as { other_role_count?: number }).other_role_count ?? 0)
         setError(null)
       })
       .catch((e) => {
@@ -66,6 +68,15 @@ export default function CounselorMyCalls() {
         </button>
         <h1 className="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">전화상담내역</h1>
       </header>
+
+      {/* 이중역할자(회원+상담사)에게만 노출 — 상담사로 "진행한" 내역임을 명확히. 순수 상담사/회원은 안 보임. */}
+      {otherRoleCount > 0 && (
+        <div className="px-4 py-2 bg-[#F5F3FF] border-b border-[#ede9fe]">
+          <p className="text-[12.5px] leading-[150%] text-[#5b21b6]">
+            ※ 이 목록은 <span className="font-medium">상담사로 “진행한”</span> 상담입니다.
+          </p>
+        </div>
+      )}
 
       <main className="flex-1">
         {loading && <p className="py-10 text-center text-[14px] text-[#99A1AF]">불러오는 중…</p>}

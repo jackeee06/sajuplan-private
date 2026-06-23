@@ -1,6 +1,7 @@
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import sharp from 'sharp';
+import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SQL, type Sql, type TxSql } from '../db/db.module';
@@ -364,10 +365,15 @@ export class PromoterCoreService {
     return r[0] ?? null;
   }
 
-  /** 자가 신청 생성 (status='pending', is_active=false). 코드 자동생성. */
+  /**
+   * 자가 신청 생성. 코드 자동생성.
+   *  - 일반: status='pending', is_active=false (관리자 승인 후 활동)
+   *  - 주인 초대(autoApprove): status='active', is_active=true 로 즉시 활동 + 초대한 주인 귀속 기록
+   */
   async createApplication(args: {
     phone: string; name: string; bankName?: string; bankAccount?: string; accountHolder?: string;
-  }): Promise<{ id: number }> {
+    autoApprove?: boolean; invitedByMemberId?: number | null;
+  }): Promise<{ id: number; autoApproved: boolean }> {
     const phone = (args.phone ?? '').replace(/\D/g, '');
     const name = (args.name ?? '').trim().slice(0, 100);
     if (!/^01[0-9]{8,9}$/.test(phone)) throw new BadRequestException('휴대폰번호 형식이 올바르지 않습니다.');
@@ -375,14 +381,83 @@ export class PromoterCoreService {
     const dup = await this.sql`SELECT 1 FROM promoter WHERE phone = ${phone} LIMIT 1`;
     if (dup.length > 0) throw new BadRequestException('이미 신청했거나 등록된 번호입니다.');
     const code = await this.generateUniqueCode(phone);
+    const autoApprove = !!args.autoApprove;
+    const status = autoApprove ? 'active' : 'pending';
     const rows = await this.sql<{ id: number }[]>`
-      INSERT INTO promoter (name, phone, code, bank_name, bank_account, account_holder, is_active, status)
+      INSERT INTO promoter (name, phone, code, bank_name, bank_account, account_holder,
+                            is_active, status, invited_by_member_id)
       VALUES (${name}, ${phone}, ${code}, ${args.bankName ?? null}, ${args.bankAccount ?? null},
-              ${args.accountHolder ?? null}, false, 'pending')
+              ${args.accountHolder ?? null}, ${autoApprove}, ${status}, ${args.invitedByMemberId ?? null})
       RETURNING id
     `;
-    this.logger.log(`[promoter apply] 신청 id=${rows[0].id} name=${name} code=${code} (pending)`);
-    return { id: rows[0].id };
+    this.logger.log(
+      `[promoter apply] 신청 id=${rows[0].id} name=${name} code=${code} (${status}` +
+        `${autoApprove ? `, 주인초대 by=${args.invitedByMemberId}` : ''})`,
+    );
+    return { id: rows[0].id, autoApproved: autoApprove };
+  }
+
+  // ── 주인 초대(자동승인) ──────────────────────────────────────────────
+  // 주인(member.is_owner)이 직접 카톡으로 보낸 초대 링크로 들어온 사람은 즉시 승인되어
+  // 바로 활동한다. 링크 위변조를 막기 위해 주인 id 를 HMAC 서명한 토큰을 사용한다.
+  // (실제 돈 정산은 여전히 관리자 수동 통제 → 자동승인해도 돈 사고 없음)
+
+  private ownerInviteSecret(): string {
+    return this.config.get<string>('JWT_SECRET') || 'sajumoon-owner-invite';
+  }
+
+  /** 주인 초대 토큰 — `${ownerId}.${HMAC}`. */
+  makeOwnerInviteToken(ownerMemberId: number): string {
+    const payload = String(ownerMemberId);
+    const sig = createHmac('sha256', this.ownerInviteSecret())
+      .update(`promoter-owner-invite:${payload}`)
+      .digest('base64url')
+      .slice(0, 20);
+    return `${payload}.${sig}`;
+  }
+
+  /** 초대 토큰 검증 → 주인 member.id (서명 무효이거나 주인 권한 회수 시 null). */
+  async verifyOwnerInviteToken(token?: string | null): Promise<number | null> {
+    if (!token || typeof token !== 'string') return null;
+    const dot = token.indexOf('.');
+    if (dot <= 0) return null;
+    const payload = token.slice(0, dot);
+    const sig = token.slice(dot + 1);
+    const expect = createHmac('sha256', this.ownerInviteSecret())
+      .update(`promoter-owner-invite:${payload}`)
+      .digest('base64url')
+      .slice(0, 20);
+    if (sig !== expect) return null;
+    const ownerId = Number(payload);
+    if (!Number.isInteger(ownerId) || ownerId <= 0) return null;
+    // 토큰 발급 후 주인 권한이 회수됐을 수 있으니 실시간 확인
+    const r = await this.sql<{ is_owner: boolean }[]>`
+      SELECT is_owner FROM member WHERE id = ${ownerId} LIMIT 1
+    `;
+    return r[0]?.is_owner ? ownerId : null;
+  }
+
+  /** 주인 전용 — 모집인 초대 카드 데이터(닉네임·서명링크). is_owner 아니면 거부. */
+  async getOwnerInvite(ownerMemberId: number): Promise<{
+    ownerNickname: string;
+    shareUrl: string;
+  }> {
+    const r = await this.sql<{ nickname: string | null; name: string | null; is_owner: boolean }[]>`
+      SELECT nickname, name, is_owner FROM member WHERE id = ${ownerMemberId} LIMIT 1
+    `;
+    if (!r[0] || !r[0].is_owner) {
+      throw new ForbiddenException('모집인 초대는 주인만 사용할 수 있습니다.');
+    }
+    const token = this.makeOwnerInviteToken(ownerMemberId);
+    const origin = 'https://sajuplan.com';
+    // 주인 초대 전용 OG 경유 페이지(pi.html) — 단순 링크로 보내면 혜택 이미지 미리보기 + 클릭 시
+    // 카톡 인앱브라우저에서 모바일웹(/promoter)으로 그대로 열림(피드 카드 버튼의 앱설치 문제 회피).
+    // inv 서명토큰은 pi.html → /promoter?inv= 로 넘겨 자동승인.
+    return {
+      ownerNickname: (r[0].nickname || r[0].name || '').trim(),
+      // &v= 캐시버스터 — OG 미리보기(이미지·문구) 갱신 시 카카오가 새로 스크랩하도록 버전 증가.
+      shareUrl: `${origin}/pi.html?inv=${encodeURIComponent(token)}&v=2`,
+    };
   }
 
   /** 모집인 대시보드 집계 (본인). */

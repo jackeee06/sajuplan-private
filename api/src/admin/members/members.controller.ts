@@ -178,6 +178,12 @@ export class MembersController {
     return this.membersService.linkCounselorToM2net(id);
   }
 
+  /** 탈퇴 상담사 복구: POST /admin/members/counselors/:id/restore */
+  @Post('counselors/:id/restore')
+  restoreCounselor(@Param('id', ParseIntPipe) id: number) {
+    return this.membersService.restoreCounselor(id);
+  }
+
   /** 상담사 파일 업로드: POST /admin/members/counselors/:id/files/:kind */
   @Post('counselors/:id/files/:kind')
   @UseInterceptors(

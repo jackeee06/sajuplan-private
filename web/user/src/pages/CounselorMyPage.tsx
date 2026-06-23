@@ -4,6 +4,7 @@ import BottomNav from '../components/BottomNav'
 import NotificationBell from '../components/NotificationBell'
 import FloatingActions from '../components/FloatingActions'
 import ConfirmModal from '../components/ConfirmModal'
+import AlertModal from '../components/AlertModal'
 import UploadedImage from '../components/UploadedImage'
 import PopupLayer from '../components/PopupLayer'
 import {
@@ -18,6 +19,7 @@ import {
   counselorCustomerQnaApi,
   consultApi,
   settlementApi,
+  promoterApi,
   type SettlementSummary,
   type MyGradeInfo,
   type MyPayoutInfo,
@@ -130,6 +132,9 @@ export default function CounselorMyPage() {
   const [costModalOpen, setCostModalOpen] = useState(false)
   const [extraOpen, setExtraOpen] = useState(false)
   const [monthlyStats, setMonthlyStats] = useState<ConsultMyStats | null>(null)
+  // 주인 전용 — 신규 모집인 초대 링크 복사
+  const [inviteBusy, setInviteBusy] = useState(false)
+  const [copyOpen, setCopyOpen] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const { showAlert, alertUI } = useAlert()
 
@@ -627,6 +632,64 @@ export default function CounselorMyPage() {
             {!grade.can_change_now && grade.next_change_date_kst && (
               <p className="mt-2 text-[12px] text-[#9CA3AF]">다음 변경 가능: {grade.next_change_date_kst}</p>
             )}
+          </section>
+        )}
+
+        {/* [주인 전용] 신규 모집인 초대 — 카톡으로 직접 보내면 받는 분 자동승인·즉시활동.
+            member.is_owner 인 사업 주인(공동대표)에게만 노출. */}
+        {member?.is_owner && (
+          <section className="space-y-2">
+            <p className="text-[12px] leading-[1.55] text-[#854D0E] bg-[#FEFCE8] border border-[#FDE68A] rounded-[12px] px-3 py-2.5">
+              💛 <b>{member.nickname}</b>님이 직접 보내는 초대예요.<br />
+              받는 분은 <b>자동 승인</b>되어 바로 서포터즈 활동을 시작합니다.
+            </p>
+            <button
+              type="button"
+              disabled={inviteBusy}
+              onClick={async () => {
+                if (inviteBusy) return
+                setInviteBusy(true)
+                try {
+                  const r = await promoterApi.ownerInvite()
+                  // 링크 복사 후 카톡에 붙여넣어 보냄(순수 텍스트 링크여야 받는 분이 앱설치 없이 웹으로 열림).
+                  // 카카오 SDK 카드/공유는 클릭 시 앱설치로 빠지거나 '잘못된 요청'으로 실패하므로 쓰지 않는다.
+                  try {
+                    await navigator.clipboard.writeText(r.shareUrl)
+                  } catch {
+                    const ta = document.createElement('textarea')
+                    ta.value = r.shareUrl
+                    ta.style.position = 'fixed'
+                    ta.style.opacity = '0'
+                    document.body.appendChild(ta)
+                    ta.focus()
+                    ta.select()
+                    try {
+                      document.execCommand('copy')
+                    } catch {
+                      /* ignore */
+                    }
+                    document.body.removeChild(ta)
+                  }
+                  setCopyOpen(true)
+                } catch {
+                  /* 주인 아니면 403 — 버튼 자체가 주인에게만 노출됨 */
+                } finally {
+                  setInviteBusy(false)
+                }
+              }}
+              className="w-full h-12 rounded-[14px] bg-[#FEE500] text-[#191919] text-[15px] font-bold flex items-center justify-center gap-2 active:brightness-95 disabled:opacity-60"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="#191919" aria-hidden>
+                <path d="M12 3.2c-5.4 0-9.8 3.46-9.8 7.73 0 2.76 1.84 5.18 4.6 6.54-.2.73-.73 2.66-.84 3.07-.13.5.18.5.39.36.16-.1 2.55-1.73 3.58-2.44.66.1 1.36.15 2.07.15 5.4 0 9.8-3.46 9.8-7.73S17.4 3.2 12 3.2z" />
+              </svg>
+              신규 서포터즈에게 카톡 보내기
+            </button>
+            <AlertModal
+              open={copyOpen}
+              title="초대 링크가 복사됐어요 ✅"
+              message={'카톡 채팅창을 꾹 눌러\n붙여넣기 하면 끝!\n\n이 링크로 들어온 분은\n승인 없이 바로 서포터즈가 돼요.'}
+              onClose={() => setCopyOpen(false)}
+            />
           </section>
         )}
 

@@ -71,26 +71,44 @@ export class PromoterController {
     return { status: r.status, promoterId: r.promoterId, memberName: r.memberName ?? null };
   }
 
-  /** 자가 신청 — 휴대폰 인증 후 이름·계좌 제출 → 승인 대기 등록 */
+  /**
+   * 자가 신청 — 휴대폰 인증 후 이름·계좌 제출.
+   *  - 일반: 승인 대기 등록.
+   *  - 주인 초대(inv 토큰): 즉시 승인 + 세션 쿠키 발급 → 바로 활동.
+   */
   @Post('apply')
   @HttpCode(200)
   @Throttle({ login: { limit: 10, ttl: 60_000 } })
-  apply(
+  async apply(
     @Body() body: {
       phone?: string; name?: string;
       bank_name?: string; bank_account?: string; account_holder?: string;
+      inv?: string;
     },
+    @Res({ passthrough: true }) res: Response,
   ) {
     if (!body?.phone || !body?.name?.trim()) {
       throw new BadRequestException('이름과 휴대폰번호를 입력해주세요.');
     }
-    return this.svc.apply({
+    const r = await this.svc.apply({
       phone: body.phone,
       name: body.name,
       bankName: body.bank_name,
       bankAccount: body.bank_account,
       accountHolder: body.account_holder,
+      inv: body.inv,
     });
+    // 주인 초대로 자동승인된 경우 그 자리에서 로그인(세션 쿠키) → 즉시 대시보드 진입
+    if (r.autoApproved && r.token) {
+      res.cookie(PROMOTER_COOKIE, r.token, {
+        httpOnly: true,
+        secure: runtimeEnv().cookieSecure,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+    }
+    return { ok: true, autoApproved: r.autoApproved };
   }
 
   @Post('logout')

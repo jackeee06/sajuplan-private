@@ -736,6 +736,7 @@ export class MembersService {
              m.bank_name, m.bank_holder, m.bank_account,
              m.use_phone, m.use_chat,
              m.level, m.point, m.state, m.is_rising, m.is_recommended, m.admin_memo, m.created_at,
+             m.left_at,
              p.headline                                 AS profile_headline,
              p.hashtag1                                 AS profile_hashtag1,
              p.hashtag2                                 AS profile_hashtag2,
@@ -1246,6 +1247,62 @@ export class MembersService {
   // m2net 단독 연동 (csrid 발급 / 재연동) — 폼의 [엠투넷 연동하기] 버튼이 호출.
   //   - csrid 가 이미 있으면 PUT /csr-mgr/{csrid} 로 기존 레코드 갱신 (M2NET 중복등록 방지)
   //   - csrid 가 없으면 POST /csr-mgr/{cpid} 로 신규 발급 — 응답 csrid 를 DB 저장
+  /**
+   * 탈퇴 상담사 복구 (2026-06-23) — 탈퇴(left_at) 후 재가입으로 계정이 갈라진 케이스 정리.
+   *   ① 같은 전화의 다른 활성 계정(재가입 중복)을 탈퇴 처리 — "한 사람 한 계정"
+   *   ② 대상 상담사 left_at 비움 (복구)
+   *   ③ m2net: 탈퇴는 m2net 등록을 풀지 않으므로 csrid 있으면 그대로 라우팅됨 → 없을 때만 재연동
+   * 모두 left_at 토글이라 되돌릴 수 있고 돈/식별자 변경 없음.
+   */
+  async restoreCounselor(id: number): Promise<{
+    ok: boolean;
+    restored: boolean;
+    retired_ids: number[];
+    m2net: { ok: boolean; csrid: string | null; error?: string } | null;
+    message: string;
+  }> {
+    const rows = await this.sql<{ id: number; role: string; phone: string | null; csrid: string | null; left_at: Date | null }[]>`
+      SELECT id, role, phone, csrid, left_at FROM member WHERE id = ${id} LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('회원을 찾을 수 없습니다.');
+    const m = rows[0];
+    if (m.role !== 'counselor') {
+      throw new ConflictException('상담사 계정이 아닙니다. 복구는 탈퇴한 상담사 계정만 가능합니다.');
+    }
+    if (m.left_at == null) {
+      return { ok: true, restored: false, retired_ids: [], m2net: null, message: '이미 활성 상태입니다 (탈퇴 아님).' };
+    }
+    // ① 같은 전화의 다른 활성 계정 정리 (재가입 중복)
+    const retired: number[] = [];
+    if (m.phone) {
+      const dups = await this.sql<{ id: number }[]>`
+        SELECT id FROM member WHERE phone = ${m.phone} AND id <> ${id} AND left_at IS NULL
+      `;
+      for (const d of dups) {
+        await this.sql`UPDATE member SET left_at = now(), updated_at = now() WHERE id = ${d.id}`;
+        retired.push(d.id);
+      }
+    }
+    // ② 복구
+    await this.sql`UPDATE member SET left_at = NULL, updated_at = now() WHERE id = ${id}`;
+    // ③ m2net — csrid 있으면 등록 유지된 상태라 그대로. 없을 때만 재연동.
+    let m2net: { ok: boolean; csrid: string | null; error?: string } | null = null;
+    if (!m.csrid) {
+      m2net = await this.linkCounselorToM2net(id).catch((e: unknown) => ({
+        ok: false,
+        csrid: null as string | null,
+        error: e instanceof Error ? e.message : 'm2net 연동 실패',
+      }));
+    }
+    return {
+      ok: true,
+      restored: true,
+      retired_ids: retired,
+      m2net,
+      message: `복구 완료 — 중복 계정 ${retired.length}건 정리${m.csrid ? ' (m2net 등록 유지)' : ''}.`,
+    };
+  }
+
   async linkCounselorToM2net(id: number): Promise<{ ok: boolean; csrid: string | null; error?: string }> {
     const rows = await this.sql<{
       id: number; nickname: string; dtmfno: string | null; telno: string | null;

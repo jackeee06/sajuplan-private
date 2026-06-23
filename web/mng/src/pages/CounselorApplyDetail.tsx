@@ -36,6 +36,7 @@ interface ApplyDetail {
   extras: Record<string, unknown>
   created_at: string
   updated_at: string
+  withdrawn_counselor: { id: number; mb_id: string | null; nickname: string | null } | null
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -73,6 +74,7 @@ export default function CounselorApplyDetail() {
   const [rejectOpen, setRejectOpen] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
   const [approveBusy, setApproveBusy] = useState(false)
+  const [restoring, setRestoring] = useState(false)
   const [rejectBusy, setRejectBusy] = useState(false)
   const [approveResult, setApproveResult] = useState<{
     member_id: number
@@ -273,6 +275,46 @@ export default function CounselorApplyDetail() {
           )}
         </div>
       </div>
+
+      {/* 자동감지 — 같은 전화의 탈퇴 상담사(재가입 케이스). 새로 만들지 말고 복구 유도. */}
+      {data.withdrawn_counselor && data.status === 'pending' && (
+        <div className="px-4 py-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-300 dark:border-amber-700 text-[12.5px] text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            🔄 <strong>이 전화번호의 탈퇴 상담사 계정이 있습니다</strong> —{' '}
+            <Link to={`/members/counselors/${data.withdrawn_counselor.id}`} className="font-semibold underline">
+              {data.withdrawn_counselor.nickname ?? data.withdrawn_counselor.mb_id} (#{data.withdrawn_counselor.id})
+            </Link>
+            . 새 상담사로 만들지 말고 <strong>기존 계정을 복구</strong>하세요 (등급·m2net·후기·수익금·단골 유지).
+          </div>
+          <button
+            type="button"
+            disabled={restoring}
+            onClick={async () => {
+              const w = data.withdrawn_counselor!
+              if (!window.confirm(`탈퇴 상담사 "${w.nickname ?? w.mb_id}"(#${w.id}) 계정을 복구하시겠습니까?\n같은 전화의 중복 새 계정이 있으면 함께 정리되고, 이 신청은 취소처리됩니다.`)) return
+              setRestoring(true)
+              try {
+                const res = await api<{ message: string; retired_ids: number[] }>(
+                  `/admin/members/counselors/${w.id}/restore`,
+                  { method: 'POST', body: JSON.stringify({}) },
+                )
+                await api(`/admin/counselor-apply/${id}/status`, {
+                  method: 'PATCH', body: JSON.stringify({ status: 'cancelled' }),
+                }).catch(() => undefined)
+                alert(`복구 완료 — ${res.message}\n상담사 상세로 이동합니다.`)
+                navigate(`/members/counselors/${w.id}`)
+              } catch (e) {
+                alert(e instanceof Error ? e.message : '복구 실패')
+              } finally {
+                setRestoring(false)
+              }
+            }}
+            className="px-4 py-2 text-xs rounded-md bg-amber-600 hover:bg-amber-700 text-white font-medium disabled:opacity-50 shrink-0"
+          >
+            {restoring ? '복구 중...' : '🔄 기존 계정 복구'}
+          </button>
+        </div>
+      )}
 
       {/* 상태별 상단 안내 박스 — 어떤 상태에서 어떤 행동이 가능한지 한 줄로 */}
       {data.status === 'pending' && data.member_role === 'counselor' && (

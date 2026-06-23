@@ -1,8 +1,9 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import * as admin from 'firebase-admin';
+import { SQL, type Sql } from '../db/db.module';
 
 /**
  * FCM 푸시 발송 서비스 (Firebase Admin SDK 기반).
@@ -26,7 +27,10 @@ export class PushService implements OnModuleInit {
   private app: admin.app.App | null = null;
   private enabled = false;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    @Inject(SQL) private readonly sql: Sql,
+  ) {}
 
   onModuleInit() {
     const credPath = this.config.get<string>('FCM_CREDENTIALS_PATH')
@@ -63,6 +67,7 @@ export class PushService implements OnModuleInit {
     if (tokens.length === 0) return { ok: true, success: 0, failure: 0 };
     let success = 0;
     let failure = 0;
+    const deadTokens: string[] = []; // FCM 이 "등록 안 된 토큰" 이라 응답한 것 → 자동 비활성화
     for (let i = 0; i < tokens.length; i += 500) {
       const chunk = tokens.slice(i, i + 500);
       try {
@@ -73,9 +78,27 @@ export class PushService implements OnModuleInit {
         });
         success += res.successCount;
         failure += res.failureCount;
+        res.responses.forEach((r, idx) => {
+          const code = r.success ? '' : (r.error?.code ?? '');
+          if (
+            code === 'messaging/registration-token-not-registered' ||
+            code === 'messaging/invalid-registration-token'
+          ) {
+            deadTokens.push(chunk[idx]);
+          }
+        });
       } catch (e) {
         failure += chunk.length;
         this.logger.error(`sendEachForMulticast 실패: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    // 만료/무효 토큰 자동 정리 (best-effort) — 다음 발송부터 제외돼 성공률·속도 개선.
+    if (deadTokens.length > 0) {
+      try {
+        await this.sql`UPDATE member_push_token SET is_active = false WHERE token = ANY(${deadTokens}::text[]) AND is_active = true`;
+        this.logger.log(`[푸시] 만료 토큰 ${deadTokens.length}개 자동 비활성화`);
+      } catch (e) {
+        this.logger.warn(`[푸시] 만료 토큰 정리 실패(무시): ${e instanceof Error ? e.message : String(e)}`);
       }
     }
     return { ok: true, success, failure };

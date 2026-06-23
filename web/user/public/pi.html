@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- ───────────────────────────────────────────────────────────────
+         주인(사업 대표) → 신규 모집인 초대 전용 OG 페이지.  라우트: /pi.html?inv=토큰
+         · 카카오톡 등에 "단순 링크"로 보내면 OG 미리보기 카드가 뜨고(혜택 사각형 이미지),
+           클릭하면 카톡 인앱브라우저에서 그대로 모바일웹(/promoter)이 열린다.
+           (Kakao.Share 피드 카드의 '자세히 보기' 버튼은 안드로이드에서 앱설치로 빠지는 문제가 있어,
+            이 OG 경유 단순 링크 방식을 쓴다 — 사장님 실측으로 확인됨.)
+         · inv 서명토큰이 있으면 /promoter?inv= 로 넘겨 자동승인 처리.
+         · 친구초대 sp.html 과 완전 별개 파일(기존 무영향).
+         ─────────────────────────────────────────────────────────────── -->
+    <title>사주플랜 서포터즈 초대</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="사주플랜 서포터즈 — 소개만 하면 상담마다 3% 자동수입" />
+    <meta property="og:description" content="내가 소개한 분이 상담할 때마다 그 금액의 3%가 자동으로 내 수입이 돼요. (가입 후 3개월) 1분이면 시작!" />
+    <meta property="og:image" content="https://sajuplan.com/img/promoter-owner-invite-v2.png" />
+    <meta property="og:url" content="https://sajuplan.com/promoter" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="사주플랜 서포터즈 — 소개만 하면 상담마다 3% 자동수입" />
+    <meta name="twitter:description" content="내가 소개한 분이 상담할 때마다 그 금액의 3%가 자동으로 내 수입이 돼요. (가입 후 3개월)" />
+    <meta name="twitter:image" content="https://sajuplan.com/img/promoter-owner-invite-v2.png" />
+
+    <script>
+      // 실제 방문자는 즉시 모집인 모바일웹(/promoter)으로 이동. 카카오 크롤러는 JS 미실행 → 위 OG 메타만 읽음.
+      (function () {
+        try {
+          var inv = new URLSearchParams(window.location.search).get('inv') || '';
+          var dest = inv ? '/promoter?inv=' + encodeURIComponent(inv) : '/promoter';
+          window.location.replace(dest);
+        } catch (e) {
+          window.location.replace('/promoter');
+        }
+      })();
+    </script>
+  </head>
+  <body style="font-family: 'Pretendard', sans-serif; text-align: center; padding: 40px 20px; color: #6A7282">
+    <p>사주플랜 모집인 페이지로 이동 중…</p>
+    <p><a href="/promoter" style="color: #ec4899">눌러도 이동하지 않으면 여기를 누르세요</a></p>
+  </body>
+</html>

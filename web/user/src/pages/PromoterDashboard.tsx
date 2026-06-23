@@ -50,6 +50,11 @@ export default function PromoterDashboard() {
   const [alertMsg, setAlertMsg] = useState<string | null>(null)
   const [shareOpen, setShareOpen] = useState(false)
 
+  // 주인 초대 토큰(/promoter?inv=...) — pi.html 경유로 들어오면 신청 시 자동승인되어 즉시 활동.
+  const [inv] = useState<string>(() =>
+    typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('inv') ?? '',
+  )
+
   const origin = typeof window !== 'undefined' ? window.location.origin : 'https://sajuplan.com'
   // 공유 링크는 깨끗한 OG 경로(/r/{코드}) — 붙여넣기로 전달돼도 카드 제목이 "사주플랜 서포터즈"로 뜬다.
   // nginx 가 /r/ 를 OG 페이지(sp.html)로 물려주고, 실제 방문자는 즉시 /s/{코드} 랜딩으로 자동 이동.
@@ -132,14 +137,22 @@ export default function PromoterDashboard() {
     if (busy) return
     setBusy(true)
     try {
-      await promoterApi.apply({
+      const res = await promoterApi.apply({
         phone,
         name: applyName.trim(),
         bank_name: bankName.trim() || undefined,
         bank_account: bankAccount.trim() || undefined,
         account_holder: accountHolder.trim() || undefined,
+        inv: inv || undefined,
       })
-      setLoginResult({ kind: 'applied' })
+      if (res.autoApproved) {
+        // 주인 초대 → 즉시 승인 + 세션 쿠키 발급됨. 바로 대시보드로.
+        const d = await promoterApi.dashboard()
+        setData(d)
+        setPhase('dashboard')
+      } else {
+        setLoginResult({ kind: 'applied' })
+      }
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : '신청에 실패했습니다.'
       setAlertMsg(msg)
@@ -252,13 +265,23 @@ export default function PromoterDashboard() {
                 {/* 신청 폼 — status='new' */}
                 {loginResult?.kind === 'new' && (
                   <form className="mt-4 flex flex-col gap-4" onSubmit={onApply}>
-                    <div className="rounded-[16px] bg-[#fdf2f8] border border-[#fbcfe8] px-4 py-4">
-                      <p className="text-[14px] leading-[170%] text-[#1E2939]">
-                        아직 등록되지 않은 번호예요.
-                        <br />
-                        서포터즈로 신청하시겠어요?
-                      </p>
-                    </div>
+                    {inv ? (
+                      <div className="rounded-[16px] bg-[#FEFCE8] border border-[#FDE68A] px-4 py-4">
+                        <p className="text-[14px] leading-[170%] text-[#854D0E]">
+                          🎁 <b>초대받아 가입</b>하시는군요!
+                          <br />
+                          지금 신청하면 <b>바로 승인</b>되어 즉시 모집인 활동을 시작할 수 있어요.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="rounded-[16px] bg-[#fdf2f8] border border-[#fbcfe8] px-4 py-4">
+                        <p className="text-[14px] leading-[170%] text-[#1E2939]">
+                          아직 등록되지 않은 번호예요.
+                          <br />
+                          서포터즈로 신청하시겠어요?
+                        </p>
+                      </div>
+                    )}
 
                     <div>
                       <label className="text-[14px] font-semibold text-[#1E2939] block mb-1.5">

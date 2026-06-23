@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>강원구(버니) — 상담내역 (재현)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background:#eef0f3; }
+  .phone { width:375px; }
+  /* 실제와 동일 톤 근사용 */
+</style>
+</head>
+<body class="min-h-screen flex flex-col items-center py-6 gap-2">
+
+  <div class="text-[12px] text-gray-500">↓ 강원구(버니, 회원id 251)가 [마이 → 상담내역]에서 보는 실제 화면 재현 — DB 실데이터</div>
+
+  <!-- 휴대폰 프레임 -->
+  <div class="phone bg-white rounded-[28px] shadow-2xl overflow-hidden flex flex-col" style="height:760px; font-family:'Pretendard',system-ui,sans-serif;">
+
+    <!-- 헤더 -->
+    <header class="h-[60px] px-4 flex items-center gap-3 bg-white border-b border-[#F3F4F6]">
+      <button class="w-[30px] h-[30px] flex items-center justify-center text-[22px] text-[#030712]">‹</button>
+      <h1 class="flex-1 text-[18px] font-semibold leading-[120%] text-[#030712]">상담내역</h1>
+    </header>
+
+    <!-- 탭 -->
+    <div class="grid grid-cols-3 border-b border-[#F3F4F6]">
+      <button class="relative h-[44px] flex items-center justify-center text-[15px] text-[#ec4899] font-bold">전체
+        <span class="absolute left-0 right-0 -bottom-px h-[2px] bg-[#ec4899]"></span>
+      </button>
+      <button class="relative h-[44px] flex items-center justify-center text-[15px] text-[#99A1AF] font-medium">전화상담</button>
+      <button class="relative h-[44px] flex items-center justify-center text-[15px] text-[#99A1AF] font-medium">채팅상담</button>
+    </div>
+
+    <!-- 카운트 + 신규 안내 -->
+    <div class="px-4 py-3 border-b border-[#F3F4F6] flex items-center justify-between gap-2">
+      <span class="text-[14px] text-[#4A5565]">전체 <span class="text-[#ec4899] font-medium">1</span>건</span>
+      <span class="text-[12px] text-[#99A1AF] shrink-0">내가 상담받은 내역</span>
+    </div>
+    <!-- (강원구는 일반회원이라 회원⇄상담사 핑크 안내는 안 보임) -->
+
+    <!-- 목록 -->
+    <main class="flex-1 px-4 overflow-auto">
+      <article class="py-2.5 border-b border-[#F3F4F6]">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-full bg-[#F3F4F6] overflow-hidden shrink-0 flex items-center justify-center text-[#c7ccd4] text-[12px]">선</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span class="text-[15px] font-bold text-[#030712] shrink-0">선샤인 선생</span>
+              <span class="text-[13px] font-medium text-[#ec4899] shrink-0">258</span>
+              <span class="text-[12px] text-[#6A7282] truncate">· 전화 6분0초</span>
+              <span class="ml-auto shrink-0 flex items-center gap-2">
+                <span class="font-bold text-[#1E2939] text-[13px]">15,600코인</span>
+                <span class="text-[13px] font-medium text-[#ec4899]">후기 작성</span>
+              </span>
+            </div>
+            <p class="mt-0.5 text-[12.5px] text-[#99A1AF] truncate">시간 2026.06.21 23:47:04 ~ 23:53:04</p>
+          </div>
+        </div>
+      </article>
+
+      <!-- 페이지네이션 -->
+      <div class="flex items-center justify-center gap-3 py-6">
+        <span class="w-8 h-8 flex items-center justify-center text-[#99A1AF] opacity-40">‹</span>
+        <span class="w-8 h-8 rounded-full bg-[#f472b6] text-white flex items-center justify-center text-[15px] font-medium">1</span>
+        <span class="w-8 h-8 flex items-center justify-center text-[#99A1AF] opacity-40">›</span>
+      </div>
+    </main>
+
+    <!-- 하단 탭 -->
+    <nav class="h-[64px] border-t border-[#F3F4F6] bg-white flex items-center justify-around px-2 text-[11px]">
+      <div class="flex flex-col items-center gap-1 text-[#6A7282]"><span class="text-[18px]">♡</span>상담사</div>
+      <div class="flex flex-col items-center gap-1 text-[#6A7282]"><span class="text-[18px]">🔖</span>단골</div>
+      <div class="flex flex-col items-center gap-1 text-[#6A7282]"><span class="text-[18px]">⌂</span>홈</div>
+      <div class="flex flex-col items-center gap-1 text-[#6A7282]"><span class="text-[18px]">$</span>코인충전</div>
+      <div class="flex flex-col items-center gap-1 text-[#ec4899] font-medium"><span class="text-[18px]">●</span>마이</div>
+    </nav>
+  </div>
+
+  <div class="text-[11px] text-gray-400 max-w-[375px] leading-relaxed">
+    ※ 실제 prod 컴포넌트(MyHistory) 마크업·색상 그대로 재현. 데이터는 DB 실값(consultation 866~868).
+    임퍼서네이트(실고객 로그인) 없이 만든 미리보기라 프로필 사진·폰트만 근사치입니다.
+  </div>
+
+</body>
+</html>

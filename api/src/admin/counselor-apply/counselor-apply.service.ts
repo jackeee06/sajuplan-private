@@ -58,6 +58,8 @@ export interface AdminCounselorApplyDetail extends AdminCounselorApplyListItem {
   updated_at: string;
   /** 연동된 회원의 role — 이미 상담사인지 판단용 */
   member_role: string | null;
+  /** 자동감지 — 같은 전화의 탈퇴 상담사(재가입 케이스). 있으면 "새로 만들지 말고 복구" 유도. */
+  withdrawn_counselor: { id: number; mb_id: string | null; nickname: string | null } | null;
 }
 
 export interface ApproveResult {
@@ -248,6 +250,21 @@ export class AdminCounselorApplyService {
       ? (extras.contract_files as unknown[])
       : [];
 
+    // 자동감지 — 같은 전화의 탈퇴 상담사(재가입 케이스). 새로 만들지 말고 복구 유도.
+    const phoneDigits = (r.applicant_phone ?? '').replace(/[^0-9]/g, '');
+    let withdrawnCounselor: { id: number; mb_id: string | null; nickname: string | null } | null = null;
+    if (phoneDigits) {
+      const w = await this.sql<{ id: number; mb_id: string | null; nickname: string | null }[]>`
+        SELECT id, mb_id, nickname FROM member
+         WHERE regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g') = ${phoneDigits}
+           AND role = 'counselor' AND left_at IS NOT NULL
+         ORDER BY id DESC LIMIT 1
+      `;
+      if (w.length > 0) {
+        withdrawnCounselor = { id: Number(w[0].id), mb_id: w[0].mb_id, nickname: w[0].nickname };
+      }
+    }
+
     return {
       id: Number(r.id),
       status: r.status,
@@ -272,6 +289,7 @@ export class AdminCounselorApplyService {
       extras,
       created_at: r.created_at.toISOString(),
       updated_at: r.updated_at.toISOString(),
+      withdrawn_counselor: withdrawnCounselor,
     };
   }
 

@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../lib/api'
-import { defaultLast7Days } from '../lib/dateRange'
-import { DateRangeChips } from '../components/DateRangeChips'
-import { Th, Td, Tr, TableShell, THead, TBody, EmptyRow } from '../components/table'
+import { Th, Td, Tr, TableShell, THead, TBody } from '../components/table'
 
 /**
  * 어드민 — 일괄 알림톡 발송 + 발송 이력 (Phase 13).
@@ -17,18 +15,6 @@ interface Template {
   template_code: string
   message: string
   is_active: boolean
-}
-
-interface LogRow {
-  id: number
-  template_code: string
-  phone: string
-  status: string
-  failure_reason: string | null
-  initiated_by: string | null
-  bulk_job_id: number | null
-  member_id: number | null
-  created_at: string
 }
 
 interface JobRow {
@@ -58,13 +44,9 @@ export default function AlimtalkBulk() {
   const [result, setResult] = useState<{ job_id: number; total: number; sent: number; failed: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // 이력
-  const _init = defaultLast7Days()
+  // 이력 — 일괄 작업 요약만. 건별 결과는 전용 "알림톡 발송 이력" 메뉴(alimtalk_log, 자동 포함 전체).
   const [jobs, setJobs] = useState<JobRow[]>([])
-  const [logs, setLogs] = useState<LogRow[]>([])
   const [logsLoading, setLogsLoading] = useState(false)
-  const [frDate, setFrDate] = useState(_init.from)
-  const [toDate, setToDate] = useState(_init.to)
 
   useEffect(() => {
     api<Template[]>('/admin/alimtalk-bulk/templates').then(setTemplates).catch(() => {})
@@ -72,20 +54,11 @@ export default function AlimtalkBulk() {
 
   useEffect(() => {
     setLogsLoading(true)
-    const logParams = new URLSearchParams({ limit: '100' })
-    if (frDate) logParams.set('fr_date', frDate)
-    if (toDate) logParams.set('to_date', toDate)
-    Promise.all([
-      api<JobRow[]>('/admin/alimtalk-bulk/jobs?limit=50'),
-      api<LogRow[]>(`/admin/alimtalk-bulk/logs?${logParams}`),
-    ])
-      .then(([j, l]) => {
-        setJobs(j)
-        setLogs(l)
-      })
+    api<JobRow[]>('/admin/alimtalk-bulk/jobs?limit=50')
+      .then(setJobs)
       .catch((e: Error) => setError(e.message))
       .finally(() => setLogsLoading(false))
-  }, [result, frDate, toDate])
+  }, [result])
 
   const selectedTpl = templates.find((t) => t.template_code === tplCode)
 
@@ -271,51 +244,10 @@ export default function AlimtalkBulk() {
             )}
           </section>
 
-          {/* 개별 로그 */}
-          <section>
-            <div className="flex items-center gap-3 mb-3">
-              <h2 className="text-base font-medium">개별 발송 로그</h2>
-              <DateRangeChips from={frDate} to={toDate} onPick={(r) => { setFrDate(r.from); setToDate(r.to) }} />
-            </div>
-            {logs.length === 0 ? (
-              <div className="p-6 text-sm text-gray-500 text-center bg-white rounded">로그 없음</div>
-            ) : (
-              <div className="bg-white rounded shadow overflow-hidden max-h-[400px] overflow-y-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-xs sticky top-0">
-                    <tr>
-                      <th className="px-3 py-2 text-left">시각</th>
-                      <th className="px-3 py-2 text-left">템플릿</th>
-                      <th className="px-3 py-2 text-left">번호</th>
-                      <th className="px-3 py-2 text-left">상태</th>
-                      <th className="px-3 py-2 text-left">실패 사유</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {logs.map((l) => (
-                      <tr key={l.id}>
-                        <td className="px-3 py-2 text-xs text-gray-500">{l.created_at.slice(0, 16).replace('T', ' ')}</td>
-                        <td className="px-3 py-2 text-xs font-mono">{l.template_code}</td>
-                        <td className="px-3 py-2 text-xs font-mono">{l.phone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')}</td>
-                        <td className="px-3 py-2 text-xs">
-                          {l.status === 'success' ? (
-                            <span className="text-emerald-700">✓ 성공</span>
-                          ) : l.status === 'failed' ? (
-                            <span className="text-rose-600">✗ 실패</span>
-                          ) : (
-                            <span className="text-gray-400">{l.status}</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-xs text-gray-600 max-w-[300px] truncate" title={l.failure_reason ?? ''}>
-                          {l.failure_reason ?? '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
+          {/* 건별 결과는 전용 메뉴로 안내 (중복 제거) */}
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            건별 발송 결과(성공·실패·사유)는 <Link to="/alert-logs" className="text-brand-600 underline">알림톡 발송 이력</Link> 메뉴에서 확인하세요. (수동·자동 발송 전체 기록)
+          </p>
         </div>
     </div>
   )

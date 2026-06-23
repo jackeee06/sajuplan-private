@@ -141,6 +141,9 @@ export default function CounselorForm() {
   const [m2netResult, setM2netResult] = useState<{ ok: boolean; csrid?: string | null; error?: string } | null>(null)
   const [linkingM2net, setLinkingM2net] = useState(false)
   const [files, setFiles] = useState<CounselorFile[]>([])
+  // 탈퇴 여부 — 값 있으면(=탈퇴) 복구 배너 노출
+  const [leftAt, setLeftAt] = useState<string | null>(null)
+  const [restoring, setRestoring] = useState(false)
   const [uploading, setUploading] = useState<string | null>(null)
   // 신규 등록 시 INSERT 전에 임시 보관할 파일 (등록 직후 일괄 업로드)
   const [pendingFiles, setPendingFiles] = useState<{
@@ -233,6 +236,7 @@ export default function CounselorForm() {
           is_exclusive: Boolean(r.is_exclusive),
         }))
         setFiles(Array.isArray(r.files) ? (r.files as CounselorFile[]) : [])
+        setLeftAt(r.left_at ? String(r.left_at) : null)
       })
       .catch(async (e) => {
         // 상담사로 못 찾으면 — 일반회원 계정(듀얼)일 수 있으니 실제 role 확인 후 올바른 화면으로 이동.
@@ -405,7 +409,7 @@ export default function CounselorForm() {
   const wideBgUrl = wideFile ? FILE_BASE + (wideFile.stored_name_webp ?? wideFile.stored_name) : null
 
   return (
-    <div className="space-y-3 max-w-[1400px]">
+    <div className="space-y-2 max-w-[1400px]">
       {/* 페이지 헤더 — 신규: 단순 타이틀 / 수정: 상담사 카드 (사진·이름·뱃지) */}
       {isNew ? (
         <div className="flex items-center justify-between">
@@ -448,10 +452,22 @@ export default function CounselorForm() {
             <div className="min-w-0">
               <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[13px]">
                 <h1 className="text-lg font-bold text-gray-900 dark:text-gray-50 truncate">{data.nickname || data.name || `상담사 #${id}`}</h1>
+                {(() => {
+                  const dno = Number(data.dtmfno)
+                  const publicNo = Number.isFinite(dno) && dno > 0 && dno < 1000 ? dno + 150 : null
+                  if (publicNo == null) return null
+                  return (
+                    <span className="inline-flex items-baseline gap-0.5 border border-[#ec4899]/40 rounded-full pl-2 pr-2 py-0.5" title="고객 화면에 노출되는 공개 상담사 번호 (= dtmfno + 150)">
+                      <span className="text-[10px] font-medium text-[#ec4899] mr-0.5">공개번호</span>
+                      <span className="text-[15px] font-extrabold text-gray-900 dark:text-gray-50">{publicNo}</span>
+                      <span className="text-[10px] font-bold text-gray-400">번</span>
+                    </span>
+                  )
+                })()}
                 {data.nickname && data.name && data.nickname !== data.name && (
                   <span className="text-xs text-gray-400">({data.name})</span>
                 )}
-                <span className="text-xs text-gray-400">#{id}</span>
+                <span className="text-xs text-gray-400" title="내부 회원 DB 번호 (member.id) — 고객에게 안 보임">#{id} <span className="text-gray-400 font-medium">(DB)</span></span>
                 {data.counselor_category && (
                   <span className="px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 font-medium text-[12px]">{data.counselor_category}</span>
                 )}
@@ -462,7 +478,7 @@ export default function CounselorForm() {
                   <span className="text-gray-500"><span className="text-gray-400">csrid</span> <span className="font-mono">{data.csrid}</span></span>
                 )}
                 {data.dtmfno && (
-                  <span className="text-gray-500"><span className="text-gray-400">dtmfno</span> <span className="font-mono">{data.dtmfno}</span></span>
+                  <span className="text-gray-500" title="ARS 실제 전화 연결번호 (엠투넷 라우팅용) — 공개번호 = 이 값 + 150"><span className="text-gray-400">dtmfno</span> <span className="text-gray-500 font-medium">(연결번호)</span> <span className="font-mono">{data.dtmfno}</span></span>
                 )}
                 {data.mb_id && (
                   <span className="text-gray-500"><span className="text-gray-400">ID</span> <span className="font-mono">{data.mb_id}</span></span>
@@ -478,8 +494,8 @@ export default function CounselorForm() {
                   autoComplete="new-password"
                   value={data.password}
                   onChange={(e) => set('password', e.target.value)}
-                  placeholder="비워두면 변경 안 함"
-                  className={inputW.md + ' pr-12'}
+                  placeholder="변경 시에만"
+                  className={'w-28 ' + inputBase + ' pr-12'}
                 />
                 <button
                   type="button"
@@ -499,6 +515,40 @@ export default function CounselorForm() {
               {saving ? '저장 중...' : '저장'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* 탈퇴 상담사 복구 배너 — left_at 있을 때만. 새로 만들지 말고 기존 계정 복구 유도. */}
+      {!isNew && leftAt && (
+        <div className="rounded-xl border-2 border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-amber-800 dark:text-amber-200">
+            <span className="font-semibold">탈퇴한 상담사 계정입니다.</span>{' '}
+            <span className="text-amber-700/90 dark:text-amber-300/90">
+              재가입(새 계정)으로 다시 만들지 말고 <span className="font-semibold">이 계정을 복구</span>하면 기존 등급·m2net·후기·수익금·단골이 그대로 유지됩니다. (같은 전화의 중복 새 계정은 자동 정리)
+            </span>
+          </div>
+          <button
+            disabled={restoring}
+            onClick={async () => {
+              if (!window.confirm('이 탈퇴 상담사 계정을 복구하시겠습니까?\n(같은 전화의 중복 새 계정이 있으면 함께 정리됩니다)')) return
+              setRestoring(true); setError(null); setSuccess(null)
+              try {
+                const res = await api<{ ok: boolean; restored: boolean; retired_ids: number[]; message: string }>(
+                  `/admin/members/counselors/${id}/restore`,
+                  { method: 'POST', body: JSON.stringify({}) },
+                )
+                setLeftAt(null)
+                setSuccess(`복구 완료 — ${res.message}${res.retired_ids.length ? ` (정리된 중복계정 id: ${res.retired_ids.join(', ')})` : ''}`)
+              } catch (e) {
+                setError(e instanceof Error ? e.message : '복구 실패')
+              } finally {
+                setRestoring(false)
+              }
+            }}
+            className="px-4 py-2 text-sm rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium disabled:opacity-50 shrink-0"
+          >
+            {restoring ? '복구 중...' : '🔄 이 계정 복구'}
+          </button>
         </div>
       )}
 
@@ -571,7 +621,7 @@ export default function CounselorForm() {
           <FieldPair label="이름" required>
             <input type="text" value={data.name} onChange={(e) => set('name', e.target.value)} className={inputW.sm} />
           </FieldPair>
-          <FieldPair label="닉네임" required hint="엠투넷 csrnm">
+          <FieldPair label="닉네임" required>
             <input type="text" value={data.nickname} onChange={(e) => set('nickname', e.target.value)} className={inputW.sm} />
           </FieldPair>
           <FieldPair label="휴대폰">
@@ -645,7 +695,7 @@ export default function CounselorForm() {
         {/* ─── 좌: 연결/운영 ─── */}
         <div className="space-y-3 xl:pr-10">
         <FieldRow>
-          <FieldPair label="dtmfno" hint="ARS 연결번호 — 비우면 자동">
+          <FieldPair label="dtmfno (연결번호)" hint="ARS 실제 전화 연결번호 — 비우면 자동">
             <input
               type="text"
               inputMode="numeric"
@@ -655,7 +705,7 @@ export default function CounselorForm() {
               className={inputW.xs}
             />
           </FieldPair>
-          <FieldPair label="연결순위" hint="작을수록 우선">
+          <FieldPair label="연결순위" hint="목록 정렬 순서 — 작을수록 위로(우선)">
             <NumInput value={data.counselor_priority} onChange={(v) => set('counselor_priority', v)} className={inputW.xs} />
           </FieldPair>
         </FieldRow>
@@ -831,6 +881,14 @@ export default function CounselorForm() {
             </label>
           </div>
         </Row>
+        {/* dtmfno 직접 수정 안내 — 오른쪽 칼럼 하단 빈 공간 활용 */}
+        <div className="mt-1 rounded-md bg-blue-50/60 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800 px-3 py-2 text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed max-w-[460px] space-y-0.5">
+          <div className="font-semibold text-blue-700 dark:text-blue-300">✏️ dtmfno(연결번호)를 직접 수정하는 경우</div>
+          <div>• 특정 번호를 일부러 지정하고 싶을 때</div>
+          <div>• 자동 배정이 잘못됐거나 엠투넷과 어긋났을 때 교정</div>
+          <div>• 상담사 이전·재배치 시 번호 맞추기</div>
+          <div className="text-gray-400 dark:text-gray-500">↳ 다른 상담사와 겹치면 중복검사 + DB UNIQUE 가 자동 차단</div>
+        </div>
         </div>
         </div>
       </Section>
@@ -1120,11 +1178,7 @@ export default function CounselorForm() {
               onDelete={(fileId) => removeFile(fileId)}
             />
           </div>
-        </div>
-
-        {/* 하단: 운영 자료 — 계약서 + 관리자 메모 가로 2 column. 상단 영역과 시각적 분리를 위해 상단 border */}
-        <div className="flex flex-wrap items-start gap-x-10 gap-y-6 pt-5 mt-5 border-t border-gray-100 dark:border-gray-800">
-          {/* 좌: 계약서 */}
+          {/* 계약서 */}
           <div className="flex flex-col gap-2">
             <div>
               <label className="text-sm font-semibold text-gray-900 dark:text-gray-100 block">계약서</label>
@@ -1319,7 +1373,7 @@ export default function CounselorForm() {
 
 // ─── 헬퍼 ─────────────────────────────────────
 // 인풋 폭 프리셋 — 데이터 유형별 적정 폭 (좌측 정렬 + 우측 여백)
-const inputBase = 'px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-colors disabled:bg-gray-50 disabled:text-gray-500 disabled:hover:border-gray-300'
+const inputBase = 'px-2.5 py-1 rounded-md border border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 bg-white dark:bg-gray-800 text-[13px] focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition-colors disabled:bg-gray-50 disabled:text-gray-500 disabled:hover:border-gray-300'
 const inputClsFull = `w-full max-w-2xl ${inputBase}` // textarea·HTML 에디터·캡션 입력 등
 const inputW = {
   xs: `w-24 ${inputBase}`,   // 96px  — 매우 짧은 숫자 (단위 초·우선순위)
@@ -1431,20 +1485,16 @@ function Section({
     <div className="relative bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm overflow-hidden">
       {/* 좌측 보라 액센트 바 — 섹션 영역을 명확히 구분 */}
       <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-500" aria-hidden />
-      <div className="pl-6 pr-5 py-4 border-b border-gray-100 dark:border-gray-800 flex items-start gap-3">
+      <div className="pl-4 pr-4 py-1.5 border-b border-gray-100 dark:border-gray-800 flex items-center gap-1.5">
         {icon && (
-          <div className="w-9 h-9 rounded-lg bg-brand-50 dark:bg-brand-500/10 flex items-center justify-center text-brand-600 dark:text-brand-400 shrink-0">
-            {icon}
-          </div>
+          <span className="text-brand-500 dark:text-brand-400 shrink-0 [&>svg]:w-4 [&>svg]:h-4">{icon}</span>
         )}
-        <div className="min-w-0">
-          <h2 className="text-base font-bold text-gray-900 dark:text-gray-50 leading-tight">{title}</h2>
-          {subtitle && (
-            <p className="text-[12px] text-gray-500 dark:text-gray-400 mt-0.5">{subtitle}</p>
-          )}
-        </div>
+        <h2 className="text-[13px] font-bold text-gray-900 dark:text-gray-50 leading-tight shrink-0">{title}</h2>
+        {subtitle && (
+          <span className="text-[11px] text-gray-400 dark:text-gray-500 truncate min-w-0">· {subtitle}</span>
+        )}
       </div>
-      <div className="pl-6 pr-5 py-5 space-y-3">{children}</div>
+      <div className="pl-4 pr-4 py-2 space-y-1.5">{children}</div>
     </div>
   )
 }
@@ -1464,9 +1514,9 @@ function Row({
   fullWidth?: boolean
 }) {
   return (
-    <div className="flex flex-col md:flex-row md:items-start gap-2 md:gap-4 py-1">
+    <div className="flex flex-col md:flex-row md:items-start gap-2 md:gap-4">
       <div className="md:w-[140px] md:pt-2 shrink-0">
-        <label className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        <label className="text-[13px] font-semibold text-gray-900 dark:text-gray-100">
           {label}
           {required && <span className="text-rose-500 ml-1">*</span>}
         </label>
@@ -1480,7 +1530,7 @@ function Row({
 // FieldRow — 짧은 인풋 여러 개를 가로로 배치. 정보 밀도 높이고 스크롤 줄임.
 function FieldRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-wrap items-start gap-x-6 gap-y-3 py-1">
+    <div className="flex flex-wrap items-start gap-x-6 gap-y-2">
       {children}
     </div>
   )
@@ -1499,8 +1549,8 @@ function FieldPair({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 shrink-0">
+    <div className="flex items-start gap-2">
+      <span className="text-[13px] font-semibold text-gray-900 dark:text-gray-100 shrink-0 pt-1.5">
         {label}
         {required && <span className="text-rose-500 ml-0.5">*</span>}
       </span>

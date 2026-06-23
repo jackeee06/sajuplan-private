@@ -132,6 +132,8 @@ export interface UserMember {
   point: number
   /** 푸시알림 전체 수신 ON/OFF (앱 설정 토글) */
   push_all: boolean
+  /** 사업 주인(공동대표) 여부 — 모집인 초대 버튼 등 주인 전용 UI 게이트 */
+  is_owner?: boolean
   /** 프로필 사진 URL — 미등록 시 null */
   profile_image: string | null
   /** 프로필 사진 WebP — 있으면 picture/source 우선 사용 */
@@ -2397,14 +2399,22 @@ export const promoterApi = {
       promoterId?: number
       memberName?: string | null
     }>('/promoter/otp/verify', { phone, code }),
-  /** 서포터즈 신청 — 방금 OTP 인증한 번호여야 함. 성공 시 관리자 승인 대기 */
+  /**
+   * 서포터즈 신청 — 방금 OTP 인증한 번호여야 함.
+   *  - 일반: 관리자 승인 대기
+   *  - inv(주인 초대 토큰): 자동승인 → autoApproved=true, 세션 쿠키 자동 발급(바로 활동)
+   */
   apply: (payload: {
     phone: string
     name: string
     bank_name?: string
     bank_account?: string
     account_holder?: string
-  }) => api.post<{ ok: true }>('/promoter/apply', payload),
+    inv?: string
+  }) => api.post<{ ok: true; autoApproved: boolean }>('/promoter/apply', payload),
+  /** [주인 전용] 신규 모집인 초대 카드 데이터 — 닉네임 + 서명 초대링크(자동승인). is_owner 아니면 403 */
+  ownerInvite: () =>
+    api.get<{ ownerNickname: string; shareUrl: string }>('/user/promoter/owner-invite'),
   /** 로그아웃 — 쿠키 제거 */
   logout: () => api.post<void>('/promoter/logout'),
   /** 내 대시보드 — 401 이면 미로그인 */

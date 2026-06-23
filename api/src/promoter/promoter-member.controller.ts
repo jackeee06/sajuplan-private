@@ -42,4 +42,14 @@ export class PromoterMemberController {
   inviteDashboard(@Req() req: UserAuthedRequest) {
     return this.core.getMemberInviteDashboard(req.user.sub);
   }
+
+  /**
+   * 주인 전용 — '신규 모집인 초대' 카드 데이터(닉네임·서명 초대링크).
+   * 이 링크로 들어온 사람은 가입 시 자동승인되어 즉시 활동(서버에서 토큰 검증).
+   * is_owner 아니면 403.
+   */
+  @Get('owner-invite')
+  ownerInvite(@Req() req: UserAuthedRequest) {
+    return this.core.getOwnerInvite(req.user.sub);
+  }
 }

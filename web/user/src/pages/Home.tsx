@@ -38,8 +38,10 @@ const CHIPS: ChipTab[] = ['전체', '사주', '타로', '신점']
 
 // 카드 매핑 + state 도출은 src/lib/counselor-mapper.ts 에 통합. 모든 리스트 페이지가 같은 헬퍼 사용.
 
-/** 홈 상담사/후기 리스트 초기 노출 수(2026-06-12: 13→20). 데이터는 이미 클라에 다 받아둔 상태라 늘려도 비용 0. */
+/** 홈 후기 리스트 초기 노출 수(2026-06-12: 13→20). 데이터는 이미 클라에 다 받아둔 상태라 늘려도 비용 0. */
 const INITIAL_VISIBLE = 20
+/** 홈 상담사 리스트 초기 노출 수 — 현재 활성 28명 전후를 첫 화면에 거의 다 보이게(2026-06-23: 20→30). 리뷰와 분리. */
+const COUNSELOR_INITIAL = 30
 /** "더보기" 펼침 상태를 (탭,칩)별로 sessionStorage 에 기억 — 다른 페이지 갔다 와도 펼침 유지. */
 const expandKey = (tab: string, chip: string) => `home_expand_${tab}_${chip}`
 const isExpanded = (tab: string, chip: string) => {
@@ -88,7 +90,7 @@ export default function Home() {
   // 2026-05-22: "상담사 더보기" 누르면 별도 페이지 이동 X, 같은 자리에 전체 펼침.
   //   백엔드에서 한 번에 받아두고 클라이언트에서 visibleCount 만큼 표시.
   //   탭/칩 바뀌면 INITIAL_VISIBLE 로 리셋. 단, 같은 (탭,칩)을 펼친 적 있으면 재진입 시 복원(2026-06-12).
-  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE)
+  const [visibleCount, setVisibleCount] = useState(COUNSELOR_INITIAL)
   // 후기 탭 "더보기"도 상담사 탭과 동일 — 별도 페이지 이동 X, 같은 자리에 펼친다(2026-06-12).
   const [visibleReviewCount, setVisibleReviewCount] = useState(INITIAL_VISIBLE)
   // 메인 통계 — 어드민 dashboard 와 같은 데이터 소스 (consultation, member)
@@ -180,7 +182,7 @@ export default function Home() {
             setCounselors(r.items)
             setReviews([])
             // 같은 (탭,칩) 을 펼친 적 있으면 복원, 아니면 초기값
-            setVisibleCount(isExpanded(tab, chip) ? r.items.length : INITIAL_VISIBLE)
+            setVisibleCount(isExpanded(tab, chip) ? r.items.length : COUNSELOR_INITIAL)
           }
         })
         .catch((e) => {

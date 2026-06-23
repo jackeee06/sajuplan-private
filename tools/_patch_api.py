@@ -32,6 +32,9 @@ import paramiko
 # 2026-05-17: 상담사 후기 알림톡 추가
 # audit A~G 전체 변경분 외과 패치 (18개 파일) — 이전 배포 분
 FILES = [
+    # 2026-06-21: 운영 KPI 기간 필터(fr_date/to_date) — admin stats 배포 누락 보정 (오늘/어제/지난달 동일하던 버그)
+    ("api/src/admin/stats/stats.service.ts", "src/admin/stats/stats.service.ts"),
+    ("api/src/admin/stats/stats.controller.ts", "src/admin/stats/stats.controller.ts"),
     # 2026-06-19: 통합 알림함 — 모든 알림(푸시·인앱·카톡) 종모양 단일 창구 + 안읽음 뱃지 + 채널 뱃지
     ("api/db/migrations/20260619200000_notification_inbox.sql", "db/migrations/20260619200000_notification_inbox.sql"),
     ("api/src/shared/inbox/inbox.service.ts", "src/shared/inbox/inbox.service.ts"),

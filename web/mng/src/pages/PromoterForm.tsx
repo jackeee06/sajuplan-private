@@ -291,9 +291,9 @@ export default function PromoterForm() {
   const p = detail?.promoter
 
   return (
-    <div className="space-y-4 max-w-[1100px]">
+    <div className="space-y-3 max-w-[1100px]">
       {/* 헤더 */}
-      <div className="flex items-center justify-between">
+      <div>
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/promoters')} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
             <ArrowLeft className="w-5 h-5" />
@@ -311,7 +311,7 @@ export default function PromoterForm() {
         <button
           onClick={onSubmit}
           disabled={saving}
-          className="px-4 py-2 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50"
+          className="px-4 py-2 mt-3 text-sm rounded-lg bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50"
         >
           {saving ? '저장 중...' : isNew ? '등록' : '저장'}
         </button>
@@ -408,7 +408,7 @@ export default function PromoterForm() {
           <input type="text" value={form.bank_name} onChange={(e) => set('bank_name', e.target.value)} className={inputCls} />
         </Row>
         <Row label="계좌번호">
-          <input type="text" value={form.bank_account} onChange={(e) => set('bank_account', e.target.value)} className={inputLong} />
+          <input type="text" value={form.bank_account} onChange={(e) => set('bank_account', e.target.value)} className={inputMed} />
         </Row>
         <Row label="예금주">
           <input type="text" value={form.account_holder} onChange={(e) => set('account_holder', e.target.value)} className={inputCls} />
@@ -416,6 +416,7 @@ export default function PromoterForm() {
       </Section>
 
       {/* 주민번호 — 슈퍼관리자 전용 */}
+      <div className="w-fit max-w-full">
       <SuperOnlySection
         title="🔒 주민등록번호 (슈퍼관리자 전용)"
         subtitle="원천징수·지급 증빙용. 일반관리자에게는 이 영역이 보이지 않습니다."
@@ -441,6 +442,7 @@ export default function PromoterForm() {
           <div className="text-[11px] text-gray-400">입력하지 않으면 기존 값이 유지됩니다.</div>
         </div>
       </SuperOnlySection>
+      </div>
 
       {/* 메모 */}
       <Section title="메모" cols={1}>
@@ -448,7 +450,7 @@ export default function PromoterForm() {
           value={form.memo}
           onChange={(e) => set('memo', e.target.value)}
           rows={3}
-          className={`${inputBase} w-full max-w-[600px]`}
+          className={`${inputBase} w-[680px] max-w-full`}
           placeholder="내부 메모"
         />
       </Section>
@@ -457,7 +459,7 @@ export default function PromoterForm() {
       {!isNew && detail && (
         <>
           {/* 미정산 기대수익 + 정산 배치 생성 */}
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="w-fit max-w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3.5 inline-flex flex-wrap items-center gap-5">
             <div className="flex items-center gap-3">
               <Wallet className="w-5 h-5 text-brand-600" />
               <div>
@@ -614,6 +616,7 @@ function RewardStatus({ reward }: { reward: Reward }) {
 const inputBase =
   'px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-brand-500 outline-none disabled:bg-gray-50 disabled:text-gray-500'
 const inputCls = `w-full max-w-[200px] ${inputBase}`
+const inputMed = `w-full max-w-[240px] ${inputBase}`
 const inputLong = `w-full max-w-[400px] ${inputBase}`
 
 function formatPhone(s: string): string {
@@ -638,10 +641,10 @@ function formatPhone(s: string): string {
 }
 
 function Section({ title, children, cols = 4 }: { title: string; children: React.ReactNode; cols?: 1 | 2 | 3 | 4 }) {
-  const inner = cols === 1 ? 'p-4 space-y-3' : 'p-4 flex flex-wrap gap-x-5 gap-y-3'
+  const inner = cols === 1 ? 'p-3.5 space-y-2.5' : 'p-3.5 flex flex-wrap gap-x-4 gap-y-2.5'
   return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
-      <div className="px-4 py-2.5 border-b border-gray-100 dark:border-gray-800 text-sm font-semibold text-gray-700 dark:text-gray-200">
+    <div className="w-fit max-w-[680px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl">
+      <div className="px-3.5 py-2 border-b border-gray-100 dark:border-gray-800 text-sm font-semibold text-gray-700 dark:text-gray-200">
         {title}
       </div>
       <div className={inner}>{children}</div>

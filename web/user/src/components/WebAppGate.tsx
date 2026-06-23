@@ -20,8 +20,14 @@ import { appVersionApi } from '../lib/api'
 const FALLBACK_AOS = 'https://play.google.com/store/apps/details?id=com.dmonster.sajumoon'
 const FALLBACK_IOS = 'https://apps.apple.com/kr/app/id6761353255'
 
+// [2026-06-21] 사장님 결정 — 웹을 일반 웹사이트처럼 개방 (브라우저도 정상 노출).
+//   웹·앱은 같은 서버·DB·계정이라 가입/결제/이용 모두 계정에 쌓여 호환됨.
+//   되돌리려면(다시 앱 전용으로 막으려면) 아래 WEB_OPEN 만 false 로 바꿔 재배포.
+const WEB_OPEN = true
+
 function shouldGate(): boolean {
   if (typeof window === 'undefined') return false
+  if (WEB_OPEN) return false // ← 개방 모드: 모든 브라우저 통과(게이트 미노출)
   if (isNativeApp()) return false
   if (navigator.webdriver) return false
   // 모집인(서포터즈) 랜딩(/s/:code) · 대시보드(/promoter) · 공개 쿠폰 이벤트(/event) 는

@@ -134,7 +134,7 @@ export default function ConsultationDetail() {
   const snapshotGrade = d.grade_at_session
 
   return (
-    <div className="space-y-6 max-w-[1400px]">
+    <div className="space-y-2.5 max-w-[820px]">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">상담 상세 #{d.id}</h1>
@@ -171,7 +171,7 @@ export default function ConsultationDetail() {
       )}
 
       {/* 상단: 상태 + 기본정보 */}
-      <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <section className="flex flex-wrap gap-2">
         <Card label="유형" value={typeBadge} accent={isChat ? 'purple' : d.preflag === 'Y' ? 'amber' : 'gray'} />
         <Card label="통화 시간" value={fmtDuration(d.usetm)} />
         <Card
@@ -187,11 +187,11 @@ export default function ConsultationDetail() {
       </section>
 
       {/* 통화 시점 스냅샷 — 분쟁 추적 핵심 */}
-      <section className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-5">
-        <h2 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-3">
+      <section className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-4">
+        <h2 className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-2">
           ⭐ 통화 시점 등급/단가 스냅샷 (분쟁 시 증거)
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
           <div>
             <div className="text-xs text-gray-500">통화 시점 단가 (30초)</div>
             <div className="font-bold mt-1">
@@ -219,9 +219,9 @@ export default function ConsultationDetail() {
       </section>
 
       {/* 양방 정보 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-          <h2 className="text-sm font-semibold mb-3">회원</h2>
+      <div className="flex flex-wrap gap-2.5">
+        <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 w-fit max-w-full">
+          <h2 className="text-sm font-semibold mb-2">회원</h2>
           {d.member_id && d.member_mb_id ? (
             <Link
               to={`/members/customers/${d.member_id}`}
@@ -239,8 +239,8 @@ export default function ConsultationDetail() {
           </dl>
         </section>
 
-        <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
-          <h2 className="text-sm font-semibold mb-3">상담사</h2>
+        <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 w-fit max-w-full">
+          <h2 className="text-sm font-semibold mb-2">상담사</h2>
           {d.counselor_id && d.counselor_mb_id ? (
             <Link
               to={`/members/counselors/${d.counselor_id}/grade-detail`}
@@ -261,7 +261,7 @@ export default function ConsultationDetail() {
       </div>
 
       {/* 시간 + 식별자 */}
-      <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+      <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 w-fit max-w-full">
         <h2 className="text-sm font-semibold mb-3">시간 / 식별자</h2>
         <dl className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
           <Row label="시작" value={fmtTime(d.started_at)} block />
@@ -276,7 +276,7 @@ export default function ConsultationDetail() {
       </section>
 
       {/* 플래그 */}
-      <section className="bg-white dark:bg-gray-800 rounded-lg shadow p-5">
+      <section className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 w-fit max-w-full">
         <h2 className="text-sm font-semibold mb-3">플래그</h2>
         <div className="flex flex-wrap gap-2 text-xs">
           <Flag on={d.is_paid} label="유료" />
@@ -385,10 +385,10 @@ function Card({
           ? 'bg-emerald-50 dark:bg-emerald-900/20'
           : 'bg-white dark:bg-gray-800'
   return (
-    <div className={`rounded-lg shadow p-4 ${bg}`}>
+    <div className={`rounded-lg border border-gray-200 dark:border-gray-700 p-3 w-fit min-w-[140px] ${bg}`}>
       <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-lg font-bold mt-1">{value}</div>
-      {subline && <div className="text-[11px] text-gray-400 mt-1">{subline}</div>}
+      <div className="text-base font-bold mt-0.5">{value}</div>
+      {subline && <div className="text-[11px] text-gray-400 mt-0.5">{subline}</div>}
     </div>
   )
 }

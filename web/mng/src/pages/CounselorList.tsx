@@ -130,7 +130,7 @@ interface Filter {
   page: number
 }
 
-const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 10)
+const PAGE_SIZE = 100 // 상담사 리스트는 한 화면 100줄 고정 (2026-06-23, 공통 env 50 무시)
 
 /**
  * 사주플랜 앱(사용자 화면) 상담사 리스트 정렬 정책.

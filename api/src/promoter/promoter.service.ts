@@ -66,15 +66,36 @@ export class PromoterPublicService {
     return { status: 'new', memberName };
   }
 
-  /** 자가 신청 (휴대폰 인증 후) → status='pending' 으로 등록. 관리자 승인 후 활동. */
+  /**
+   * 자가 신청 (휴대폰 인증 후).
+   *  - 일반: status='pending' 등록. 관리자 승인 후 활동.
+   *  - 주인 초대(inv 토큰 유효): 즉시 승인 + 세션 토큰 발급 → 바로 활동.
+   */
   async apply(args: {
     phone: string; name: string; bankName?: string; bankAccount?: string; accountHolder?: string;
-  }): Promise<{ ok: true }> {
+    inv?: string;
+  }): Promise<{ ok: true; autoApproved: boolean; token?: string }> {
     const d = this.digits(args.phone);
     const verified = await this.sms.isVerifiedRecently(d, 30).catch(() => false);
     if (!verified) throw new BadRequestException('휴대폰 인증 후 신청해주세요.');
-    await this.core.createApplication({ ...args, phone: d });
-    return { ok: true };
+    const ownerId = await this.core.verifyOwnerInviteToken(args.inv);
+    const created = await this.core.createApplication({
+      phone: d,
+      name: args.name,
+      bankName: args.bankName,
+      bankAccount: args.bankAccount,
+      accountHolder: args.accountHolder,
+      autoApprove: ownerId != null,
+      invitedByMemberId: ownerId,
+    });
+    if (created.autoApproved) {
+      const token = await this.jwt.signAsync(
+        { pid: created.id, phone: d, typ: 'promoter' },
+        { expiresIn: '30d' },
+      );
+      return { ok: true, autoApproved: true, token };
+    }
+    return { ok: true, autoApproved: false };
   }
 
   dashboard(promoterId: number) {

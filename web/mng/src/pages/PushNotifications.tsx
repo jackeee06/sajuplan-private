@@ -8,7 +8,7 @@ import { api } from '../lib/api'
  */
 export default function PushNotifications() {
   return (
-    <div className="space-y-3 max-w-[760px]">
+    <div className="space-y-3 max-w-[800px]">
       <div className="flex items-center gap-2">
         <Bell className="w-5 h-5 text-brand-600" />
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">알림 보내기(수동) <span className="text-sm font-normal text-gray-400">(인앱·푸시)</span></h1>
@@ -168,28 +168,30 @@ function Compose({ onSent }: { onSent: () => void }) {
       <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">알림 작성</h2>
 
       {/* 가이드 박스 */}
-      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 rounded-xl p-3 text-xs">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-0.5 flex-1 min-w-0">
-            <div className="font-semibold flex items-center gap-1.5"><Bell className="w-3.5 h-3.5" /> 알림 작성·발송 방법</div>
-            <div><b>1.</b> 발송 대상 (구분) 을 선택합니다.</div>
-            <div><b>2.</b> 알림내용 (제목) 과 본문을 입력합니다.</div>
-            <div><b>3.</b> 주소: 공지사항 URL 또는 외부 사이트 URL (선택)</div>
-            <div><b>4.</b> <b>보낼 방법(인앱·푸시)</b> 을 고른 뒤 [알림 보내기] → 확인 → 발송</div>
-          </div>
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-gray-800 dark:text-gray-200 rounded-xl p-3 text-xs space-y-0.5">
+        {/* 제목 줄 — 버튼은 카드 안에서 오른쪽 정렬 */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="font-semibold flex items-center gap-1.5 text-amber-800 dark:text-amber-200"><Bell className="w-3.5 h-3.5" /> 알림 작성·발송 방법</div>
           <a
             href="/mng/notices/new"
             target="_blank"
             rel="noreferrer"
             className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-md bg-white dark:bg-gray-900 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/40 whitespace-nowrap"
+            title="긴 내용은 공지사항으로 먼저 작성한 뒤, 그 주소(/notices/123)를 아래 '주소' 칸에 넣어 알림으로 보냅니다."
           >
             공지사항 쓰러가기 →
           </a>
         </div>
+        <div>보낼 방법(인앱·푸시)을 고른 뒤 [알림 보내기] → 확인 → 발송</div>
+        <div className="mt-1.5 pt-1.5 border-t border-amber-200 dark:border-amber-800 space-y-0.5">
+          <div className="font-semibold text-amber-800 dark:text-amber-200">📌 꼭 알아두기</div>
+          <div>• <b>푸시를 켜면 인앱(종모양)도 자동으로 함께 발송</b>됩니다 — "푸시만" 발송은 없습니다(폰 알림을 지워도 종모양에 남도록). 반대로 "인앱만"은 가능합니다.</div>
+          <div>• 도달 범위 — <b>전체공지</b>=앱 설치 전체(비가입 포함), <b>일반회원·상담사</b>=로그인한 해당 그룹, <b>개별회원</b>=고른 사람만(상담사도 검색됨).</div>
+        </div>
       </div>
 
       {/* 입력 폼 */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-3">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl p-3 space-y-3 max-w-[760px]">
         {/* 구분 — 토글 칩 4개 */}
         <div className="space-y-1.5">
           <label className="text-[11px] font-medium text-gray-500">발송 대상 (구분) <span className="text-rose-500">*</span></label>
@@ -393,7 +395,7 @@ function Compose({ onSent }: { onSent: () => void }) {
       {/* 결과 카드 */}
       {result && (
         result.ok ? (
-          <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-3 space-y-1.5">
+          <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-900/20 p-3 space-y-1.5 max-w-[760px]">
             <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300 font-semibold text-sm">
               <CheckCircle className="w-4 h-4" /> 발송 완료
             </div>
@@ -410,6 +412,9 @@ function Compose({ onSent }: { onSent: () => void }) {
                     ⚠ 푸시 토큰이 모두 실패했습니다. 이 숫자는 <b>사람 수가 아니라 그 대상의 누적 토큰 수</b>입니다 (만료 토큰 정리 또는 FCM 점검 필요).
                   </div>
                 )}
+                <div className="text-[11px] text-gray-400 mt-0.5">
+                  ※ 숫자 읽는 법 — 전체·회원·상담사(브로드캐스트)는 <b>"토픽 1건 전송"</b>(개인 도달 수 아님), 개별은 <b>토큰 수</b>(폰 여러 대·재설치 시 사람 수보다 많을 수 있음).
+                </div>
               </div>
             )}
             {result.pushed?.error && (
@@ -417,7 +422,7 @@ function Compose({ onSent }: { onSent: () => void }) {
             )}
           </div>
         ) : (
-          <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-900/20 p-3 flex items-start gap-1.5">
+          <div className="rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-900/20 p-3 flex items-start gap-1.5 max-w-[760px]">
             <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
             <div className="text-sm text-rose-700 dark:text-rose-300">
               <div className="font-semibold">발송 실패</div>

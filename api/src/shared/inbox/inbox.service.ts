@@ -44,6 +44,8 @@ export class InboxService {
     linkUrl?: string | null;
     viaPush?: boolean;
     viaAlimtalk?: boolean;
+    /** 보낸 사람(이벤트 유발자) member.id — 있으면 기록(관리자 알림 이력 "회원→상담사" 양쪽 식별용). */
+    actorMemberId?: number | null;
   }): Promise<void> {
     try {
       if (!p.memberId || !Number.isFinite(Number(p.memberId))) return;
@@ -55,14 +57,25 @@ export class InboxService {
       if (mb.length === 0) return; // 탈퇴/없는 회원 — 조용히 무시
       const mbId = mb[0].mb_id ?? '';
 
+      // 보낸 사람(actor) — 있으면 mb_id 조회해 같이 박제. 자기 자신이면 굳이 안 남겨도 무방하나 그대로 둠.
+      let actorId: number | null = null;
+      let actorMb: string | null = null;
+      if (p.actorMemberId != null && Number.isFinite(Number(p.actorMemberId))) {
+        actorId = Number(p.actorMemberId);
+        const am = await this.sql<{ mb_id: string | null }[]>`
+          SELECT mb_id FROM member WHERE id = ${actorId} LIMIT 1
+        `;
+        actorMb = am[0]?.mb_id ?? null;
+      }
+
       await this.sql`
         INSERT INTO notification_log
           (member_id, mb_id, title, content, link_url, category, code,
-           via_inapp, via_push, via_alimtalk)
+           via_inapp, via_push, via_alimtalk, actor_member_id, actor_mb_id)
         VALUES
           (${memberId}, ${mbId}, ${p.title}, ${p.content ?? ''},
            ${p.linkUrl ?? null}, '개별', ${p.code},
-           true, ${p.viaPush ?? false}, ${p.viaAlimtalk ?? false})
+           true, ${p.viaPush ?? false}, ${p.viaAlimtalk ?? false}, ${actorId}, ${actorMb})
       `;
     } catch (e) {
       // 알림함 기록 실패가 본 흐름을 막으면 안 됨 — 로그만.

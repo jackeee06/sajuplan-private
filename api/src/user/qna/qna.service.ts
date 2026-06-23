@@ -1014,6 +1014,7 @@ export class UserCounselorQnaService {
 
     await this.inbox.record({
       memberId: counselorId,
+      actorMemberId: memberId,
       code: 'qna_ask',
       title: '새 문의가 도착했습니다',
       content: '상담 문의가 접수되었습니다. 확인 후 답변을 남겨주세요.',
@@ -1082,6 +1083,7 @@ export class UserCounselorQnaService {
       if (r.member_id) {
         await this.inbox.record({
           memberId: r.member_id,
+          actorMemberId: counselorId,
           code: 'qna_answer',
           title: '문의 답변이 등록되었습니다',
           content: `${counselorName || '상담사'} 님이 내 문의에 답변을 남겼어요. 확인해보세요.`,

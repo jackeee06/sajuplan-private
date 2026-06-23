@@ -224,13 +224,24 @@ pm2 logs sajumoon-api --lines 30 | grep -E "FCM|sendToTopic|sendToTokens|invalid
 
 ---
 
-## 알려진 버그 및 개선 필요 항목
+## 알려진 버그 및 개선 — ✅ 모두 해결됨 (2026-06)
 
-| 버그 | 위치 | 심각도 | 개선 방법 |
-|---|---|---|---|
-| 전화 요청 브로드캐스트 | `counselors.service.ts:requestConsult` | ⚠️ 중 | sendToTopic('chl_5') → sendToTokens(해당 상담사 토큰) |
-| QnA 브로드캐스트 | `qna.service.ts:notifyQaAsk` | ⚠️ 중 | 동일 |
-| 토큰 만료 정리 없음 | member_push_token | 🔵 낮 | 30일 이상 미갱신 토큰 is_active=false 처리 cron 추가 |
+| 항목 | 위치 | 상태 |
+|---|---|---|
+| 전화 요청 브로드캐스트 | `counselors.service.ts:requestConsult` | ✅ 해결 — `sendToTokens` 1:1, `event_url='/counselor'` |
+| QnA 브로드캐스트 | `qna.service.ts:notifyQaAsk` | ✅ 해결 — `sendToTokens` 1:1, `link='/counselor/mypage/customer-qnas/{id}'` |
+| 채팅요청 | `consult.service.ts:notifyCounselorChatRequest` | ✅ 1:1 `sendToTokens`, `event_url='/chat/{roomId}'` |
+| 토큰 만료 정리 없음 | `member_push_token` | ✅ 해결 (2026-06-21 self-heal, 아래 참조) |
+
+> ⚠️ 위 "브로드캐스트 버그"는 본 문서 옛 판에 남아있던 것 — **이미 1:1 로 고쳐졌다.** 현재 모든 개별 이벤트는 해당 상담사 토큰으로만 발송.
+
+## FCM 죽은 토큰 자동정리 (self-heal, 2026-06-21) ★
+
+- `member_push_token` 은 재설치·토큰 회전마다 행이 쌓여, **한 회원당 유효 토큰은 보통 1개**, 나머지는 죽은 토큰(`messaging/registration-token-not-registered`). → 발송 결과 "토큰 17개 중 성공 1" 은 **정상**(사람 수가 아니라 누적 토큰 수).
+- `push.service.ts sendToTokens` 가 발송 직후 FCM 이 `registration-token-not-registered` / `invalid-registration-token` 으로 답한 토큰을 `UPDATE member_push_token SET is_active=false` 로 즉시 비활성화(best-effort, 본 발송 흐름은 안 막음). → 죽은 토큰이 더 안 쌓이고 결과 숫자가 또렷해짐. **별도 cron 불필요(발송 시 자가치유).**
+- 2026-06-21 기존 죽은 토큰 일괄 sweep 1회 실행: 활성 토큰 **547→276** (271개 비활성화).
+- ⚠️ FCM 토큰은 **앱 열 때마다 바뀌는 게 아니라, 안 바뀌면 그대로 유효** → `updated_at` 이 오래됐어도 토큰은 살아있을 수 있음(재등록 빈도 ≠ 유효성).
+- **토큰 유효성 검증법**(폰에 알림 안 보냄): 서버 `firebase-admin` 의 `sendEachForMulticast({tokens, notification}, true /*dryRun*/)` → `successCount`=유효, `failureCount`=무효(+error.code). node 는 api 폴더(`/data/wwwroot/api.sajumoon.co.kr`)에서 실행해야 모듈 resolve.
 
 ---
 

@@ -668,7 +668,7 @@ export class UserReviewsService {
     // 상담사에게 알림톡 발송 (best-effort — BizM 미등록 시 자동 실패, 후기 자체는 성공).
     //   템플릿: review_for_counselor (BizM 콘솔 등록 필요)
     //   변수: 상담사명 / url (후기 상세 페이지)
-    void this.notifyCounselorOfReview(resolvedCounselorId, inserted[0].id).catch((e) => {
+    void this.notifyCounselorOfReview(resolvedCounselorId, inserted[0].id, memberId).catch((e) => {
       this.logger.warn(`[notifyCounselorOfReview] 발송 예외 reviewId=${inserted[0].id}: ${e instanceof Error ? e.message : String(e)}`);
     });
 
@@ -817,7 +817,7 @@ export class UserReviewsService {
    *    → "받은 후기 상세"로 바로 진입 (딥링크/앱 재빌드 불필요, 기존 FCM 이동 코드 재사용)
    *  - 둘 다 best-effort — 발송 실패는 흡수 (후기 작성 본 흐름에 영향 X)
    */
-  private async notifyCounselorOfReview(counselorId: number, reviewId: number): Promise<void> {
+  private async notifyCounselorOfReview(counselorId: number, reviewId: number, authorMemberId?: number): Promise<void> {
     const rows = await this.sql<{ phone: string | null; nickname: string | null; name: string | null }[]>`
       SELECT phone, nickname, name FROM member WHERE id = ${counselorId} AND role = 'counselor' LIMIT 1
     `;
@@ -884,6 +884,7 @@ export class UserReviewsService {
     // ── ③ 알림함 기록 (종모양) ──────────────────────────────
     await this.inbox.record({
       memberId: counselorId,
+      actorMemberId: authorMemberId,
       code: 'review',
       title: '새 후기가 도착했습니다',
       content: '새로운 상담 후기가 남겨졌어요. 확인 후 답변을 남겨보세요.',

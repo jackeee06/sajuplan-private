@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>레슨북 — 기술적 운영 연속성 검토 의견</title>
+<meta property="og:title" content="레슨북 — 기술적 운영 연속성 검토 의견" />
+<meta property="og:description" content="가처분 심문 대응: 직접 운영 시 고객 무피해를 기술적으로 증명하는 문서 전략" />
+<meta property="og:type" content="article" />
+<style>
+  :root{
+    --ink:#1f2430; --sub:#5b6472; --line:#e7e9ee; --bg:#f5f6f8;
+    --accent:#7c3aed; --accent-soft:#f3effe; --warn:#b45309; --warn-soft:#fff7ed;
+  }
+  *{box-sizing:border-box;-webkit-text-size-adjust:100%;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",sans-serif;
+    line-height:1.72; font-size:16px; letter-spacing:-0.01em;
+  }
+  .wrap{max-width:720px; margin:0 auto; padding:0 16px 64px;}
+  header.top{
+    background:linear-gradient(135deg,#6d28d9,#9333ea);
+    color:#fff; padding:30px 22px 26px; border-radius:0 0 22px 22px;
+    box-shadow:0 6px 24px rgba(124,58,237,.18);
+  }
+  .wrap header.top{margin:0 -16px 22px;}
+  header.top .tag{display:inline-block;font-size:12px;font-weight:600;background:rgba(255,255,255,.18);padding:4px 10px;border-radius:999px;margin-bottom:12px;letter-spacing:.02em;}
+  header.top h1{margin:0;font-size:21px;line-height:1.4;font-weight:700;}
+  header.top p{margin:10px 0 0;font-size:13px;opacity:.85;}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 18px;margin:16px 0;box-shadow:0 2px 10px rgba(20,30,60,.04);}
+
+  .qbox{background:#fff;border-left:4px solid var(--accent);border-radius:12px;padding:16px 16px 16px 18px;margin:0 0 8px;}
+  .qbox .who{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;letter-spacing:.03em;}
+  .qbox p{margin:0 0 8px;font-size:15px;color:#2c3340;}
+  .qbox p:last-child{margin-bottom:0;}
+
+  h2.sec{font-size:18px;font-weight:700;margin:30px 0 6px;padding-top:8px;border-top:1px dashed var(--line);}
+  h2.sec:first-of-type{border-top:none;}
+  h3{font-size:15.5px;font-weight:700;margin:20px 0 6px;color:#2b313c;}
+
+  p{margin:10px 0;}
+  ul{margin:8px 0 8px;padding-left:20px;}
+  li{margin:6px 0;}
+  strong{font-weight:700;}
+  .accent{color:var(--accent);font-weight:700;}
+
+  blockquote{
+    margin:14px 0; padding:14px 16px; background:var(--accent-soft);
+    border-radius:12px; border:1px solid #e6dcfb; font-size:15px; color:#3b2d63; font-weight:500;
+  }
+
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;}
+  th,td{border:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top;}
+  th{background:#faf8ff;font-weight:700;color:#42365f;}
+  td.ok{color:#15803d;font-weight:600;white-space:nowrap;}
+
+  .warn{background:var(--warn-soft);border:1px solid #fde7c7;border-radius:12px;padding:16px;margin:18px 0;}
+  .warn .h{font-weight:700;color:var(--warn);margin-bottom:6px;font-size:15px;}
+
+  .num{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;background:var(--accent);color:#fff;border-radius:7px;font-size:13px;font-weight:700;margin-right:7px;}
+
+  footer{margin-top:30px;text-align:center;color:var(--sub);font-size:12px;line-height:1.7;}
+  .disc{font-size:12px;color:var(--sub);margin-top:8px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <span class="tag">가처분 심문 대응 · 기술 검토</span>
+    <h1>직접 운영해도 고객 피해가 없음을<br>기술적으로 증명하는 문서 전략</h1>
+    <p>레슨북(골프레슨 매칭 · 스크린골프장 키오스크 1,000여 곳) 경영권 분쟁 관련</p>
+  </header>
+
+  <!-- 질문 -->
+  <div class="qbox">
+    <div class="who">질문 (상황)</div>
+    <p>오늘 법원에서 가처분 심문이 있었다. 상대편 변호사는 <strong>"레슨북의 복잡한 서버 구조를 우리 측이 가져가면 운영을 못 한다 → 고객 피해가 크다 → 가처분을 기각해 달라"</strong>고 주장했다.</p>
+    <p>판사는 우리 측에 <strong>"직접 운영해도 고객 피해가 없다는 것을 기술적으로 증명하라. 문서로 오늘 저녁 6시까지 제출하라"</strong>고 했다.</p>
+    <p>내 생각은 <em>"우리는 숙련된 개발자가 이미 준비돼 있고, 우리 쪽으로 넘어오면 고객 피해 없이 직접 운영할 수 있다"</em>는 논지인데, 이것만으로는 약한 듯하다. 어떤 증거 문서를 만들어 제출하면 유리할지 날카로운 의견을 달라.</p>
+  </div>
+
+  <!-- 답변 -->
+  <div class="card">
+    <p>핵심부터 말한다. <strong>"숙련된 개발자가 준비돼 있다"는 방향은 맞지만 그 자체로는 판사를 못 움직인다.</strong> 그건 "주장"이지 "증명"이 아니기 때문이다. 판사가 원하는 건 <span class="accent">기술적 증명</span>이고, 상대는 <strong>막연한 공포(FUD)</strong>를 깔아놨다. 전략은 두 갈래다 — ① 상대 논리를 뒤집어 우리 무기로 쓰고, ② 우리 역량을 "막연한 자신감"이 아니라 "구체적 계획서"로 제출한다.</p>
+  </div>
+
+  <h2 class="sec">1. 상대 논리는 사실 우리에게 유리한 자백이다</h2>
+  <p>상대 논지: <em>"시스템이 너무 복잡해 우리 측이 가져가면 운영 못 한다 → 고객 피해."</em> 그대로 받아치지 말고 <strong>뒤집어라.</strong></p>
+
+  <blockquote>
+    "피신청인 주장대로 이 시스템이 특정 개발자 없이는 운영 불가능할 만큼 복잡하다면, 그것은 회사가 <strong>특정 개인에게 종속된 치명적 결함</strong>을 안고 있다는 자백입니다. 그리고 지금, 그 개인이 회사와 적대하며 '자료를 내놓지 않겠다'고 선언한 상태야말로 <strong>고객 피해가 현실화되기 직전의 비정상 상태</strong>입니다. 가처분의 목적은 이 인질 상태를 해소해 고객을 보호하는 것입니다."
+  </blockquote>
+
+  <p>이 한 방으로 프레임이 뒤집힌다:</p>
+  <ul>
+    <li>상대 "전환 = 위험" → 우리 <strong>"현 분쟁 상태 지속 = 상시 위험"</strong></li>
+    <li>상대 "복잡해서 못 한다" → 우리 <strong>"복잡성은 피신청인이 만든 것이고, 인수인계만 협조하면 위험은 급감한다. 거부하는 쪽이 진짜 고객 위험 요인이다."</strong></li>
+  </ul>
+  <p><strong>허수아비 공격도 지적하라.</strong> 상대는 운영 주체를 "사장 개인"으로 왜곡했다. 현 대표도 혼자 키오스크 1,000대를 손으로 돌리는 게 아니라 <strong>팀과 시스템</strong>으로 운영한다. 비교 대상은 "개인 능력"이 아니라 <span class="accent">"조직 역량"</span>이다.</p>
+
+  <h2 class="sec">2. 오늘 6시 제출 문서 구성</h2>
+  <p>제목 예시: <strong>「기술적 운영 연속성 및 고객 무피해 보장 계획서」</strong></p>
+
+  <h3><span class="num">1</span>표지 + 요지 1장</h3>
+  <p>판사는 바쁘다. 첫 장에 결론 3줄:</p>
+  <ul>
+    <li>즉시 투입 가능한 전문 개발 조직을 이미 확보했다</li>
+    <li>시스템을 구성요소별로 분해해 무중단·저피해 전환 계획을 수립했다</li>
+    <li>고객 선불잔액·예약을 100% 보전하는 안전장치를 자발적으로 제안한다</li>
+  </ul>
+
+  <h3><span class="num">2</span>운영 주체 역량 증빙 (가장 객관적)</h3>
+  <ul>
+    <li>개발팀 구성원 <strong>실명·경력기술서·이력서</strong></li>
+    <li>가능하면 <strong>동종 경험</strong>(예약 · 매칭 · 키오스크 · O2O · 결제 구축 이력)</li>
+    <li><strong>계약서·재직 증빙</strong>으로 "말뿐인 팀"이 아니라 <strong>이미 확보된 팀</strong>임을 증명</li>
+  </ul>
+  <p>→ "숙련된 개발자가 있다"를 <span class="accent">증거</span>로 바꾸는 부분이다.</p>
+
+  <h3><span class="num">3</span>기술 운영 연속성 계획서 (문서의 심장)</h3>
+  <p>시스템을 분해하고, 각 조각을 어떻게 인수·운영하는지 표로:</p>
+  <table>
+    <tr><th>구성요소</th><th>전환 방안</th><th>고객 영향</th></tr>
+    <tr><td>모바일 앱</td><td>신규 앱 배포 / 점진 전환</td><td class="ok">무</td></tr>
+    <tr><td>키오스크 1,000대</td><td>새 서버로 원격 재프로비저닝 (표준 공사)</td><td class="ok">무</td></tr>
+    <tr><td>매장관리 프로그램</td><td>웹 기반 재배포</td><td class="ok">무</td></tr>
+    <tr><td>결제 · 정산</td><td>PG사 통해 거래원장 재구성</td><td class="ok">무</td></tr>
+    <tr><td>데이터 / DB</td><td>인도 또는 PG·세무 복원 + 재온보딩</td><td>잔액·예약 보전</td></tr>
+  </table>
+  <p>핵심 메시지: <strong>"키오스크 재등록과 마이그레이션은 IT 업계의 표준 절차이며, 자료 인도 여부와 무관하게 수행 가능한 정형화된 공사다."</strong> (병행운영·단계적 전환·롤백은 검증된 표준 방법론임을 명시)</p>
+
+  <h3><span class="num">4</span>고객 무피해 보장 방안 (판사가 가장 원하는 부분)</h3>
+  <p>"문제없다"는 빈말 대신 <strong>자발적 안전장치</strong>를 걸어라. "막연히 괜찮다"와 격이 다르다:</p>
+  <ul>
+    <li><strong>선불잔액·이용권 100% 승계 보전 서약</strong> (돈 = 최대 급소)</li>
+    <li><strong>병행 운영(parallel run)</strong> — 신·구 시스템 일정기간 동시 가동 후 전환</li>
+    <li><strong>단계적 전환 + 즉시 롤백</strong> — 문제 시 원상복구</li>
+    <li><strong>전환 중 고객지원 체계</strong> 가동</li>
+    <li><strong>데이터 무손실 검증</strong> — 이관 전후 건수·금액 대사</li>
+  </ul>
+
+  <h3><span class="num">5</span>리스크 &amp; 대응표</h3>
+  <p>역설적이지만, 리스크를 <strong>솔직히 인정하고 대응책을 제시</strong>하는 게 "아무 문제 없다"보다 신뢰가 100배 높다. 판사는 "이들은 위험을 알고 대비했다"고 받아들인다.</p>
+
+  <h3><span class="num">6</span>(시간 되면) 외부 전문가 확인서 1장</h3>
+  <p>동종업계 CTO · 기술사 · IT감리 누구든 "위 계획은 업계 표준상 실현 가능하다"는 짧은 의견서. 우리 측 말이 아닌 <strong>제3자 검증</strong>이라 무게가 다르다.</p>
+
+  <h2 class="sec">3. 판사에게 던질 결정적 반박 라인</h2>
+  <ul>
+    <li><strong>소명 기준 환기</strong> — 가처분은 본안과 달리 <strong>'증명'이 아니라 '소명'으로 충분</strong>하다. "피해 0%를 100% 입증하라"는 건 불가능한 악마의 증명이고, 우리는 <strong>합리적·구체적 무피해 계획을 소명</strong>했다. (반드시 변호사가 강조)</li>
+    <li><strong>자기모순 공격</strong> — 상대는 "고객 피해"를 걱정한다면서 <strong>자료 인도를 거부</strong>한다. 진짜 고객을 위한다면 협조해야 한다. 상대의 진짜 목적은 <strong>자료를 인질로 본인 지위를 지키는 것</strong>이다.</li>
+    <li><strong>타협안 제시</strong> — 판사가 완전 이관을 부담스러워할 경우 대비. <strong>중립적 제3자(법원 선임 관리인 · IT감리)가 서버·데이터를 보전·감독</strong>하는 방안도 수용하겠다. 판사가 명분을 주기 가장 쉬운 출구다.</li>
+  </ul>
+
+  <div class="warn">
+    <div class="h">⚠️ 반드시 지킬 것</div>
+    <p style="margin:6px 0 0">이 검토는 법률 자문이 아니다. <strong>법리(소명 기준 등)와 문서 형식은 반드시 소송대리인과 최종 확정</strong>하라.</p>
+    <p style="margin:8px 0 0"><strong>상대가 개발팀(= 기술로 반박 가능한 사람들)</strong>이라는 점을 잊지 마라. 허위·과장은 즉시 기술적으로 반박당하고, 그 순간 신뢰가 통째로 무너진다. 개발팀 역량은 <strong>실제 보유 인력</strong>으로, 계획은 <strong>실현 가능한 것</strong>으로만 써야 이긴다. 진실(이미 팀 확보 + 표준 마이그레이션은 실제로 가능)만으로도 충분히 강한 문서가 나온다.</p>
+  </div>
+
+  <footer>
+    본 문서는 내부 검토용 의견 정리입니다.<br>
+    법적 효력이 있는 문서가 아니며, 제출 전 변호사 검수가 필요합니다.
+  </footer>
+
+</div>
+</body>
+</html>

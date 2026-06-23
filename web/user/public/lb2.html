@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>기술적 운영 연속성 및 고객 무피해 보장에 관한 소명자료</title>
+<meta property="og:title" content="기술적 운영 연속성 및 고객 무피해 보장 소명자료 (초안)" />
+<meta property="og:description" content="직접 운영 시 고객 피해가 없음을 입증하는 개발 인력·기술 계획 통합 문서" />
+<style>
+  :root{
+    --ink:#1d2330; --sub:#5b6472; --line:#d9dde4; --soft:#f5f6f8;
+    --accent:#1d4ed8; --accent-soft:#eef3ff; --mark:#fff3a8;
+    --ok:#15803d; --warn:#b45309;
+  }
+  *{box-sizing:border-box;-webkit-text-size-adjust:100%;}
+  body{
+    margin:0; background:#e9ebef; color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic",sans-serif;
+    line-height:1.7; font-size:15px; letter-spacing:-0.01em;
+  }
+  .page{max-width:820px; margin:18px auto; background:#fff; padding:42px 44px 56px; box-shadow:0 4px 24px rgba(20,30,60,.1);}
+
+  .draft-banner{
+    background:#fff7ed;border:1px solid #fcd9a8;border-radius:10px;
+    padding:12px 14px;font-size:12.5px;color:#92400e;margin-bottom:26px;line-height:1.6;
+  }
+  .draft-banner b{color:#b45309;}
+
+  .doc-head{text-align:center;border-bottom:2px solid var(--ink);padding-bottom:18px;margin-bottom:24px;}
+  .doc-head .case{font-size:12px;color:var(--sub);margin-bottom:10px;}
+  .doc-head h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-0.02em;}
+  .doc-head .sub{font-size:13px;color:var(--sub);margin-top:8px;}
+
+  .meta{font-size:12.5px;color:var(--sub);margin:0 0 28px;border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:var(--soft);}
+  .meta div{margin:2px 0;}
+
+  h2{font-size:17px;font-weight:700;margin:34px 0 10px;padding:8px 0 8px 12px;border-left:5px solid var(--accent);background:linear-gradient(90deg,var(--accent-soft),transparent);}
+  h3{font-size:14.5px;font-weight:700;margin:20px 0 6px;color:#2a3140;}
+  p{margin:9px 0;}
+  ul{margin:8px 0;padding-left:20px;}
+  li{margin:5px 0;}
+  strong{font-weight:700;}
+  .accent{color:var(--accent);font-weight:700;}
+
+  /* 교체 대상 가상 데이터 표시 */
+  mark{background:var(--mark);padding:1px 4px;border-radius:3px;font-weight:600;font-style:normal;box-decoration-break:clone;-webkit-box-decoration-break:clone;}
+
+  blockquote{margin:14px 0;padding:14px 16px;background:var(--accent-soft);border:1px solid #d6e2ff;border-radius:10px;font-size:14.5px;color:#1e3a8a;font-weight:500;}
+
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top;}
+  th{background:#eef1f6;font-weight:700;}
+  td.ok{color:var(--ok);font-weight:600;white-space:nowrap;}
+
+  .person{border:1px solid var(--line);border-radius:12px;padding:16px 16px 12px;margin:14px 0;background:#fcfdff;}
+  .person .top{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;border-bottom:1px dashed var(--line);padding-bottom:8px;margin-bottom:8px;}
+  .person .nm{font-size:16px;font-weight:700;}
+  .person .role{font-size:12.5px;color:#fff;background:var(--accent);padding:2px 9px;border-radius:999px;font-weight:600;}
+  .person .yrs{font-size:12.5px;color:#15803d;font-weight:700;margin-left:auto;background:#f0fdf4;border:1px solid #bbf7d0;padding:2px 10px;border-radius:999px;}
+  .person dl{display:grid;grid-template-columns:88px 1fr;gap:4px 10px;margin:6px 0 0;font-size:13px;}
+  .person dt{color:var(--sub);font-weight:600;}
+  .person dd{margin:0;}
+
+  .num{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;background:var(--accent);color:#fff;border-radius:6px;font-size:12px;font-weight:700;margin-right:6px;}
+
+  .concl{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px 18px;margin:16px 0;}
+  .concl b{color:var(--ok);}
+
+  footer{margin-top:40px;border-top:1px solid var(--line);padding-top:16px;font-size:12px;color:var(--sub);line-height:1.7;}
+
+  @media print{
+    body{background:#fff;} .page{box-shadow:none;margin:0;max-width:none;padding:24px 28px;}
+    .draft-banner{display:none;} h2{break-after:avoid;} .person,table,blockquote{break-inside:avoid;}
+  }
+  @media (max-width:640px){ .page{padding:24px 18px 40px;margin:0;} .person dl{grid-template-columns:74px 1fr;} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="doc-head">
+    <div class="case">사건번호 <mark>2026카합○○○○</mark> · <mark>○○지방법원</mark> 제○민사부</div>
+    <h1>기술적 운영 연속성 및<br>고객 무피해 보장에 관한 소명자료</h1>
+    <div class="sub">— 신청인 측 직접 운영 시 서비스 무중단·고객 무피해 입증 —</div>
+  </div>
+
+  <div class="meta">
+    <div><strong>사건</strong> : <mark>직무집행정지 등 가처분</mark></div>
+    <div><strong>신청인</strong> : <mark>○○○ 외</mark> (대주주 측)</div>
+    <div><strong>피신청인</strong> : <mark>○○○</mark> (현 대표이사)</div>
+    <div><strong>작성 목적</strong> : 재판부 석명사항(직접 운영 시 고객 피해 부존재의 기술적 소명)에 대한 답변</div>
+    <div><strong>작성일</strong> : <mark>2026. ○. ○.</mark></div>
+  </div>
+
+  <!-- 재판부 이해용 한눈에 보기 -->
+  <div style="background:#eef3ff;border:1px solid #c7d7fb;border-radius:12px;padding:18px 18px 14px;margin:0 0 26px;">
+    <div style="font-weight:700;color:#1d4ed8;font-size:15px;margin-bottom:8px;">■ 한눈에 보는 사건 구조</div>
+    <ul style="margin:6px 0 0;padding-left:18px;font-size:14px;line-height:1.75;">
+      <li><strong>‘레슨북’</strong>은 신청인(대주주)이 대주주로 있는 본래의 회사이다.</li>
+      <li>현 대표이사(피신청인)는 레슨북의 <strong>고객·가맹매장(1,000여)·강사·데이터를 자신이 따로 세운 회사 <mark>‘레슨몬스터’</mark>로 이전·흡수</strong>하려 하고 있다.</li>
+      <li>피신청인은 <strong>“대주주 측은 시스템이 복잡해 운영하지 못한다”</strong>며 가처분 기각을 주장하나, 정작 본인은 <strong>같은 시스템을 레슨몬스터에서 그대로 운영</strong>하려 한다 — 즉 ‘복잡성’은 진짜 이유가 아니라 <strong>시간을 벌기 위한 구실</strong>이다.</li>
+      <li>지금 막지 못하면 고객·매장이 모두 레슨몬스터로 넘어가 <strong>레슨북은 빈 껍데기가 되며, 이 이전은 되돌릴 수 없다(회복할 수 없는 손해)</strong>.</li>
+      <li>반대로 신청인 측은 <strong>정예 개발팀으로 직접·무중단 운영이 가능</strong>하므로, 가처분을 인용하더라도 <strong>고객 피해는 발생하지 않는다.</strong></li>
+    </ul>
+  </div>
+
+  <!-- 0. 요지 -->
+  <h2>Ⅰ. 요지 (Executive Summary)</h2>
+  <div class="concl">
+    <p style="margin:4px 0"><b>1.</b> 신청인 측은 본 플랫폼과 동종 시스템(예약·매칭·키오스크·결제)을 구축·운영한 경험을 갖춘 <strong>정예 개발 조직(총 <mark>5</mark>인)을 이미 확보</strong>하였다.</p>
+    <p style="margin:4px 0"><b>2.</b> 신청인 측은 시스템을 구성요소별로 분해하여 <strong>병행운영·단계적 전환·즉시 롤백을 전제로 한 무중단 운영 연속성 계획</strong>을 수립하였으며, 이는 IT 업계의 표준 절차이다.</p>
+    <p style="margin:4px 0"><b>3.</b> 신청인 측은 <strong>고객 선불잔액 100% 보전, 예약 무중단 이관, 데이터 무손실 검증</strong> 등 고객 피해를 원천 차단하는 안전장치를 자발적으로 제안한다.</p>
+    <p style="margin:8px 0 4px"><b>4.</b> 오히려 <strong>“특정 개발자 없이는 운영 불가능할 만큼 복잡하다”는 피신청인 측 주장은, 회사가 특정 개인에 종속된 치명적 위험을 안고 있음을 자인하는 것</strong>으로서, 그 개인이 자료 인도를 거부하는 현 상태야말로 고객 피해가 현실화되기 직전의 비정상 상태이다.</p>
+  </div>
+
+  <!-- 1. 운영 주체 -->
+  <h2>Ⅱ. 운영 주체 — 개발 조직의 구성 및 역량</h2>
+  <p>본 플랫폼의 직접 운영을 담당할 개발 조직은 다음과 같다. 각 구성원은 본 서비스의 핵심 영역(예약·매칭, 결제·정산, 모바일 앱, 클라우드 인프라, 키오스크 단말)에 대한 실무 경력을 보유한다.</p>
+  <div style="background:#eef3ff;border:1px solid #c7d7fb;border-radius:10px;padding:13px 15px;margin:8px 0 16px;font-size:14.5px;"><strong style="color:#1d4ed8;font-size:16px;">개발 조직 5인 합산 경력 52년</strong> — 전원 예약·매칭·결제·단말 분야 실무 경험 보유</div>
+
+  <div class="person">
+    <div class="top"><span class="nm">이상화</span><span class="role">기술총괄 (CTO/PM)</span><span class="yrs">경력 14년</span></div>
+    <dl>
+      <dt>핵심경력</dt><dd><strong>前 디몬스터(예약 플랫폼 개발회사) 대표이사(사장)</strong> — 예약 플랫폼의 기획·개발·운영 전반 총괄</dd>
+      <dt>담당</dt><dd>전체 아키텍처 설계, 전환 로드맵 총괄, 일정·리스크 관리</dd>
+      <dt>기술</dt><dd>예약·매칭 플랫폼 설계, 결제/정산 도메인, 개발조직 운영</dd>
+    </dl>
+  </div>
+
+  <div class="person">
+    <div class="top"><span class="nm">김영준</span><span class="role">백엔드 리드</span><span class="yrs">경력 10년</span></div>
+    <dl>
+      <dt>핵심경력</dt><dd><strong>前 위즈메이드 — 백엔드·서버 개발</strong>. 예약·결제 시스템 및 PG 연동·정산 모듈 다수 구축</dd>
+      <dt>담당</dt><dd>서버·DB 아키텍처, 결제/정산 원장, 예약·매칭 API, 데이터 이관·대사</dd>
+      <dt>기술</dt><dd>백엔드(Node.js/NestJS·Java/Spring 등), PostgreSQL, PG·정산 연동</dd>
+    </dl>
+  </div>
+
+  <div class="person">
+    <div class="top"><span class="nm">이창민</span><span class="role">앱·프론트엔드 엔지니어</span><span class="yrs">경력 9년</span></div>
+    <dl>
+      <dt>핵심경력</dt><dd><strong>前 인사이트 — 모바일 앱·프론트엔드 개발</strong>. iOS/Android 앱 및 매장 관리자 웹 다수 출시·운영</dd>
+      <dt>담당</dt><dd>고객 앱·강사 앱, 매장관리 프로그램(웹) 재구축</dd>
+      <dt>기술</dt><dd>React Native/Flutter, React, 반응형 매장 콘솔</dd>
+    </dl>
+  </div>
+
+  <div class="person">
+    <div class="top"><span class="nm">안창규</span><span class="role">인프라 · DevOps</span><span class="yrs">경력 11년</span></div>
+    <dl>
+      <dt>핵심경력</dt><dd><strong>前 동부화재(現 DB손해보험) IT부문 — 대규모 시스템 인프라·운영</strong>. 무중단 서비스·보안·장애대응</dd>
+      <dt>담당</dt><dd>클라우드 인프라, 무중단·블루그린 배포, 보안·백업·모니터링</dd>
+      <dt>기술</dt><dd>AWS/GCP, CI/CD, 컨테이너, 장애복구(DR)·백업 체계</dd>
+    </dl>
+  </div>
+
+  <div class="person">
+    <div class="top"><span class="nm">유호진</span><span class="role">키오스크 · 임베디드</span><span class="yrs">경력 8년</span></div>
+    <dl>
+      <dt>핵심경력</dt><dd><strong>前 메타몬스터 — 키오스크·임베디드 단말 개발</strong>. 매장 단말 원격관리·배포 경험</dd>
+      <dt>담당</dt><dd><strong>키오스크 1,000여 대 재등록·원격 재페어링 자동화</strong>, 매장 현장 전환</dd>
+      <dt>기술</dt><dd>임베디드/안드로이드 키오스크, 원격관리(MDM), OTA 배포</dd>
+    </dl>
+  </div>
+
+  <p style="font-size:12.5px;color:var(--sub)">※ QA·검증은 인프라(안창규)·기술총괄(이상화)이 전환 단계별로 공동 수행하며, 필요 시 외부 IT 감리를 추가 투입한다. 각 구성원의 상세 약력은 <strong>별첨 1</strong>로 제출한다.</p>
+
+  <!-- 동종 구축 실적 (레퍼런스) -->
+  <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:18px 18px 6px;margin:18px 0 8px;">
+    <div style="font-weight:700;color:#15803d;font-size:15px;margin-bottom:6px;">■ 신청인 측 개발 조직의 동종 구축 실적 (레퍼런스)</div>
+    <p style="margin:6px 0 10px;font-size:13.5px;">신청인 측 개발 조직은 <strong>예약·매칭·결제·원격제어</strong>를 핵심으로 하는 플랫폼을 <strong>20건 이상 직접 개발·구축</strong>한 실적을 보유한다. 이는 “복잡하여 운영할 수 없다”는 주장을 정면으로 반박하는 객관적 증거이다. 특히 레슨북(골프레슨 예약 + 강사 매칭 + 매장 키오스크)과 직접적으로 대응되는 사례는 다음과 같다.</p>
+  </div>
+
+  <h3>① 레슨북과 직접 대응되는 핵심 실적</h3>
+  <table>
+    <tr><th>구축 사례</th><th>레슨북과의 대응 관계</th><th style="text-align:center;white-space:nowrap">자료 QR</th></tr>
+    <tr><td><strong>골프 안내·예약 웹/앱 서비스</strong></td><td class="ok">골프 종목 예약 — 동일 도메인</td><td style="text-align:center"><img src="https://api.qrserver.com/v1/create-qr-code/?size=88x88&amp;margin=0&amp;data=https%3A%2F%2Fportfolio4u.co.kr%2Fbbs%2Fboard.php%3Fbo_table%3Dportfolio%26wr_id%3D1024" width="88" height="88" alt="QR 골프예약" /></td></tr>
+    <tr><td><strong>스포츠 강습 예약·예약관리·강사 커뮤니티</strong> (나코차·피클스 유사)</td><td class="ok">강습 예약 + 강사 = 레슨북 핵심 구조</td><td style="text-align:center"><img src="https://api.qrserver.com/v1/create-qr-code/?size=88x88&amp;margin=0&amp;data=https%3A%2F%2Fportfolio4u.co.kr%2Fbbs%2Fboard.php%3Fbo_table%3Dportfolio%26wr_id%3D1280" width="88" height="88" alt="QR 강습예약" /></td></tr>
+    <tr><td><strong>피트니스 트레이너 예약·매칭·출입인증·리뷰</strong> (온핏·다짐 유사)</td><td class="ok">강사(트레이너) 매칭 + 출입인증 = 키오스크 체크인</td><td style="text-align:center"><img src="https://api.qrserver.com/v1/create-qr-code/?size=88x88&amp;margin=0&amp;data=https%3A%2F%2Fportfolio4u.co.kr%2Fbbs%2Fboard.php%3Fbo_table%3Dportfolio%26wr_id%3D1206" width="88" height="88" alt="QR 트레이너매칭" /></td></tr>
+    <tr><td><strong>숙소 예약 + IoT 연동·원격제어</strong> (에어비앤비·스테이바인더 유사)</td><td class="ok">원격 제어 = 키오스크 1,000대 원격관리 기술</td><td style="text-align:center"><img src="https://api.qrserver.com/v1/create-qr-code/?size=88x88&amp;margin=0&amp;data=https%3A%2F%2Fportfolio4u.co.kr%2Fbbs%2Fboard.php%3Fbo_table%3Dportfolio%26wr_id%3D1259" width="88" height="88" alt="QR IoT원격" /></td></tr>
+    <tr><td><strong>스포츠 예약·대기·점수관리·회원관리 앱</strong></td><td class="ok">예약 + 대기열 + 회원관리</td><td style="text-align:center"><img src="https://api.qrserver.com/v1/create-qr-code/?size=88x88&amp;margin=0&amp;data=https%3A%2F%2Fportfolio4u.co.kr%2Fbbs%2Fboard.php%3Fbo_table%3Dportfolio%26wr_id%3D963" width="88" height="88" alt="QR 스포츠예약" /></td></tr>
+    <tr><td><strong>심리상담 사전예약 앱</strong></td><td class="ok">전문가 비대면 상담 예약</td><td style="text-align:center"><img src="https://api.qrserver.com/v1/create-qr-code/?size=88x88&amp;margin=0&amp;data=https%3A%2F%2Fportfolio4u.co.kr%2Fbbs%2Fboard.php%3Fbo_table%3Dportfolio%26wr_id%3D964" width="88" height="88" alt="QR 심리상담" /></td></tr>
+  </table>
+  <p style="font-size:12px;color:#6b7280;margin:6px 0 0">▸ 각 QR을 스마트폰 카메라로 스캔하면 <strong>실제 구축한 앱 화면</strong>을 바로 확인하실 수 있습니다.</p>
+
+  <h3>② 예약·매칭·결제 플랫폼 폭넓은 구축 실적</h3>
+  <p style="font-size:12px;color:#6b7280;margin:4px 0 8px">아래 각 사례 자료 주소는 <strong>portfolio4u.co.kr/bbs/board.php?bo_table=portfolio&amp;wr_id=[번호]</strong> 형식이며, 항목 끝 번호만 다릅니다.</p>
+  <ul style="font-size:13px;line-height:1.85;">
+    <li>호텔 단체예약 + 할인쿠폰 발급·적용 + 카드인증 (야놀자·여기어때 유사) <span style="color:#9ca3af">［번호 1292］</span></li>
+    <li>회원전용 별장 예약 서비스 (야놀자·여기어때 유사) <span style="color:#9ca3af">［번호 1111］</span></li>
+    <li>온라인 공간 예약 플랫폼 (여기어때·야놀자 유사) <span style="color:#9ca3af">［번호 1080］</span></li>
+    <li>실시간 카페 예약 앱 <span style="color:#9ca3af">［번호 983］</span></li>
+    <li>레저용 요트 예약·결제 플랫폼 <span style="color:#9ca3af">［번호 971］</span></li>
+    <li>외국인 관광객 픽업·투어 예약 반응형 사이트 <span style="color:#9ca3af">［번호 997］</span></li>
+    <li>반려동물 돌봄·산책·펫택시 예약 앱 (펫캡 유사) <span style="color:#9ca3af">［번호 1108］</span></li>
+    <li>차량정비 예약 + 부품 쇼핑 플랫폼 (마이클·카닥 유사) <span style="color:#9ca3af">［번호 1182］</span></li>
+    <li>정비소 예약·운영·결제 앱 (마이클·라이클 유사) <span style="color:#9ca3af">［번호 1090］</span></li>
+    <li>자동차 종합관리 토탈케어 서비스 <span style="color:#9ca3af">［번호 946］</span></li>
+    <li>병원 연계 건강관리 앱 (굿닥·나만의닥터 유사) <span style="color:#9ca3af">［번호 1083］</span></li>
+    <li>내 주변 병원 정보·온라인 진료예약 서비스 <span style="color:#9ca3af">［번호 968］</span></li>
+    <li>이주노동자 진료예약 앱 <span style="color:#9ca3af">［번호 1036］</span></li>
+    <li>술집 테이블별 채팅·메뉴 주문 앱 (실시간 매장 단말) <span style="color:#9ca3af">［번호 905］</span></li>
+    <li>그룹 음성·영상·글 소식 전달 앱 (알림·푸시) <span style="color:#9ca3af">［번호 1037］</span></li>
+  </ul>
+  <p style="font-size:12.5px;color:var(--sub)">※ 위 실적은 신청인 측 개발 조직이 직접 개발·납품한 결과물이며(별첨 2 포트폴리오), 각 자료는 위 QR·주소로 공개 확인 가능하다. 즉 본 조직은 예약·매칭·결제·원격제어·매장 단말 등 레슨북을 구성하는 모든 요소를 이미 다수 구현한 검증된 역량을 보유한다.</p>
+
+  <!-- 2. 시스템 이해 -->
+  <h2>Ⅲ. 시스템 구조의 이해 및 분해</h2>
+  <p>신청인 측은 본 플랫폼이 아래 6개 구성요소로 이루어져 있음을 정확히 파악하고 있으며, 각 요소별로 독립적인 인수·운영 방안을 보유한다.</p>
+  <table>
+    <tr><th>구성요소</th><th>역할</th><th>직접 운영 방안</th></tr>
+    <tr><td>① 고객 앱 (iOS/Android)</td><td>레슨 검색·예약·결제·잔액 조회</td><td>신규 앱 배포 후 점진 전환(재로그인 수준)</td></tr>
+    <tr><td>② 강사 앱/웹</td><td>일정·매칭 수락·정산 확인</td><td>웹 기반 재구축, 강사 재온보딩</td></tr>
+    <tr><td>③ 매장관리 프로그램</td><td>예약현황·타석(방) 배정·정산</td><td>브라우저 기반 콘솔로 재배포</td></tr>
+    <tr><td>④ 키오스크 1,000여 대</td><td>체크인, “○번방” 자동 안내</td><td>새 서버로 <strong>원격 재프로비저닝</strong>(표준 공사)</td></tr>
+    <tr><td>⑤ 중앙 서버·DB</td><td>회원·강사·업장·예약·결제·정산 원장</td><td>데이터 인도 또는 PG·세무 기반 재구성 + 재온보딩</td></tr>
+    <tr><td>⑥ 외부 연동</td><td>PG(결제)·알림톡/SMS·푸시·지도</td><td>신규 가맹·키 발급 후 병행 연동</td></tr>
+  </table>
+
+  <!-- 3. 운영 연속성 계획 -->
+  <h2>Ⅳ. 기술 운영 연속성 계획 (무중단 전환 로드맵)</h2>
+  <p>아래 계획은 <strong>피신청인 측의 협조 없이도(자료 미인도 상황까지 가정하여)</strong> 서비스가 중단 없이 운영되도록 설계되었다.</p>
+
+  <h3><span class="num">0</span>준비 단계 — 신규 시스템 병행 구축 (착수 즉시)</h3>
+  <ul>
+    <li>신규 플랫폼을 별도로 구축하고, 어떤 경로로 데이터가 들어와도 즉시 흡수되도록 <strong>수입(Import) 스키마</strong>를 선설계</li>
+    <li>PG·세무·통신사 등 제3자 보유 자료로 결제·정산 원장 재구성 준비</li>
+  </ul>
+  <h3><span class="num">1</span>데이터 확보·재구성</h3>
+  <ul>
+    <li>(인도 시) 데이터 일괄 이관 → 무손실 대사 검증</li>
+    <li>(미인도 시) PG 거래원장 + 회계자료로 금액 재구성 + 고객·매장·강사 <strong>재온보딩(신규 동의)</strong> 으로 개인정보 적법 확보</li>
+  </ul>
+  <h3><span class="num">2</span>파일럿 전환 (소수 매장)</h3>
+  <ul>
+    <li>대표 매장 <mark>10~20</mark>곳에 신규 시스템·키오스크 재페어링 적용</li>
+    <li>구·신 시스템 <strong>병행운영(parallel run)</strong> 으로 예약·결제·체크인 정합성 검증</li>
+  </ul>
+  <h3><span class="num">3</span>단계적 전사 전환</h3>
+  <ul>
+    <li>지역·배치 단위로 순차 전환, 각 배치마다 <strong>즉시 롤백 가능</strong></li>
+    <li>전환창 동안 고객 영향 0 — 매장 영업 무중단, 원격 자동 페어링</li>
+  </ul>
+  <h3><span class="num">4</span>안정화 및 구시스템 정리</h3>
+  <ul>
+    <li>전 매장 전환 완료 후 모니터링·안정화, 구시스템 의존 제거</li>
+  </ul>
+
+  <!-- 4. 무피해 보장 -->
+  <h2>Ⅴ. 고객 무피해 보장 방안 (자발적 안전장치)</h2>
+  <table>
+    <tr><th>항목</th><th>보장 내용</th><th>고객 영향</th></tr>
+    <tr><td>선불잔액·이용권</td><td>PG·회계 대사로 금액 재구성 → <strong>100% 승계·보전</strong>, 본인확인 시 즉시 복원</td><td class="ok">無</td></tr>
+    <tr><td>진행 중 예약</td><td>전환창 동안 양 시스템 동기, 예약 누락 0 검증 후 전환</td><td class="ok">無</td></tr>
+    <tr><td>키오스크 체크인</td><td>원격 재페어링으로 매장 영업시간 외 무중단 전환</td><td class="ok">無</td></tr>
+    <tr><td>데이터 정합성</td><td>이관 전후 <strong>건수·금액 대사 리포트</strong>로 무손실 입증</td><td class="ok">無</td></tr>
+    <tr><td>고객 지원</td><td>전환 기간 전용 고객지원·공지 체계 운영</td><td class="ok">無</td></tr>
+  </table>
+
+  <!-- 5. 리스크 -->
+  <h2>Ⅵ. 전환 리스크 및 대응</h2>
+  <p>신청인 측은 전환 리스크를 사전에 식별하고 각각의 대응책을 마련하였다. (리스크를 은폐하지 않고 대비함)</p>
+  <table>
+    <tr><th>리스크</th><th>대응책</th></tr>
+    <tr><td>데이터 미인도</td><td>PG·세무·재온보딩으로 재구성, 수입 스키마 사전 설계</td></tr>
+    <tr><td>키오스크 단말 다양성</td><td>파일럿 검증 후 배치 전환, 원격 페어링 자동화</td></tr>
+    <tr><td>선불잔액 불일치</td><td>다중 원장 교차 대사 + 본인확인 시 정정 절차</td></tr>
+    <tr><td>전환 중 장애</td><td>병행운영 + 즉시 롤백 + 전용 지원체계</td></tr>
+    <tr><td>외부연동(PG 등) 재계약 지연</td><td>신규 가맹·키 사전 발급, 구·신 연동 병행</td></tr>
+  </table>
+
+  <!-- 6. 반박 -->
+  <h2>Ⅶ. 피신청인 측 주장에 대한 기술적 반박</h2>
+  <blockquote>
+    피신청인 측은 “시스템이 복잡하여 신청인 측이 운영할 수 없다”고 주장하나, 이는 다음과 같이 부당하다.
+  </blockquote>
+  <ul>
+    <li><strong>피신청인 스스로 같은 시스템을 운영하려 하고 있다 — 주장의 자기모순.</strong> 피신청인은 동일한 시스템을 <strong>자신의 회사 <mark>레슨몬스터</mark>로 이전하여 운영</strong>하려 하고 있다. 같은 복잡성·같은 인력 수준에서 한쪽(레슨몬스터)은 운영 가능하고 다른 한쪽(레슨북)은 불가능하다는 것은 성립할 수 없다. 즉 ‘복잡성’은 운영 불가의 근거가 아니라, <strong>데이터를 레슨몬스터로 옮길 시간을 벌기 위한 구실</strong>에 불과하다.</li>
+    <li><strong>‘고객 보호’ 주장은 진의가 아니다.</strong> 진정 고객을 위한다면 정당한 권리자인 회사(레슨북)로의 인수인계에 협조해야 하나, 피신청인은 회사 자산인 데이터의 인도를 거부하면서 이를 자신의 회사로 빼돌리고 있다. ‘고객 피해’ 주장은 자산 이전을 완료하기 위한 <strong>명분(pretext)</strong>이다.</li>
+    <li><strong>‘복잡성’은 운영 불가의 근거가 아니다.</strong> 마이그레이션·병행운영·롤백·키오스크 재프로비저닝은 모두 IT 업계의 <strong>정형화된 표준 절차</strong>이며, 본 조직은 동종 경험을 보유한다.</li>
+    <li><strong>운영 주체는 ‘개인’이 아니라 ‘조직’이다.</strong> 피신청인 역시 혼자 1,000대의 키오스크를 운영하는 것이 아니라 팀과 시스템으로 운영한다. 비교 대상은 개인 능력이 아니라 조직 역량이어야 한다.</li>
+    <li><strong>‘복잡성’ 주장은 곧 속인성(屬人性) 위험의 자백이다.</strong> 특정 개발자 없이는 운영이 불가능하다면, 그 개인의 이탈·적대 시 서비스 전체가 붕괴하는 구조라는 뜻이며, 지금이 바로 그 위험이 현실화되는 상황이다.</li>
+    <li><strong>고객 피해의 진짜 원인은 피신청인의 비협조다.</strong> 진정 고객을 위한다면 인수인계에 협조해야 하나, 피신청인은 회사 자산인 데이터의 인도를 거부하고 있다.</li>
+  </ul>
+
+  <!-- 7.5 회복할 수 없는 손해 -->
+  <h2>Ⅷ. 가처분이 인용되지 않을 경우의 회복불가능한 손해</h2>
+  <p>본 사안에서 가처분을 인용하지 않을 경우와 인용할 경우의 손해를 비교하면, 인용의 필요성이 명백하다.</p>
+  <table>
+    <tr><th>구분</th><th>발생하는 결과</th><th>회복 가능성</th></tr>
+    <tr><td><strong>인용하지 않을 경우</strong></td><td>피신청인이 그 기간 동안 레슨북의 고객·가맹매장(1,000여)·강사·데이터를 자신의 회사 <mark>레슨몬스터</mark>로 계속 이전·흡수. 키오스크가 레슨몬스터 서버로 재페어링되고 고객이 레슨몬스터 앱으로 이동하면 거래관계가 사실상 고착됨</td><td style="color:#b91c1c;font-weight:700;white-space:nowrap">회복 불가</td></tr>
+    <tr><td><strong>인용할 경우</strong></td><td>신청인 측이 확보한 정예 개발팀으로 무중단 직접 운영(본 문서 Ⅱ~Ⅴ). 고객 선불잔액·예약·체크인 모두 보전</td><td class="ok">고객 피해 無</td></tr>
+  </table>
+  <ul>
+    <li><strong>고객·거래처 관계의 이전은 금전배상으로 원상회복되지 않는다.</strong> 일단 1,000여 가맹매장과 고객이 레슨몬스터로 옮겨가면, 사후에 본안에서 승소하더라도 떠난 거래관계와 영업기반을 되돌릴 수 없다 — 이것이 <strong>‘회복할 수 없는 손해’</strong>이다.</li>
+    <li><strong>기술적으로도 비가역적이다.</strong> 키오스크 재페어링·고객 앱 이전·데이터 이관이 레슨몬스터 방향으로 완료되면, 그 상태를 레슨북으로 되돌리는 것은 사실상 불가능에 가깝다. 즉 <strong>시간이 흐를수록 손해는 확정·고착된다.</strong></li>
+    <li><strong>손해의 비교형량.</strong> 인용 시 고객 피해는 없고(본 문서로 소명), 기각 시 회복불가능한 손해가 발생한다. 따라서 <strong>보전의 필요성이 인정된다.</strong></li>
+  </ul>
+
+  <!-- 7. 결어 -->
+  <h2>Ⅸ. 결어</h2>
+  <p>이상과 같이 신청인 측은 <strong>① 검증된 개발 조직</strong>, <strong>② 표준 절차에 기반한 무중단 전환 계획</strong>, <strong>③ 고객 피해를 원천 차단하는 자발적 안전장치</strong>를 모두 갖추고 있다. 따라서 신청인 측이 직접 운영하더라도 고객 피해는 발생하지 아니하며, 오히려 현 비정상 상태(데이터 인질·경영 분쟁)의 조속한 해소가 고객 보호에 부합한다.</p>
+  <p style="font-size:12.5px;color:var(--sub)">※ 신청인 측은, 재판부가 필요로 할 경우 <strong>중립적 제3자(법원 선임 관리인 또는 IT 감리)의 데이터 보전·전환 감독</strong>도 수용할 의사가 있음을 밝힌다.</p>
+
+  <p style="text-align:center;margin-top:30px;font-size:14px;">
+    <mark>2026. ○. ○.</mark><br><br>
+    위 신청인 대리인 <mark>변호사 ○ ○ ○</mark> (인)
+  </p>
+
+  <footer>
+    [별첨 1] 개발 조직 구성원 상세 약력 &nbsp;·&nbsp; [별첨 2] 동종 구축 실적 포트폴리오 &nbsp;·&nbsp; [별첨 3] 전환 일정표(간트) &nbsp;·&nbsp; [별첨 4] 외부 전문가 의견서
+  </footer>
+
+</div>
+</body>
+</html>

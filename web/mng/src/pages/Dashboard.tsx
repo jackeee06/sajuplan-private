@@ -31,8 +31,8 @@ import { api } from '../lib/api'
  */
 
 interface Summary {
-  members: { total: number; today: number; this_month: number }
-  counselors: { total: number; idle: number; busy: number; absent: number; today_active?: number }
+  members: { total: number; today: number; yesterday?: number; this_month: number }
+  counselors: { total: number; idle: number; busy: number; absent: number; today_active?: number; new_today?: number; new_yesterday?: number }
   balance?: { free: number; paid: number; earning: number; consume_total: number; earning_total: number; total: number }
 }
 interface SalesPoint {
@@ -222,12 +222,12 @@ function Kpi({
   const body = (
     <>
       <div className="text-[10px] text-gray-500 dark:text-gray-400 leading-tight">{label}</div>
-      <div className={`text-base font-bold tabular-nums leading-tight mt-0.5 ${valueTone[tone]}`}>{value}</div>
+      <div className={`text-[13px] font-bold tabular-nums leading-tight mt-0.5 ${valueTone[tone]}`}>{value}</div>
       {sub && <div className="text-[9px] text-gray-400 mt-0.5 leading-tight">{sub}</div>}
     </>
   )
   const baseCls =
-    'rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-2 py-1.5'
+    'rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-1.5 py-1.5'
   if (to) {
     return (
       <Link to={to} className={`${baseCls} block hover:border-brand-300 hover:shadow-sm transition`}>
@@ -304,9 +304,9 @@ export default function Dashboard() {
         </span>
       </div>
 
-      {/* Row 1 — KPI 10개 한 줄 */}
+      {/* Row 1 — KPI 11개 한 줄 (숫자 작게·조밀) */}
       <div className="overflow-x-auto">
-      <div className="grid grid-cols-10 gap-1.5 min-w-[900px]">
+      <div className="grid grid-cols-11 gap-1.5 min-w-[1000px]">
         <Kpi
           label="오늘 매출"
           value={won.format(todayTotal)}
@@ -324,7 +324,20 @@ export default function Dashboard() {
           tone="emerald"
           to="/members/counselors"
         />
-        <Kpi label="오늘 가입" value={num.format(summary.members.today)} tone="amber" to="/members/customers" />
+        <Kpi
+          label="어제 신규 회원"
+          value={`${num.format(summary.members.yesterday ?? 0)}명`}
+          sub={`오늘 ${num.format(summary.members.today)}명`}
+          tone="amber"
+          to="/members/customers"
+        />
+        <Kpi
+          label="어제 신규 상담사"
+          value={`${num.format(summary.counselors.new_yesterday ?? 0)}명`}
+          sub={`오늘 ${num.format(summary.counselors.new_today ?? 0)}명`}
+          tone="blue"
+          to="/members/counselors"
+        />
         <Kpi
           label="오늘 출석 상담사"
           value={`${num.format(summary.counselors.today_active ?? 0)}명`}
@@ -340,10 +353,10 @@ export default function Dashboard() {
           to="/points/history"
         />
         <Kpi
-          label="평균 별점(30일)"
-          value={quality.avg_rating > 0 ? `★ ${quality.avg_rating.toFixed(2)}` : '—'}
-          sub={`낮은 별점 ${quality.low_rating_count}건 / 전체 ${quality.total_reviews}`}
-          tone={quality.avg_rating === 0 ? 'default' : quality.avg_rating >= 4.5 ? 'emerald' : quality.avg_rating >= 4 ? 'amber' : 'rose'}
+          label="30일 후기 수"
+          value={`${num.format(quality.total_reviews)}건`}
+          sub="최근 30일 작성"
+          tone="brand"
           to="/posts/review"
         />
         <Kpi
@@ -511,7 +524,7 @@ export default function Dashboard() {
           </ul>
         </Card>
 
-        <Card title="이탈 위험 (7일 0건)" to="/members/counselors">
+        <Card title="이탈 위험 (7일간 상담0건)" to="/members/counselors">
           <ul className="divide-y divide-gray-100 dark:divide-gray-700">
             {counselorPanel.inactive_7d.length === 0 ? (
               <li className="py-2 text-xs text-gray-400">모든 상담사 활동 중 ✓</li>
@@ -534,15 +547,14 @@ export default function Dashboard() {
             {counselorPanel.unreplied_reviews.length === 0 ? (
               <li className="py-2 text-xs text-gray-400">미답변 후기 없음 ✓</li>
             ) : counselorPanel.unreplied_reviews.map((r) => (
-              <li key={r.id} className="py-1 text-xs">
+              <li key={r.id} className="py-1.5 text-xs">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-amber-500 flex-shrink-0">{'★'.repeat(r.rating)}<span className="text-gray-300">{'★'.repeat(5 - r.rating)}</span></span>
+                  <Link to={`/members/counselors/${r.counselor_id}`} className="min-w-0 truncate hover:text-brand-600">
+                    <span className="font-medium text-gray-700 dark:text-gray-200">{r.counselor_nickname ?? `#${r.counselor_id}`}</span>
+                    <span className="text-gray-400 ml-1">· {r.content_preview}</span>
+                  </Link>
                   <span className="text-[10px] text-gray-400 flex-shrink-0">{formatRelative(r.created_at)}</span>
                 </div>
-                <Link to={`/members/counselors/${r.counselor_id}`} className="block text-gray-600 dark:text-gray-300 truncate hover:text-brand-600">
-                  <span className="font-medium">{r.counselor_nickname ?? `#${r.counselor_id}`}</span>
-                  <span className="text-gray-400 ml-1">· {r.content_preview}</span>
-                </Link>
               </li>
             ))}
           </ul>

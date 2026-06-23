@@ -85,10 +85,13 @@ export class NotificationsService {
 
     const items = await this.sql`
       SELECT n.id, n.member_id, n.mb_id, n.title, n.content, n.link_url, n.category, n.code, n.created_at,
-             n.via_inapp, n.via_push,
-             m.mb_id, m.name AS member_name
+             n.via_inapp, n.via_push, n.viewed_by,
+             m.name AS member_name, m.nickname AS member_nickname, m.role AS member_role,
+             n.actor_member_id, n.actor_mb_id,
+             am.name AS actor_name, am.nickname AS actor_nickname, am.role AS actor_role
       FROM notification_log n
       LEFT JOIN member m ON m.id = n.member_id
+      LEFT JOIN member am ON am.id = n.actor_member_id
       ${whereClause}
       ORDER BY n.created_at DESC NULLS LAST, n.id DESC
       LIMIT ${limit} OFFSET ${offset}

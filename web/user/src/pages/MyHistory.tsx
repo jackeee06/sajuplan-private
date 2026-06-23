@@ -126,19 +126,20 @@ export default function MyHistory() {
         })}
       </div>
 
-      <div className="px-4 py-3 border-b border-[#F3F4F6]">
+      <div className="px-4 py-3 border-b border-[#F3F4F6] flex items-center justify-between gap-2">
         <span className="text-[14px] text-[#4A5565]">
           전체 <span className="text-[#ec4899] font-medium">{total.toLocaleString()}</span>건
         </span>
+        <span className="text-[12px] text-[#99A1AF] shrink-0">내가 상담받은 내역</span>
       </div>
 
       {/* [2026-05-24] 동시 역할자(other_role_count > 0)에게만 항상 노출.
           데이터 있든 없든 상관없이 보임 — 본인 시점이 회원/상담사 어느 쪽인지 헷갈리는 경우 가이드.
           일반 회원은 other_role_count = 0 이라 절대 안 보임 (상담사 브랜드 신뢰 보호). */}
       {otherRoleCount > 0 && (
-        <div className="px-4 py-2.5 bg-[#FFF7FA] border-b border-[#fce7f3]">
-          <p className="text-[12.5px] leading-[160%] text-[#9d174d]">
-            ※ 회원·상담사 두 역할을 모두 사용하신다면 마이페이지 상단의 <span className="font-medium">[회원 ⇄ 상담사]</span> 모드 전환을 확인해 주세요.
+        <div className="px-4 py-2 bg-[#FFF7FA] border-b border-[#fce7f3]">
+          <p className="text-[12.5px] leading-[150%] text-[#9d174d]">
+            ※ 이 목록은 <span className="font-medium">회원으로 “상담받은”</span> 내역입니다.
           </p>
         </div>
       )}

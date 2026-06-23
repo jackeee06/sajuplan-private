@@ -27,8 +27,11 @@
 - BizM 설정(`sajuplan://#{url}`)·백엔드·서버·사주플랜 코드 = 변경 0 (정상). 안드로이드가 정상이므로 BizM/서버 문제 아님. **BizM·서버 변경 불필요.**
 - 일부 아이폰 에러 제보는 iOS 기능 자체는 등록돼 있으므로 **그 단말의 앱 미설치/구버전 등 환경 가능성** (단정 금지).
 
-### 5. 웹앱 게이트 (일반 브라우저 차단 — 2026-06-12 신설)
-- 컴포넌트: `web/user/src/components/WebAppGate.tsx` — `App.tsx` `<BrowserRouter>` 직하에 마운트.
+### 5. 웹 개방 (2026-06-21) — 일반 브라우저 허용 ★현재 상태
+- **`WebAppGate.tsx` 상단 `const WEB_OPEN = true`** → `shouldGate()` 첫 줄에서 항상 `false` 반환 = **게이트 미노출**. 브라우저(PC·모바일)도 사이트 정상 노출.
+- **웹·앱 = 같은 서버·DB·계정** (앱=WebView 셸). 웹 가입→앱 로그인 정상, 웹 결제→코인 계정 충전→앱 사용. 기기 종속은 FCM 푸시 토큰뿐(브라우저 미지원). 인증=`sjm_user` JWT 쿠키(웹·앱 각자 세션, 같은 계정).
+- **되돌리기**: `WEB_OPEN=false` 후 `_patch_frontend_fast.py user` 재배포 → 아래 옛 게이트 로직 부활.
+- ⚠️ 옛 게이트(2026-06-12~06-21, 코드 보존, `WEB_OPEN=false`일 때만 동작):
 - `shouldGate()` = `true` 일 때만 전체화면(`data-testid="web-app-gate"`) 노출. **통과(게이트 안 띄움) 조건**:
   - `isNativeApp()` (앱 WebView, `native-bridge.ts`)
   - `navigator.webdriver` (Playwright 등 자동화 → 기존 E2E 무영향)

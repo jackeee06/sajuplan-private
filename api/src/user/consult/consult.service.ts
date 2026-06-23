@@ -516,9 +516,11 @@ export class UserConsultService {
       name: string | null;
       member_nickname: string | null;
       member_name: string | null;
+      requester_id: number | null;
     }[]>`
       SELECT c.phone, c.nickname, c.name,
-             m.nickname AS member_nickname, m.name AS member_name
+             m.nickname AS member_nickname, m.name AS member_name,
+             cr.member_id AS requester_id
         FROM member c
         LEFT JOIN chat_room cr ON cr.id = ${chatRoomId}
         LEFT JOIN member m ON m.id = cr.member_id
@@ -606,6 +608,7 @@ export class UserConsultService {
     // ── ③ 알림함 기록 (종모양) — 푸시/카톡이 휘발돼도 내역으로 남김 ──────────────
     await this.inbox.record({
       memberId: counselorId,
+      actorMemberId: csr.requester_id,
       code: 'chat_request',
       title: '채팅 상담 요청이 도착했습니다',
       content: `${memberName} 님이 채팅상담을 신청했습니다. 3분 안에 입장해주세요.`,

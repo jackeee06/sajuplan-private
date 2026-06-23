@@ -16,9 +16,13 @@ notification_log
 - via_push BOOLEAN   def f  — FCM 푸시로도 발송됐는가 (📲푸시 뱃지)
 - via_alimtalk BOOLEAN def f — 카카오 알림톡으로도 발송됐는가 (💬카톡 뱃지)  ← 마이그 20260619200000
 - viewed_by JSONB          — 읽은 사용자 mb_id 배열(jsonb). per-user read 추적
+- actor_member_id BIGINT NULL  — ★보낸 사람(이벤트 유발자) member.id  ← 마이그 20260621000000
+- actor_mb_id VARCHAR NULL      — 보낸 사람 mb_id(표시용). 과거행은 NULL(역할로만 추론)
 - created_at TIMESTAMPTZ
 - INDEX idx_notification_log_member_time (member_id, created_at DESC)  ← 마이그 20260619200000
 ```
+
+> **보낸 사람(actor) 기록(2026-06-21)**: notification_log 는 원래 **받는 사람만** 저장 → 관리자 알림이력에서 "누가→누구" 중 "누가"를 알 수 없었음. `actor_member_id`/`actor_mb_id` 추가로 **앞으로 발생분은 "회원→상담사" 양쪽 식별** 가능. 과거행은 NULL → 역할 추론으로만 표시.
 
 - 마이그레이션: `20260619000000_notification_channels.sql`(via_inapp/via_push) + `20260619200000_notification_inbox.sql`(via_alimtalk + member_time 인덱스).
 - **read 판정은 per-user**: `viewed_by` 에 본인 mb_id 포함 여부 (`read = !!myMbId && viewers.includes(myMbId)`). 전역 is_read 아님. 읽음 처리는 `viewed_by ? mb_id` 추가.
@@ -28,8 +32,9 @@ notification_log
 
 핵심 설계: **비즈니스 이벤트 발생 지점에서 한 행만 기록**하고, 실제 나간 채널을 플래그로 박는다. → 한 사건 = 한 줄(중복 없음), event_key 플러밍 불필요.
 
-- `api/src/shared/inbox/inbox.service.ts` — `InboxService.record({ memberId, code, title, content?, linkUrl?, viaPush?, viaAlimtalk? })`.
+- `api/src/shared/inbox/inbox.service.ts` — `InboxService.record({ memberId, code, title, content?, linkUrl?, viaPush?, viaAlimtalk?, actorMemberId? })`.
   - `via_inapp` 는 항상 true(종모양 노출), `category='개별'`, mb_id 는 member 조회로 채움.
+  - **`actorMemberId`(2026-06-21)**: 보낸 사람. 있으면 그 회원 mb_id 조회해 `actor_member_id`/`actor_mb_id` 박제. **actor 전달 5개 이벤트**: review(후기 쓴 회원=`authorMemberId`) / qna_ask(문의한 `memberId`) / qna_answer(답변한 상담사 `counselorId`) / call_request(`params.requesterId`) / chat_request(`cr.member_id` SELECT 추가). 나머지(정산·선지급·쿠폰·등급·부재·취소)는 운영/시스템 발신이라 actor 없음.
   - **best-effort**: 절대 throw 안 함(try/catch + warn). 본 비즈니스/머니 흐름 무영향.
   - `@Global() InboxModule`(`shared/inbox/inbox.module.ts`) → AppModule 1회 import, 어디서든 주입.
 - **이벤트 발송 지점(record 호출처)** — 각 지점은 푸시/알림톡 보낸 직후 1회 호출:
@@ -96,6 +101,20 @@ notification_log
 - **종모양 노출 필터(★)**: 사용자 조회(`user/notifications.service.ts list()`)는 `WHERE via_inapp = true` → **푸시-only(via_inapp=false)는 종모양에서 제외**. 이벤트성 인앱(플래그 미지정)은 default `via_inapp=true` → 정상 노출.
 - 관리자 이력 채널 필터: `pushHistory({channel:'inapp'|'push'})`. 검증 스펙 `e2e/tests/109-notification-channels.spec.ts` + 통합 인박스 `e2e/tests/110-notification-inbox.spec.ts`(안읽음카운트 API·채널/코드 필드·벨 이동·문의→상담사 알림함 기록 양방향).
 - **테스트/누적 정리**: 관리자 "알림 보내기" → "보낸 이력 → 내역 비우기" → `DELETE FROM notification_log` (`clearPushHistory`, `@Delete('push-history')`).
+
+## 관리자 알림 이력 화면 (NotificationHistory, `/mng/notification-history`) — 2026-06-21 개편
+
+- 데이터 = `notification_log`(인앱·푸시 보낸 기록). 카카오 **알림톡 발송 이력**(`alimtalk_log`)은 별도 메뉴 [`/mng/alert-logs`](alert/08-alert-logs).
+- 조회 API `admin/notifications.service.ts pushHistory()` — SELECT 에 `n.code, n.viewed_by, n.actor_member_id, n.actor_mb_id` + 받는이 `m` · 보낸이 `am` **2중 LEFT JOIN**(name/nickname/role).
+- **컬럼**: 일시 · 종류 · 분류 · 채널 · 제목 · **보낸 → 받는** · 아이디 · 읽음 · 관리.
+  - **종류**: `code` → 아이콘+라벨(📢공지/💬채팅요청/📞전화요청/❓문의/💡답변/⭐후기/🎉등급/💰정산/💸선지급/🎁쿠폰/🚨신고/⏱️취소). 미매핑은 원본.
+  - **보낸→받는(방향)**: actor 기록 있으면 **실명**(예 "홍길동 → 선샤인선생"), 없으면(과거/시스템) **역할 추론**. FLOW: review/qna_ask/call_request/chat_request=회원→상담사, qna_answer=상담사→회원, settlement/payout/coupon=운영→…, grade/absent/chat_cancelled=시스템→…. 색: 회원=파랑·상담사=청록·운영=보라·시스템=회색. 화살표 진하게(gray-600 bold).
+  - **읽음**: 개별(member_id 있음)만 — `viewed_by` 에 수신자 mb_id 포함이면 "읽음" 아니면 "안읽음". 브로드캐스트는 `—`.
+  - **아이디**: 받는이 mb_id, 짧게 truncate(회색·툴팁 전체값).
+- **200줄/페이지 + 하단 페이지네이션**(`PaginationBar`), 행 조밀(`[&_td]:!py-0.5`).
+- **URL 컬럼 제거**(2026-06-21): 단건 내용은 제목 클릭 모달이 담당, 중복이라 제거.
+- 상단: 한 줄 타이틀(인라인 카운트) + 납작 툴바(검색+내역비우기) + 분류·채널 칩 (상담후기관리 표준).
+- ⚠️ 데이터 한계: actor 는 **앞으로 발생분만** 채워짐. 과거행(2026-06-21 이전)은 actor NULL → "회원 → 선샤인선생"처럼 보낸쪽이 역할로만 표시.
 
 ## 운영 SQL
 
