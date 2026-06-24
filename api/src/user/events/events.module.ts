@@ -5,5 +5,6 @@ import { UserEventsService } from './events.service';
 @Module({
   controllers: [UserEventsController],
   providers: [UserEventsService],
+  exports: [UserEventsService],
 })
 export class UserEventsModule {}

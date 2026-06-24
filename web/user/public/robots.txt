@@ -1,0 +1,58 @@
+# 사주플랜(sajuplan.com) robots.txt
+# 공개(SEO) 페이지는 허용, 개인화·거래·관리자·내부파일은 차단.
+# 정책 변경 시 web/user/public/robots.txt 수정 후 재배포.
+
+User-agent: *
+
+# --- 관리자 / API / 내부 ---
+Disallow: /mng
+Disallow: /mng/
+Disallow: /api
+Disallow: /api/
+Disallow: /uploads/
+
+# --- 인증 / 개인 영역 (SEO 가치 없음 + 프라이버시) ---
+Disallow: /login
+Disallow: /signup
+Disallow: /find
+Disallow: /mypage
+Disallow: /mypage/
+Disallow: /member/
+Disallow: /charge
+Disallow: /chat
+Disallow: /chat/
+
+# --- 상담사 마이페이지 / 정산 (개인 영역) ---
+Disallow: /counselor/mypage
+Disallow: /counselor/mypage/
+Disallow: /settlement
+Disallow: /payout
+
+# --- 모집인 / 내부 랜딩 (검색 노출 불필요) ---
+Disallow: /promoter
+Disallow: /promoter/
+Disallow: /s/
+
+# --- public 폴더 내부/테스트 산출물 (색인 금지) ---
+Disallow: /lb.html
+Disallow: /lb2.html
+Disallow: /pi.html
+Disallow: /sp.html
+Disallow: /scheme-test.html
+Disallow: /badge-demo.html
+Disallow: /coupon-og.html
+Disallow: /*.xlsx$
+Disallow: /*.docx$
+Disallow: /*.pdf$
+
+# --- 공개 허용 (명시) ---
+# /              메인
+# /search        검색
+# /counselors    상담사 목록
+# /counselors/*  상담사 상세
+# /notices, /events, /help  공지·이벤트·이용안내
+Allow: /$
+Allow: /counselors
+Allow: /search
+
+Sitemap: https://sajuplan.com/sitemap.xml

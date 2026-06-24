@@ -5,5 +5,6 @@ import { UserNoticesService } from './notices.service';
 @Module({
   controllers: [UserNoticesController],
   providers: [UserNoticesService],
+  exports: [UserNoticesService],
 })
 export class UserNoticesModule {}

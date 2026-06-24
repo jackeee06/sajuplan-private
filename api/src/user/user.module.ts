@@ -29,6 +29,7 @@ import { CounselorMypageInquiryModule } from './counselor-mypage-inquiry/counsel
 import { UserSupportInquiryModule } from './support-inquiry/support-inquiry.module';
 import { AppVersionModule } from './app-version/app-version.module';
 import { UserPopupsModule } from './popups/popups.module';
+import { SeoModule } from './seo/seo.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { UserPopupsModule } from './popups/popups.module';
     UserSupportInquiryModule,
     AppVersionModule,
     UserPopupsModule,
+    SeoModule,
   ],
 })
 export class UserModule {}

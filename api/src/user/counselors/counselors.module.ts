@@ -10,5 +10,6 @@ import { PushModule } from '../../shared/push/push.module';
   imports: [UserReviewsModule, AuthModule, SmsModule, PushModule],
   controllers: [UserCounselorsController],
   providers: [UserCounselorsService],
+  exports: [UserCounselorsService],
 })
 export class UserCounselorsModule {}

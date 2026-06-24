@@ -32,6 +32,13 @@ import paramiko
 # 2026-05-17: 상담사 후기 알림톡 추가
 # audit A~G 전체 변경분 외과 패치 (18개 파일) — 이전 배포 분
 FILES = [
+    # 2026-06-25: SEO dynamic rendering — 봇/카톡 스크래퍼 전용 풀 HTML(메타·OG·JSON-LD) + sitemap.xml
+    ("api/src/user/seo/seo.service.ts", "src/user/seo/seo.service.ts"),
+    ("api/src/user/seo/seo.controller.ts", "src/user/seo/seo.controller.ts"),
+    ("api/src/user/seo/seo.module.ts", "src/user/seo/seo.module.ts"),
+    ("api/src/user/counselors/counselors.module.ts", "src/user/counselors/counselors.module.ts"),
+    ("api/src/user/notices/notices.module.ts", "src/user/notices/notices.module.ts"),
+    ("api/src/user/events/events.module.ts", "src/user/events/events.module.ts"),
     # 2026-06-21: 운영 KPI 기간 필터(fr_date/to_date) — admin stats 배포 누락 보정 (오늘/어제/지난달 동일하던 버그)
     ("api/src/admin/stats/stats.service.ts", "src/admin/stats/stats.service.ts"),
     ("api/src/admin/stats/stats.controller.ts", "src/admin/stats/stats.controller.ts"),
