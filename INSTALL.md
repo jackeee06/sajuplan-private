@@ -84,9 +84,8 @@ FCM_CREDENTIALS_PATH=./secrets/fcm-service-account.json
 
 ### 3-2) FCM 서비스 계정 키
 
-레거시 위치에서 복사:
-- 출처: `/sample/lib/sajummon_push_key.json` (project: **sajummon-5a4c0**)
-- 신규 위치: `api/secrets/fcm-service-account.json`
+- Firebase 콘솔(project: **sajummon-5a4c0**)에서 발급한 서비스 계정 키
+- 위치: `api/secrets/fcm-service-account.json`
 - **반드시 운영 서버 배포 시 별도 업로드 필요** — 이 파일은 `.gitignore`에 포함됨
 
 ```bash

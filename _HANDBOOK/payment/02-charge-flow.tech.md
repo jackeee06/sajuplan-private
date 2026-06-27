@@ -12,7 +12,7 @@
 - `charge.service.ts` `prepareCharge()`:
   ```typescript
   const payAmount = Math.round(pkg.amount * 1.1); // VAT 가산
-  // sample/coin_fill.php 라인 70: 최소 결제 금액 30,000원.
+  // 최소 결제 금액 30,000원.
   if (payAmount < 30000) {
     throw new BadRequestException('최소 결제 금액은 30,000원입니다.');
   }

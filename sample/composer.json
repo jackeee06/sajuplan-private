@@ -1,6 +1,0 @@
-{
-    "require": {
-        "google/auth": "^1.19",
-        "google/apiclient": "^2.12.1"
-    }
-}

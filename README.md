@@ -24,7 +24,6 @@
 │   ├── user/         # 사용자향 프론트엔드 (SSR)
 │   └── mng/          # 관리자 프론트엔드
 ├── mobile/           # (예정) 모바일 앱
-├── sample/           # 레거시 PHP 참조 코드
 ├── images/           # 디자인 아이콘·이미지 에셋
 ├── PLAN/             # 도메인별 구현 로드맵 (Phase 별)
 ├── docs/             # 설계 문서, Figma Make 프로토타입

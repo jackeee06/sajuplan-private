@@ -149,7 +149,7 @@ AND (
 unit_seconds = COALESCE(m.call_unit_seconds, m.chat_unit_seconds, pc.unit_seconds)
 unit_cost    = COALESCE(NULLIF(m.call_070_unit_cost,0), NULLIF(m.chat_unit_cost,0), pc.unit_cost)
 ```
-`member.*` 가 진실원 (관리자폼·m2net·정산 모두 사용). `post_counselor.unit_cost` 는 g5_write_5 레거시.
+`member.*` 가 진실원 (관리자폼·m2net·정산 모두 사용). `post_counselor.unit_cost` 는 옛 레거시 컬럼(미사용).
 
 ## is_liked / is_requested 계산
 
@@ -178,7 +178,7 @@ ORDER: `relevance ASC, review_count DESC NULLS LAST, id DESC`.
 
 ## 인기 검색어 (popularKeywords)
 
-1. **search_log** (최근 7일, keyword<>'') 빈도 상위 cap개. result_count 무관(그누보드 g5_popular 정책).
+1. **search_log** (최근 7일, keyword<>'') 빈도 상위 cap개. result_count 무관(검색 빈도 기준).
 2. 부족분만 **해시태그**(hashtag1/2 distinct, 빈도순) 로 보충. 이미 등장 키워드 중복 제외.
 3. **search_keyword_pin** (rank, keyword) 머지 — 핀 있는 슬롯은 핀으로 교체, 나머지는 organic.
 4. isNew: 로그출신 = MIN(created_at) > now-24h / 해시태그출신 = MAX(가입일) < 30d.

@@ -1,1 +1,0 @@
-<span class="counselor_num"><?=$list[$i]["mb_no"]?></span>

@@ -4,7 +4,7 @@
 >
 > **작성**: 2026-05-29 (Phase 1)
 > **검수 주체**: 사장님 (jackee). 정책 변경 시 이 문서를 가장 먼저 수정.
-> **연결**: [PLAN/domain-01-member-point.md](PLAN/domain-01-member-point.md), [PLAN/domain-02-payment-order.md](PLAN/domain-02-payment-order.md), [PLAN/domain-03-counselor-settlement.md](PLAN/domain-03-counselor-settlement.md), [PLAN/domain-03b-settlement-flow-trace.md](PLAN/domain-03b-settlement-flow-trace.md)
+> **연결**: 상세는 `_HANDBOOK/payment/` (m2net 관계·충전·정산·환불·선지급·자동충전) 참조.
 
 ---
 
@@ -714,20 +714,6 @@ payout_request.status='paid', paid_at=NOW()
 - [api/src/cron/retry-cron.service.ts](api/src/cron/retry-cron.service.ts) — 실패 재시도
 - [api/src/cron/health-check.service.ts](api/src/cron/health-check.service.ts) — 무결성 검증
 - [api/src/user/counselor-mypage-payout/counselor-mypage-payout.service.ts](api/src/user/counselor-mypage-payout/counselor-mypage-payout.service.ts) — 선지급
-
-### PHP 레거시 (원본 진실)
-- [sample/coin/coin_pay_ok.php](sample/coin/coin_pay_ok.php) — 결제 콜백
-- [sample/mtonet/auto_pay_result.php](sample/mtonet/auto_pay_result.php) — 자동결제 콜백
-- [sample/lib/pay_ag9.php](sample/lib/pay_ag9.php) — 결제 취소
-- [sample/cron/month_pay_end.php](sample/cron/month_pay_end.php) — 매월 1일 정산
-- [sample/lib/common.lib.php](sample/lib/common.lib.php) — `set_con_account_v2()` 정산 함수
-
-### 도메인 문서
-- [PLAN/domain-01-member-point.md](PLAN/domain-01-member-point.md) — 회원/포인트 도메인
-- [PLAN/domain-02-payment-order.md](PLAN/domain-02-payment-order.md) — 결제/주문 도메인
-- [PLAN/domain-03-counselor-settlement.md](PLAN/domain-03-counselor-settlement.md) — 상담사/정산 도메인
-- [PLAN/domain-03b-settlement-flow-trace.md](PLAN/domain-03b-settlement-flow-trace.md) — 정산 흐름 trace
-- [PLAN/phase-b-user-charge.md](PLAN/phase-b-user-charge.md) — 충전 phase 계획
 
 ---
 

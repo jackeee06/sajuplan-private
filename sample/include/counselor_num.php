@@ -1,1 +1,0 @@
-<span class="counselor_num"><?=$mb["mb_no"]?></span>

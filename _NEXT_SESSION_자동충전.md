@@ -72,16 +72,6 @@
 | `member` | id, mb_1 (m2net membid), telno, name, point | 회원 기본 정보 |
 | `account_setting` | id, amount, point | 충전 패키지 (auto_package_id 가 참조) |
 
-### Sample (옛 PHP) 매핑
-| 백엔드 함수 | sample/ PHP |
-|---|---|
-| `prepareCharge` | `coin/ajax.coin_fill_update.php` |
-| `autoPayCharge` | `coin/coin_pay_ok_auto.php` |
-| `registerAutoPayCard` | `coin/coin_fill_auto_card_update.php` |
-| `deleteAutoPayCard` | `coin/coin_fill_auto_card_del.php` |
-| `setAutoConfig` | `coin/coin_fill_auto_card_member_update.php` |
-| `handleAutopayPush` | `mtonet/auto_pay_result.php` |
-
 ---
 
 ## 🔄 데이터 흐름 — 3가지 시나리오
@@ -374,7 +364,7 @@ ssh root@104.64.128.103 'tail -f /var/log/sajumoon_ops_alert.log 2>/dev/null || 
 | 영역 | 담당 / 자료 |
 |---|---|
 | AG9 PG | passcall.co.kr (개발자가 contact 있음) |
-| m2net | sample/mtonet/ 코드 + m2net 측 담당 (개발자) |
+| m2net | m2net 측 담당 (개발자) |
 | BizM 알림톡 | 별도 _OPS_RUNBOOK.md 참조 |
 | 사장님 OpsAlert | 01075740572 (prod 등록 완료) |
 
