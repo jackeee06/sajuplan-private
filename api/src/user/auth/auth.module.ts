@@ -11,6 +11,7 @@ import { CaptchaModule } from '../captcha/captcha.module';
 import { M2netModule } from '../../shared/m2net/m2net.module';
 import { PushModule } from '../../shared/push/push.module';
 import { PromoterCoreModule } from '../../shared/promoter/promoter-core.module';
+import { OpsAlertModule } from '../../shared/ops-alert/ops-alert.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { PromoterCoreModule } from '../../shared/promoter/promoter-core.module';
     M2netModule,
     PushModule,
     PromoterCoreModule,
+    OpsAlertModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],

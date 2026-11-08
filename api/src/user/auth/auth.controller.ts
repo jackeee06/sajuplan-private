@@ -6,6 +6,7 @@ import {
   ForbiddenException,
   Get,
   HttpCode,
+  Logger,
   Param,
   Patch,
   Post,
@@ -37,6 +38,7 @@ import { OptionalUserGuard, type OptionalUserRequest } from './optional-user.gua
 import { SmsService } from '../sms/sms.service';
 import { CaptchaService } from '../captcha/captcha.service';
 import { convertImageToWebp } from '../../shared/common/image-to-webp';
+import { OpsAlertService } from '../../shared/ops-alert/ops-alert.service';
 
 const MEMBER_FILE_DIR = join(process.cwd(), 'uploads', 'member');
 mkdirSync(MEMBER_FILE_DIR, { recursive: true });
@@ -64,6 +66,8 @@ interface SocialPendingPayload {
 
 @Controller('user/auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly authService: AuthService,
     private readonly social: SocialAuthService,
@@ -72,6 +76,7 @@ export class AuthController {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly promoter: PromoterCoreService,
+    private readonly opsAlert: OpsAlertService,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -216,7 +221,7 @@ export class AuthController {
     const oldFiles = await this.authService.getCurrentProfileFiles(req.user.sub);
 
     // WebP 변환
-    const { webpFilename } = await convertImageToWebp(file.path);
+    const { webpFilename } = await convertImageToWebp(file.path, { maxDimension: 1280, quality: 80 });
 
     // DB 갱신 (단일 슬롯이라 기존 row 자동 삭제 + 새 row INSERT)
     const result = await this.authService.upsertProfileImage(req.user.sub, {
@@ -455,9 +460,18 @@ export class AuthController {
         state,
         this.callbackUrl(p),
       );
-    } catch {
-      // 토큰 교환·프로필 조회 실패 — JSON 노출/쿼리스트링 노출 모두 회피, 그냥 로그인 페이지로
-      return res.redirect(`${siteUrl}/login`);
+    } catch (e) {
+      // 토큰 교환·프로필 조회 실패 — 원인 상세는 화면/쿼리스트링에 노출하지 않는다.
+      // [2026-11-08] 예전엔 무로그 /login 리다이렉트라 웹 카카오 로그인 전면 실패(KOE010)가 5일+ 안 보였음.
+      //   → ① 서버 로그 ② 관리자 문의톡(같은 provider 하루 1회) ③ 로그인 화면에 안내창용 ?error=<p>_failed
+      const reason = e instanceof Error ? e.message : String(e);
+      this.logger.warn(`[social-callback] ${p} 토큰교환/프로필 실패: ${reason}`);
+      void this.opsAlert.send(
+        `${p === 'kakao' ? '카카오' : '네이버'} 웹 로그인 실패`,
+        `PC·인터넷 창 ${p === 'kakao' ? '카카오' : '네이버'} 로그인이 실패하고 있습니다(고객은 로그인 화면으로 돌아감, 앱 로그인은 별개). 원인: ${reason.slice(0, 300)}`,
+        { cooldownSec: 86400 },
+      );
+      return res.redirect(`${siteUrl}/login?error=${p}_failed`);
     }
 
     // 가입 이력이 있으면 → 그대로 로그인 + 메인(또는 redirect 경로) 으로
@@ -468,6 +482,24 @@ export class AuthController {
       await this.issueLoginCookie(res, member, true);
       void this.authService.creditLoginPointOnce(member.id);
       return res.redirect(`${siteUrl}${next}`);
+    }
+
+    // [2026-07-20] 신규(소셜 uid 미매칭)지만, 같은 전화번호로 이미 가입된 계정이 있으면
+    //   가입창 대신 로그인 페이지로 안내 — 일반가입자가 카카오 로그인을 눌러 가입창에 빠지는 혼란 방지.
+    if (profile.phone) {
+      const dup = await this.social.findMemberByPhone(profile.phone);
+      // [2026-07-20] 같은 provider 인데 uid 불일치(앱키/REST키 교체 등)면 "그 소셜로 로그인하라" 안내가
+      //   도돌이표 데드락이 되므로(방금 그 소셜로 로그인했음) 무시하고 신규가입(/signup)으로 진행한다.
+      //   다른 provider(로컬/타소셜)일 때만 안내한다.
+      if (dup && dup.social_provider !== p) {
+        // 소셜 계정(비번 NULL)은 아이디 로그인 불가 → social_dup. 순수 로컬(mb_id)만 id_dup. 그 외 exists=1.
+        const q = dup.social_provider
+          ? `social_dup=${dup.social_provider}`
+          : dup.mb_id
+            ? `id_dup=${encodeURIComponent(dup.mb_id)}`
+            : 'exists=1';
+        return res.redirect(`${siteUrl}/login?${q}`);
+      }
     }
 
     // 신규 사용자 → 소셜 프로필을 단기 토큰에 담아 쿠키 → /signup?social=:provider
@@ -541,7 +573,8 @@ export class AuthController {
         p === 'kakao'
           ? await this.social.fetchKakaoProfileFromAccessToken(access)
           : await this.social.fetchNaverProfileFromAccessToken(access);
-    } catch {
+    } catch (e) {
+      this.logger.warn(`[social-native] ${p} 앱 토큰검증 실패: ${e instanceof Error ? e.message : String(e)}`);
       return res.redirect(`${siteUrl}/login?error=${p}_token_invalid`);
     }
 
@@ -708,7 +741,8 @@ export class AuthController {
         'web',
         { name: nameFromUser, email: emailFromUser },
       );
-    } catch {
+    } catch (e) {
+      this.logger.warn(`[social-callback] apple 웹 토큰검증 실패: ${e instanceof Error ? e.message : String(e)}`);
       return res.redirect(`${siteUrl}/login?error=apple_token_invalid`);
     }
 
@@ -860,32 +894,14 @@ export class AuthController {
     }
     // 인증번호 5분 내 매칭 검증 (재검증 — 1회용 아님)
     await this.sms.assertVerified(phone, code);
-    await this.authService.findPasswordByPhone(phone);
-    return { ok: true };
+    const r = await this.authService.findPasswordByPhone(phone);
+    // 아이디 + 임시비밀번호를 응답으로 반환 → 완료 화면에서 바로 표시(C안). 알림톡도 함께 발송됨.
+    return { ok: true, mb_id: r.mb_id, temp_pw: r.temp_pw };
   }
 
-  // ─────────────────────────────────────────────
-  // 비밀번호 재설정 (휴대폰 인증 후 직접 설정)
-  //   POST /api/user/auth/find/phone/reset  { phone, new_password }
-  //   → smsApi.verify() 로 이미 인증한 폰번호에 대해 새 비밀번호를 직접 설정.
-  //   isVerifiedRecently() 로 1회용 소비 없이 최근 인증 여부만 확인.
-  // ─────────────────────────────────────────────
-  @Post('find/phone/reset')
-  @HttpCode(200)
-  @Throttle({ login: { limit: 10, ttl: 60_000 } })
-  async resetPasswordByPhone(@Body() body: { phone?: string; new_password?: string }) {
-    const phone = String(body.phone ?? '').replace(/[^0-9]/g, '');
-    const newPw = String(body.new_password ?? '').trim();
-    if (!/^01[0-9]{8,9}$/.test(phone)) {
-      throw new BadRequestException('휴대폰번호를 올바르게 입력해 주십시오.');
-    }
-    const verified = await this.sms.isVerifiedRecently(phone, 10);
-    if (!verified) {
-      throw new BadRequestException('휴대폰 인증이 만료되었습니다. 다시 인증해주세요.');
-    }
-    const result = await this.authService.resetPasswordByPhone(phone, newPw);
-    return { ok: true, mb_id: result.mb_id };
-  }
+  // [2026-07-20 제거] POST find/phone/reset (직접 비번설정) — 프론트 미사용 + isVerifiedRecently(비소비형)
+  //   공유로 "피해자 정상 인증 후 10분 창에 코드 없이 비번 재설정" ATO 벡터가 되어 라우트·서비스·API 메서드 모두 삭제.
+  //   비밀번호 찾기는 find/phone(임시비번 발급+화면표시)로 일원화.
 
   // ─────────────────────────────────────────────
   // 비밀번호 찾기 (이메일) — 임시비밀번호 발급 + 메일 발송

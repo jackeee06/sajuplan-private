@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { ApiError, authApi, counselorGradeApi } from '../lib/api'
 import { GRADE_UPGRADE_STORAGE_KEY } from '../components/GradeUpgradeToast'
+import AlertModal from '../components/AlertModal'
 import { useAuth } from '../lib/auth-context'
 
 type SocialProvider = 'kakao' | 'naver' | 'apple'
@@ -25,7 +26,7 @@ type SocialProvider = 'kakao' | 'naver' | 'apple'
 export default function Login() {
   const navigate = useNavigate()
   const { refresh, setSession } = useAuth()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [keepLogin, setKeepLogin] = useState(true)
@@ -43,6 +44,52 @@ export default function Login() {
     const r = searchParams.get('redirect') || '/'
     return r.startsWith('/') && !r.startsWith('//') ? r : '/'
   })()
+
+  // [2026-07-20] 소셜 로그인 시 같은 번호로 이미 가입된 계정 안내 (백엔드가 ?id_dup / ?social_dup 로 리다이렉트).
+  //   일반가입자가 카카오 로그인을 눌러 가입창으로 빠지던 혼란 방지 — "이미 가입됨"을 알려준다.
+  useEffect(() => {
+    const idDup = searchParams.get('id_dup')
+    const socialDup = searchParams.get('social_dup')
+    const exists = searchParams.get('exists')
+    if (idDup) {
+      // 전화 재활용 시 타인 아이디 전체 노출 방지 — 앞 3글자만 보이고 마스킹.
+      const masked = idDup.length > 3 ? idDup.slice(0, 3) + '*'.repeat(idDup.length - 3) : idDup
+      setError(`이미 아이디 '${masked}'로 가입된 계정이 있습니다. 아이디로 로그인하거나 비밀번호를 찾아주세요.`)
+    } else if (socialDup) {
+      const label = socialDup === 'naver' ? '네이버' : socialDup === 'kakao' ? '카카오' : '소셜'
+      setError(`이미 ${label}로 가입된 계정입니다. ${label} 로그인을 이용해주세요.`)
+    } else if (exists) {
+      setError('이미 이 전화번호로 가입된 계정이 있습니다. 아이디/비밀번호 찾기를 이용해주세요.')
+    }
+  }, [searchParams])
+
+  // [2026-11-08] 소셜 로그인 실패 안내창 — 백엔드가 실패 시 ?error=<provider>_<사유> 로 돌려보낸다.
+  //   예전엔 이 값을 아무도 안 읽어서 고객이 이유도 모른 채 튕김(웹 카카오 KOE010 때 18~36번 반복 클릭).
+  //   kakao_failed = 인터넷 창(웹) 카카오 토큰교환 실패 → "앱에서 카카오 로그인" 안내. 나머지는 공통 문구.
+  const socialFail = (() => {
+    const code = searchParams.get('error')
+    if (!code) return null
+    const prov = code.split('_')[0]
+    const label = prov === 'kakao' ? '카카오' : prov === 'naver' ? '네이버' : prov === 'apple' ? 'Apple' : null
+    if (!label) return null
+    if (code === 'kakao_failed') {
+      return {
+        title: '카카오 로그인이 잠시 안 되고 있어요',
+        message:
+          '인터넷 창(PC·브라우저)에서는\n카카오 로그인이 되지 않아요.\n\n사주플랜 앱에서\n카카오 로그인을 이용해 주세요.\n네이버·아이디 로그인은 정상이에요.',
+      }
+    }
+    return {
+      title: `${label} 로그인에 실패했어요`,
+      message: '잠시 후 다시 시도해 주세요.\n계속 안 되면 아이디 로그인이나\n다른 SNS 로그인을 이용해 주세요.',
+    }
+  })()
+  const closeSocialFail = () => {
+    // 새로고침해도 다시 뜨지 않게 주소창의 error 값을 지운다
+    const next = new URLSearchParams(searchParams)
+    next.delete('error')
+    setSearchParams(next, { replace: true })
+  }
 
   // 관리자 설정에 따라 소셜 버튼 활성화 결정
   // — use=false 면 통째 숨김
@@ -381,6 +428,13 @@ export default function Login() {
 
         <div className="h-10" />
       </main>
+
+      <AlertModal
+        open={!!socialFail}
+        title={socialFail?.title}
+        message={socialFail?.message ?? ''}
+        onClose={closeSocialFail}
+      />
     </div>
   )
 }
