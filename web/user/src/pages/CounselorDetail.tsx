@@ -196,7 +196,7 @@ export default function CounselorDetail() {
       <div className={activeTab !== 'intro' ? 'hidden' : ''}>
         {mountedTabs.has('intro') && (
           <div
-            className="counselor-intro text-[14px] leading-[160%] text-[#4A5565]"
+            className="counselor-intro text-[14px] leading-[160%] text-[#4A5565] whitespace-pre-line"
             dangerouslySetInnerHTML={{ __html: data.introText }}
           />
         )}

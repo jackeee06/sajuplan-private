@@ -288,7 +288,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
             </div>
           </div>
           <div
-            className="counselor-intro text-[14px] leading-[150%] text-[#4A5565]"
+            className="counselor-intro text-[14px] leading-[150%] text-[#4A5565] whitespace-pre-line"
             dangerouslySetInnerHTML={{ __html: sanitizeIntroHtml(data.noticeContent ?? '') }}
           />
         </section>

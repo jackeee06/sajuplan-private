@@ -7,6 +7,14 @@ import { useConfirm } from '../lib/use-confirm'
 
 const MAX_LEN = 2000
 
+/** 관리자 편집기로 저장된 HTML 공지를 입력칸용 일반 글로 변환 (<p>·<br> 이 입력칸에 그대로 보이는 문제 방지). */
+function htmlToPlainText(raw: string): string {
+  if (!/<[a-z/][^>]*>/i.test(raw)) return raw
+  const withBreaks = raw.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+  const text = new DOMParser().parseFromString(withBreaks, 'text/html').body.textContent ?? ''
+  return text.replace(/\n{3,}/g, '\n\n').trim()
+}
+
 /**
  * 상담사 마이페이지 — 내 공지사항 작성/수정
  * Route: /counselor/mypage/notice-edit
@@ -35,7 +43,7 @@ export default function CounselorMyNoticeEdit() {
     if (!member || member.role !== 'counselor') return
     let alive = true
     counselorMypageApi.getMyNotice()
-      .then((r) => { if (alive) { setNotice(r.notice ?? ''); setLoading(false) } })
+      .then((r) => { if (alive) { setNotice(htmlToPlainText(r.notice ?? '')); setLoading(false) } })
       .catch(() => { if (alive) setLoading(false) })
     return () => { alive = false }
   }, [member])
