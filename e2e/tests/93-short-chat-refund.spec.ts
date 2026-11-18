@@ -71,6 +71,17 @@ test.describe('고객보호비용 내역 — 채팅 단기환불 합류 (손가�
     await expect(page.getByRole('columnheader', { name: '구분' })).toBeVisible()
     await expect(page.getByRole('columnheader', { name: '이용시간(초)' })).toBeVisible()
 
+    // 4-b. 개편(2026-06-25) — 사람말 환원 사유 + 이름/ID 분리 컬럼
+    await expect(page.getByRole('columnheader', { name: '환원 사유' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: '상담사명' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: '상담사ID' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: '회원명' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: '회원ID' })).toBeVisible()
+    // m2net 대조용 ID 컬럼은 그대로 유지(숨기지 않음 — 문제해결용)
+    await expect(page.getByRole('columnheader', { name: 'callid' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'csrid' })).toBeVisible()
+    await expect(page.getByRole('columnheader', { name: 'membid' })).toBeVisible()
+
     // 5. 기간 칩 "이번달" 클릭 → 표 재조회 (손가락 상호작용)
     await page.getByRole('button', { name: '이번달', exact: true }).click()
     await page.waitForLoadState('networkidle')
@@ -82,6 +93,10 @@ test.describe('고객보호비용 내역 — 채팅 단기환불 합류 (손가�
     if (rowCount > 0) {
       const kindChips = page.locator('tbody').getByText(/^(통화|채팅)$/)
       expect(await kindChips.count(), '데이터 행이 있는데 구분 칩 없음').toBeGreaterThan(0)
+      // 종료사유가 영문 코드(DISCONNECT) 대신 사람말로 보이는지
+      const human = page.locator('tbody').getByText(/짧은 (통화|채팅) — 자동 환원/)
+      expect(await human.count(), '환원 사유가 사람말로 안 보임').toBeGreaterThan(0)
+      await expect(page.locator('tbody').getByText('DISCONNECT')).toHaveCount(0)
     }
 
     // 결과 스크린샷 (완료 보고 첨부용)

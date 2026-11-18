@@ -34,10 +34,14 @@ test.describe('user 상담사 리스트', () => {
     // 페이지 헤더 "상담사 리스트"
     await expect(page.getByRole('heading', { name: '상담사 리스트' })).toBeVisible()
 
-    // 카테고리 탭 4개 (전체/사주/타로/신점)
-    for (const cat of ['전체', '사주', '타로', '신점']) {
+    // 카테고리 탭 5개 (전체/사주/타로/신점/심리) — 심리는 대학 심리학과 교수진 카테고리(2026-07-03 추가)
+    for (const cat of ['전체', '사주', '타로', '신점', '심리']) {
       await expect(page.getByRole('button', { name: cat }).first()).toBeVisible()
     }
+
+    // 심리 탭 클릭 → 백엔드 재조회, JS 에러 없이 동작
+    await page.getByRole('button', { name: '심리' }).first().click()
+    await page.waitForTimeout(600)
 
     // 이벤트 필터 칩 — Phase 1 에서 추가됨
     const eventChip = page.getByRole('button', { name: /이벤트 상담사/ })

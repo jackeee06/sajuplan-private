@@ -1,0 +1,14 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 760, height: 1100 }, deviceScaleFactor: 2 });
+await p.goto("https://manse.sajuplan.com", { waitUntil: "networkidle" });
+await p.selectOption("select", "lunar");
+const date = p.getByLabel("생년월일");
+await date.fill("");
+await date.type("19900523");
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.waitForTimeout(800);
+const prof = p.locator("text=일간").first().locator("xpath=ancestor::div[contains(@class,'rounded-xl')][1]");
+await prof.screenshot({ path: "lunar_prof.png" });
+console.log("OK");
+await b.close();

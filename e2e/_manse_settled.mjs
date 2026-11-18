@@ -1,0 +1,10 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 820, height: 480 }, deviceScaleFactor: 2 });
+await p.goto("https://manse.sajuplan.com", { waitUntil: "networkidle" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.waitForTimeout(500);
+const panel = p.locator("text=출생지").first().locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
+await panel.screenshot({ path: "settled.png" });
+console.log("OK");
+await b.close();

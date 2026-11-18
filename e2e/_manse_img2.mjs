@@ -1,0 +1,14 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const ctx = await b.newContext({ viewport: { width: 720, height: 760 }, deviceScaleFactor: 2, permissions: ["clipboard-read","clipboard-write"] });
+const p = await ctx.newPage();
+const logs=[]; p.on("console", m=>logs.push(m.text()));
+await p.goto("https://manse.sajuplan.com", { waitUntil: "networkidle" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.waitForTimeout(600);
+await p.getByRole("button", { name: "이미지", exact: true }).click();
+await p.waitForTimeout(1000);
+await p.screenshot({ path: "img_toast.png" });
+const toast = await p.locator("div.fixed").first().textContent().catch(()=>"(none)");
+console.log("토스트내용 =", JSON.stringify(toast));
+await b.close();

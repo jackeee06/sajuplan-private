@@ -1,0 +1,13 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 390, height: 1600 }, deviceScaleFactor: 1 });
+await p.goto("https://manse.sajuplan.com", { waitUntil: "domcontentloaded" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.getByRole("button", { name: "전문가 보기" }).click().catch(()=>{});
+await p.waitForTimeout(1100);
+const luck = p.locator("div").filter({ hasText: /대운을 누르면 연운이/ }).last().locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
+await luck.scrollIntoViewIfNeeded().catch(()=>{});
+await p.waitForTimeout(300);
+await luck.screenshot({ path: "luckflow.png" }).catch(e=>console.log("스샷:",e.message));
+console.log("캡처 시도 완료");
+await b.close();

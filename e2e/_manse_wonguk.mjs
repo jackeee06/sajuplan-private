@@ -1,0 +1,11 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 760, height: 700 }, deviceScaleFactor: 2 });
+await p.goto("https://manse.sajuplan.com", { waitUntil: "networkidle" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.getByRole("button", { name: "전문가 보기" }).click();
+await p.waitForTimeout(600);
+const card = p.locator("text=공망").first().locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
+await card.screenshot({ path: "wonguk.png" });
+console.log("OK");
+await b.close();

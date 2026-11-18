@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; }
+  body { background:#eef0f3; padding:40px; }
+  .wrap { display:flex; gap:48px; justify-content:center; align-items:flex-start; }
+  .col { width:420px; }
+  .col-title { text-align:center; font-size:24px; font-weight:800; margin-bottom:6px; }
+  .col-sub { text-align:center; font-size:15px; margin-bottom:18px; }
+  .before .col-title { color:#9aa0a6; }
+  .after  .col-title { color:#7c3aed; }
+  .before .col-sub { color:#c0392b; }
+  .after  .col-sub { color:#2e7d32; }
+
+  /* 카톡 채팅 화면 */
+  .phone { background:#b2c7d9; border-radius:28px; padding:18px 16px 28px; min-height:520px;
+           box-shadow:0 10px 30px rgba(0,0,0,.15); }
+  .ktop { display:flex; align-items:center; gap:8px; padding:4px 4px 16px; color:#33414d; font-weight:700; font-size:15px; }
+  .ktop .back { font-size:18px; }
+  .row { display:flex; gap:8px; margin-bottom:14px; }
+  .avatar { width:40px; height:40px; border-radius:14px; background:#f5d949; flex:0 0 40px;
+            display:flex; align-items:center; justify-content:center; font-size:20px; }
+  .msgcol { display:flex; flex-direction:column; gap:5px; max-width:300px; }
+  .name { font-size:13px; color:#33414d; }
+
+  /* 개선 전 — 그냥 링크 말풍선 */
+  .bubble-plain { background:#fff; border-radius:4px 16px 16px 16px; padding:11px 13px;
+                  font-size:15px; color:#1a73e8; word-break:break-all; line-height:1.4;
+                  box-shadow:0 1px 1px rgba(0,0,0,.06); }
+
+  /* 개선 후 — 리치 카드 */
+  .card { background:#fff; border-radius:4px 16px 16px 16px; overflow:hidden; width:300px;
+          box-shadow:0 1px 1px rgba(0,0,0,.06); }
+  .card img { width:100%; height:200px; object-fit:cover; display:block; }
+  .card .cbody { padding:13px 14px 14px; }
+  .card .ctitle { font-size:15.5px; font-weight:800; color:#111; line-height:1.35; margin-bottom:6px; }
+  .card .cdesc { font-size:14px; color:#555; line-height:1.4; margin-bottom:9px; }
+  .card .cdomain { font-size:12.5px; color:#9aa0a6; }
+  .linktail { font-size:14px; color:#1a73e8; margin-top:7px; word-break:break-all; }
+
+  .tag { display:inline-block; margin-top:14px; padding:7px 14px; border-radius:999px; font-size:13.5px; font-weight:700; }
+  .before .tag { background:#fdecea; color:#c0392b; }
+  .after  .tag { background:#e7f6ec; color:#2e7d32; }
+  .center { text-align:center; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- 개선 전 -->
+    <div class="col before">
+      <div class="col-title">개선 전</div>
+      <div class="col-sub">그냥 파란 주소만 — 뭔지 알 수 없음</div>
+      <div class="phone">
+        <div class="ktop"><span class="back">‹</span><span>친구에게 보내기</span></div>
+        <div class="row">
+          <div class="avatar">🙂</div>
+          <div class="msgcol">
+            <div class="name">나</div>
+            <div class="bubble-plain">사주 잘 보시는 분 추천!<br>https://sajuplan.com/counselors/123</div>
+          </div>
+        </div>
+        <div class="center"><span class="tag">😕 미리보기 없음 · 클릭하기 망설여짐</span></div>
+      </div>
+    </div>
+
+    <!-- 개선 후 -->
+    <div class="col after">
+      <div class="col-title">개선 후</div>
+      <div class="col-sub">사진+이름+소개 카드로 변신</div>
+      <div class="phone">
+        <div class="ktop"><span class="back">‹</span><span>친구에게 보내기</span></div>
+        <div class="row">
+          <div class="avatar">🙂</div>
+          <div class="msgcol">
+            <div class="name">나</div>
+            <div class="card">
+              <img src="https://sajuplan.com/uploads/member/1781494099389_rpnuf0.png" alt="라온선생" />
+              <div class="cbody">
+                <div class="ctitle">라온선생 (사주 상담사) | 사주플랜</div>
+                <div class="cdesc">자타공인 No.1 실전 사주명리!!</div>
+                <div class="cdomain">sajuplan.com</div>
+              </div>
+            </div>
+            <div class="linktail">사주 잘 보시는 분 추천!<br>https://sajuplan.com/counselors/123</div>
+          </div>
+        </div>
+        <div class="center"><span class="tag">😍 한눈에 누군지 보임 · 클릭률 ↑</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

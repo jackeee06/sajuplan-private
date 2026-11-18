@@ -1,0 +1,10 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 600, height: 1100 }, deviceScaleFactor: 2 });
+await p.goto("https://manse.sajuplan.com", { waitUntil: "networkidle" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.getByRole("button", { name: "전문가 보기" }).click().catch(() => {});
+await p.waitForTimeout(700);
+await p.screenshot({ path: "full.png", fullPage: true });
+console.log("OK");
+await b.close();

@@ -75,6 +75,101 @@ test.describe('운영바이블 API (E-5)', () => {
   })
 })
 
+// ── 타로 바이블 반영 검증 (tarot 핸드북 배포 확인) ──────────────────
+test.describe('타로 핸드북 (바이블 반영)', () => {
+  test('index 에 tarot 카테고리 등록 (중복 없음·2항목)', async () => {
+    const ctx = await adminLogin()
+    if (!ctx) { console.log('[SKIP]'); return }
+
+    const resp = await ctx.get(`${API}/api/admin/handbook/index`)
+    expect(resp.status()).toBe(200)
+    const data = await resp.json() as {
+      categories: { key: string; title: string; items: { slug: string }[] }[]
+    }
+    const tarotCats = data.categories.filter((c) => c.key === 'tarot')
+    expect(tarotCats.length).toBe(1) // 중복 등록 버그 회귀 방지
+    const slugs = tarotCats[0].items.map((i) => i.slug)
+    expect(slugs).toContain('tarot/01-overview')
+    expect(slugs).toContain('tarot/02-live-consultation')
+    console.log(`[OK] tarot 카테고리 1개, 항목 ${slugs.length}개: ${slugs.join(', ')}`)
+    await ctx.dispose()
+  })
+
+  test('tarot/01-overview 본문 서빙 (라이브 타로보드)', async () => {
+    const ctx = await adminLogin()
+    if (!ctx) { return }
+
+    const resp = await ctx.get(`${API}/api/admin/handbook/item?slug=${encodeURIComponent('tarot/01-overview')}`)
+    expect(resp.status()).toBe(200)
+    const data = await resp.json() as { markdown: string }
+    expect(data.markdown.length).toBeGreaterThan(100)
+    expect(data.markdown).toContain('타로')
+    expect(data.markdown).toContain('tarotroom')
+    console.log(`[OK] tarot/01-overview 본문 length=${data.markdown.length}`)
+    await ctx.dispose()
+  })
+
+  test('검색 q=타로 → tarot 문서 매칭', async () => {
+    const ctx = await adminLogin()
+    if (!ctx) { return }
+
+    const resp = await ctx.get(`${API}/api/admin/handbook/search?q=${encodeURIComponent('타로')}`)
+    expect(resp.status()).toBe(200)
+    const data = await resp.json() as { hits: { slug: string }[] }
+    const hasTarot = data.hits.some((h) => h.slug.startsWith('tarot/'))
+    expect(hasTarot).toBe(true)
+    console.log(`[OK] 검색 '타로': ${data.hits.length}건, tarot 문서 포함=${hasTarot}`)
+    await ctx.dispose()
+  })
+})
+
+// ── 상담연결 바이블 반영 검증 (counselor/09 배포 확인) ──────────────
+test.describe('상담연결 핸드북 (바이블 반영)', () => {
+  test('index 에 counselor/09-consult-request 등록', async () => {
+    const ctx = await adminLogin()
+    if (!ctx) { console.log('[SKIP]'); return }
+
+    const resp = await ctx.get(`${API}/api/admin/handbook/index`)
+    expect(resp.status()).toBe(200)
+    const data = await resp.json() as {
+      categories: { key: string; items: { slug: string }[] }[]
+    }
+    const counselorCat = data.categories.find((c) => c.key === 'counselor')
+    expect(counselorCat, 'counselor 카테고리 없음').toBeTruthy()
+    const slugs = counselorCat!.items.map((i) => i.slug)
+    expect(slugs).toContain('counselor/09-consult-request')
+    console.log(`[OK] counselor 카테고리 ${slugs.length}항목, 09-consult-request 포함`)
+    await ctx.dispose()
+  })
+
+  test('counselor/09-consult-request 본문 서빙 (콜백/지금 상담 켜기)', async () => {
+    const ctx = await adminLogin()
+    if (!ctx) { return }
+
+    const resp = await ctx.get(`${API}/api/admin/handbook/item?slug=${encodeURIComponent('counselor/09-consult-request')}`)
+    expect(resp.status()).toBe(200)
+    const data = await resp.json() as { markdown: string }
+    expect(data.markdown.length).toBeGreaterThan(100)
+    expect(data.markdown).toContain('콜백')
+    expect(data.markdown).toContain('지금 상담 켜기')
+    console.log(`[OK] counselor/09-consult-request 본문 length=${data.markdown.length}`)
+    await ctx.dispose()
+  })
+
+  test('검색 q=상담요청 → counselor/09 매칭', async () => {
+    const ctx = await adminLogin()
+    if (!ctx) { return }
+
+    const resp = await ctx.get(`${API}/api/admin/handbook/search?q=${encodeURIComponent('상담요청')}`)
+    expect(resp.status()).toBe(200)
+    const data = await resp.json() as { hits: { slug: string }[] }
+    const has09 = data.hits.some((h) => h.slug === 'counselor/09-consult-request')
+    expect(has09, `검색 결과에 09 없음 (${data.hits.map((h) => h.slug).join(', ')})`).toBe(true)
+    console.log(`[OK] 검색 '상담요청': ${data.hits.length}건, 09 포함`)
+    await ctx.dispose()
+  })
+})
+
 // ── 운영바이블AI API ──────────────────────────────────────────────
 test.describe('운영바이블 AI API (E-5b)', () => {
   test('GET /admin/handbook/sessions — 세션 목록', async () => {

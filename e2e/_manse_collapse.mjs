@@ -1,0 +1,12 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 720, height: 760 }, deviceScaleFactor: 2 });
+await p.goto("https://manse.sajuplan.com", { waitUntil: "networkidle" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.waitForTimeout(700);
+await p.screenshot({ path: "collapse1.png" });
+await p.getByRole("button", { name: /정보 수정하기/ }).click();
+await p.waitForTimeout(500);
+await p.screenshot({ path: "collapse2.png" });
+console.log("OK");
+await b.close();

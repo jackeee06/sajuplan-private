@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif; }
+  body { background:#eef0f3; padding:40px; }
+  .wrap { display:flex; gap:44px; justify-content:center; align-items:flex-start; }
+  .col { width:460px; }
+  .col-title { text-align:center; font-size:24px; font-weight:800; margin-bottom:6px; }
+  .col-sub { text-align:center; font-size:15px; margin-bottom:18px; }
+  .before .col-title { color:#9aa0a6; }
+  .after  .col-title { color:#7c3aed; }
+  .before .col-sub { color:#c0392b; }
+  .after  .col-sub { color:#2e7d32; }
+
+  .browser { background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,.13); min-height:520px; }
+  .bbar { background:#f1f3f4; padding:11px 14px; display:flex; align-items:center; gap:8px; border-bottom:1px solid #e3e6e8; }
+  .dot { width:11px; height:11px; border-radius:50%; }
+  .d1{background:#ff5f57}.d2{background:#febc2e}.d3{background:#28c840}
+  .urlbar { flex:1; background:#fff; border-radius:999px; padding:6px 14px; font-size:13px; color:#5f6368; margin-left:6px; }
+
+  /* 네이버 검색창 */
+  .nv-head { padding:18px 22px 10px; display:flex; align-items:center; gap:10px; }
+  .nv-logo { font-size:22px; font-weight:900; color:#03c75a; }
+  .nv-search { flex:1; border:2px solid #03c75a; border-radius:8px; padding:9px 13px; font-size:15px; color:#222; display:flex; justify-content:space-between; align-items:center; }
+  .nv-search .q { font-weight:600; }
+  .nv-search .ic { color:#03c75a; font-weight:900; }
+  .tabs { display:flex; gap:18px; padding:4px 22px 0; font-size:14px; color:#777; border-bottom:1px solid #eee; }
+  .tabs .on { color:#222; font-weight:800; border-bottom:3px solid #222; padding-bottom:8px; }
+  .tabs span { padding-bottom:8px; }
+
+  .results { padding:20px 22px; }
+
+  /* 개선 전 - 빈 결과 */
+  .empty { text-align:center; padding:48px 10px; color:#8a8f94; }
+  .empty .big { font-size:46px; margin-bottom:14px; }
+  .empty .t1 { font-size:16px; font-weight:700; color:#5f6368; margin-bottom:8px; }
+  .empty .t2 { font-size:13.5px; line-height:1.6; }
+
+  /* 개선 후 - 검색 결과 카드 */
+  .res { display:flex; gap:14px; padding:16px 0; border-bottom:1px solid #f0f0f0; }
+  .res .thumb { width:78px; height:78px; border-radius:12px; object-fit:cover; flex:0 0 78px; }
+  .res .info { flex:1; }
+  .res .rurl { font-size:12.5px; color:#1a7f37; margin-bottom:3px; }
+  .res .rtitle { font-size:17px; color:#1a0dab; font-weight:700; line-height:1.3; margin-bottom:5px; }
+  .res .rdesc { font-size:13.5px; color:#4d5156; line-height:1.5; }
+  .res .rmeta { font-size:12.5px; color:#70757a; margin-top:6px; }
+
+  .tag { display:inline-block; margin-top:16px; padding:8px 15px; border-radius:999px; font-size:13.5px; font-weight:700; }
+  .before .tag { background:#fdecea; color:#c0392b; }
+  .after  .tag { background:#e7f6ec; color:#2e7d32; }
+  .center { text-align:center; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <!-- 개선 전 -->
+    <div class="col before">
+      <div class="col-title">개선 전</div>
+      <div class="col-sub">검색해도 안 나옴 — 빈 페이지라 못 읽음</div>
+      <div class="browser">
+        <div class="bbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
+          <span class="urlbar">🔍 search.naver.com</span></div>
+        <div class="nv-head">
+          <span class="nv-logo">NAVER</span>
+          <div class="nv-search"><span class="q">라온선생 사주플랜</span><span class="ic">검색</span></div>
+        </div>
+        <div class="tabs"><span class="on">통합</span><span>VIEW</span><span>이미지</span><span>지식iN</span><span>카페</span></div>
+        <div class="results">
+          <div class="empty">
+            <div class="big">🕳️</div>
+            <div class="t1">검색 결과가 없습니다</div>
+            <div class="t2">사이트가 빈 로딩 화면만 보여서<br>검색엔진이 내용을 전혀 못 읽었어요.<br>→ 색인 자체가 안 됨</div>
+          </div>
+          <div class="center"><span class="tag">😕 손님이 검색으로 찾아올 길이 없음</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 개선 후 -->
+    <div class="col after">
+      <div class="col-title">개선 후</div>
+      <div class="col-sub">검색하면 프로필이 제대로 노출</div>
+      <div class="browser">
+        <div class="bbar"><span class="dot d1"></span><span class="dot d2"></span><span class="dot d3"></span>
+          <span class="urlbar">🔍 search.naver.com</span></div>
+        <div class="nv-head">
+          <span class="nv-logo">NAVER</span>
+          <div class="nv-search"><span class="q">라온선생 사주플랜</span><span class="ic">검색</span></div>
+        </div>
+        <div class="tabs"><span class="on">통합</span><span>VIEW</span><span>이미지</span><span>지식iN</span><span>카페</span></div>
+        <div class="results">
+          <div class="res">
+            <img class="thumb" src="https://sajuplan.com/uploads/member/1781494099389_rpnuf0.png" alt="라온선생" />
+            <div class="info">
+              <div class="rurl">sajuplan.com › counselors › 123</div>
+              <div class="rtitle">라온선생 (사주 상담사) | 사주플랜</div>
+              <div class="rdesc">자타공인 No.1 실전 사주명리!! 재회·연애·사업운을 중심으로 사람의 흐름과 인연의 방향을 깊이 있게 분석해드립니다. 전문분야: 재회, 속마음/궁합, 금전/재물…</div>
+              <div class="rmeta">⭐ 후기 16 · 단골 10 · 전화/채팅 상담</div>
+            </div>
+          </div>
+          <div class="res">
+            <div class="info">
+              <div class="rurl">sajuplan.com › counselors</div>
+              <div class="rtitle">상담사 전체 — 사주·타로·신점·심리 | 사주플랜</div>
+              <div class="rdesc">사주플랜의 사주·타로·신점·심리 상담사를 한눈에. 전화·채팅으로 바로 상담 가능한 상담사를 찾아보세요.</div>
+            </div>
+          </div>
+          <div class="center"><span class="tag">😍 검색 → 프로필 → 상담 유입</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

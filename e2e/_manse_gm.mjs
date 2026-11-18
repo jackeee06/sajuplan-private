@@ -1,0 +1,15 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 760, height: 700 }, deviceScaleFactor: 2 });
+await p.goto("https://manse.sajuplan.com", { waitUntil: "networkidle" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.getByRole("button", { name: "전문가 보기" }).click();
+await p.waitForTimeout(500);
+await p.getByRole("button", { name: /사주 풀이 자세히 보기/ }).click();
+await p.waitForTimeout(300);
+await p.getByRole("button", { name: "공망", exact: true }).click();
+await p.waitForTimeout(300);
+const card = p.locator("h3:has-text('사주 풀이 자세히 보기')").locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
+await card.screenshot({ path: "gm.png" });
+console.log("OK");
+await b.close();

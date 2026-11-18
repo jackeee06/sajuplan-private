@@ -1,0 +1,13 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 720, height: 400 }, deviceScaleFactor: 2 });
+await p.goto("https://manse.sajuplan.com", { waitUntil: "networkidle" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.waitForTimeout(600);
+await p.evaluate(() => { navigator.share = undefined; });
+await p.getByRole("button", { name: "공유", exact: true }).click();
+await p.waitForTimeout(500);
+await p.screenshot({ path: "share_toast.png" });
+const hasSave = await p.getByRole("button", { name: "저장", exact: true }).count();
+console.log("저장 버튼 남아있나?", hasSave>0 ? "YES(문제)" : "NO(제거됨)");
+await b.close();

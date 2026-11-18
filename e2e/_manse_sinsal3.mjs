@@ -1,0 +1,15 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 600, height: 900 }, deviceScaleFactor: 1 });
+const errs=[]; p.on("console", m=>{ if(m.type()==="error" && !/cssRules|CSSStyleSheet|fonts.googleapis/.test(m.text())) errs.push(m.text()); });
+p.on("pageerror", e=>errs.push("PAGEERR:"+e.message));
+await p.goto("https://manse.sajuplan.com", { waitUntil: "domcontentloaded" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.getByRole("button", { name: "전문가 보기" }).click().catch(()=>{});
+await p.waitForTimeout(1200);
+const summary = await p.getByText(/총 \d+개 · 길성/).textContent().catch(()=>"(못찾음)");
+const chips = await p.locator("div").filter({ has: p.getByRole("heading",{name:"신살 · 길성"}) }).last().locator("div.flex-wrap > span").allTextContents();
+console.log("요약 =", JSON.stringify(summary));
+console.log("신살칩 =", JSON.stringify(chips));
+console.log("치명적 콘솔/페이지 에러 =", errs.length ? errs.slice(0,3) : "없음");
+await b.close();

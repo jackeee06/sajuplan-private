@@ -1,0 +1,15 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 420, height: 1700 }, deviceScaleFactor: 1 });
+const errs=[]; p.on("pageerror", e=>errs.push(e.message));
+await p.goto("https://manse.sajuplan.com", { waitUntil: "domcontentloaded" });
+await p.getByRole("button", { name: "궁합", exact: true }).click();
+await p.waitForTimeout(400);
+await p.getByRole("button", { name: "궁합 보기" }).click();
+await p.waitForTimeout(900);
+await p.screenshot({ path: "couple_full.png", fullPage: true });
+console.log("궁합 풀이 카드 =", await p.getByText("궁합 풀이",{exact:false}).count());
+console.log("오행 궁합 =", await p.getByText("오행 궁합",{exact:false}).count());
+console.log("조언 =", await p.getByText("조언",{exact:true}).count());
+console.log("페이지 에러 =", errs.length?errs.slice(0,2):"없음");
+await b.close();

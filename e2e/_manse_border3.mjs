@@ -1,0 +1,13 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 600, height: 900 }, deviceScaleFactor: 1 });
+await p.goto("https://manse.sajuplan.com", { waitUntil: "domcontentloaded" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.getByRole("button", { name: "전문가 보기" }).click().catch(()=>{});
+await p.waitForTimeout(900);
+const row = p.getByText("대운 (역행", { exact: false }).locator("xpath=following-sibling::div[1]");
+await row.scrollIntoViewIfNeeded().catch(()=>{});
+const box = await row.boundingBox();
+await p.screenshot({ path: "border_row.png", clip: { x: box.x, y: box.y-6, width: box.width, height: box.height+12 } });
+console.log("OK", box.width, box.height);
+await b.close();

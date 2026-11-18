@@ -1,0 +1,12 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 600, height: 950 }, deviceScaleFactor: 1 });
+await p.goto("https://manse.sajuplan.com", { waitUntil: "domcontentloaded" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.getByRole("button", { name: "전문가 보기" }).click().catch(()=>{});
+await p.waitForTimeout(1100);
+const sec = p.locator("div").filter({ has: p.getByRole("heading",{name:"격국 · 신강 / 신약 · 용신"}) }).last();
+await sec.scrollIntoViewIfNeeded().catch(()=>{});
+await sec.screenshot({ path: "strength.png" }).catch(e=>console.log("err:",e.message));
+console.log("섹션 존재 =", await sec.count());
+await b.close();

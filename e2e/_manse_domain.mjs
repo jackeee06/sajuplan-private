@@ -1,0 +1,14 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 760, height: 1300 }, deviceScaleFactor: 2 });
+await p.goto("https://manse.sajuplan.com", { waitUntil: "networkidle" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.getByRole("button", { name: "전문가 보기" }).click();
+await p.waitForTimeout(700);
+const dom = p.locator("h3:has-text('분야별 풀이')").locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
+await dom.scrollIntoViewIfNeeded();
+await dom.screenshot({ path: "dom.png" });
+const str = p.locator("text=격국 · 신강").locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
+await str.screenshot({ path: "str.png" });
+console.log("OK");
+await b.close();

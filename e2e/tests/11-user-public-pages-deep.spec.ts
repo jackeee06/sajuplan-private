@@ -42,6 +42,9 @@ test.describe('공개 페이지 심층 검증 — 핵심 요소 마운트', () =
     // 입력 인풋 존재
     const inputCount = await page.locator('input').count()
     expect(inputCount, '찾기 페이지 인풋 없음').toBeGreaterThanOrEqual(1)
+
+    // 인증번호 미수신 안내 문구(2026-07-03 추가) — 휴대폰 탭 기본
+    await expect(page.getByText('인증번호가 오지 않으면', { exact: false })).toBeVisible()
   })
 
   test('검색 페이지 — 검색 인풋 존재', async ({ page }) => {

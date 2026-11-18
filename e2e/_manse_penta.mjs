@@ -1,0 +1,14 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const p = await b.newPage({ viewport: { width: 600, height: 950 }, deviceScaleFactor: 1 });
+const errs=[]; p.on("pageerror", e=>errs.push(e.message));
+await p.goto("https://manse.sajuplan.com", { waitUntil: "domcontentloaded" });
+await p.getByRole("button", { name: "만세력 보기" }).click();
+await p.getByRole("button", { name: "전문가 보기" }).click().catch(()=>{});
+await p.waitForTimeout(1100);
+const leg = p.getByText("오행 관계도", { exact: false });
+await leg.scrollIntoViewIfNeeded().catch(()=>{});
+const box = await leg.locator("xpath=ancestor::div[contains(@class,'border-t')][1]").boundingBox();
+if (box) await p.screenshot({ path: "penta.png", clip: { x: box.x, y: box.y, width: box.width, height: Math.min(box.height+10, 420) } });
+console.log("페이지 에러 =", errs.length?errs.slice(0,2):"없음");
+await b.close();

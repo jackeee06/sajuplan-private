@@ -1,0 +1,11 @@
+import { chromium } from "playwright";
+const b = await chromium.launch();
+const ctx = await b.newContext({ viewport: { width: 390, height: 1400 } });
+const p = await ctx.newPage();
+await p.goto("https://sajuplan.com/?__env=prod", { waitUntil: "domcontentloaded" });
+await p.waitForTimeout(2200);
+const popupP = ctx.waitForEvent("page", { timeout: 8000 }).catch(()=>null);
+await p.getByRole("button", { name: "무료 만세력 열기" }).click();
+const pop = await popupP;
+console.log("새 창 열림 =", !!pop, "→ URL =", pop ? pop.url() : "(없음)");
+await b.close();
