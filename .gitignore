@@ -54,3 +54,10 @@ deploy.sh
 # Firebase 서비스계정 키 — 절대 커밋/공개 금지
 web/**/sajummon-*.json
 **/firebase-adminsdk*.json
+
+# 정산 엑셀 — 상담사 이름·금액(개인정보), GitHub 자동 push 되므로 커밋 금지
+정산*.xlsx
+
+# 파이썬 임시 파일
+__pycache__/
+*.pyc
