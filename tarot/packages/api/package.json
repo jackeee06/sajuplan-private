@@ -1,0 +1,25 @@
+{
+  "name": "@tarot/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "타로 라이브 동기화 — 방코드 페어링 + WebSocket 중계(상담사↔고객 같은 화면). 엔진을 권위 상태로 사용.",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "bundle": "esbuild src/server.ts --bundle --platform=node --format=cjs --outfile=dist/server.bundle.cjs --external:bufferutil --external:utf-8-validate",
+    "start": "node dist/server.js",
+    "dev": "node --watch --experimental-strip-types src/server.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@tarot/engine": "*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.10",
+    "esbuild": "^0.23.0",
+    "typescript": "^5.5.0"
+  }
+}

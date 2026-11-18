@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+/* 노안 배려 — 루트 폰트를 키워 설명·라벨·여백을 비율 그대로 확대 (rem 기반).
+   PC는 18px 유지(상담사 가독성). 모바일(≤480px)은 16px로 낮춰 버튼·라벨 줄바꿈(엉성함) 방지. */
+html {
+  font-size: 18px;
+}
+@media (max-width: 480px) {
+  html {
+    font-size: 16px;
+  }
+}
+body {
+  margin: 0;
+  background: #f7f7fb;
+  color: #1f2430;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

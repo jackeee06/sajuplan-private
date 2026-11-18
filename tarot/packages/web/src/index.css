@@ -1,0 +1,207 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  font-size: 16px;
+}
+body {
+  margin: 0;
+  min-height: 100dvh;
+  color: #1d2939; /* gray-800 (사주플랜 본문색) */
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background: #f7f7fb; /* 만세력 톤 — 부드러운 회색 배경 위 흰 카드 */
+}
+
+/* ── 3D 카드 뒤집기 ───────────────────────────── */
+.card3d {
+  perspective: 1000px;
+}
+.card3d__inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.card3d.is-flipped .card3d__inner {
+  transform: rotateY(180deg);
+}
+.card3d__face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.card3d__face--front {
+  transform: rotateY(180deg);
+}
+
+/* 카드 뒷면 — 보라+금 고전 만다라 1장(back.webp, scripts/make-back.mjs로 생성). 78장 공유. */
+.card-back {
+  background-color: #e7d6b0; /* 이미지 로드 전 폴백(크림) */
+  background-image: url('/tarot/back.webp?v=2');
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 2px 6px rgba(124, 58, 237, 0.22);
+}
+
+/* 픽 시 살짝 떠오름 */
+@keyframes floatUp {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(-10px) scale(1.04); }
+}
+.pick-float {
+  animation: floatUp 0.25s ease-out forwards;
+}
+
+/* 셔플 흔들림 */
+@keyframes shuffleWobble {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  25% { transform: translateX(-6px) rotate(-3deg); }
+  75% { transform: translateX(6px) rotate(3deg); }
+}
+.shuffle-wobble {
+  animation: shuffleWobble 0.5s ease-in-out infinite;
+}
+
+/* 선택/공개 가능 강조 — 브랜드 핑크 링(디자인시스템 활성색) */
+.glow-pick {
+  box-shadow: 0 0 0 2px #f472b6, 0 4px 14px rgba(236, 72, 153, 0.25);
+}
+
+/* 상담사 액션 — 탭 아이콘 통통 튀기 */
+@keyframes tapBounce {
+  0%,100%{transform:translateY(0) scale(1)}
+  30%{transform:translateY(-8px) scale(1.15)}
+  60%{transform:translateY(-3px) scale(1.05)}
+}
+.tap-bounce {
+  animation: tapBounce 1.1s ease-in-out infinite;
+  display: inline-block;
+}
+
+/* 상담사 안내 텍스트 — 강도 높은 펄스(긴박) */
+@keyframes textPulse {
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:0.7;transform:scale(0.97)}
+}
+.text-pulse {
+  animation: textPulse 1.4s ease-in-out infinite;
+  display: inline-block;
+}
+
+/* 상담사 안내 텍스트 — 잔잔한 펄스(안내) */
+@keyframes textGlow {
+  0%,100%{color:#111827}
+  50%{color:#ec4899}
+}
+.text-glow {
+  animation: textGlow 2s ease-in-out infinite;
+}
+
+/* 상담사 amber 안내 배너 — 지속 박동 (행동 촉구) */
+@keyframes amberBreath {
+  0%,100% {
+    background-color: rgb(255 251 235);
+    box-shadow: 0 0 0 0 rgba(217,119,6,0);
+    border-color: rgb(253 211 77);
+  }
+  50% {
+    background-color: rgb(253 230 138);
+    box-shadow: 0 0 0 7px rgba(217,119,6,0.18);
+    border-color: rgb(217,119,6);
+  }
+}
+.amber-breath {
+  animation: amberBreath 1.8s ease-in-out infinite;
+  border: 2px solid;
+}
+
+/* 기밀 안내 배너 — 느리고 은은한 박동 */
+@keyframes amberBreathSlow {
+  0%,100% {
+    background-color: rgb(255 251 235);
+    box-shadow: 0 0 0 0 rgba(217,119,6,0);
+  }
+  50% {
+    background-color: rgb(254 243 199);
+    box-shadow: 0 0 0 4px rgba(217,119,6,0.12);
+  }
+}
+.amber-breath-slow {
+  animation: amberBreathSlow 2.8s ease-in-out infinite;
+  border: 1.5px solid rgb(253 211 77);
+}
+
+/* 카드 픽 플래시 — 숫자가 팡! 하고 나타났다 사라짐 */
+@keyframes pickFlash {
+  0%   { transform: translate(-50%,-50%) scale(0.3); opacity:0; }
+  20%  { transform: translate(-50%,-50%) scale(1.4); opacity:1; }
+  55%  { transform: translate(-50%,-50%) scale(1);   opacity:1; }
+  100% { transform: translate(-50%,-50%) scale(1.8); opacity:0; }
+}
+.pick-flash {
+  position: fixed;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%,-50%);
+  pointer-events: none;
+  z-index: 999;
+  animation: pickFlash 0.75s cubic-bezier(0.2,0.8,0.3,1) forwards;
+}
+
+/* 카드 격자 — 선택 시 팡! 터지며 사라짐 */
+@keyframes cardVanish {
+  0%   { transform: scale(1);   opacity:1; }
+  25%  { transform: scale(1.25); opacity:1; }
+  100% { transform: scale(0);   opacity:0; }
+}
+.card-vanish {
+  animation: cardVanish 0.3s ease-in forwards;
+}
+
+/* ── 카드 공개 연출 — 한 장 뒤집힐 때 과한 액션(팝 + 금빛 글로우 링 + 스파클 버스트) ── */
+@keyframes revealPop {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.18); }
+  70%  { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+.reveal-pop { animation: revealPop 0.7s cubic-bezier(0.2,0.8,0.3,1); }
+
+@keyframes revealRing {
+  0%   { transform: scale(0.55); opacity: 0.9; }
+  100% { transform: scale(1.7);  opacity: 0; }
+}
+.reveal-ring {
+  border: 3px solid rgba(251, 191, 36, 0.95);
+  border-radius: 14px;
+  box-shadow: 0 0 22px 6px rgba(251, 191, 36, 0.55);
+  animation: revealRing 0.7s ease-out forwards;
+}
+
+@keyframes revealSpark {
+  0%   { transform: translate(0,0) scale(0.2) rotate(0deg); opacity: 0; }
+  25%  { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(1.25) rotate(40deg); opacity: 0; }
+}
+.reveal-spark {
+  animation: revealSpark 0.8s ease-out forwards;
+  will-change: transform, opacity;
+}
+
+/* 라이브 상태 점 애니메이션 (●●● 순서 깜빡임) */
+@keyframes dotPulse1 { 0%,80%,100%{opacity:.2} 40%{opacity:1} }
+@keyframes dotPulse2 { 0%,100%{opacity:.2} 0%,60%{opacity:.2} 20%{opacity:1} }
+@keyframes dotPulse3 { 0%,100%{opacity:.2} 40%{opacity:.2} 80%{opacity:1} }
+.dot-pulse span:nth-child(1){animation:dotPulse1 1.2s ease-in-out infinite}
+.dot-pulse span:nth-child(2){animation:dotPulse2 1.2s ease-in-out infinite}
+.dot-pulse span:nth-child(3){animation:dotPulse3 1.2s ease-in-out infinite}

@@ -1,0 +1,15 @@
+{
+  "name": "portal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "통합 운세 포털 — 로그인 1번에 만세력·타로·로또+다수 운세 주제를 한 곳에서. 기존 만세·타로는 보관, 엔진(코드)만 재사용한 새 껍데기.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @portal/engine && npm run build -w @portal/web",
+    "dev": "npm run dev -w @portal/web",
+    "test": "npm run test -w @portal/engine",
+    "typecheck": "npm run typecheck -w @portal/web"
+  }
+}

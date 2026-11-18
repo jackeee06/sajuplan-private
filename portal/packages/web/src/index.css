@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+/* 노안 배려 + 모바일 우선. 만세력과 동일: PC 18px, 모바일(≤480px) 16px. rem 기반으로 비율 유지. */
+html {
+  font-size: 18px;
+}
+@media (max-width: 480px) {
+  html {
+    font-size: 16px;
+  }
+}
+
+body {
+  margin: 0;
+  background: #f7f7fb;
+  color: #1f2430;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, system-ui, "Apple SD Gothic Neo",
+    "Malgun Gothic", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 모바일 우선: 앱 컨테이너 — 375 기준, 600px 넘으면 가운데 정렬(데스크탑에서도 모바일 레이아웃 유지) */
+.app-shell {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: #f7f7fb;
+}
+
+/* 로또공 등장 애니메이션(의식 느낌) */
+@keyframes ball-pop {
+  0% {
+    transform: scale(0.4) translateY(8px);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08) translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.ball-pop {
+  animation: ball-pop 0.42s cubic-bezier(0.18, 0.89, 0.32, 1.28) both;
+}

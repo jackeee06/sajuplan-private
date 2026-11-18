@@ -1,0 +1,14 @@
+{
+  "name": "tarot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "라이브/마케팅 타로 — 독립 제품(엔진 + API + 프론트). 사주플랜과 코드 분리, 단방향 의존.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @tarot/engine",
+    "test": "npm run test -w @tarot/engine",
+    "typecheck": "npm run typecheck -w @tarot/engine"
+  }
+}

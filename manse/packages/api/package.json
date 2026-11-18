@@ -1,0 +1,21 @@
+{
+  "name": "@manse/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "만세력 API — 엔진을 감싼 독립 HTTP 서비스. 외부 임베드/타사는 이 창구만 호출(API 키).",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "node --watch --experimental-strip-types src/server.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@manse/engine": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.5.0"
+  }
+}

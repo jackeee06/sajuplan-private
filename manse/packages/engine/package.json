@@ -1,0 +1,26 @@
+{
+  "name": "@manse/engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "사주 만세력 계산 엔진 — 순수 함수 라이브러리. 사주플랜과 의존성 0 (독립 제품의 왕관 보석).",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

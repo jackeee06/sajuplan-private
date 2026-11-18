@@ -1,0 +1,15 @@
+{
+  "name": "manse",
+  "version": "0.1.0",
+  "private": true,
+  "description": "사주 만세력 — 독립 제품 (엔진 + API + 프론트). 사주플랜과 코드 분리, 단방향 의존.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @manse/engine && npm run build -w @manse/api",
+    "test": "npm run test -w @manse/engine",
+    "api:dev": "npm run dev -w @manse/api",
+    "api:start": "npm run start -w @manse/api"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "@portal/engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "포털 콘텐츠 순수 엔진 — 로또 운명번호·뽑기·당첨확인 등. DB·프레임워크·사주플랜 의존 0. 결정론적.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
