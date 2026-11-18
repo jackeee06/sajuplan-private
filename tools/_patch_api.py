@@ -32,6 +32,11 @@ import paramiko
 # 2026-05-17: 상담사 후기 알림톡 추가
 # audit A~G 전체 변경분 외과 패치 (18개 파일) — 이전 배포 분
 FILES = [
+    # 2026-06-25: 업로드 이미지 webp 변환에 maxDimension(1280) 상한 — 초기 로딩 최적화(원본 과대 방지)
+    ("api/src/admin/banners/banners.controller.ts", "src/admin/banners/banners.controller.ts"),
+    ("api/src/admin/events/events.controller.ts", "src/admin/events/events.controller.ts"),
+    ("api/src/admin/popup-layers/popup-layers.controller.ts", "src/admin/popup-layers/popup-layers.controller.ts"),
+    ("api/src/admin/notices/notices.controller.ts", "src/admin/notices/notices.controller.ts"),
     # 2026-06-25: SEO dynamic rendering — 봇/카톡 스크래퍼 전용 풀 HTML(메타·OG·JSON-LD) + sitemap.xml
     ("api/src/user/seo/seo.service.ts", "src/user/seo/seo.service.ts"),
     ("api/src/user/seo/seo.controller.ts", "src/user/seo/seo.controller.ts"),
@@ -185,6 +190,7 @@ FILES = [
     ("api/src/user/settlements/settlements.service.ts", "src/user/settlements/settlements.service.ts"),
     # 이전 audit 변경분 ↓
     ("api/src/admin/alimtalk-bulk/alimtalk-bulk.service.ts", "src/admin/alimtalk-bulk/alimtalk-bulk.service.ts"),
+    ("api/src/admin/alimtalk-bulk/alimtalk-bulk.controller.ts", "src/admin/alimtalk-bulk/alimtalk-bulk.controller.ts"),
     ("api/src/admin/grade/grade.service.ts", "src/admin/grade/grade.service.ts"),
     ("api/src/admin/members/members.controller.ts", "src/admin/members/members.controller.ts"),
     ("api/src/admin/members/members.service.ts", "src/admin/members/members.service.ts"),
@@ -205,6 +211,7 @@ FILES = [
     # 2026-05-30 use_seconds=0 chat_room 영구실패 사고 fix — retry-cron 가드 + 컨텍스트 알림
     ("api/src/cron/retry-cron.service.ts", "src/cron/retry-cron.service.ts"),
     ("api/src/cron/health-check.service.ts", "src/cron/health-check.service.ts"),
+    ("api/src/shared/m2net/m2net.service.ts", "src/shared/m2net/m2net.service.ts"),
     ("api/src/cron/settlement-cron.service.ts", "src/cron/settlement-cron.service.ts"),
     # 2026-06-10 정산 단순화: markPaid 가 earning 차감 + is_settled 마킹 수행
     ("api/src/admin/settlements/settlements.service.ts", "src/admin/settlements/settlements.service.ts"),
@@ -231,6 +238,7 @@ FILES = [
     ("api/src/shared/db/db.module.ts", "src/shared/db/db.module.ts"),
     ("api/src/shared/ops-alert/ops-alert.service.ts", "src/shared/ops-alert/ops-alert.service.ts"),
     ("api/src/user/auth/auth.controller.ts", "src/user/auth/auth.controller.ts"),
+    ("api/src/user/auth/social-auth.service.ts", "src/user/auth/social-auth.service.ts"),
     ("api/src/user/charge/charge.module.ts", "src/user/charge/charge.module.ts"),
     ("api/src/user/charge/charge.service.ts", "src/user/charge/charge.service.ts"),
     ("api/src/user/charge/pg-callback.controller.ts", "src/user/charge/pg-callback.controller.ts"),
@@ -305,12 +313,20 @@ def main() -> int:
     host_arg, api_remote, pm2_name = sys.argv[1], sys.argv[2], sys.argv[3]
     user, host, port = parse_host(host_arg)
 
+    root = Path(__file__).resolve().parent.parent
     pw = os.environ.get("SSHPASS")
+    if not pw:
+        env_local = root / ".env.local"
+        if env_local.exists():
+            for line in env_local.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("SSHPASS="):
+                    pw = line.split("=", 1)[1].strip("'\"")
+                    break
     if not pw:
         print("SSHPASS 환경변수 필요", file=sys.stderr)
         return 2
 
-    root = Path(__file__).resolve().parent.parent
     print(f"▶ connect {user}@{host}:{port}", flush=True)
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())

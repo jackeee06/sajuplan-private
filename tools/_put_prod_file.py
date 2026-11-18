@@ -28,6 +28,14 @@ def main() -> int:
     user, host, port = parse_host(host_arg)
     pw = os.environ.get("SSHPASS")
     if not pw:
+        env_local = Path(__file__).resolve().parent.parent / ".env.local"
+        if env_local.exists():
+            for line in env_local.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line.startswith("SSHPASS="):
+                    pw = line.split("=", 1)[1].strip("'\"")
+                    break
+    if not pw:
         print("SSHPASS 필요", file=sys.stderr)
         return 2
     data = Path(local).read_bytes()
