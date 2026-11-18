@@ -28,6 +28,14 @@ function cacheBustPlugin(): Plugin {
           // 붙이면 origin 매칭 깨져 preconnect/preload 가 무력화되고,
           // 외부 캐시 효율도 떨어진다. 우리 정적 파일(/assets/…)만 cache-bust.
           if (/^https?:\/\//.test(url) || url.startsWith('//')) return match
+          // ⚠️ .js (ESM 모듈) 에는 ?v 를 절대 붙이지 않는다.
+          //   엔트리/modulepreload 의 .js 는 ?v 가 붙는데, 코드분할된 lazy 청크는
+          //   서로를 `./index-xxx.js` (쿼리 없음) 로 import 한다. 두 URL(`...js?v` 와
+          //   `...js`)을 브라우저가 다른 모듈로 취급 → 공유 청크(auth-context 등)가
+          //   2번 로드 → React Context 인스턴스가 둘이 되어 useAuth=null + removeChild
+          //   크래시(바이블 system/13). .js 캐시버스팅은 Vite 콘텐츠 해시 파일명이
+          //   이미 처리하므로 ?v 불필요. CSS/아이콘/manifest 등 비-모듈만 ?v.
+          if (/\.js$/i.test(url)) return match
           return `${prefix}${url}?v=${APP_VERSION}${suffix}`
         },
       )

@@ -156,7 +156,7 @@ export const APPLY_REGION_OPTIONS = [
   '제주특별자치도',
 ] as const
 /** 상담분야 옵션 */
-export const APPLY_FIELD_OPTIONS = ['사주', '타로', '신점'] as const
+export const APPLY_FIELD_OPTIONS = ['사주', '타로', '신점', '심리'] as const
 /** 전문 상담분야 칩 (다중 선택, 2026-05-15 운영 정책 갱신 — 12개) */
 export const APPLY_SPECIALTY_OPTIONS = [
   '재회',

@@ -70,6 +70,8 @@ function mapDetail(r: PublicCounselorDetail): CounselorDetailData {
     isExclusive: r.is_exclusive ?? false,
     // 부재(둘 다 off) = state ABSE/RESV → 하단 CTA 를 "상담요청하기" 로 (목록 카드와 동일)
     isOffline: r.state === 'ABSE' || r.state === 'RESV',
+    // 24h 내 이미 요청했으면 CTA 를 "요청됨" 으로 (목록 카드와 표시 일치)
+    isRequested: !!r.is_requested,
   }
 }
 

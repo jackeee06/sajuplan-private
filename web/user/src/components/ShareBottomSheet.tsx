@@ -146,6 +146,28 @@ export default function ShareBottomSheet({ open, onClose, shareUrl, title, descr
           </div>
         </div>
 
+        {/* [2026-06-25] 링크복사 1순위 — 카카오 SDK 공유는 PC 공유창이 받는 사람을 오선택하거나
+            안드 카톡에서 실패하는 이슈가 있어, 가장 확실한 링크복사를 크게 위로 올린다. */}
+        <div className="px-4 mb-3">
+          <button
+            type="button"
+            onClick={handleCopy}
+            data-testid="share-copy-primary"
+            className="w-full h-[52px] rounded-[14px] bg-[#ec4899] text-white flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(236,72,153,0.25)]"
+          >
+            <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="white" strokeWidth="2" aria-hidden>
+              <rect x="9" y="9" width="11" height="11" rx="2" />
+              <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+            </svg>
+            <span className="text-[15px] font-semibold">링크 복사하기</span>
+          </button>
+          <p className="mt-2 text-center text-[12px] leading-[150%] text-[#9d174d]">
+            💡 카톡엔 <b>링크복사</b>가 가장 확실해요 — 복사 후 원하는 채팅방에 붙여넣기
+          </p>
+        </div>
+
+        <p className="px-4 text-[12px] text-[#99A1AF] mb-1">다른 방법으로 공유</p>
+
         {/* 4채널 그리드 */}
         <div className="px-4 pb-4 grid grid-cols-4 gap-2">
           <button

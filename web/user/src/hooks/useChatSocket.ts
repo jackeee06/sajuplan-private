@@ -15,7 +15,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  *
  * 호환: 매뉴얼 2023.11.15 변경분 — `cmd → msg` 변수명 변경 가능성 있음. 양쪽 다 인식.
  *
- * 재연결: 모바일 백그라운드/네트워크 단절 시 1.5s 후 자동 재시도 (최대 5회).
+ * 재연결: wss 끊기면 지수 backoff(1.5s→최대 10s)로 **무한 재시도** (CNCH 동안 포기 X).
+ *  5회(약 22s) 만에 포기하면 그 사이 못 붙은 고객을 엠투넷이 세션종료(END_CHAT)해
+ *  30분 결제가 24분에 끊기는 조기종료가 발생 → 무한 재시도로 방어.
  *  재시도 시 onMissed 콜백을 호출해 누락 메시지 fetch 트리거 (since=lastSendTime).
  */
 
@@ -78,8 +80,8 @@ export interface UseChatSocketOptions {
   reconnectKey?: number
 }
 
-const MAX_RETRY = 5
 const RETRY_DELAY_MS = 1500
+const MAX_RETRY_DELAY_MS = 10_000 // 지수 backoff 상한 — 무한 재시도해도 최대 10초 간격
 // m2net wss idle timeout (약 30초 추정) 회피용 heartbeat 주기.
 // 25초마다 빈 conv_msg 또는 ping 송신 — 메시지 안 보내도 연결 유지되어
 // 회원이 채팅창을 켜두기만 해도 30초 후 강제 종료되는 현상 차단.
@@ -102,6 +104,8 @@ export function useChatSocket(opts: UseChatSocketOptions) {
   // 한 번 cid 가 발급된 뒤 보내는 게 안전.
   const pendingSendsRef = useRef<string[]>([])
   const heartbeatRef = useRef<number | null>(null)
+  // 재연결 예약 타이머 — cleanup/forceReconnect 에서 clear 해 중복 connect 방지.
+  const retryTimerRef = useRef<number | null>(null)
   onMessageRef.current = opts.onMessage
   onReconnectedRef.current = opts.onReconnected
   onServerEndRef.current = opts.onServerEnd
@@ -282,10 +286,15 @@ export function useChatSocket(opts: UseChatSocketOptions) {
 
     const scheduleRetry = () => {
       if (stoppedRef.current) return
-      if (retryRef.current >= MAX_RETRY) return
+      // [2026-07-07] 무한 재시도(지수 backoff, 최대 10초). CNCH 동안 wss 가 끊기면 포기하지 않는다.
+      //   기존 5회(약 22초) 만에 포기하면, 못 붙은 고객을 엠투넷이 세션종료(END_CHAT)해 상담이
+      //   조기종료되던 문제(라온방 rejoin_count 12, 마지막 튕김에서 못 돌아와 24분 종료) 방어.
+      //   방이 종료되거나(enabled=false) 컴포넌트 unmount 시엔 effect cleanup 이 stoppedRef=true 로
+      //   만들어 재시도를 멈춘다. → 활성 채팅에서만 무한 재시도.
       retryRef.current += 1
-      const delay = RETRY_DELAY_MS * retryRef.current
-      window.setTimeout(connect, delay)
+      const delay = Math.min(RETRY_DELAY_MS * retryRef.current, MAX_RETRY_DELAY_MS)
+      if (retryTimerRef.current !== null) window.clearTimeout(retryTimerRef.current)
+      retryTimerRef.current = window.setTimeout(connect, delay)
     }
 
     // 외부 forceReconnect 에서 호출하도록 ref 에 노출.
@@ -300,9 +309,15 @@ export function useChatSocket(opts: UseChatSocketOptions) {
         window.clearInterval(heartbeatRef.current)
         heartbeatRef.current = null
       }
+      // 예약된 재연결 타이머 정리 — 남으면 cleanup 후 뒤늦게 connect(stopped 가드로 no-op이나 정갈하게 제거).
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
       const ws = wsRef.current
       wsRef.current = null
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      // OPEN 뿐 아니라 CONNECTING(재연결 중) 소켓도 닫는다 — 안 닫으면 최대 30초 orphan 소켓 잔류.
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
         try {
           ws.close()
         } catch {

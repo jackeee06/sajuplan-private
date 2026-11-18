@@ -48,6 +48,11 @@ interface ConsultationPoint {
   call_060: number
   chat: number
 }
+interface SignupPoint {
+  date: string
+  members: number
+  counselors: number
+}
 interface TopRow {
   id: number
   name: string
@@ -109,6 +114,7 @@ interface DashboardData {
   summary: Summary
   sales: SalesPoint[]
   consultations: ConsultationPoint[]
+  signups: SignupPoint[]
   topByAmount: TopRow[]
   topByCount: TopRow[]
   topCustomers: TopRow[]
@@ -129,11 +135,12 @@ async function fetchDashboardData(): Promise<DashboardData> {
     prev_month_count: 0, prev_month_amount: 0,
     total_count: 0, total_amount: 0,
   }
-  const [summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts, counselorPanel, quality, shortCallRefund] =
+  const [summary, sales, consultations, signups, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts, counselorPanel, quality, shortCallRefund] =
     await Promise.all([
       api<Summary>('/admin/dashboard/summary'),
       api<SalesPoint[]>('/admin/dashboard/sales-trend?days=14'),
       api<ConsultationPoint[]>('/admin/dashboard/consultation-trend?days=14').catch(() => [] as ConsultationPoint[]),
+      api<SignupPoint[]>('/admin/dashboard/signup-trend?days=12').catch(() => [] as SignupPoint[]),
       api<TopRow[]>('/admin/dashboard/top-counselors?metric=amount'),
       api<TopRow[]>('/admin/dashboard/top-counselors?metric=count'),
       api<TopRow[]>('/admin/dashboard/top-customers'),
@@ -145,7 +152,7 @@ async function fetchDashboardData(): Promise<DashboardData> {
       api<QualityKpi>('/admin/dashboard/quality-kpi').catch(() => emptyQuality),
       api<ShortCallRefundKpi>('/admin/dashboard/short-call-refund-kpi').catch(() => emptyShortCallRefund),
     ])
-  return { summary, sales, consultations, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts, counselorPanel, quality, shortCallRefund }
+  return { summary, sales, consultations, signups, topByAmount, topByCount, topCustomers, recentMembers, recentPoints, recentPosts, alerts, counselorPanel, quality, shortCallRefund }
 }
 
 const won = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW', maximumFractionDigits: 0 })
@@ -266,6 +273,7 @@ export default function Dashboard() {
     summary,
     sales,
     consultations,
+    signups,
     topByAmount,
     topByCount,
     topCustomers,
@@ -288,10 +296,11 @@ export default function Dashboard() {
   const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const monthTotal = sales.reduce((s, p) => (p.date.startsWith(monthKey) ? s + sumDay(p) : s), 0)
 
-  const counselorPie = [
-    { name: '상담 가능', value: summary.counselors.idle, color: '#10b981' },
-    { name: '상담 중', value: summary.counselors.busy, color: '#3b82f6' },
-    { name: '부재', value: summary.counselors.absent, color: '#9ca3af' },
+  const counselorStateChips = [
+    { label: '상담 가능', value: summary.counselors.idle, color: '#10b981' },
+    { label: '상담 중', value: summary.counselors.busy, color: '#3b82f6' },
+    { label: '부재', value: summary.counselors.absent, color: '#9ca3af' },
+    { label: '전체', value: summary.counselors.total, color: '#8259F5' },
   ]
 
   return (
@@ -417,7 +426,22 @@ export default function Dashboard() {
         )
       })()}
 
-      {/* Row 3 — 매출 / 상담사 상태 / 방문자 */}
+      {/* 상담사 상태 — 도넛 대신 한 줄 4칸 (도넛 자리는 가입 추이 그래프로 이동) */}
+      <Link
+        to="/members/counselors"
+        className="flex flex-wrap items-center gap-x-4 gap-y-1.5 w-fit max-w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-xs hover:border-brand-300 transition"
+      >
+        <span className="font-semibold text-gray-600 dark:text-gray-300">상담사 상태</span>
+        {counselorStateChips.map((s) => (
+          <span key={s.label} className="inline-flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full" style={{ background: s.color }} />
+            <span className="text-gray-500 dark:text-gray-400">{s.label}</span>
+            <span className="font-bold text-gray-800 dark:text-gray-100 tabular-nums">{num.format(s.value)}</span>
+          </span>
+        ))}
+      </Link>
+
+      {/* Row 3 — 매출 / 가입 추이 / 상담 건수 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
         <Card title="14일 매출 추이" to="/stats">
           <div className="h-44">
@@ -460,29 +484,19 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        <Card title="상담사 상태" to="/members/counselors">
-          <div className="h-44 flex">
-            <div className="flex-1 min-w-0">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={counselorPie} dataKey="value" nameKey="name" innerRadius={38} outerRadius={68} paddingAngle={2}>
-                    {counselorPie.map((e) => (
-                      <Cell key={e.name} fill={e.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ borderRadius: 6, fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="flex flex-col justify-center gap-1.5 pl-2">
-              {counselorPie.map((s) => (
-                <div key={s.name} className="flex items-center gap-1.5 text-[11px]">
-                  <span className="w-2 h-2 rounded-full" style={{ background: s.color }} />
-                  <span className="text-gray-500 dark:text-gray-400">{s.name}</span>
-                  <span className="font-bold text-gray-800 dark:text-gray-100 tabular-nums">{s.value}</span>
-                </div>
-              ))}
-            </div>
+        <Card title="가입 추이 (12일)" to="/members/customers">
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={signups} margin={{ top: 4, right: 4, left: -16, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.4} />
+                <XAxis dataKey="date" tickFormatter={dateShort} fontSize={10} stroke="#9ca3af" />
+                <YAxis tickFormatter={(v) => num.format(v)} fontSize={10} stroke="#9ca3af" width={28} allowDecimals={false} />
+                <Tooltip formatter={(v: number) => `${num.format(v)}명`} contentStyle={{ borderRadius: 6, fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />
+                <Line type="monotone" dataKey="members" name="회원" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="counselors" name="상담사" stroke="#8259F5" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </Card>
 

@@ -29,13 +29,6 @@ export default function Find() {
   const [codeError, setCodeError] = useState<string | null>(null)
   const [verifying, setVerifying] = useState(false)
 
-  // 인증 후 새 비밀번호 설정 상태 (휴대폰 탭)
-  const [newPw, setNewPw] = useState('')
-  const [newPwConfirm, setNewPwConfirm] = useState('')
-  const [showNewPw, setShowNewPw] = useState(false)
-  const [showNewPwConfirm, setShowNewPwConfirm] = useState(false)
-  const [newPwError, setNewPwError] = useState<string | null>(null)
-
   // 이메일 탭 상태
   const [email, setEmail] = useState('')
   const [emailError, setEmailError] = useState<string | null>(null)
@@ -71,10 +64,11 @@ export default function Find() {
     if (verifying) return
     setVerifying(true)
     try {
-      await smsApi.verify(phone, phoneCode)
-      setPhoneVerified(true)
+      // 인증번호 확인과 동시에 아이디/임시비번 발급 — find/phone 이 code 재검증(assertVerified) 후
+      //   임시비번 발급 + 알림톡 발송하고, 아이디·임시비번을 반환한다. 완료 화면에서 바로 표시(C안).
+      const r = await authApi.findByPhone(phone, phoneCode)
       setCodeError(null)
-      showAlert('휴대폰 인증이 완료되었습니다.')
+      navigate('/find/complete', { replace: true, state: { method: 'phone', mbId: r.mb_id, tempPw: r.temp_pw } })
     } catch (e) {
       const msg = e instanceof ApiError ? e.message : '인증번호 확인에 실패했습니다.'
       setCodeError(msg)
@@ -106,25 +100,6 @@ export default function Find() {
       setPhoneError(msg)
     } finally {
       setSending(false)
-    }
-  }
-
-  const onResetPassword = async (e: FormEvent) => {
-    e.preventDefault()
-    if (submitting) return
-    setNewPwError(null)
-    if (!newPw) { setNewPwError('새 비밀번호를 입력해주세요.'); return }
-    if (newPw.length < 8 || newPw.length > 20) { setNewPwError('비밀번호는 8~20자여야 합니다.'); return }
-    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(newPw)) { setNewPwError('영문과 숫자를 각각 1개 이상 포함해야 합니다.'); return }
-    if (newPw !== newPwConfirm) { setNewPwError('비밀번호가 일치하지 않습니다.'); return }
-    setSubmitting(true)
-    try {
-      await authApi.resetPasswordByPhone(phone, newPw)
-      navigate('/find/complete', { replace: true, state: { method: 'phone' } })
-    } catch (e) {
-      setNewPwError(e instanceof ApiError ? e.message : '비밀번호 변경에 실패했습니다.')
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -174,9 +149,17 @@ export default function Find() {
                 핸드폰 번호를 입력해주세요.
               </p>
               <p className="text-[13px] text-[#4a5565] mt-3 leading-relaxed">
-                인증번호 확인 후 해당 번호로 아이디와
+                인증번호 확인 후 아이디와 임시 비밀번호를
                 <br />
-                변경된 비밀번호 정보를 보내드립니다.
+                화면에 안내하고 카카오톡으로도 보내드립니다.
+              </p>
+              <p className="text-[12px] text-[#99A1AF] mt-2 leading-relaxed">
+                ※ 인증 시 기존 비밀번호는 임시 비밀번호로 초기화됩니다.
+              </p>
+              <p className="text-[12px] text-[#99A1AF] mt-2 leading-relaxed">
+                인증번호가 오지 않으면 잠시 후 다시 시도하거나
+                <br />
+                고객센터로 문의해주세요.
               </p>
             </>
           ) : (
@@ -250,47 +233,6 @@ export default function Find() {
               </>
             )}
           </div>
-        )}
-
-        {/* 휴대폰 인증 완료 후: 새 비밀번호 직접 설정 */}
-        {tab === 'phone' && phoneVerified && (
-          <form onSubmit={onResetPassword} className="flex-1 flex flex-col mt-6">
-            <p className="text-[13px] text-[#10b981] mb-5">✓ 휴대폰 인증이 완료되었습니다. 새 비밀번호를 설정해주세요.</p>
-
-            <FieldLabel required>새 비밀번호</FieldLabel>
-            <PasswordInput
-              value={newPw}
-              onChange={(v) => { setNewPw(v); setNewPwError(null) }}
-              placeholder="새 비밀번호를 입력해주세요."
-              visible={showNewPw}
-              onToggle={() => setShowNewPw((v) => !v)}
-            />
-            <p className="text-[12px] text-gray-400 mt-1 mb-4">영문+숫자 혼합 8~20자</p>
-
-            <FieldLabel required>새 비밀번호 확인</FieldLabel>
-            <PasswordInput
-              value={newPwConfirm}
-              onChange={(v) => { setNewPwConfirm(v); setNewPwError(null) }}
-              placeholder="새 비밀번호를 한번 더 입력해주세요."
-              visible={showNewPwConfirm}
-              onToggle={() => setShowNewPwConfirm((v) => !v)}
-            />
-            {newPw && newPwConfirm && newPw !== newPwConfirm && (
-              <p className="text-[13px] text-[#FF6467] mt-1">비밀번호가 일치하지 않습니다.</p>
-            )}
-
-            {newPwError && <p className="text-[13px] text-[#FF6467] mt-2">{newPwError}</p>}
-
-            <div className="mt-auto pt-8 pb-8">
-              <PrimaryButton
-                type="submit"
-                loading={submitting}
-                disabled={!newPw || !newPwConfirm || newPw !== newPwConfirm}
-              >
-                비밀번호 변경
-              </PrimaryButton>
-            </div>
-          </form>
         )}
 
         {/* 이메일 탭 */}
@@ -368,41 +310,3 @@ function FieldLabel({
   )
 }
 
-function PasswordInput({
-  value,
-  onChange,
-  placeholder,
-  visible,
-  onToggle,
-}: {
-  value: string
-  onChange: (v: string) => void
-  placeholder: string
-  visible: boolean
-  onToggle: () => void
-}) {
-  return (
-    <div className="relative">
-      <input
-        type={visible ? 'text' : 'password'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full h-[50px] px-4 pr-12 rounded-xl border border-[#e5e7eb] text-[15px] text-[#1E2939] placeholder-[#9CA3AF] outline-none focus:border-[#ec4899] focus:ring-2 focus:ring-[#ec4899]/20 bg-white"
-        autoComplete="new-password"
-      />
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-label={visible ? '비밀번호 숨기기' : '비밀번호 보기'}
-        className="absolute right-3 top-1/2 -translate-y-1/2 w-7 h-7 flex items-center justify-center"
-      >
-        <img
-          src={visible ? '/img/ic_input_eye.svg' : '/img/ic_input_eye_closed.svg'}
-          alt=""
-          className="w-6 h-6"
-        />
-      </button>
-    </div>
-  )
-}

@@ -203,12 +203,12 @@ export default function Sidebar() {
                   <ul className="flex flex-col gap-0 mt-0 pl-6">
                     <li><NavLink to="/push-notifications" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📤 알림 보내기(수동)</NavLink></li>
                     <li><NavLink to="/notification-history" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>🔔 알림 이력</NavLink></li>
-                    <li><NavLink to="/alimtalk-bulk" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>💬 알림톡 발송(수동)</NavLink></li>
                     <li><NavLink to="/alert-logs" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📋 알림톡 발송 이력</NavLink></li>
                     <li aria-hidden className="my-1.5 mx-2 border-t border-gray-200 dark:border-gray-700" />
                     <li><NavLink to="/alert-guide" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📖 알림 전체 가이드</NavLink></li>
                     <li><NavLink to="/push-guide" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>📱 푸시 가이드(참고)</NavLink></li>
                     <li><NavLink to="/alimtalk-templates" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>🧾 알림톡 템플릿(자동)</NavLink></li>
+                    <li><NavLink to="/alimtalk-bulk" className={({ isActive }) => `menu-dropdown-item ${isActive ? 'menu-dropdown-item-active' : 'menu-dropdown-item-inactive'}`}>💬 알림톡 발송(수동)</NavLink></li>
                   </ul>
                 )}
               </li>

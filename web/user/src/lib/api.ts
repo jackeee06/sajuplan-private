@@ -313,15 +313,12 @@ export const authApi = {
     api.get<{ available: boolean; mb_id: string }>(
       `/user/auth/check-mb-id?mb_id=${encodeURIComponent(mbId)}`,
     ),
-  /** 휴대폰으로 아이디/비밀번호 찾기 — SMS 인증 통과한 폰번호로 임시비밀번호 발송(알림톡) */
+  /** 휴대폰으로 아이디/비밀번호 찾기 — 인증 통과 시 임시비번 발급(알림톡 발송) + 아이디·임시비번 반환(화면 표시) */
   findByPhone: (phone: string, code: string) =>
-    api.post<{ ok: true }>('/user/auth/find/phone', { phone, code }),
+    api.post<{ ok: true; mb_id: string; temp_pw: string }>('/user/auth/find/phone', { phone, code }),
   /** 이메일로 아이디/비밀번호 찾기 — 임시비밀번호 발송(메일) */
   findByEmail: (email: string) =>
     api.post<{ ok: true }>('/user/auth/find/email', { email }),
-  /** 휴대폰 인증 후 새 비밀번호 직접 설정 — 임시비번 SMS 없이 바로 재설정 */
-  resetPasswordByPhone: (phone: string, newPassword: string) =>
-    api.post<{ ok: true; mb_id: string }>('/user/auth/find/phone/reset', { phone, new_password: newPassword }),
   /** 마이페이지 회원정보 수정 폼 prefill — 풀 프로필 (휴대폰/주소/생년월일 등) */
   meProfile: () => api.get<MeProfile>('/user/auth/me/profile'),
   updateMeProfile: (body: UpdateMeBody) =>
@@ -433,6 +430,16 @@ export const consultApi = {
         waited_seconds: number
       }>
     }>(`/user/consult/incoming`),
+
+  /**
+   * [2026-06-26] 진행 중 타로 전화상담 → 라이브 보드 세션 (홈 "타로상담" 스마트 버튼).
+   *  active=true 면 tarotroom 으로 입장(role/session/상대이름), false 면 설명 페이지로.
+   */
+  tarotSession: () =>
+    api.get<
+      | { active: false }
+      | { active: true; role: 'counselor' | 'member'; session: string; counselorName: string; memberName: string }
+    >(`/user/consult/tarot-session`),
 
   /** 상담 메모 조회 (상담사 전용) */
   getMemo: (consultationId: number) =>
@@ -821,11 +828,22 @@ export interface CounselorAvailability {
   state: string
 }
 
+/** 상담사가 받은 미응답 상담요청 1건 (부재중 고객이 "전화/채팅 요청"으로 남긴 것) */
+export interface ConsultRequestItem {
+  id: number
+  requester_nick: string
+  channel: 'phone' | 'chat' | null
+  requested_at: string
+}
+
 export const counselorMypageApi = {
   getAvailability: () =>
     api.get<CounselorAvailability>('/user/counselors/me/availability'),
   setAvailability: (body: { use_phone?: boolean; use_chat?: boolean; available?: boolean }) =>
     api.patch<CounselorAvailability>('/user/counselors/me/availability', body),
+  /** 본인이 받은 최근(24h) 미응답 상담요청 — 대시보드 "지금 상담 켜기" 맥락 카드용 */
+  getConsultRequests: () =>
+    api.get<ConsultRequestItem[]>('/user/counselors/me/consult-requests'),
   /** 본인 소개(post_counselor.intro) — HTML 본문 */
   getIntro: () => api.get<{ intro: string }>('/user/counselors/me/intro'),
   setIntro: (intro: string) =>
@@ -1155,7 +1173,7 @@ export interface PublicCounselor {
   profile_image: string | null
   /** WebP 변환본 — 있으면 우선 사용 */
   profile_image_webp: string | null
-  category: '사주' | '타로' | '신점' | '기타'
+  category: '사주' | '타로' | '신점' | '심리' | '기타'
   /** 요청자가 단골 등록했는지 (비로그인이면 false) */
   is_liked: boolean
   /** 24h 내 "상담요청하기" 신청 여부 (2026-05-22 신설) — 부재 카드 버튼 분기. */
@@ -1204,7 +1222,7 @@ export interface PublicCounselorDetail {
   /** 와이드 이미지 위 오버레이 캡션 — 빈값이면 미노출 */
   wide_headline: string | null
   wide_subcaption: string | null
-  category: '사주' | '타로' | '신점' | '기타'
+  category: '사주' | '타로' | '신점' | '심리' | '기타'
   /** "현재 N명이 같은 페이지를 보고 있습니다" — 의사값 (상담사 ID + 시간버킷 해시) */
   live_viewers: number
   /** 해당 상담사의 문의 총 건수 */
@@ -1303,9 +1321,10 @@ export const counselorsApi = {
    *  - 400: 본인 본인 요청
    *  - 200: { ok:true, already?: boolean, notified: { alimtalk, push } }
    */
-  requestConsult: (id: number | string) =>
+  requestConsult: (id: number | string, channel?: 'phone' | 'chat') =>
     api.post<{ ok: true; already?: boolean; notified: { alimtalk: boolean; push: boolean } }>(
       `/user/counselors/${id}/request-consult`,
+      channel ? { channel } : undefined,
     ),
 }
 
@@ -1569,7 +1588,7 @@ export interface PublicRecentReview {
   unit_cost: number | null
   counselor_review_count: number
   specialty: string | null
-  category: '사주' | '타로' | '신점' | '기타'
+  category: '사주' | '타로' | '신점' | '심리' | '기타'
 }
 
 export interface MyReviewItem {
@@ -1590,7 +1609,7 @@ export interface MyReviewItem {
   counselor_id: number
   counselor_name: string
   counselor_code: string
-  counselor_badge: '사주' | '타로' | '신점' | '기타'
+  counselor_badge: '사주' | '타로' | '신점' | '심리' | '기타'
   counselor_avatar: string | null
 }
 
@@ -1608,7 +1627,7 @@ export interface ConsultHistoryItem {
   counselor_code: string | null
   counselor_avatar: string | null
   counselor_avatar_webp: string | null
-  counselor_badge: '사주' | '타로' | '신점' | '기타'
+  counselor_badge: '사주' | '타로' | '신점' | '심리' | '기타'
   review_id: number | null
   /** 상담사 시점에서만 채워짐 — 본인이 작성한 후기 답변 id, 없으면 null */
   reply_id: number | null

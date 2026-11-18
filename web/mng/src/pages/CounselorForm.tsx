@@ -144,6 +144,7 @@ export default function CounselorForm() {
   // 탈퇴 여부 — 값 있으면(=탈퇴) 복구 배너 노출
   const [leftAt, setLeftAt] = useState<string | null>(null)
   const [restoring, setRestoring] = useState(false)
+  const [leaving, setLeaving] = useState(false)
   const [uploading, setUploading] = useState<string | null>(null)
   // 신규 등록 시 INSERT 전에 임시 보관할 파일 (등록 직후 일괄 업로드)
   const [pendingFiles, setPendingFiles] = useState<{
@@ -394,6 +395,56 @@ export default function CounselorForm() {
     }
   }
 
+  // 탈퇴 처리 — 정보는 보존하고 목록·앱에서만 숨김(복구 가능). 재가입(다른 아이디) 상황 감지해 안내.
+  async function onLeave() {
+    if (!id) return
+    setError(null); setSuccess(null)
+    type Precheck = {
+      name: string | null; mb_id: string | null; already_left: boolean
+      unsettled_earning: number; paid_settlement_count: number; has_data: boolean
+      same_phone_active: { id: number; mb_id: string | null; name: string | null }[]
+    }
+    let pre: Precheck | null = null
+    try {
+      pre = await api<Precheck>(`/admin/members/counselors/${id}/leave-precheck`)
+    } catch { /* precheck 실패해도 기본 확인으로 진행 */ }
+    const who = data.name || data.nickname || `상담사 #${id}`
+    let msg: string
+    if (pre?.has_data) {
+      msg =
+        `⚠️ [${who}] 이 계정에 보존할 데이터가 있습니다.\n` +
+        (pre.unsettled_earning > 0 ? `· 미정산 수익금 ${pre.unsettled_earning.toLocaleString()}원\n` : '') +
+        (pre.paid_settlement_count > 0 ? `· 과거 정산 ${pre.paid_settlement_count}건\n` : '') +
+        `\n같은 사람이 새 아이디로 재가입한 경우라면, 이 계정을 탈퇴하지 말고 ` +
+        `새 계정에서 [복구]를 누르면 기존 수익금·후기·단골이 그대로 넘어옵니다(중복 새 계정은 자동 정리).\n\n` +
+        `그래도 이 계정을 탈퇴 처리할까요?`
+    } else {
+      msg =
+        `[${who}] 상담사를 탈퇴 처리할까요?\n\n` +
+        `목록·사용자 앱에서 숨겨집니다. 수익금·등급·후기·정산 기록은 보존되며, ` +
+        `언제든 아래 [복구] 버튼으로 되살릴 수 있습니다.`
+    }
+    if (pre?.same_phone_active?.length) {
+      msg +=
+        `\n\n※ 같은 전화번호로 활성 계정이 있습니다(재가입으로 보임): ` +
+        pre.same_phone_active.map((a) => `${a.name || a.mb_id}(#${a.id})`).join(', ')
+    }
+    if (!window.confirm(msg)) return
+    setLeaving(true)
+    try {
+      const res = await api<{ ok: boolean; left: boolean; left_at: string | null; message: string }>(
+        `/admin/members/counselors/${id}/leave`,
+        { method: 'POST', body: JSON.stringify({}) },
+      )
+      setLeftAt(res.left_at)
+      setSuccess(res.message)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '탈퇴 처리 실패')
+    } finally {
+      setLeaving(false)
+    }
+  }
+
   if (loading) return <div className="p-6 text-sm text-gray-500">로딩...</div>
 
   // 상담사 상태 → 한글 라벨 + 색상 매핑 (헤더 뱃지용)
@@ -475,7 +526,7 @@ export default function CounselorForm() {
                   <span className={`px-2 py-0.5 rounded-full font-medium text-[12px] ${stateLabel[data.state].cls}`}>● {stateLabel[data.state].label}</span>
                 )}
                 {data.csrid && (
-                  <span className="text-gray-500"><span className="text-gray-400">csrid</span> <span className="font-mono">{data.csrid}</span></span>
+                  <span className="text-gray-500"><span className="text-gray-400">연동번호</span> <span className="font-mono">{data.csrid}</span></span>
                 )}
                 {data.dtmfno && (
                   <span className="text-gray-500" title="ARS 실제 전화 연결번호 (엠투넷 라우팅용) — 공개번호 = 이 값 + 150"><span className="text-gray-400">dtmfno</span> <span className="text-gray-500 font-medium">(연결번호)</span> <span className="font-mono">{data.dtmfno}</span></span>
@@ -514,6 +565,26 @@ export default function CounselorForm() {
             >
               {saving ? '저장 중...' : '저장'}
             </button>
+            {leftAt ? (
+              <button
+                type="button"
+                disabled
+                title="이미 탈퇴 처리된 계정입니다. 위의 [이 계정 복구]로 되살릴 수 있습니다."
+                className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-400 bg-gray-50 dark:border-gray-700 dark:text-gray-500 dark:bg-gray-800 cursor-not-allowed shrink-0"
+              >
+                탈퇴됨
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onLeave}
+                disabled={leaving}
+                title="이 상담사를 목록·앱에서 숨김 처리(정보 보존·복구 가능)"
+                className="px-4 py-2 text-sm rounded-lg border border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-400 dark:hover:bg-rose-900/20 disabled:opacity-50 shrink-0"
+              >
+                {leaving ? '처리 중...' : '탈퇴'}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -709,7 +780,7 @@ export default function CounselorForm() {
             <NumInput value={data.counselor_priority} onChange={(v) => set('counselor_priority', v)} className={inputW.xs} />
           </FieldPair>
         </FieldRow>
-        <Row label="상담사 ID (csrid)" hint="엠투넷 발급 — 수정 불가">
+        <Row label="통화·채팅 연동번호" hint="엠투넷 발급 csrid · 수정 불가">
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -750,7 +821,7 @@ export default function CounselorForm() {
                     )
                     if (res.ok && res.csrid) {
                       set('csrid', res.csrid)
-                      setSuccess(`엠투넷 연동 완료 (csrid: ${res.csrid})`)
+                      setSuccess(`엠투넷 연동 완료 (연동번호: ${res.csrid})`)
                     } else {
                       setError(`엠투넷 연동 실패: ${res.error ?? '알 수 없음'}`)
                     }

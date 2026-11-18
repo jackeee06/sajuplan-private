@@ -4,13 +4,13 @@ import UploadedImage from './UploadedImage'
 import AlertModal from './AlertModal'
 import { useConsultModal } from '../lib/consult-context'
 import { useLikeAction } from '../lib/like-context'
-import { Bell } from 'lucide-react'
+import { Phone, MessageCircle } from 'lucide-react'
 import { ApiError, counselorsApi } from '../lib/api'
 
 export interface Counselor {
   id: number | string
   name: string
-  badge?: '신점' | '사주' | '타로' | string
+  badge?: '신점' | '사주' | '타로' | '심리' | string
   /** 4자리 ~ 6자리 ID */
   code: string
   /** 회원 노출용 상담사 연결번호(m2net dtmfno, 1~999). 미등록/더미는 null → 미표시 */
@@ -94,18 +94,19 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
     setIsRequested(!!isRequestedProp)
   }, [isRequestedProp])
 
-  const handleRequestConsult = async () => {
+  const handleRequestConsult = async (channel: 'phone' | 'chat') => {
     if (requestBusy || isRequested) return
     setRequestBusy(true)
     try {
-      const r = await counselorsApi.requestConsult(id)
+      const r = await counselorsApi.requestConsult(id, channel)
       setIsRequested(true)
+      const channelKo = channel === 'phone' ? '전화' : '채팅'
       setRequestAlert({
         open: true,
-        title: r.already ? '이미 요청됨' : '상담 요청을 보냈어요',
+        title: r.already ? '이미 요청됨' : `${channelKo} 상담 요청을 보냈어요`,
         message: r.already
           ? `${name} 상담사님에게 24시간 내 이미 요청을 보냈어요.\n상담사가 접속하면 알림이 갈 거예요.`
-          : `${name} 상담사님에게 알림이 전송됐어요.\n접속하시면 다시 안내드릴게요.`,
+          : `${name} 상담사님에게 ${channelKo} 상담 알림이 전송됐어요.\n상담사가 접속하면 다시 안내드릴게요.`,
       })
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
@@ -164,6 +165,10 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
               srcWebp={imgUrlWebp}
               alt={name}
               className="w-[100px] h-[100px] rounded-2xl object-cover"
+              width={100}
+              height={100}
+              loading="lazy"
+              decoding="async"
             />
           </Link>
           {badge && (
@@ -228,31 +233,38 @@ export default function CounselorCard({ counselor, onLikeToggle, hideChat }: Pro
         </div>
       </div>
 
-      {/* 상담 버튼 — 부재(ABSE/RESV) 면 "상담요청하기" 한 줄 풀폭, 아니면 전화/채팅 두 버튼 */}
+      {/* 상담 버튼 — 부재(ABSE/RESV) 면 "전화/채팅 요청" 두 버튼(정상 상담사 전화/채팅 버튼과 대칭),
+          아니면 전화/채팅 두 버튼. 요청 시 채널을 함께 보내 상담사 알림에 "전화/채팅"이 표시됨 (2026-07-03). */}
       {isOffline ? (
-        <button
-          type="button"
-          onClick={handleRequestConsult}
-          disabled={requestBusy || isRequested}
-          className={
-            'w-full h-10 rounded-full text-[14px] font-medium flex items-center justify-center gap-1.5 transition ' +
-            (isRequested
-              ? 'bg-[#F3F4F6] text-[#9CA3AF] cursor-not-allowed'
-              : 'bg-[#F9FAFB] border border-[#E5E7EB] text-[#6A7282] hover:bg-[#F3F4F6] disabled:opacity-60')
-          }
-        >
-          {isRequested ? (
-            <>
-              <span aria-hidden>✓</span>
-              <span>요청됨</span>
-            </>
-          ) : (
-            <>
-              <Bell className="w-4 h-4" aria-hidden />
-              <span>상담요청하기</span>
-            </>
-          )}
-        </button>
+        <div className={hideChat ? 'flex' : 'grid grid-cols-2 gap-2'}>
+          {(hideChat ? (['phone'] as const) : (['phone', 'chat'] as const)).map((ch) => (
+            <button
+              key={ch}
+              type="button"
+              onClick={() => handleRequestConsult(ch)}
+              disabled={requestBusy || isRequested}
+              className={
+                (hideChat ? 'w-full ' : '') +
+                'h-10 rounded-full text-[14px] font-medium flex items-center justify-center gap-1.5 transition ' +
+                (isRequested
+                  ? 'bg-[#F3F4F6] text-[#9CA3AF] cursor-not-allowed'
+                  : 'bg-[#F9FAFB] border border-[#E5E7EB] text-[#6A7282] hover:bg-[#F3F4F6] disabled:opacity-60')
+              }
+            >
+              {isRequested ? (
+                <>
+                  <span aria-hidden>✓</span>
+                  <span>요청됨</span>
+                </>
+              ) : (
+                <>
+                  {ch === 'phone' ? <Phone className="w-4 h-4" aria-hidden /> : <MessageCircle className="w-4 h-4" aria-hidden />}
+                  <span>{ch === 'phone' ? '전화 요청' : '채팅 요청'}</span>
+                </>
+              )}
+            </button>
+          ))}
+        </div>
       ) : (
         <div className={hideChat ? 'flex' : 'grid grid-cols-2 gap-2'}>
           <ContactButton

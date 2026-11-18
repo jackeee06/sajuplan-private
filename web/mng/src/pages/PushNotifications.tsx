@@ -163,6 +163,11 @@ function Compose({ onSent }: { onSent: () => void }) {
 
   const guide = target ? TARGET_GUIDE[target] : null
 
+  // 본문 칸 적응 — 푸시 포함=짧게(폰에서 잘림) / 인앱만=길게(종모양은 전체 표시)
+  const bodyLimit = chPush ? 200 : 1000
+  const bodyOver = content.length > bodyLimit
+  const bodyNear = !bodyOver && content.length > bodyLimit * 0.8
+
   return (
     <section className="space-y-2">
       <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">알림 작성</h2>
@@ -231,6 +236,24 @@ function Compose({ onSent }: { onSent: () => void }) {
               })()}에게 일괄 발송됩니다.
             </div>
           )}
+        </div>
+
+        {/* 보낼 방법 (채널) — 발송 대상 바로 아래(본문 칸이 이 선택에 따라 달라지므로 먼저 고름) */}
+        <div className="space-y-1.5">
+          <label className="text-[11px] font-medium text-gray-500">보낼 방법 (채널) <span className="text-rose-500">*</span></label>
+          <div className="flex flex-wrap gap-2">
+            <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm select-none ${chPush ? 'cursor-not-allowed' : 'cursor-pointer'} ${(chInapp || chPush) ? 'bg-brand-50 dark:bg-brand-900/30 border-brand-400 dark:border-brand-600 text-brand-700 dark:text-brand-300' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'}`}>
+              <input type="checkbox" checked={chInapp || chPush} disabled={chPush} onChange={(e) => setChInapp(e.target.checked)} />
+              🔔 인앱(종모양){chPush && <span className="ml-0.5 text-[10px] text-gray-400">🔒 자동</span>}
+            </label>
+            <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm cursor-pointer select-none ${chPush ? 'bg-brand-50 dark:bg-brand-900/30 border-brand-400 dark:border-brand-600 text-brand-700 dark:text-brand-300' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'}`}>
+              <input type="checkbox" checked={chPush} onChange={(e) => { const v = e.target.checked; setChPush(v); if (v) setChInapp(true) }} />
+              📲 푸시(FCM)
+            </label>
+          </div>
+          <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-0.5">
+            💡 <b>인앱</b>=앱 켜고 종모양🔔에서 봄 · <b>푸시</b>=앱 꺼도 폰 알림으로 도착. <b>푸시는 항상 인앱과 함께 발송</b>됩니다 (폰 알림을 지워도 종모양에서 내용을 다시 볼 수 있게). <b>인앱만</b> 보내면 본문을 길게 써도 종모양에 전체 표시됩니다. 카카오톡은 → <a href="/mng/alimtalk-bulk" className="text-brand-600 underline">알림톡 발송</a>
+          </div>
         </div>
 
         {/* 개별회원 — 다중 선택 (검색해서 칩으로 누적 추가) */}
@@ -325,20 +348,30 @@ function Compose({ onSent }: { onSent: () => void }) {
           />
         </div>
 
-        {/* 본문 */}
+        {/* 본문 — 채널 적응: 푸시 포함=짧게(폰 잘림) / 인앱만=길게(종모양 전체 표시) */}
         <div className="space-y-1.5">
-          <label className="text-[11px] font-medium text-gray-500">
-            본문 (선택)
-            <span className="ml-2 text-gray-400">{content.length}/200</span>
+          <label className="text-[11px] font-medium text-gray-500 flex items-center justify-between">
+            <span>본문 (선택)</span>
+            <span className={`tabular-nums ${bodyOver ? 'text-rose-500 font-semibold' : bodyNear ? 'text-orange-500' : 'text-gray-400'}`}>
+              {content.length}/{bodyLimit}자
+            </span>
           </label>
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            rows={2}
-            maxLength={200}
-            placeholder="알림 미리보기에 표시될 짧은 본문"
-            className={`${cls} w-full`}
+            rows={chPush ? 3 : 9}
+            maxLength={1000}
+            placeholder={chPush ? '푸시는 폰에서 앞 2~4줄만 보입니다 — 짧게 쓰세요' : '인앱(종모양)은 본문 전체가 그대로 보입니다 — 길게 써도 됩니다'}
+            className={`${cls} w-full resize-y`}
           />
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+            {chPush
+              ? '📲 푸시를 켜면 폰 알림은 앞부분만 보이고 잘립니다 — 본문은 짧게 권장. (긴 안내는 공지사항을 만들어 위 "주소"에 링크)'
+              : '🔔 인앱(종모양) 전용이라 본문 전체가 그대로 보입니다 — 길게 써도 됩니다.'}
+          </p>
+          {chPush && bodyOver && (
+            <p className="text-[11px] text-rose-600 dark:text-rose-400">⚠ 200자가 넘습니다. 푸시 알림은 폰에서 뒷부분이 잘려 보입니다.</p>
+          )}
         </div>
 
         {/* 주소 */}
@@ -358,24 +391,6 @@ function Compose({ onSent }: { onSent: () => void }) {
               실제 발송 URL: <code className="text-blue-700 dark:text-blue-300">{normalizeLinkUrl(linkUrl)}</code>
             </div>
           )}
-        </div>
-
-        {/* 보낼 방법 (채널) */}
-        <div className="space-y-1.5">
-          <label className="text-[11px] font-medium text-gray-500">보낼 방법 (채널) <span className="text-rose-500">*</span></label>
-          <div className="flex flex-wrap gap-2">
-            <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm select-none ${chPush ? 'cursor-not-allowed' : 'cursor-pointer'} ${(chInapp || chPush) ? 'bg-brand-50 dark:bg-brand-900/30 border-brand-400 dark:border-brand-600 text-brand-700 dark:text-brand-300' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'}`}>
-              <input type="checkbox" checked={chInapp || chPush} disabled={chPush} onChange={(e) => setChInapp(e.target.checked)} />
-              🔔 인앱(종모양){chPush && <span className="ml-0.5 text-[10px] text-gray-400">🔒 자동</span>}
-            </label>
-            <label className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-sm cursor-pointer select-none ${chPush ? 'bg-brand-50 dark:bg-brand-900/30 border-brand-400 dark:border-brand-600 text-brand-700 dark:text-brand-300' : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400'}`}>
-              <input type="checkbox" checked={chPush} onChange={(e) => { const v = e.target.checked; setChPush(v); if (v) setChInapp(true) }} />
-              📲 푸시(FCM)
-            </label>
-          </div>
-          <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed pt-0.5">
-            💡 <b>인앱</b>=앱 켜고 종모양🔔에서 봄 · <b>푸시</b>=앱 꺼도 폰 알림으로 도착. <b>푸시는 항상 인앱과 함께 발송</b>됩니다 (폰 알림을 지워도 종모양에서 내용을 다시 볼 수 있게). 카카오톡은 → <a href="/mng/alimtalk-bulk" className="text-brand-600 underline">알림톡 발송</a>
-          </div>
         </div>
 
         {/* 발송 버튼 */}

@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "gen:search": "node scripts/gen-search-index.mjs",
+    "prebuild": "node scripts/gen-search-index.mjs",
+    "predev": "node scripts/gen-search-index.mjs",
     "build": "vite build",
     "build:check": "tsc -b && vite build",
     "typecheck": "tsc -b --noEmit",

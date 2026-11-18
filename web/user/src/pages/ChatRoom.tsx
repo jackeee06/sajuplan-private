@@ -668,19 +668,49 @@ export default function ChatRoom() {
       chatApi.rejoin(chatRoomIdRef.current).catch(() => { /* swallow */ })
     }
 
-    // 탭/앱 이탈 — 즉시 종료(close) 금지. 복구 가능한 soft 이탈만 (beacon 으로 전송 보장).
-    const onPageHide = () => { flushPendingLeaveImmediate(); softLeave(true) }
-    const onBeforeUnload = () => { flushPendingLeaveImmediate(); softLeave(true) }
-    // 백그라운드 ↔ 복귀 = soft 이탈 ↔ rejoin (회원·상담사 양쪽).
+    // [2026-07-07] 순간 이탈 노이즈 억제 — blur/hidden 시 즉시 leave 하지 않고 8초 유예를 둔다.
+    //   엠투넷 wss 토큰 5분 수명으로 인한 순간 끊김·재연결, 푸시배너·키보드·앱전환으로 인한
+    //   짧은 blur 는 8초 내 복귀 시 예약된 leave 를 취소해 "나갔습니다/들어왔습니다" 시스템
+    //   메시지를 아예 남기지 않는다. 진짜 이탈(8초 이상)만 표시. 과금은 CNCH 중 try_out 과
+    //   무관하게 계속되므로(불변식) 유예를 둬도 매출/수익 영향 없음.
+    const SOFT_LEAVE_GRACE_MS = 8000
+    let leaveTimer: number | null = null
+    let softLeftActive = false // 유예를 넘겨 실제 soft-leave 가 발송된 상태
+    const scheduleSoftLeave = () => {
+      if (leaveTimer != null || softLeftActive) return // 이미 예약/이탈 중
+      leaveTimer = window.setTimeout(() => {
+        leaveTimer = null
+        softLeftActive = true
+        softLeave(false)
+      }, SOFT_LEAVE_GRACE_MS)
+    }
+    const cancelOrRejoin = () => {
+      if (leaveTimer != null) {
+        // 유예 안에 복귀 — 예약된 leave 취소(leave 자체가 안 나가 시스템 메시지 0)
+        window.clearTimeout(leaveTimer)
+        leaveTimer = null
+        return
+      }
+      // 예약이 없다 = 이미 이탈이 발송된 상태(유예 경과 / pagehide·beforeunload 직접 발송 / effect 재실행 등).
+      //   doRejoin(=rejoin API)은 멱등이므로 무조건 호출해 member_try_out 을 self-heal 한다.
+      //   (softLeftActive 로 게이팅하면 pagehide 경로가 복귀 rejoin 을 놓쳐 try_out 고착→방치정산 오종료.)
+      softLeftActive = false
+      doRejoin()
+    }
+
+    // 탭/앱 완전 종료 — 유예 없이 즉시 soft 이탈(beacon 보장). 예약 타이머는 정리.
+    const onPageHide = () => { if (leaveTimer != null) { window.clearTimeout(leaveTimer); leaveTimer = null } flushPendingLeaveImmediate(); softLeave(true) }
+    const onBeforeUnload = () => { if (leaveTimer != null) { window.clearTimeout(leaveTimer); leaveTimer = null } flushPendingLeaveImmediate(); softLeave(true) }
+    // 백그라운드 ↔ 복귀 = 유예 예약 ↔ 취소/복귀 (회원·상담사 양쪽).
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') softLeave(false)
-      else if (document.visibilityState === 'visible') doRejoin()
+      if (document.visibilityState === 'hidden') scheduleSoftLeave()
+      else if (document.visibilityState === 'visible') cancelOrRejoin()
     }
     // [2026-05-30] RN WebView 에서 visibilitychange 안 뜨는 케이스 보완 — blur/focus 폴백.
-    //   거짓양성(앱 전환)도 soft 는 멱등이고 focus 복귀 시 rejoin 으로 자동 복원되어 부작용 미미.
-    const onBlur = () => softLeave(false)
-    const onFocus = () => doRejoin()
-    const onPageShow = () => doRejoin() // bfcache 복귀(지원 브라우저)
+    //   순간 blur 는 위 유예 로직으로 흡수(8초 내 focus 복귀 시 leave 취소).
+    const onBlur = () => scheduleSoftLeave()
+    const onFocus = () => cancelOrRejoin()
+    const onPageShow = () => cancelOrRejoin() // bfcache 복귀(지원 브라우저)
 
     window.addEventListener('pagehide', onPageHide)
     window.addEventListener('beforeunload', onBeforeUnload)
@@ -690,6 +720,7 @@ export default function ChatRoom() {
     window.addEventListener('pageshow', onPageShow)
 
     return () => {
+      if (leaveTimer != null) { window.clearTimeout(leaveTimer); leaveTimer = null }
       window.removeEventListener('pagehide', onPageHide)
       window.removeEventListener('beforeunload', onBeforeUnload)
       document.removeEventListener('visibilitychange', onVisibility)

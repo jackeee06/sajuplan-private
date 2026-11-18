@@ -371,7 +371,7 @@ export default function PromoterDashboard() {
                     <div className="text-left">
                       <h2 className="text-[17px] font-bold text-[#1E2939]">사주플랜 서포터즈</h2>
                       <p className="mt-1 text-[13px] leading-[160%] text-[#6A7282]">
-                        내가 초대한 회원이 사주·타로·신점 상담을 이용할 때마다 적립금이 쌓여요.
+                        내가 초대한 회원이 사주·타로·신점·심리 상담을 이용할 때마다 적립금이 쌓여요.
                       </p>
                     </div>
                   </div>
@@ -392,7 +392,7 @@ export default function PromoterDashboard() {
                       <Step
                         n={3}
                         title="상담 이용할 때마다 적립"
-                        desc="그 회원이 사주·타로·신점 상담을 이용하면, 이용 금액의 일부가 내 기대수익으로 차곡차곡 쌓여요."
+                        desc="그 회원이 사주·타로·신점·심리 상담을 이용하면, 이용 금액의 일부가 내 기대수익으로 차곡차곡 쌓여요."
                         last
                       />
                     </ol>

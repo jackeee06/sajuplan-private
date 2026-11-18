@@ -26,22 +26,29 @@ import {
   PublicRecentReview,
   eventCounselorsApi,
   PublicEventCounselor,
+  consultApi,
 } from '../lib/api'
 import { useAuth } from '../lib/auth-context'
 import { mapPublicCounselorToCard } from '../lib/counselor-mapper'
 import { openExternalUrl } from '../lib/native-bridge'
 
 type MainTab = 'all' | 'popular' | 'new' | 'chat' | 'review'
-type ChipTab = '전체' | '사주' | '타로' | '신점'
+type ChipTab = '전체' | '사주' | '타로' | '신점' | '심리'
 
-const CHIPS: ChipTab[] = ['전체', '사주', '타로', '신점']
+const CHIPS: ChipTab[] = ['전체', '사주', '타로', '신점', '심리']
 
 // 카드 매핑 + state 도출은 src/lib/counselor-mapper.ts 에 통합. 모든 리스트 페이지가 같은 헬퍼 사용.
 
 /** 홈 후기 리스트 초기 노출 수(2026-06-12: 13→20). 데이터는 이미 클라에 다 받아둔 상태라 늘려도 비용 0. */
 const INITIAL_VISIBLE = 20
-/** 홈 상담사 리스트 초기 노출 수 — 현재 활성 28명 전후를 첫 화면에 거의 다 보이게(2026-06-23: 20→30). 리뷰와 분리. */
-const COUNSELOR_INITIAL = 30
+/**
+ * 홈 상담사 리스트 초기 노출 수. 리뷰와 분리.
+ * [2026-06-25] 30→12 로 축소 — 첫 화면 카드(=프로필 이미지) 수가 초기 로딩 체감속도를 좌우.
+ *   2026-06-23 에 20→30 으로 올렸더니 첫 화면 이미지 30장 동시 로드로 느려짐(사장님 제보).
+ *   카드 이미지는 loading="lazy" 적용되어 화면 밖은 안 받지만, DOM/렌더 부담도 줄이려 12 로.
+ *   나머지는 "더보기"로 펼침(누적 패턴 유지).
+ */
+const COUNSELOR_INITIAL = 12
 /** "더보기" 펼침 상태를 (탭,칩)별로 sessionStorage 에 기억 — 다른 페이지 갔다 와도 펼침 유지. */
 const expandKey = (tab: string, chip: string) => `home_expand_${tab}_${chip}`
 const isExpanded = (tab: string, chip: string) => {
@@ -60,14 +67,56 @@ const markExpanded = (tab: string, chip: string) => {
  *  - 배너 (오늘의 운세, 1/10 페이지네이션)
  *  - 통계 카드 2개 (최근상담 / 접속중상담사)
  *  - 큰 탭 (전체/인기/채팅/후기)
- *  - 칩 탭 (전체/사주/타로/신점)
+ *  - 칩 탭 (전체/사주/타로/신점/심리)
  *  - 상담사 카드 리스트
  *  - 푸터 (사업자 정보)
  *  - BottomNav
  */
 export default function Home() {
-  const { isLoggedIn, member } = useAuth()
+  const { isLoggedIn, member, isCounselor } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
+
+  // [2026-06-26] 진행 중 타로 전화상담 감지 → 홈 "타로상담" 버튼이 '상담 입장'으로 변신(핑크+비콘).
+  //   당황한 고객이 익숙한 이 버튼을 눌러도 곧장 보드로. 앱 복귀(visibilitychange) 시 재확인.
+  const [tarotLive, setTarotLive] = useState(false)
+  useEffect(() => {
+    if (!isLoggedIn) { setTarotLive(false); return }
+    let alive = true
+    const check = () => {
+      consultApi
+        .tarotSession()
+        .then((r) => { if (alive) setTarotLive(!!(r as { active?: boolean }).active) })
+        .catch(() => {})
+    }
+    check()
+    const onVis = () => { if (document.visibilityState === 'visible') check() }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      alive = false
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [isLoggedIn])
+
+  // 홈 "타로상담" 스마트 버튼: 진행 중이면 보드로 즉시 입장, 아니면 설명 페이지로.
+  const handleTarotClick = async () => {
+    try {
+      const r = await consultApi.tarotSession()
+      if ((r as { active?: boolean }).active) {
+        const a = r as { role: 'counselor' | 'member'; session: string; counselorName: string; memberName: string }
+        const base = 'https://tarotroom.sajuplan.com/'
+        const url =
+          a.role === 'counselor'
+            ? `${base}?role=counselor&session=${encodeURIComponent(a.session)}&mName=${encodeURIComponent(a.memberName)}`
+            : `${base}?role=member&session=${encodeURIComponent(a.session)}&cName=${encodeURIComponent(a.counselorName)}`
+        openExternalUrl(url)
+        return
+      }
+    } catch {
+      /* 조회 실패 시 설명 페이지로 폴백 */
+    }
+    navigate('/tarot-intro')
+  }
   // 회원가입/소셜가입 직후 메인으로 진입 시 1회성 환영 토스트.
   // Signup.tsx 가 navigate('/', { state: { signupToast: '...' } }) 로 전달.
   const [welcomeToast, setWelcomeToast] = useState<string | null>(null)
@@ -258,6 +307,55 @@ export default function Home() {
               value={stats.online.toLocaleString()}
               suffix="명"
             />
+          </div>
+        </section>
+
+        {/* 무료 만세력 | 타로상담 — 2분할. 타로상담은 진행 중이면 보드 입장(핑크+비콘), 평소엔 설명 페이지 */}
+        <section className="px-4 pb-2">
+          <div className="grid grid-cols-2 gap-2">
+            {/* 무료 만세력 (외부 모바일웹) */}
+            <button
+              type="button"
+              onClick={() => openExternalUrl(`https://manse.sajuplan.com/?view=${isCounselor ? 'pro' : 'easy'}`)}
+              className="flex items-center gap-2 rounded-2xl border border-[#f472b6] bg-[#fdf2f8] px-3 py-3 text-left transition active:scale-[0.99]"
+              aria-label="무료 만세력·운세 열기"
+            >
+              <span className="shrink-0 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[12px] font-bold leading-none text-[#ec4899] shadow-sm">四柱</span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1">
+                  <span className="text-[14px] leading-[120%] font-bold text-[#1E2939]">무료 만세력</span>
+                  <span className="rounded-full bg-[#ec4899] px-1 py-[1px] text-[9px] font-bold leading-none text-white">무료</span>
+                </span>
+                <span className="block mt-0.5 text-[11px] leading-[130%] text-[#6A7282]">사주·운세·궁합</span>
+              </span>
+            </button>
+
+            {/* 타로상담 (스마트: 진행 중→보드 / 평소→설명) */}
+            <button
+              type="button"
+              onClick={handleTarotClick}
+              className={`flex items-center gap-2 rounded-2xl px-3 py-3 text-left transition active:scale-[0.99] ${
+                tarotLive ? 'border border-[#ec4899] bg-[#ec4899]' : 'border border-[#f472b6] bg-[#fdf2f8]'
+              }`}
+              aria-label={tarotLive ? '진행 중인 타로 상담 입장' : '타로상담 안내'}
+            >
+              {tarotLive ? (
+                <span className="relative shrink-0 flex h-9 w-9 items-center justify-center">
+                  <span className="absolute h-full w-full animate-ping rounded-full bg-white/50" />
+                  <span className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[16px] leading-none shadow-sm">🔮</span>
+                </span>
+              ) : (
+                <span className="shrink-0 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[16px] leading-none shadow-sm">🔮</span>
+              )}
+              <span className="min-w-0 flex-1">
+                <span className={`block text-[14px] leading-[120%] font-bold ${tarotLive ? 'text-white' : 'text-[#1E2939]'}`}>
+                  {tarotLive ? '타로 상담 입장' : '타로상담'}
+                </span>
+                <span className={`block mt-0.5 text-[11px] leading-[130%] ${tarotLive ? 'text-white/90' : 'text-[#6A7282]'}`}>
+                  {tarotLive ? '지금 함께 보기 →' : '화면 보며 함께'}
+                </span>
+              </span>
+            </button>
           </div>
         </section>
 

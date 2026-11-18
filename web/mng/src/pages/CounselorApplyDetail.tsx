@@ -402,7 +402,7 @@ export default function CounselorApplyDetail() {
               <span className="font-medium">엠투넷 연동:</span>{' '}
               {approveResult.m2net.ok ? (
                 <span className="text-emerald-800 dark:text-emerald-200">
-                  성공 (csrid: <span className="font-mono">{approveResult.csrid ?? '-'}</span>)
+                  성공 (연동번호: <span className="font-mono">{approveResult.csrid ?? '-'}</span>)
                 </span>
               ) : (
                 <span className="text-amber-700 dark:text-amber-300">

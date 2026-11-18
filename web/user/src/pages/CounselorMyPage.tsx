@@ -7,6 +7,7 @@ import ConfirmModal from '../components/ConfirmModal'
 import AlertModal from '../components/AlertModal'
 import UploadedImage from '../components/UploadedImage'
 import PopupLayer from '../components/PopupLayer'
+import ShareBottomSheet from '../components/ShareBottomSheet'
 import {
   MOCK_COUNSELOR_MY_PROFILE,
   COUNSELOR_MAIN_MENU,
@@ -14,6 +15,7 @@ import {
 import { useAuth } from '../lib/auth-context'
 import {
   counselorMypageApi,
+  counselorsApi,
   counselorGradeApi,
   counselorPayoutApi,
   counselorCustomerQnaApi,
@@ -25,6 +27,7 @@ import {
   type MyPayoutInfo,
   type ConsultMyStats,
   type GradeProgressInfo,
+  type ConsultRequestItem,
 } from '../lib/api'
 import { GRADE_UPGRADE_STORAGE_KEY } from '../components/GradeUpgradeToast'
 import { FILE_BASE } from '../lib/runtime-env'
@@ -111,6 +114,22 @@ function ChannelToggle({
  *  - 로그아웃 (빨강)
  *  - BottomNav (myHref=/counselor/mypage)
  */
+
+/** 상담요청 채널 → 한글 라벨(뒤 공백 포함). null(구버전 요청)이면 빈 문자열. */
+function channelLabelKo(ch: 'phone' | 'chat' | null): string {
+  return ch === 'phone' ? '전화 ' : ch === 'chat' ? '채팅 ' : ''
+}
+
+/** ISO 시각 → "방금 / N분 전 / N시간 전" 상대 표기. 파싱 실패 시에도 빈값 대신 '방금'(댕글링 · 방지). */
+function timeAgoKo(iso: string): string {
+  const t = new Date(iso).getTime()
+  if (isNaN(t)) return '방금'
+  const min = Math.floor((Date.now() - t) / 60_000)
+  if (min < 1) return '방금'
+  if (min < 60) return `${min}분 전`
+  return `${Math.floor(min / 60)}시간 전`
+}
+
 export default function CounselorMyPage() {
   const navigate = useNavigate()
   const { member, loading, logout } = useAuth()
@@ -131,10 +150,15 @@ export default function CounselorMyPage() {
   } | null>(null)
   const [costModalOpen, setCostModalOpen] = useState(false)
   const [extraOpen, setExtraOpen] = useState(false)
+  // 부재중 동안 쌓인 미응답 상담요청 — "지금 상담 켜기" 맥락 카드용
+  const [consultRequests, setConsultRequests] = useState<ConsultRequestItem[]>([])
   const [monthlyStats, setMonthlyStats] = useState<ConsultMyStats | null>(null)
   // 주인 전용 — 신규 모집인 초대 링크 복사
   const [inviteBusy, setInviteBusy] = useState(false)
   const [copyOpen, setCopyOpen] = useState(false)
+  // 내 상담실(공개 프로필) 링크 공유 — 공유 카드 설명에 내 실제 정보(한줄소개·분야) 채움
+  const [shareOpen, setShareOpen] = useState(false)
+  const [shareInfo, setShareInfo] = useState<{ desc: string; title: string } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const { showAlert, alertUI } = useAlert()
 
@@ -175,9 +199,34 @@ export default function CounselorMyPage() {
     }
     refreshSettlement()
 
+    // 부재중 동안 쌓인 미응답 상담요청 — 있으면 "지금 상담 켜기" 카드 노출
+    const refreshConsultRequests = () => {
+      counselorMypageApi.getConsultRequests()
+        .then((rs) => { if (!cancelled) setConsultRequests(rs) })
+        .catch(() => { /* 상담요청 로드 실패해도 페이지는 동작 */ })
+    }
+    refreshConsultRequests()
+
     counselorCustomerQnaApi.pendingCounts()
       .then((r) => { if (!cancelled) setPendingCounts(r) })
       .catch(() => { /* 미답변 카운트 실패해도 페이지는 동작 */ })
+
+    // 공유 카드 설명용 — 내 공개 프로필(한줄소개·분야)을 가져와 서버 OG 와 동일하게 풍성한 설명 구성.
+    counselorsApi.detail(member.id)
+      .then((d) => {
+        if (cancelled) return
+        const cat = d.category && d.category !== '기타' ? `${d.category} 상담사` : '사주플랜 상담사'
+        // 서버 OG 와 동일한 우선순위로 대표 문구 확보: 한줄소개 → 소개글 → bio
+        const plain = (h?: string | null) =>
+          (h || '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim()
+        const lead = (d.headline?.trim() || plain(d.intro) || plain(d.bio) || '').slice(0, 50)
+        const fields = (d.fields || []).filter(Boolean).slice(0, 4).join(', ')
+        const traits = (d.traits || []).filter(Boolean).slice(0, 3).join(', ')
+        // 카드 표시 한계(~2줄) 고려: 한줄소개·전문분야·스타일을 합쳐 최대치로, 90자에서 컷
+        const desc = [lead, fields, traits].filter(Boolean).join(' · ').slice(0, 90) || cat
+        setShareInfo({ desc, title: `${displayName} (${cat})` })
+      })
+      .catch(() => { /* 실패 시 기본 설명 사용 */ })
 
     const refreshGrade = () => {
       counselorGradeApi.getMine()
@@ -221,11 +270,11 @@ export default function CounselorMyPage() {
         .catch(() => { /* 통계 실패해도 페이지는 동작 — 0건 fallback */ })
     }
     refreshMonthly()
-    const pollId = window.setInterval(refreshSettlement, 30_000)
+    const pollId = window.setInterval(() => { refreshSettlement(); refreshConsultRequests() }, 30_000)
     const onVisible = () => {
-      if (document.visibilityState === 'visible') refreshSettlement()
+      if (document.visibilityState === 'visible') { refreshSettlement(); refreshConsultRequests() }
     }
-    const onFocus = () => refreshSettlement()
+    const onFocus = () => { refreshSettlement(); refreshConsultRequests() }
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('focus', onFocus)
 
@@ -254,6 +303,10 @@ export default function CounselorMyPage() {
       setAvailable(r.available)
       setCallOn(r.use_phone)
       setChatOn(r.use_chat)
+      // 상담가능을 켜면 서버가 대기 고객에게 "지금 가능" 콜백을 발송하며 요청이 처리됨 → 목록 갱신(사라짐)
+      counselorMypageApi.getConsultRequests()
+        .then((rs) => setConsultRequests(rs))
+        .catch(() => { /* 갱신 실패해도 무방 */ })
     } catch (e) {
       // 롤백
       setAvailable(prev.available)
@@ -361,6 +414,43 @@ export default function CounselorMyPage() {
             </Link>
           </div>
         </section>
+
+        {/* 부재중 대기 상담요청 — "지금 상담 켜기" 원터치 (2026-07-03).
+            바로가기 알림으로 진입한 상담사가 곧장 영업 재개 + 대기 고객에게 콜백 자동 발송. */}
+        {!available && consultRequests.length > 0 && (
+          <section className="rounded-[16px] border border-[#f9a8d4] bg-[#fdf2f8] p-4">
+            <div className="flex items-center gap-1.5 mb-2">
+              <span className="text-[15px]" aria-hidden>🔔</span>
+              <span className="text-[15px] font-bold text-[#be185d]">
+                대기 중인 상담 요청 {consultRequests.length}건
+              </span>
+            </div>
+            <p className="text-[13px] leading-[150%] text-[#4A5565]">
+              <span className="font-bold text-[#111827]">{consultRequests[0].requester_nick}</span>
+              {' '}님이 {channelLabelKo(consultRequests[0].channel)}상담을 기다려요
+              <span className="text-[#9CA3AF]"> · {timeAgoKo(consultRequests[0].requested_at)}</span>
+              {consultRequests.length > 1 && (
+                <span className="text-[#9CA3AF]"> 외 {consultRequests.length - 1}명</span>
+              )}
+            </p>
+            <p className="text-[12px] leading-[150%] text-[#a1587e] mt-1 mb-3">
+              지금 상담을 켜면 대기 중인 고객에게 “상담 가능해졌어요” 알림이 자동으로 전송됩니다.
+            </p>
+            <button
+              type="button"
+              disabled={toggleBusy}
+              // 원래 하던 채널 그대로 켠다(available 만 true). 부재 중에도 use_phone/use_chat 원래값이
+              //   DB에 보존되므로, 전화만 하던 상담사에게 채팅을 강제로 켜는 부작용을 막는다.
+              //   단, 둘 다 꺼져 있어(채널 없음) 켜도 ABSE 로 남는 경우엔 최소 전화라도 켜준다.
+              onClick={() => void updateAvailability(
+                callOn || chatOn ? { available: true } : { available: true, use_phone: true },
+              )}
+              className="w-full h-11 rounded-full bg-[#ec4899] text-white text-[15px] font-semibold disabled:opacity-60 active:scale-[.99] transition"
+            >
+              지금 상담 켜기
+            </button>
+          </section>
+        )}
 
         {/* ① 🟢 상담 상태 토글 카드 — 최상단 강조 */}
         <section className="rounded-[16px] border border-[#F3F4F6] bg-white p-4">
@@ -693,6 +783,24 @@ export default function CounselorMyPage() {
           </section>
         )}
 
+        {/* [2026-06-25] 내 상담실 링크 공유 — 검색·카톡 OG 카드(사진·이름·소개)로 홍보.
+            상담사 본인 마케팅 도구. 안드 카톡 SDK 공유 이슈로 시트의 '링크복사'가 가장 안전. */}
+        <button
+          type="button"
+          onClick={() => setShareOpen(true)}
+          data-testid="counselor-share-room-btn"
+          className="w-full h-[52px] rounded-[14px] bg-[#ec4899] text-white flex items-center justify-center gap-2 shadow-[0_4px_14px_rgba(236,72,153,0.25)]"
+        >
+          <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <circle cx="18" cy="5" r="3" />
+            <circle cx="6" cy="12" r="3" />
+            <circle cx="18" cy="19" r="3" />
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+          </svg>
+          <span className="text-[15px] font-semibold">내 상담실 링크 공유하기</span>
+        </button>
+
         {/* ④ 상담사 관리 메뉴 — 그리드 */}
         <section className="rounded-[16px] border border-[#F3F4F6] bg-white p-3">
           <div className="text-[12px] text-[#6A7282] px-1 mb-2">상담사 관리</div>
@@ -747,6 +855,21 @@ export default function CounselorMyPage() {
           </button>
         </div>
 
+        {/* 🔮 전화타로 상담 사용법 — 상담사 교육 가이드(외부 모바일웹, 만세력과 동일 패턴) */}
+        <button
+          type="button"
+          onClick={() => { window.location.href = '/tarot-guide.html' }}
+          className="w-full rounded-[12px] border border-[#f472b6] bg-[#fdf2f8] px-4 py-3.5 flex items-center gap-2.5 text-left transition active:scale-[0.99]"
+          aria-label="전화타로 상담 사용법 열기"
+        >
+          <span className="shrink-0 flex h-9 w-9 items-center justify-center rounded-xl bg-white text-[18px] leading-none shadow-sm">🔮</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[14px] font-bold text-[#1E2939]">전화타로 상담 사용법</span>
+            <span className="block mt-0.5 text-[11px] leading-[140%] text-[#6A7282]">고객과 화면 보며 카드 상담하는 법 — 단계별 안내</span>
+          </span>
+          <span className="shrink-0 text-[18px] leading-none text-[#ec4899]">›</span>
+        </button>
+
         {/* 설정·기타 펼침 — 그리드 아래 전폭 (격자 유지) */}
         {extraOpen && (
           <section className="rounded-[12px] border border-[#F3F4F6] bg-white overflow-hidden">
@@ -791,6 +914,16 @@ export default function CounselorMyPage() {
         }}
       />
       {alertUI}
+
+      {/* 내 상담실 링크 공유 — 본인 공개 프로필(/counselors/:id) 카드 공유 */}
+      <ShareBottomSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        shareUrl={`${window.location.origin}/counselors/${member.id}`}
+        title={shareInfo?.title ?? `${displayName} 선생님`}
+        description={shareInfo?.desc ?? '사주플랜 상담사'}
+        imageUrl={profileImage}
+      />
     </div>
   )
 }

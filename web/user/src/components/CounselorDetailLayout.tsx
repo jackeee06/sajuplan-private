@@ -1,6 +1,5 @@
 ﻿import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Bell } from 'lucide-react'
 import { sanitizeIntroHtml } from '../lib/sanitizeHtml'
 import FloatingActions from './FloatingActions'
 import ShareBottomSheet from './ShareBottomSheet'
@@ -82,23 +81,25 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
   }
 
   // 부재(둘 다 off) 상담사 "상담요청하기" — 목록 카드와 동일 동작(카톡/푸시 알림). (2026-06-17)
-  const [isRequested, setIsRequested] = useState(false)
+  //   서버가 내려준 24h 요청 여부로 초기화 → 재진입/새로고침해도 "요청됨" 유지(카드와 표시 일치).
+  const [isRequested, setIsRequested] = useState(!!data.isRequested)
   const [requestBusy, setRequestBusy] = useState(false)
   const [requestAlert, setRequestAlert] = useState<{ open: boolean; title: string; message: string }>(
     { open: false, title: '', message: '' },
   )
-  const handleRequestConsult = async () => {
+  const handleRequestConsult = async (channel: 'phone' | 'chat') => {
     if (requestBusy || isRequested) return
     setRequestBusy(true)
     try {
-      const r = await counselorsApi.requestConsult(data.id)
+      const r = await counselorsApi.requestConsult(data.id, channel)
       setIsRequested(true)
+      const channelKo = channel === 'phone' ? '전화' : '채팅'
       setRequestAlert({
         open: true,
-        title: r.already ? '이미 요청됨' : '상담 요청을 보냈어요',
+        title: r.already ? '이미 요청됨' : `${channelKo} 상담 요청을 보냈어요`,
         message: r.already
           ? `${data.name} 상담사님에게 24시간 내 이미 요청을 보냈어요.\n상담사가 접속하면 알림이 갈 거예요.`
-          : `${data.name} 상담사님에게 알림이 전송됐어요.\n접속하시면 다시 안내드릴게요.`,
+          : `${data.name} 상담사님에게 ${channelKo} 상담 알림이 전송됐어요.\n접속하시면 다시 안내드릴게요.`,
       })
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
@@ -318,7 +319,7 @@ export default function CounselorDetailLayout({ data, activeTab, children }: Pro
         isOffline={!!data.isOffline}
         isRequested={isRequested}
         requestBusy={requestBusy}
-        onRequestClick={handleRequestConsult}
+        onRequestChannel={handleRequestConsult}
       />
 
       {/* 상담요청하기 결과 안내 */}
@@ -396,7 +397,7 @@ function BottomFixedBar({
   isOffline,
   isRequested,
   requestBusy,
-  onRequestClick,
+  onRequestChannel,
 }: {
   liked: boolean
   onLikeToggle: () => void
@@ -405,7 +406,7 @@ function BottomFixedBar({
   isOffline: boolean
   isRequested: boolean
   requestBusy: boolean
-  onRequestClick: () => void
+  onRequestChannel: (channel: 'phone' | 'chat') => void
 }) {
   return (
     <div
@@ -429,24 +430,36 @@ function BottomFixedBar({
         />
       </button>
       {isOffline ? (
-        // 부재(둘 다 off) — 즉시 통화/채팅 대신 "상담요청하기"(카톡/푸시 알림). 목록 카드와 동일.
-        <button
-          type="button"
-          onClick={onRequestClick}
-          disabled={requestBusy || isRequested}
-          className={
-            'flex-1 h-10 rounded-full flex items-center justify-center gap-1.5 text-[14px] font-medium ' +
-            (isRequested
-              ? 'bg-[#F3F4F6] text-[#9CA3AF] cursor-not-allowed'
-              : 'bg-[#f472b6] text-white disabled:opacity-60')
-          }
-        >
-          {isRequested ? (
-            <><span aria-hidden>✓</span><span>요청됨</span></>
-          ) : (
-            <><Bell className="w-4 h-4" aria-hidden /><span>상담요청하기</span></>
-          )}
-        </button>
+        // 부재(둘 다 off) — 즉시 통화/채팅 대신 "전화 요청 / 채팅 요청" 두 버튼(카톡/푸시 알림).
+        //   목록 카드와 동일하게 채널을 나눠 보내 상담사 알림에 "전화/채팅"이 표시된다 (2026-07-03).
+        //   한 채널을 요청하면 두 버튼 모두 "요청됨"(24h 중복차단이 채널무관 — 카드와 일관).
+        (['phone', 'chat'] as const).map((ch) => (
+          <button
+            key={ch}
+            type="button"
+            onClick={() => onRequestChannel(ch)}
+            disabled={requestBusy || isRequested}
+            className={
+              'flex-1 h-10 rounded-full flex items-center justify-center gap-1.5 text-[14px] font-medium ' +
+              (isRequested
+                ? 'bg-[#F3F4F6] text-[#9CA3AF] cursor-not-allowed'
+                : 'bg-[#f472b6] text-white disabled:opacity-60')
+            }
+          >
+            {isRequested ? (
+              <><span aria-hidden>✓</span><span>요청됨</span></>
+            ) : (
+              <>
+                <img
+                  src={ch === 'phone' ? '/img/ic_phone_solid_w.svg' : '/img/ic_message_circle_solid_w.svg'}
+                  alt=""
+                  className="w-4 h-4"
+                />
+                {ch === 'phone' ? '전화 요청' : '채팅 요청'}
+              </>
+            )}
+          </button>
+        ))
       ) : (
         <>
           <button

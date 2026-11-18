@@ -10,15 +10,16 @@ import { formatCounselorNo } from '../lib/counselor-mapper'
 
 const PAGE_SIZE = 8
 
-const CATEGORY_OPTIONS = ['사주', '타로', '신점'] as const
+const CATEGORY_OPTIONS = ['사주', '타로', '신점', '심리'] as const
 
-type Badge = '신규' | '사주' | '타로' | '신점'
+type Badge = '신규' | '사주' | '타로' | '신점' | '심리'
 
 const BADGE_BG: Record<Badge, string> = {
   신규: '#fdf2f8',
   사주: '#FFE2E2',
   타로: '#EDE9FE',
   신점: '#CCFBF1',
+  심리: '#EDE9FE',
 }
 
 const BADGE_TEXT: Record<Badge, string> = {
@@ -26,18 +27,19 @@ const BADGE_TEXT: Record<Badge, string> = {
   사주: '#FF6467',
   타로: '#ec4899',
   신점: '#00BBA7',
+  심리: '#8259F5',
 }
 
 /**
  * 신규상담사 — Figma 120:6804 (목록) / 130:11024 (빈 상태)
  *
- * 데이터: GET /api/user/counselors?tab=new&category=사주|타로|신점&limit=50
+ * 데이터: GET /api/user/counselors?tab=new&category=사주|타로|신점|심리&limit=50
  *  - 가입 최근순 정렬 (member.created_at DESC).
  *  - sample 의 bo_table=new 게시판은 관리자가 직접 글을 올리는 구조였으나,
  *    신규에선 최근 가입한 상담사 카드를 자동으로 노출.
  *
  * 카드 뱃지:
- *  - 카테고리 추정 결과(사주/타로/신점)가 있으면 해당 색의 카테고리 칩.
+ *  - 카테고리 추정 결과(사주/타로/신점/심리)가 있으면 해당 색의 카테고리 칩.
  *  - '기타' 면 '신규' 보라 칩.
  */
 export default function NewCounselors() {
@@ -167,7 +169,7 @@ export default function NewCounselors() {
             <ul className="px-4 grid grid-cols-2 gap-3">
               {pageItems.map((c) => {
                 const badge: Badge =
-                  c.category === '사주' || c.category === '타로' || c.category === '신점'
+                  c.category === '사주' || c.category === '타로' || c.category === '신점' || c.category === '심리'
                     ? c.category
                     : '신규'
                 const tagline = c.headline || c.title || '속 시원하게 풀어드립니다'

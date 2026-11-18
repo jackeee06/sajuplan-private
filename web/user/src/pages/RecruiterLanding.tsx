@@ -94,7 +94,7 @@ export default function RecruiterLanding() {
         <p className="text-[14px] leading-[160%] text-[#6A7282] mt-2.5">
           전화·채팅으로 만나는 믿을 수 있는
           <br />
-          사주·타로·신점 상담
+          사주·타로·신점·심리 상담
         </p>
 
         {status === 'loading' && (

@@ -94,7 +94,7 @@ const QUICK_FILTERS: { key: QuickFilter; label: string; icon: string; tone: stri
   { key: 'top_sales',     label: '매출 TOP',   icon: '💰', tone: 'amber',  tip: '이번달 매출 상위 10명만 노출 (정렬 후 잘라냄)' },
   { key: 'no_activity',   label: '활동 0',     icon: '🚫', tone: 'gray',   tip: '누적 상담 0건 — 활성화 권유 / 정리 검토 대상' },
   { key: 'new_30d',       label: '신규 30d',   icon: '🆕', tone: 'blue',   tip: '가입 후 30일 이내 신규 상담사 — 적응 점검' },
-  { key: 'incomplete',    label: '데이터 미완', icon: '❗', tone: 'red',    tip: 'csrid · 프로필사진 · 해시태그 · 단가 중 하나라도 누락 — 운영 사고 예방' },
+  { key: 'incomplete',    label: '데이터 미완', icon: '❗', tone: 'red',    tip: '통화·채팅 연동번호 · 프로필사진 · 해시태그 · 단가 중 하나라도 누락 — 운영 사고 예방' },
   { key: 'dormant',       label: '휴면',       icon: '⚠️', tone: 'orange', tip: '최근 30일+ 미접속 (updated_at 기준) — 연락/리텐션 검토' },
   { key: 'event',         label: '이벤트',     icon: '✨', tone: 'purple', tip: '현재 이벤트 진행 중 (post_counselor.event_starts_at)' },
   { key: 'high_refund',   label: '환불↑',      icon: '🔴', tone: 'red',    tip: '최근 30일 환불 3건 이상 — 민원/위험 신호' },
@@ -188,14 +188,14 @@ const CATEGORY_BADGE: Record<string, BadgeColor> = {
   타로: 'indigo',
   신점: 'rose',
   사주: 'amber',
-  심리: 'teal',
+  심리: 'violet',
 }
 // 분야별 칩 dot 색 (active 시는 모두 brand 보라 / 비활성 시 카테고리 색을 좌측 점으로)
-const CATEGORY_DOT: Record<string, 'indigo' | 'rose' | 'amber' | 'teal'> = {
+const CATEGORY_DOT: Record<string, 'indigo' | 'rose' | 'amber' | 'teal' | 'violet'> = {
   타로: 'indigo',
   신점: 'rose',
   사주: 'amber',
-  심리: 'teal',
+  심리: 'violet',
 }
 
 const STATE_LABELS: Record<string, { label: string; color: BadgeColor }> = {

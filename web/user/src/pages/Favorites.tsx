@@ -8,11 +8,11 @@ import Pagination from '../components/Pagination'
 import { ApiError, counselorsApi, type PublicCounselor } from '../lib/api'
 import { mapPublicCounselorToCard } from '../lib/counselor-mapper'
 
-type Category = '전체' | '사주' | '타로' | '신점'
-const CATEGORIES: Category[] = ['전체', '사주', '타로', '신점']
+type Category = '전체' | '사주' | '타로' | '신점' | '심리'
+const CATEGORIES: Category[] = ['전체', '사주', '타로', '신점', '심리']
 
-// 분야 칩에서 제외할 hashtag — 상위 카테고리(사주/타로/신점) 와 중복(CounselorList 와 동일 정책).
-const EXCLUDED_FIELDS = new Set<string>(['사주', '타로', '신점'])
+// 분야 칩에서 제외할 hashtag — 상위 카테고리(사주/타로/신점/심리) 와 중복(CounselorList 와 동일 정책).
+const EXCLUDED_FIELDS = new Set<string>(['사주', '타로', '신점', '심리'])
 
 // 강조 줄(첫 줄)에 항상 노출할 PINNED 분야 칩.
 // 단골 페이지엔 ⭐이벤트 칩이 없으므로(이미 좋아요한 사람이라 이벤트 필터 의미 약함)
@@ -83,7 +83,7 @@ export default function Favorites() {
   }
 
   // 일반 분야 칩(2번째 줄~) — 본인 단골 상담사들의 실제 hashtag 만.
-  // 큰 카테고리(사주/타로/신점) 와 PINNED 는 제외.
+  // 큰 카테고리(사주/타로/신점/심리) 와 PINNED 는 제외.
   // 단골 1명이면 분야 칩 1-2개만 노출되어 적당. 전체 상담사 hashtag 노출 X.
   const regularFields = useMemo(() => {
     const fromCounselors = new Set<string>()

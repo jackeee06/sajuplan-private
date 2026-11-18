@@ -1,5 +1,5 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import BottomNav from '../components/BottomNav'
 import NotificationBell from '../components/NotificationBell'
 import CounselorCard from '../components/CounselorCard'
@@ -7,16 +7,16 @@ import FloatingActions from '../components/FloatingActions'
 import { ApiError, counselorsApi, statsApi, type PublicCounselor } from '../lib/api'
 import { mapPublicCounselorToCard } from '../lib/counselor-mapper'
 
-type Category = '전체' | '사주' | '타로' | '신점'
-const CATEGORIES: Category[] = ['전체', '사주', '타로', '신점']
+type Category = '전체' | '사주' | '타로' | '신점' | '심리'
+const CATEGORIES: Category[] = ['전체', '사주', '타로', '신점', '심리']
 
 // 2026-05-22: 페이지네이션 → 누적 더보기 (한 번에 전체 펼침).
 const INITIAL_VISIBLE = 10
 
-// 분야 칩에서 제외할 hashtag — 상위 카테고리(사주/타로/신점) 와 중복.
+// 분야 칩에서 제외할 hashtag — 상위 카테고리(사주/타로/신점/심리) 와 중복.
 // 데이터(post_counselor.hashtag) 자체에 큰 카테고리가 섞여 들어와 있어서 클라이언트에서 거른다.
 // 운영 안정화 후 Phase C 에서 DB 데이터 정리 예정.
-const EXCLUDED_FIELDS = new Set<string>(['사주', '타로', '신점'])
+const EXCLUDED_FIELDS = new Set<string>(['사주', '타로', '신점', '심리'])
 
 // 강조 줄(이벤트 칩과 같은 줄)에 항상 노출할 PINNED 분야 칩.
 // emoji 가 ⭐이벤트 와 시각적으로 묶여 위계가 생긴다.
@@ -36,7 +36,12 @@ const PINNED_NAMES = new Set(PINNED_FIELDS.map((p) => p.name))
  */
 export default function CounselorList() {
   const navigate = useNavigate()
-  const [category, setCategory] = useState<Category>('전체')
+  // URL ?category=타로 로 진입하면 해당 카테고리만 먼저 보이게 (예: 설명 페이지의 "타로 상담사 보러가기")
+  const [searchParams] = useSearchParams()
+  const [category, setCategory] = useState<Category>(() => {
+    const c = searchParams.get('category')
+    return c && (CATEGORIES as string[]).includes(c) ? (c as Category) : '전체'
+  })
   const [field, setField] = useState<string | null>(null)
   const [availableOnly, setAvailableOnly] = useState(false)
   const [eventOnly, setEventOnly] = useState(false)
@@ -109,7 +114,7 @@ export default function CounselorList() {
   }, [category, eventOnly])
 
   // 일반 분야 칩(2번째 줄~) — 현재 카테고리 안의 상담사들의 실제 hashtag 에서만 추출.
-  // 큰 카테고리(사주/타로/신점) 는 EXCLUDED_FIELDS 로 제외(중복 방지).
+  // 큰 카테고리(사주/타로/신점/심리) 는 EXCLUDED_FIELDS 로 제외(중복 방지).
   // PINNED 항목(재회 등)은 강조 줄에서 따로 그리므로 일반 줄에서는 제외.
   const regularFields = useMemo(() => {
     const fromCounselors = new Set<string>()
@@ -250,7 +255,7 @@ export default function CounselorList() {
         {/* 구분선 — 강조 줄과 일반 분야 줄 사이의 위계 표현 */}
         <div className="mx-4 border-t border-[#F3F4F6]" />
 
-        {/* 일반 분야 칩 — 가나다순. 큰 카테고리(사주/타로/신점)와 PINNED 는 제외. */}
+        {/* 일반 분야 칩 — 가나다순. 큰 카테고리(사주/타로/신점/심리)와 PINNED 는 제외. */}
         <section className="px-4 pt-1.5 pb-2 flex flex-wrap items-center gap-1.5">
           {regularFields.map((opt) => {
             const active = field === opt

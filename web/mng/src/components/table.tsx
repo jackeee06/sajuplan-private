@@ -211,7 +211,7 @@ export function GenderCell({ gender }: { gender: string | null }) {
   return <span className={`text-xs font-medium ${isMale ? 'text-blue-600' : 'text-rose-500'}`}>{gender}</span>
 }
 
-export type BadgeColor = 'emerald' | 'rose' | 'gray' | 'amber' | 'blue' | 'indigo' | 'teal'
+export type BadgeColor = 'emerald' | 'rose' | 'gray' | 'amber' | 'blue' | 'indigo' | 'teal' | 'violet'
 
 export function Badge({ children, color }: { children: ReactNode; color: BadgeColor }) {
   const cls: Record<string, string> = {
@@ -222,6 +222,7 @@ export function Badge({ children, color }: { children: ReactNode; color: BadgeCo
     blue: 'bg-blue-50 text-blue-700 border border-blue-200',
     indigo: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
     teal: 'bg-teal-50 text-teal-700 border border-teal-200',
+    violet: 'bg-violet-50 text-violet-700 border border-violet-200',
   }
   return (
     <span

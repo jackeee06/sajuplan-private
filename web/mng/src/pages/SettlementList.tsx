@@ -45,6 +45,9 @@ interface HistItem {
   voided_at: string | null
   voided_by_name: string | null
   void_reason: string | null
+  bank_name: string | null
+  bank_holder: string | null
+  bank_account: string | null
 }
 interface HistResp {
   items: HistItem[]
@@ -68,6 +71,9 @@ interface PrevItem {
   voided_at: string | null
   voided_by_name: string | null
   void_reason: string | null
+  bank_name: string | null
+  bank_holder: string | null
+  bank_account: string | null
 }
 interface PrevResp {
   month: string
@@ -79,6 +85,24 @@ interface PrevResp {
     total_withholding: number
     total_price: number
   }
+}
+
+/** 중복지급 환수(회수) 대상 — 정산 미리보기 상단 패널 */
+interface RecoveryItem {
+  id: number
+  member_id: number
+  mb_id: string | null
+  name: string | null
+  amount: number
+  reason: string | null
+  origin_month: string | null
+  bank_name: string | null
+  bank_holder: string | null
+  bank_account: string | null
+}
+interface RecoveryResp {
+  items: RecoveryItem[]
+  summary: { count: number; total_amount: number }
 }
 
 /** 두 모드를 한 테이블로 그리기 위한 공통 행 뷰모델 */
@@ -98,18 +122,39 @@ interface RowVM {
   voidedBy?: string | null
   voidedAt?: string | null
   paidAt?: string | null
+  bankName?: string | null
+  bankHolder?: string | null
+  bankAccount?: string | null
 }
 
 const PAGE_SIZE = Number(import.meta.env.VITE_LIST_PAGE_SIZE ?? 20)
 
-function curMonthKst(): string {
+/** 정산 가능한 마지막 달(KST 전월) 'YYYY-MM'. 이번 달은 마감 전이라 정산 불가 → 미리보기 기본값. */
+function prevMonthKst(): string {
   const k = new Date(Date.now() + 9 * 3600 * 1000)
+  k.setUTCDate(1) // 말일 오버플로 방지 후 전월로
+  k.setUTCMonth(k.getUTCMonth() - 1)
   return `${k.getUTCFullYear()}-${String(k.getUTCMonth() + 1).padStart(2, '0')}`
 }
 
+/**
+ * 'YYYY-MM'(정산 대상 월) → 사람이 읽기 쉬운 정산일 라벨.
+ * 정산 규칙: 매월 9일에 "전달 말일까지 쌓인 수익금"을 정산·지급.
+ * 예) 2026-08 → 8월분을 9월 9일에 정산 지급. (헷갈림 방지: 화면 월표기가 8월이어도 실제 작업은 9월)
+ */
+function settleLabelKst(month: string): { pun: string; settleMonth: number; text: string } | null {
+  const m = /^(\d{4})-(\d{2})$/.exec(month)
+  if (!m) return null
+  const mo = Number(m[2])
+  const settleMonth = mo === 12 ? 1 : mo + 1 // 정산일 = 다음 달 9일
+  return { pun: `${mo}월분`, settleMonth, text: `${mo}월분 → ${settleMonth}월 9일 정산 지급분` }
+}
+
 export default function SettlementList() {
-  const [mode, setMode] = useState<'history' | 'preview'>('history')
-  const [previewMonth, setPreviewMonth] = useState(curMonthKst())
+  // 정산 이력 메뉴 진입 시 기본 = 미리보기(이번 정산 작업 화면)가 먼저 보이게. (2026-09-09 사장님 요청)
+  const [mode, setMode] = useState<'history' | 'preview'>('preview')
+  // 미리보기 기본 = 전달(정산 가능한 마지막 달). 매월 9일 정산 워크플로우상 열자마자 전달이 떠 바로 정산.
+  const [previewMonth, setPreviewMonth] = useState(prevMonthKst())
 
   const _init = defaultLast7Days()
   const [filter, setFilter] = useState({ stx: '', fr_date: _init.from, to_date: _init.to, page: 1 })
@@ -117,6 +162,7 @@ export default function SettlementList() {
 
   const [hist, setHist] = useState<HistResp | null>(null)
   const [prev, setPrev] = useState<PrevResp | null>(null)
+  const [recovery, setRecovery] = useState<RecoveryResp | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [tick, setTick] = useState(0) // 강제 재조회용
@@ -129,6 +175,10 @@ export default function SettlementList() {
         .then(setPrev)
         .catch((e) => setError(e.message))
         .finally(() => setLoading(false))
+      // 회수 대상은 월과 무관(누적 환수). 조용히 갱신(실패해도 정산 화면은 뜨게).
+      api<RecoveryResp>('/admin/settlements/recovery-targets')
+        .then(setRecovery)
+        .catch(() => setRecovery(null))
     } else {
       const params = new URLSearchParams()
       if (filter.stx) {
@@ -172,25 +222,23 @@ export default function SettlementList() {
     }
   }
 
-  const onMarkVoided = async (vm: RowVM) => {
-    if (!vm.settlementId) return
-    const reason = window.prompt(
-      `[${vm.mb_id} / ${vm.month}] 정산 무효화\n\n무효화 사유를 입력하세요 (5자 이상, 되돌릴 수 없음):`,
+  // 회수 대상 1건 회수완료 처리 (상쇄/협의 완료 → 목록에서 내림). 돈 이동 없음.
+  const onResolveRecovery = async (r: RecoveryItem) => {
+    const ok = window.confirm(
+      `[${r.name ?? ''} / ${r.mb_id ?? ''}] 회수완료 처리\n\n` +
+        `받아낼 금액 ${r.amount.toLocaleString()}원을 회수(상쇄/협의) 완료로 표시합니다.\n` +
+        '→ 회수 대상 목록에서 사라집니다. 계속할까요?',
     )
-    if (reason === null) return
-    if (reason.trim().length < 5) {
-      alert('무효화 사유는 5자 이상 입력해야 합니다.')
-      return
-    }
+    if (!ok) return
     try {
-      await api(`/admin/settlements/${vm.settlementId}/mark-voided`, {
+      await api(`/admin/settlements/recovery/${r.id}/resolve`, {
         method: 'PATCH',
-        body: JSON.stringify({ reason: reason.trim() }),
+        body: JSON.stringify({}),
         headers: { 'Content-Type': 'application/json' },
       })
       reload()
     } catch (e) {
-      alert(`무효화 실패: ${e instanceof Error ? e.message : String(e)}`)
+      alert(`회수완료 실패: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
 
@@ -214,6 +262,23 @@ export default function SettlementList() {
     }
   }
 
+  // 정산완료(paid) 상담사에게 "정산금 입금 완료" 인앱 + 푸시 알림 발송
+  const onNotifyPaid = async (vm: RowVM) => {
+    if (!vm.settlementId) return
+    const ok = window.confirm(
+      `[${vm.mb_id} / ${vm.month}] 정산완료 알리기\n\n` +
+        `상담사에게 "정산금 ${vm.price.toLocaleString()}원 입금 완료" 알림(인앱 + 푸시)을 보냅니다.\n` +
+        '통장 송금을 완료하셨나요?',
+    )
+    if (!ok) return
+    try {
+      await api(`/admin/settlements/${vm.settlementId}/notify-paid`, { method: 'POST' })
+      alert('정산완료 알림을 보냈습니다.')
+    } catch (e) {
+      alert(`알림 실패: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   const rows: RowVM[] =
     mode === 'preview'
       ? (prev?.items ?? []).map((p) => ({
@@ -231,6 +296,9 @@ export default function SettlementList() {
           voidReason: p.void_reason,
           voidedBy: p.voided_by_name,
           voidedAt: p.voided_at,
+          bankName: p.bank_name,
+          bankHolder: p.bank_holder,
+          bankAccount: p.bank_account,
         }))
       : (hist?.items ?? []).map((h) => ({
           key: `h${h.id}`,
@@ -248,6 +316,9 @@ export default function SettlementList() {
           voidedBy: h.voided_by_name,
           voidedAt: h.voided_at,
           paidAt: h.paid_at,
+          bankName: h.bank_name,
+          bankHolder: h.bank_holder,
+          bankAccount: h.bank_account,
         }))
 
   const totalPages = hist ? Math.max(1, Math.ceil(hist.total / PAGE_SIZE)) : 1
@@ -279,14 +350,22 @@ export default function SettlementList() {
       {/* 모드 토글 + 미리보기 월선택 */}
       <div className="flex flex-wrap items-center gap-2">
         {modeBtn('history', '정산 이력')}
-        {modeBtn('preview', '이번 달 미리보기')}
+        {modeBtn('preview', '정산 미리보기')}
         {mode === 'preview' && (
           <input
             type="month"
             value={previewMonth}
-            onChange={(e) => setPreviewMonth(e.target.value || curMonthKst())}
-            className={`${inputCls} w-[150px] ml-1`}
+            onChange={(e) => setPreviewMonth(e.target.value || prevMonthKst())}
+            className={`${inputCls} !w-[160px] ml-1`}
           />
+        )}
+        {mode === 'preview' && settleLabelKst(previewMonth) && (
+          <span
+            className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-800 rounded-md px-2.5 py-1 whitespace-nowrap"
+            title="매월 9일에 '전달 말일까지 쌓인 수익금'을 정산·지급합니다. 화면 월표기가 8월이어도 실제 정산 작업은 9월 9일입니다."
+          >
+            📌 {settleLabelKst(previewMonth)!.text}
+          </span>
         )}
       </div>
 
@@ -354,10 +433,9 @@ export default function SettlementList() {
           </div>
         </div>
       ) : (
-        <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-2 leading-relaxed">
-          ⓘ 정산예상금액 = 전달 말일까지 미정산 수익금, 실지급액 = (정산예상 − 선지급) × (1 − 원천세 3.3%).
-          원하실 때 회원별 <b>[정산하기]</b>를 누르면 그 자리에서 <b>수익금 차감 + 정산완료</b> 처리됩니다.
-          그 실지급액을 통장에서 송금하시면 됩니다. 잘못 눌렀을 땐 <b>[무효화]</b>로 수익금이 복구됩니다.
+        <div className="w-fit max-w-[560px] text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700 rounded-lg px-3 py-2 leading-relaxed">
+          ⓘ 실지급 = (정산예상 − 선지급) × (1 − 원천세 3.3%) · <b>1만원 이상</b>만 표시(미만 이월)
+          <br /><b>[정산하기]</b> = 수익금 차감 + 지급완료 → 통장 송금 → <b>[정산완료 알리기]</b>로 상담사 알림
         </div>
       )}
 
@@ -376,7 +454,7 @@ export default function SettlementList() {
           <Th align="right">원천세</Th>
           <Th align="right">실지급액</Th>
           <Th align="center">상태</Th>
-          <Th align="left">무효화 사유</Th>
+          <Th align="left">은행 / 계좌</Th>
           <Th align="center">액션</Th>
         </THead>
         <TBody>
@@ -420,18 +498,14 @@ export default function SettlementList() {
                   />
                 </Td>
                 <Td align="left">
-                  {vm.status === 'voided' && vm.voidReason ? (
-                    <div className="max-w-[240px]">
-                      <div className="text-xs text-gray-700 dark:text-gray-200 truncate" title={vm.voidReason}>
-                        {vm.voidReason}
-                      </div>
-                      <div className="text-[10px] text-gray-400">
-                        {vm.voidedBy || '-'}
-                        {vm.voidedAt ? ` · ${vm.voidedAt.slice(0, 10)}` : ''}
-                      </div>
-                    </div>
+                  {vm.bankAccount ? (
+                    <span className="text-xs text-gray-700 dark:text-gray-200 whitespace-nowrap tabular-nums" title={`${vm.bankName ?? ''} ${vm.bankAccount} ${vm.bankHolder ?? ''}`}>
+                      {vm.bankName && <span className="text-gray-500">{vm.bankName} </span>}
+                      <span className="font-medium text-gray-800 dark:text-gray-100">{vm.bankAccount}</span>
+                      {vm.bankHolder && <span className="text-gray-400"> · {vm.bankHolder}</span>}
+                    </span>
                   ) : (
-                    <span className="text-gray-300">-</span>
+                    <span className="text-[11px] text-amber-500" title="상담사 정보에서 계좌 등록 필요">계좌 미등록</span>
                   )}
                 </Td>
                 <Td align="center">
@@ -439,10 +513,10 @@ export default function SettlementList() {
                     <>
                       {vm.status === 'paid' && vm.settlementId ? (
                         <button
-                          onClick={() => onMarkVoided(vm)}
-                          className="px-2 py-1 text-[11px] rounded border border-rose-300 text-rose-600 hover:bg-rose-50 font-medium"
-                          title="지급 후 사고 발견 시 무효화 (수익금 복구)"
-                        >무효화</button>
+                          onClick={() => onNotifyPaid(vm)}
+                          className="px-2 py-1 text-[11px] rounded bg-blue-600 hover:bg-blue-700 text-white font-medium whitespace-nowrap"
+                          title="상담사에게 정산금 입금 완료 알림 (인앱 + 푸시)"
+                        >정산완료 알리기</button>
                       ) : vm.settle > 0 ? (
                         <button
                           onClick={() => onSettleNow(vm)}
@@ -456,25 +530,18 @@ export default function SettlementList() {
                   ) : (
                     <>
                       {vm.status === 'calculated' && vm.settlementId && (
-                        <div className="inline-flex gap-1">
-                          <button
-                            onClick={() => onMarkPaid(vm)}
-                            className="px-2 py-1 text-[11px] rounded bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-                            title="통장 송금 완료 + 수익금 차감"
-                          >정산하기</button>
-                          <button
-                            onClick={() => onMarkVoided(vm)}
-                            className="px-2 py-1 text-[11px] rounded border border-rose-300 text-rose-600 hover:bg-rose-50 font-medium"
-                            title="사고/오정산 정정 (수익금 복구)"
-                          >무효화</button>
-                        </div>
+                        <button
+                          onClick={() => onMarkPaid(vm)}
+                          className="px-2 py-1 text-[11px] rounded bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                          title="통장 송금 완료 + 수익금 차감"
+                        >정산하기</button>
                       )}
                       {vm.status === 'paid' && vm.settlementId && (
                         <button
-                          onClick={() => onMarkVoided(vm)}
-                          className="px-2 py-1 text-[11px] rounded border border-rose-300 text-rose-600 hover:bg-rose-50 font-medium"
-                          title="지급 후 사고 발견 시 무효화 (수익금 복구)"
-                        >무효화</button>
+                          onClick={() => onNotifyPaid(vm)}
+                          className="px-2 py-1 text-[11px] rounded bg-blue-600 hover:bg-blue-700 text-white font-medium whitespace-nowrap"
+                          title="상담사에게 정산금 입금 완료 알림 (인앱 + 푸시)"
+                        >정산완료 알리기</button>
                       )}
                       {vm.status === 'voided' && <span className="text-[11px] text-gray-400">잠금</span>}
                       {vm.status === 'pending' && <span className="text-[11px] text-gray-400">정산 전</span>}
@@ -496,6 +563,77 @@ export default function SettlementList() {
           onChange={(p) => setFilter((f) => ({ ...f, page: p }))}
           unit="건"
         />
+      )}
+
+      {/* 회수 대상 (중복지급 환수) — 미리보기 모드 하단, 폭은 내용만큼(w-fit) 좌측정렬 */}
+      {mode === 'preview' && recovery && recovery.items.length > 0 && (
+        <div className="w-fit max-w-full border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-900/15 rounded-xl p-4 mt-4">
+          <div className="flex items-baseline gap-2.5">
+            <span className="text-sm font-semibold text-rose-700 dark:text-rose-300 whitespace-nowrap">
+              💸 회수 대상 (중복지급 환수)
+            </span>
+            <span className="text-sm font-bold text-rose-700 dark:text-rose-300 tabular-nums whitespace-nowrap">
+              합계 {recovery.summary.total_amount.toLocaleString()}원 · {recovery.summary.count}명
+            </span>
+          </div>
+          <p className="text-[11px] text-rose-500/90 mt-1 mb-2.5 max-w-[560px]">
+            정산하기 버튼 누락으로 6월분이 2회 지급된 사람들. 상담사 포인트는 건드리지 않고 <b>받아낼 금액만 기록</b>합니다. 받아낸 뒤 [회수완료]를 누르세요.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="text-sm border-collapse">
+              <thead>
+                <tr className="text-[11px] text-gray-500 border-b border-rose-100 dark:border-rose-800/60">
+                  <th className="text-left font-medium py-1.5 pr-5">이름</th>
+                  <th className="text-left font-medium py-1.5 pr-5">아이디</th>
+                  <th className="text-right font-medium py-1.5 pr-5">받아낼 금액</th>
+                  <th className="text-left font-medium py-1.5 pr-5">은행 / 계좌</th>
+                  <th className="text-center font-medium py-1.5">처리</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recovery.items.map((r) => (
+                  <tr key={r.id} className="border-b border-rose-50 dark:border-rose-900/40 last:border-0">
+                    <td className="py-1.5 pr-5 font-medium text-gray-800 dark:text-gray-100 whitespace-nowrap">
+                      {r.name || '-'}
+                    </td>
+                    <td className="py-1.5 pr-5 text-gray-500">
+                      {r.member_id ? (
+                        <Link to={`/members/counselors/${r.member_id}`} className="text-brand-600 hover:underline inline-block max-w-[120px] truncate align-bottom" title={r.mb_id ?? ''}>
+                          {r.mb_id}
+                        </Link>
+                      ) : (
+                        r.mb_id || '-'
+                      )}
+                    </td>
+                    <td className="py-1.5 pr-5 text-right font-bold text-rose-600 dark:text-rose-400 tabular-nums whitespace-nowrap">
+                      {r.amount.toLocaleString()}원
+                    </td>
+                    <td className="py-1.5 pr-5 text-xs text-gray-600 dark:text-gray-300 tabular-nums whitespace-nowrap">
+                      {r.bank_account ? (
+                        <>
+                          {r.bank_name && <span className="text-gray-500">{r.bank_name} </span>}
+                          <span className="font-medium">{r.bank_account}</span>
+                          {r.bank_holder && <span className="text-gray-400"> · {r.bank_holder}</span>}
+                        </>
+                      ) : (
+                        <span className="text-amber-500">계좌 미등록</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 text-center">
+                      <button
+                        onClick={() => onResolveRecovery(r)}
+                        className="px-2 py-1 text-[11px] rounded border border-gray-300 text-gray-600 hover:bg-white dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 font-medium whitespace-nowrap"
+                        title="상쇄/협의로 실제 회수가 끝나면 누르세요 (목록에서 내려감)"
+                      >
+                        회수완료
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   )

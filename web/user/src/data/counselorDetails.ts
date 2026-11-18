@@ -4,12 +4,13 @@
  * 백엔드 연동 시 fetch 결과로 교체.
  */
 
-export type Badge = '타로' | '신점' | '사주'
+export type Badge = '타로' | '신점' | '사주' | '심리'
 
 export const BADGE_BG: Record<Badge, string> = {
   타로: '#ec4899',
   신점: '#00BBA7',
   사주: '#FF6467',
+  심리: '#8259F5',
 }
 
 export interface CounselorDetailData {
@@ -45,6 +46,8 @@ export interface CounselorDetailData {
   isExclusive: boolean
   /** 부재(둘 다 off, state ABSE/RESV) — 하단 CTA 를 "상담요청하기" 로 대체 (2026-06-17). mock 은 생략(undefined=활성) */
   isOffline?: boolean
+  /** 24h 내 이미 상담요청을 보냈는지 — 부재 CTA 를 "요청됨" 으로 표시(목록 카드와 일치). 비로그인/미요청=false */
+  isRequested?: boolean
 }
 
 /* ─────────── 상담사 mock ─────────── */
