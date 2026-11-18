@@ -24,6 +24,12 @@ export class DashboardController {
     return this.service.visitorTrend(n);
   }
 
+  @Get('signup-trend')
+  signupTrend(@Query('days') days?: string) {
+    const n = days ? Math.min(Math.max(Number(days), 1), 90) : 12;
+    return this.service.signupTrend(n);
+  }
+
   @Get('top-counselors')
   topCounselors(@Query('metric') metric?: string) {
     return metric === 'count'

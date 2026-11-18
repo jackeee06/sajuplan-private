@@ -26,7 +26,7 @@ export interface PublicRecentReview {
   counselor_review_count: number;
   specialty: string | null;
   /** specialty/hashtag 에서 카테고리 추정 */
-  category: '사주' | '타로' | '신점' | '기타';
+  category: '사주' | '타로' | '신점' | '심리' | '기타';
 }
 
 /**
@@ -1303,7 +1303,7 @@ export interface MyReviewItem {
   counselor_id: number;
   counselor_name: string;
   counselor_code: string;
-  counselor_badge: '타로' | '신점' | '사주' | '기타';
+  counselor_badge: '타로' | '신점' | '사주' | '심리' | '기타';
   counselor_avatar: string | null;
 }
 
@@ -1362,11 +1362,12 @@ function seedReviewerName(extras: unknown): string | null {
 
 function inferCategory(
   ...vals: (string | null)[]
-): '사주' | '타로' | '신점' | '기타' {
+): '사주' | '타로' | '신점' | '심리' | '기타' {
   const text = vals.filter(Boolean).join(' ');
   if (text.includes('타로')) return '타로';
   if (text.includes('신점')) return '신점';
   if (text.includes('사주')) return '사주';
+  if (text.includes('심리')) return '심리';
   // 후기 카드에는 카테고리를 선택하는 UI가 없으므로 '기타' 라벨을 노출하면 어색하다.
   // 분류 단서가 전혀 없을 때는 기본값으로 '사주' 를 사용해 색상 뱃지가 항상 보이도록 한다.
   return '사주';

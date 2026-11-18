@@ -515,7 +515,7 @@ export class AuthService {
           signup_source, last_login_at
         ) VALUES (
           ${form.mb_id}, ${passwordHash},
-          ${name}, ${nickname}, ${form.email}, ${form.phone},
+          ${name}, ${nickname}, ${form.email}, ${form.phone ? form.phone.replace(/[^0-9]/g, '') : form.phone},
           ${form.birth_date}, ${form.birth_time}, ${form.gender}, ${form.calendar_type},
           ${form.zip}, ${form.addr1}, ${form.addr2},
           ${form.acquisition_source},
@@ -774,7 +774,7 @@ export class AuthService {
    * sample/bbs/password_lost.php 흐름.
    * 호출 전 SmsService.assertVerified() 로 인증 완료 검증해야 함.
    */
-  async findPasswordByPhone(rawPhone: string): Promise<void> {
+  async findPasswordByPhone(rawPhone: string): Promise<{ mb_id: string; temp_pw: string }> {
     const phone = String(rawPhone).replace(/[^0-9]/g, '');
     const rows = await this.sql<
       {
@@ -785,8 +785,8 @@ export class AuthService {
       }[]
     >`
       SELECT id, mb_id, name, social_provider FROM member
-       WHERE phone = ${phone}
-         AND role = 'user'
+       WHERE regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') = ${phone}
+         AND role IN ('user', 'counselor')
          AND left_at IS NULL
        ORDER BY id DESC LIMIT 1
     `;
@@ -820,46 +820,10 @@ export class AuthService {
       );
     }
     this.logger.log(`[find-pw/phone] member_id=${m.id} mb_id=${m.mb_id} 임시비밀번호 발급`);
+    return { mb_id: m.mb_id, temp_pw: tempPw };
   }
 
-  /**
-   * 휴대폰 인증 후 새 비밀번호 직접 설정.
-   * isVerifiedRecently() 로 1회용 소비 없이 최근 인증 여부 확인.
-   * counselor/user 모두 지원 (상담사도 이 경로로 비밀번호 재설정 가능).
-   */
-  async resetPasswordByPhone(phone: string, newPw: string): Promise<{ mb_id: string }> {
-    if (!newPw || newPw.length < 8 || newPw.length > 20) {
-      throw new BadRequestException('비밀번호는 8~20자여야 합니다.');
-    }
-    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(newPw)) {
-      throw new BadRequestException('비밀번호는 영문과 숫자를 각각 1개 이상 포함해야 합니다.');
-    }
-    const rows = await this.sql<{
-      id: number;
-      mb_id: string;
-      name: string;
-      social_provider: string | null;
-    }[]>`
-      SELECT id, mb_id, name, social_provider FROM member
-       WHERE regexp_replace(phone, '[^0-9]', '', 'g') = ${phone}
-         AND left_at IS NULL
-       ORDER BY id DESC LIMIT 1
-    `;
-    const m = rows[0];
-    if (!m || !m.mb_id) {
-      throw new BadRequestException('해당 휴대폰번호로 가입된 회원이 없습니다.');
-    }
-    if (m.social_provider) {
-      const label = m.social_provider === 'kakao' ? '카카오' : '네이버';
-      throw new BadRequestException(
-        `${label}로 가입된 계정입니다. ${label} 로그인을 이용해주세요.`,
-      );
-    }
-    const hash = await bcrypt.hash(newPw, 12);
-    await this.sql`UPDATE member SET password = ${hash}, updated_at = now() WHERE id = ${m.id}`;
-    this.logger.log(`[find-pw/phone/reset] member_id=${m.id} mb_id=${m.mb_id} 비밀번호 직접 재설정`);
-    return { mb_id: m.mb_id };
-  }
+  // [2026-07-20 제거] resetPasswordByPhone (직접 비번설정) — ATO 벡터라 삭제. find/phone(임시비번)로 일원화.
 
   /**
    * 이메일 비밀번호 찾기 — 이메일로 회원 조회 → 임시비밀번호 발급 → 메일 발송 (TODO 메일러).
@@ -1333,12 +1297,12 @@ export class AuthService {
     return fallback || '외부 시스템 동기화에 실패했습니다. 잠시 후 다시 시도해주세요.';
   }
 
-  /** 휴대폰 번호 정규화 — 010-1234-5678 / 01012345678 모두 010-1234-5678 형태로 통일 */
+  /** 휴대폰 번호 정규화 — 저장·비교 일관성을 위해 숫자만 남긴다(하이픈/공백/국가코드 제거).
+   *  카카오 등 국가코드(+82 10…)는 0 으로 변환. 화면 표시용 하이픈은 UI에서 포맷.
+   *  ⚠️ 아이디/비번 찾기(findPasswordByPhone)가 phone을 정규화 비교하므로 저장도 숫자만으로 통일해야 매칭됨. */
   private normalizePhone(raw: string): string {
     const digits = raw.replace(/\D/g, '');
-    if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
-    if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
-    return raw;
+    return digits.startsWith('82') ? '0' + digits.slice(2) : digits;
   }
 
   /** 'YYYYMMDD' 또는 'YYYY-MM-DD' → 'YYYY-MM-DD' */

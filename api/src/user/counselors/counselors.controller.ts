@@ -16,7 +16,7 @@ export class UserCounselorsController {
   ) {}
 
   /**
-   * GET /api/user/counselors?tab=all|popular|chat&category=사주|타로|신점&limit=13
+   * GET /api/user/counselors?tab=all|popular|chat&category=사주|타로|신점|심리&limit=13
    * 로그인 시 각 카드의 is_liked(단골 등록 여부) 도 같이 반환.
    */
   @Get()
@@ -111,10 +111,12 @@ export class UserCounselorsController {
   async requestConsult(
     @Req() req: UserAuthedRequest,
     @Param('id', ParseIntPipe) counselorId: number,
+    @Body() body: { channel?: 'phone' | 'chat' },
   ) {
     return this.svc.requestConsult({
       requesterId: req.user.sub,
       counselorId,
+      channel: body?.channel === 'phone' || body?.channel === 'chat' ? body.channel : undefined,
     });
   }
 
@@ -175,6 +177,17 @@ export class UserCounselorsController {
     @Body() body: { use_phone?: boolean; use_chat?: boolean; available?: boolean },
   ) {
     return this.svc.setMyAvailability(req.user.sub, body);
+  }
+
+  /**
+   * GET /api/user/counselors/me/consult-requests
+   *  — 본인이 받은 최근(24h) 미응답 상담요청 목록. 대시보드 "지금 상담 켜기" 맥락 카드용.
+   *  ※ 라우트 우선순위 — :id 매칭 전에 등록되어야 함.
+   */
+  @Get('me/consult-requests')
+  @UseGuards(UserAuthGuard)
+  async getMyConsultRequests(@Req() req: UserAuthedRequest) {
+    return this.svc.getMyConsultRequests(req.user.sub);
   }
 
   /** GET /api/user/counselors/me/intro — 본인 소개(post_counselor.intro) 조회 */

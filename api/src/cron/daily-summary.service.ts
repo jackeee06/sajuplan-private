@@ -7,6 +7,7 @@ export const HEALTH_CHECK_LABEL: Record<string, string> = {
   'C-1 음수': '코인 잔액이 마이너스인 회원',
   'C-8 drift': '코인 표시값과 실제 코인이 안 맞는 회원',
   'C-17 m2net_failed': '채팅 종료 시 m2net 차감전송이 실패한 채팅방',
+  'C-25': 'm2net에 미등록된 상담사(전화·채팅 연결 불가 — 유령)',
 };
 
 /**
@@ -35,10 +36,15 @@ export class DailySummaryService {
     private readonly opsAlert: OpsAlertService,
   ) {}
 
-  async run(): Promise<{ sent: number; summary: string }> {
+  async run(dryRun = false): Promise<{ sent: number; summary: string }> {
     // KST 어제 00:00 ~ 오늘 00:00
     const summary = await this.collect();
     const detail = this.format(summary);
+    // dryRun(=?test=1): 실제 수신자에게 발송하지 않고 렌더링된 문구만 반환(검증용).
+    if (dryRun) {
+      this.logger.log('[daily-summary] dry-run — 발송 생략, 미리보기만 반환');
+      return { sent: 0, summary: detail };
+    }
     const result = await this.opsAlert.send('일일 운영 요약', detail);
     this.logger.log(`[daily-summary] sent=${result.sent} failed=${result.failed} skipped=${result.skipped}`);
     return { sent: result.sent, summary: detail };
@@ -47,6 +53,7 @@ export class DailySummaryService {
   private async collect() {
     const [
       payment, refund, consultation, shortCallRefund, newMember,
+      newCounselor, pendingApply,
       opsAlertYesterday, healthViolation, m2netFailed,
     ] = await Promise.all([
       this.sql<{ cnt: string; total: string }[]>`
@@ -79,8 +86,27 @@ export class DailySummaryService {
       this.sql<{ cnt: string }[]>`
         SELECT COUNT(*)::text AS cnt
           FROM member
-         WHERE created_at >= (NOW() AT TIME ZONE 'Asia/Seoul')::date - INTERVAL '1 day'
+         WHERE role = 'user'
+           AND created_at >= (NOW() AT TIME ZONE 'Asia/Seoul')::date - INTERVAL '1 day'
            AND created_at <  (NOW() AT TIME ZONE 'Asia/Seoul')::date
+      `,
+      // 어제 신규 상담사 — role='counselor' 계정이 어제 생성됨(= 관리자 승인 시점).
+      //   대시보드 '어제 신규 상담사' KPI 와 동일 기준(member.role='counselor').
+      //   상담사는 '가입 신청 ≠ 활동 개시(승인)' 이라, 승인(계정 생성) 기준이 사장님께 의미 있음.
+      this.sql<{ cnt: string }[]>`
+        SELECT COUNT(*)::text AS cnt
+          FROM member
+         WHERE role = 'counselor'
+           AND created_at >= (NOW() AT TIME ZONE 'Asia/Seoul')::date - INTERVAL '1 day'
+           AND created_at <  (NOW() AT TIME ZONE 'Asia/Seoul')::date
+      `,
+      // 현재 승인 대기 중인 상담사 지원서 — '어제'가 아니라 '지금 시점' 게이지(할 일 리마인더).
+      //   category: application(신규 지원). 레거시 null/'general' 행도 지원서로 간주.
+      this.sql<{ cnt: string }[]>`
+        SELECT COUNT(*)::text AS cnt
+          FROM post_apply
+         WHERE status = 'pending'
+           AND (category IS NULL OR category IN ('application','general'))
       `,
       this.sql<{ cnt: string }[]>`
         SELECT COUNT(*)::text AS cnt
@@ -118,6 +144,8 @@ export class DailySummaryService {
       consultation_cnt: Number(consultation[0].cnt),
       short_call_cnt: Number(shortCallRefund[0].cnt),
       new_member_cnt: Number(newMember[0].cnt),
+      new_counselor_cnt: Number(newCounselor[0].cnt),
+      pending_apply_cnt: Number(pendingApply[0].cnt),
       ops_alert_yesterday: Number(opsAlertYesterday[0].cnt),
       health_violations: healthViolation.filter((r) => r.cnt > 0),
       m2net_failed_total: Number(m2netFailed[0].cnt),
@@ -131,6 +159,8 @@ export class DailySummaryService {
     lines.push(`상담 ${s.consultation_cnt}건${s.short_call_cnt > 0 ? ` (짧은통화 ${s.short_call_cnt})` : ''}`);
     if (s.refund_cnt > 0) lines.push(`환불 신청 ${s.refund_cnt}건 ⚠️`);
     lines.push(`신규 회원 ${s.new_member_cnt}명`);
+    lines.push(`신규 상담사 ${s.new_counselor_cnt}명`);
+    lines.push(`상담사 승인 대기 ${s.pending_apply_cnt}명${s.pending_apply_cnt > 0 ? ' ⚠️' : ''}`);
     lines.push(`관리자 문의톡 ${s.ops_alert_yesterday}건${s.ops_alert_yesterday > 0 ? ' ⚠️' : ''}`);
     lines.push('');
     lines.push(`[시스템 점검]`);

@@ -172,16 +172,29 @@ export class MembersController {
     return this.membersService.updateCounselor(id, body);
   }
 
-  /** 엠투넷 단독 연동/재연동: POST /admin/members/counselors/:id/m2net-link */
+  /** 엠투넷 단독 연동/재연동: POST /admin/members/counselors/:id/m2net-link
+   *  body.force=true 면 csrid 가 있어도 POST 신규등록 강제 (m2net 유령 상담사 복구용). */
   @Post('counselors/:id/m2net-link')
-  linkCounselorToM2net(@Param('id', ParseIntPipe) id: number) {
-    return this.membersService.linkCounselorToM2net(id);
+  linkCounselorToM2net(@Param('id', ParseIntPipe) id: number, @Body() body?: { force?: boolean }) {
+    return this.membersService.linkCounselorToM2net(id, { force: body?.force === true });
   }
 
   /** 탈퇴 상담사 복구: POST /admin/members/counselors/:id/restore */
   @Post('counselors/:id/restore')
   restoreCounselor(@Param('id', ParseIntPipe) id: number) {
     return this.membersService.restoreCounselor(id);
+  }
+
+  /** 탈퇴 처리 전 미리보기(수익금·정산·동일전화 재가입 감지): GET /admin/members/counselors/:id/leave-precheck */
+  @Get('counselors/:id/leave-precheck')
+  leaveCounselorPrecheck(@Param('id', ParseIntPipe) id: number) {
+    return this.membersService.leaveCounselorPrecheck(id);
+  }
+
+  /** 상담사 탈퇴 처리(소프트 삭제): POST /admin/members/counselors/:id/leave */
+  @Post('counselors/:id/leave')
+  leaveCounselor(@Param('id', ParseIntPipe) id: number) {
+    return this.membersService.leaveCounselor(id);
   }
 
   /** 상담사 파일 업로드: POST /admin/members/counselors/:id/files/:kind */
@@ -222,7 +235,7 @@ export class MembersController {
     const isImageKind = kind === 'profile' || kind === 'thumbnail' || kind === 'wide';
     let storedNameWebp: string | null = null;
     if (isImageKind) {
-      const { webpFilename } = await convertImageToWebp(file.path);
+      const { webpFilename } = await convertImageToWebp(file.path, { maxDimension: 1280, quality: 80 });
       storedNameWebp = webpFilename;
     }
     return this.membersService.addMemberFile(id, kind, {

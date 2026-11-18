@@ -96,7 +96,7 @@ export class SeoService {
     } catch {
       /* 목록 실패해도 메인은 렌더 */
     }
-    const title = '사주플랜 — 사주·타로·신점 전화/채팅 상담';
+    const title = '사주플랜 — 사주·타로·신점·심리 전화/채팅 상담';
     const description =
       '검증된 사주·타로·신점·심리 상담사와 전화·채팅으로 바로 상담하세요. 사주플랜에서 나에게 맞는 상담사를 찾아보세요.';
     const jsonLd = [
@@ -120,7 +120,7 @@ export class SeoService {
       },
     ];
     const body = `
-      <h1>사주플랜 — 사주·타로·신점 상담</h1>
+      <h1>사주플랜 — 사주·타로·신점·심리 상담</h1>
       <p>${esc(description)}</p>
       <nav><a href="/counselors">상담사 전체 보기</a></nav>
       <h2>추천 상담사</h2>
@@ -175,11 +175,14 @@ export class SeoService {
     if (!c) return { status: 404, html: this.notFoundHtml(`/counselors/${id}`) };
 
     const displayName = c.nickname || c.name;
-    const cat = c.category && c.category !== '기타' ? c.category : '사주·타로·신점';
+    const cat = c.category && c.category !== '기타' ? c.category : '사주·타로·신점·심리';
+    // OG/검색 설명을 풍성하게: 한줄소개(없으면 소개·bio) · 전문분야 · 스타일.
+    //   카톡 SDK 공유 카드(클라이언트)와 동일한 구성 → 링크복사 카드도 동일하게 풍성.
+    const lead = (c.headline?.trim() || stripHtml(c.intro || '') || stripHtml(c.bio || '')).slice(0, 60);
+    const fieldsStr = (c.fields || []).filter(Boolean).slice(0, 4).join(', ');
+    const traitsStr = (c.traits || []).filter(Boolean).slice(0, 3).join(', ');
     const descSrc =
-      c.headline ||
-      stripHtml(c.intro || '') ||
-      stripHtml(c.bio || '') ||
+      [lead, fieldsStr, traitsStr].filter(Boolean).join(' · ') ||
       `${displayName} 상담사와 사주플랜에서 전화·채팅 상담을 시작해보세요.`;
     const description = truncate(descSrc, 155);
     const title = `${displayName} (${cat} 상담사) | 사주플랜`;

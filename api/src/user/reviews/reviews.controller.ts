@@ -41,7 +41,7 @@ export class UserReviewsController {
   constructor(private readonly svc: UserReviewsService) {}
 
   /**
-   * GET /api/user/reviews/recent?category=사주|타로|신점&limit=13
+   * GET /api/user/reviews/recent?category=사주|타로|신점|심리&limit=13
    * - category 미지정 또는 '전체' → 전체
    * - limit 1~50, 기본 13
    */

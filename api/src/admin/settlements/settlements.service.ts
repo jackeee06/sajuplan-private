@@ -3,6 +3,12 @@ import { SQL, type Sql } from '../../shared/db/db.module';
 import { SmsService } from '../../user/sms/sms.service';
 import { SettlementCronService } from '../../cron/settlement-cron.service';
 import { InboxService } from '../../shared/inbox/inbox.service';
+import { PushService } from '../../shared/push/push.service';
+
+/** 정산 미리보기에서 숨길 순수 E2E 테스트 계정 (실 상담 안 함). jackee=이상화는 실 상담사라 제외 안 함. */
+const SETTLE_HIDDEN_TEST_ACCOUNTS = ['e2e_dual'];
+/** 정산 대상 최소 정산예상금액(원). 미만은 미정산으로 계속 쌓여 다음 달 이월. (2026-07-09 사장님 지시) */
+const SETTLE_MIN_AMOUNT = 10000;
 
 /**
  * sample/adm/settlement_list.php (메뉴 350450 "정산이력") 정확 매핑.
@@ -39,6 +45,9 @@ export interface SettlementRow {
   member_nickname: string | null;
   free_royalty_pct: number | null;
   paid_royalty_pct: number | null;
+  bank_name: string | null;
+  bank_holder: string | null;
+  bank_account: string | null;
   month: string;
   kind: string | null;
   price_free: number;
@@ -81,7 +90,62 @@ export class SettlementsService {
     private readonly sms: SmsService,
     private readonly settlementCron: SettlementCronService,
     private readonly inbox: InboxService,
+    private readonly push: PushService,
   ) {}
+
+  /**
+   * 정산완료 알림 — 지급완료(paid)된 상담사에게 "정산금 입금 완료" 인앱 + FCM 푸시.
+   *   관리자가 실제 통장 송금 후 [정산완료 알리기] 버튼으로 수동 발송.
+   */
+  async notifyPaid(settlementId: number): Promise<{ ok: true; notified: { push: boolean } }> {
+    const rows = await this.sql<{ member_id: number | null; mb_id: string | null; month: string; price: number; status: string }[]>`
+      SELECT member_id, mb_id, month, price, status FROM settlement_monthly WHERE id = ${settlementId} LIMIT 1
+    `;
+    const s = rows[0];
+    if (!s) throw new NotFoundException('정산 내역을 찾을 수 없습니다.');
+    if (s.status !== 'paid') throw new BadRequestException('정산완료(지급완료) 상태에서만 알릴 수 있습니다.');
+
+    // member_id 없으면 mb_id 로 조회
+    let memberId = s.member_id;
+    if (memberId == null && s.mb_id) {
+      const mr = await this.sql<{ id: number }[]>`SELECT id FROM member WHERE mb_id = ${s.mb_id} LIMIT 1`;
+      memberId = mr[0]?.id ?? null;
+    }
+    if (memberId == null) throw new NotFoundException('상담사 회원을 찾을 수 없습니다.');
+
+    const title = '정산금이 입금되었습니다 💰';
+    const content = `${s.month} 정산금 ${Number(s.price).toLocaleString()}원이 등록하신 계좌로 입금 처리되었습니다.\n수익금 내역에서 확인해 주세요.`;
+
+    let viaPush = false;
+    try {
+      const tokenRows = await this.sql<{ token: string }[]>`
+        SELECT token FROM member_push_token
+         WHERE member_id = ${memberId} AND is_active = TRUE AND token IS NOT NULL AND token <> ''
+         LIMIT 10
+      `;
+      if (tokenRows.length > 0) {
+        const r = await this.push.sendToTokens(tokenRows.map((t) => t.token), {
+          title,
+          body: `${s.month} 정산금 ${Number(s.price).toLocaleString()}원이 입금 처리되었습니다.`,
+          data: { type: 'settlement_paid', event_url: '/counselor/mypage/settlement/history' },
+        });
+        viaPush = r.ok && r.success > 0;
+      }
+    } catch (e) {
+      this.logger.warn(`[notifyPaid] FCM 실패 settlementId=${settlementId}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
+    await this.inbox.record({
+      memberId,
+      code: 'settlement_paid',
+      title,
+      content,
+      linkUrl: '/counselor/mypage/settlement/history',
+      viaPush,
+    });
+    this.logger.log(`[notifyPaid] 정산완료 알림 member=${memberId} settlement=${settlementId} push=${viaPush}`);
+    return { ok: true, notified: { push: viaPush } };
+  }
 
   /**
    * 회원 1명 즉시 정산 — 미리보기 화면 [정산하기] 버튼.
@@ -90,7 +154,7 @@ export class SettlementsService {
    *   2) 곧바로 markPaid (수익금 차감 + 지급완료 기록 + 선지급 settled 마킹 + 알림톡)
    * 이미 'paid' 면 중복 차단. 정산할 수익금이 0 이면 거부.
    */
-  async settleNow(memberId: number, month: string, adminId: number) {
+  async settleNow(memberId: number, month: string, adminId: number, silent = false) {
     if (!/^\d{4}-\d{2}$/.test(month)) throw new BadRequestException('month=YYYY-MM');
 
     // [2026-06-14 사장님 지시] 진행 중인 이번 달/미래 달은 정산 불가.
@@ -127,8 +191,8 @@ export class SettlementsService {
       throw new BadRequestException('무효화된 정산입니다. 새로 생성이 필요합니다.');
     }
 
-    // 2) 즉시 지급완료 (차감 + is_settled + 선지급 settled + 알림톡)
-    return this.markPaid(srows[0].id, adminId);
+    // 2) 즉시 지급완료 (차감 + is_settled + 선지급 settled + 알림톡[silent 아니면])
+    return this.markPaid(srows[0].id, adminId, silent);
   }
 
   async findAll(filter: SettlementFilter) {
@@ -175,7 +239,8 @@ export class SettlementsService {
         s.voided_at, s.voided_by_id, s.void_reason,
         COALESCE(va.nickname, va.name, va.mb_id) AS voided_by_name,
         m.mb_id, m.name AS member_name, m.nickname AS member_nickname,
-        m.free_royalty_pct, m.paid_royalty_pct
+        m.free_royalty_pct, m.paid_royalty_pct,
+        m.bank_name, m.bank_holder, m.bank_account
       FROM settlement_monthly s
       LEFT JOIN member m ON m.id = s.member_id OR m.mb_id = s.mb_id
       LEFT JOIN member va ON va.id = s.voided_by_id
@@ -248,9 +313,13 @@ export class SettlementsService {
       voided_at: string | null;
       voided_by_name: string | null;
       void_reason: string | null;
+      bank_name: string | null;
+      bank_holder: string | null;
+      bank_account: string | null;
     }[]>`
       SELECT
         m.id AS member_id, m.mb_id, m.name, m.nickname,
+        m.bank_name, m.bank_holder, m.bank_account,
         COALESCE((
           SELECT SUM(ph.earn_point) - SUM(ph.use_point)
             FROM point_history ph
@@ -294,10 +363,20 @@ export class SettlementsService {
           voided_at: r.voided_at,
           voided_by_name: r.voided_by_name,
           void_reason: r.void_reason,
+          bank_name: r.bank_name,
+          bank_holder: r.bank_holder,
+          bank_account: r.bank_account,
         };
       })
-      // 정산예상 또는 선지급이 있거나 이미 정산 row 가 있는 상담사만 (활동 없는 상담사 숨김)
-      .filter((x) => x.settle_amount > 0 || x.early_payout_total > 0 || x.settlement_id !== null)
+      // [2026-07-09 사장님 지시] 정산 대상 노출 규칙:
+      //   ① 순수 E2E 테스트 계정(e2e_dual)은 실 상담 안 함 → 미리보기에서 숨김.
+      //      (jackee=이상화는 실 상담사이므로 숨기지 않음.)
+      //   ② 정산예상 1만원 이상만 대상으로 올림 — 미만은 미정산으로 계속 쌓여 다음 달 이월.
+      //   단, 이미 이번 달 정산/무효 이력(settlement_id)이 있으면 금액과 무관하게 표시(재정산·알림용).
+      .filter((x) => {
+        if (x.mb_id && SETTLE_HIDDEN_TEST_ACCOUNTS.includes(x.mb_id)) return false;
+        return x.settle_amount >= SETTLE_MIN_AMOUNT || x.settlement_id !== null;
+      })
       .sort((a, b) => b.settle_amount - a.settle_amount);
 
     return {
@@ -311,6 +390,55 @@ export class SettlementsService {
         total_price: items.reduce((s, x) => s + x.price, 0),
       },
     };
+  }
+
+  /**
+   * 중복지급 환수(회수) 대상 목록 — 미해결분.
+   * [2026-09-09] 담당자가 정산하기 버튼을 누르지 않아 누적된 것처럼 보인 6월분이 2회 지급된 사고.
+   *   상담사 포인트에서 차감하면 잔액이 마이너스가 되어 사기 저하 → 차감 대신 "받아낼 금액"만 기록.
+   *   실제 회수(다음 정산 상쇄/협의)가 끝나면 [회수완료]로 마킹해 목록에서 내린다.
+   */
+  async recoveryTargets() {
+    const rows = await this.sql<{
+      id: number;
+      member_id: number;
+      mb_id: string | null;
+      name: string | null;
+      amount: number;
+      reason: string | null;
+      origin_month: string | null;
+      created_at: string;
+      bank_name: string | null;
+      bank_holder: string | null;
+      bank_account: string | null;
+    }[]>`
+      SELECT r.id, r.member_id, m.mb_id, COALESCE(m.name, m.nickname) AS name,
+             r.amount, r.reason, r.origin_month, r.created_at,
+             m.bank_name, m.bank_holder, m.bank_account
+        FROM settlement_recovery r
+        JOIN member m ON m.id = r.member_id
+       WHERE r.resolved_at IS NULL
+       ORDER BY r.amount DESC
+    `;
+    return {
+      items: rows,
+      summary: {
+        count: rows.length,
+        total_amount: rows.reduce((s, x) => s + Number(x.amount), 0),
+      },
+    };
+  }
+
+  /** 회수 대상 1건을 회수완료 처리 (상쇄/협의 완료). 정보 기록만, 돈 이동 없음. */
+  async resolveRecovery(id: number, adminId: number, memo?: string) {
+    const rows = await this.sql<{ id: number }[]>`
+      UPDATE settlement_recovery
+         SET resolved_at = now(), resolved_by = ${adminId}, resolved_memo = ${memo ?? null}
+       WHERE id = ${id} AND resolved_at IS NULL
+       RETURNING id
+    `;
+    if (rows.length === 0) throw new NotFoundException('이미 처리되었거나 없는 회수 건입니다.');
+    return { ok: true, id };
   }
 
   /** KST 현재월 'YYYY-MM' (preview 기본값용). */
@@ -330,7 +458,7 @@ export class SettlementsService {
    *   - 미정산 선지급(payout) 도 settled_at 마킹.
    *   status 'calculated' → 'paid' 단방향. voided 는 마킹 불가.
    */
-  async markPaid(id: number, adminId: number) {
+  async markPaid(id: number, adminId: number, silent = false) {
     const result = await this.sql.begin(async (tx) => {
       const rows = await tx<{
         member_id: number | null;
@@ -417,7 +545,9 @@ export class SettlementsService {
 
     this.logger.log(`[markPaid] id=${id} member=${result.memberId} earning차감=${result.settleAmount} admin=${adminId}`);
     // 상담사에게 정산완료 알림톡 (실패해도 본 작업 안 막음 — void)
-    void this.notifySettlementComplete(id).catch((e) => {
+    //   [2026-09-09] silent=true 면 알림톡 생략 — 과거 미클릭 누적분을 조용히 정합화할 때 사용
+    //   (중복/누적 금액이 상담사에게 잘못 발송되는 것 방지).
+    if (!silent) void this.notifySettlementComplete(id).catch((e) => {
       this.logger.warn(`[notifySettlementComplete] id=${id}: ${e instanceof Error ? e.message : String(e)}`);
     });
     return { ok: true, id, status: 'paid' };

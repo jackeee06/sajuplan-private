@@ -270,9 +270,17 @@ export class MembersService {
            ${excludeId !== undefined ? tx`AND id <> ${excludeId}` : tx``}
          ORDER BY (dtmfno)::int ASC
       `;
+      // [2026-07-15] 사용 보류 번호 제외 — setting(dtmfno/blocked). 엠투넷 유령(csrid 20288·20269)이
+      //   dtmfno 43·44 를 물고 있어 신규 배정 시 충돌(req_result=25). 엠투넷 정리 끝날 때까지 건너뛴다.
+      const bl = await tx<{ value: string }[]>`
+        SELECT value FROM setting WHERE namespace = 'dtmfno' AND key = 'blocked' LIMIT 1
+      `;
+      const blocked = new Set(
+        String(bl[0]?.value ?? '').split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isFinite(n)),
+      );
       const used = new Set(rows.map((r) => r.n));
       let candidate = 1;
-      while (used.has(candidate)) candidate += 1;
+      while (used.has(candidate) || blocked.has(candidate)) candidate += 1;
       return String(candidate);
     });
   }
@@ -285,6 +293,18 @@ export class MembersService {
    */
   private async assertDtmfnoFree(dtmfno: string, excludeId?: number): Promise<void> {
     if (!dtmfno) return;
+    // [2026-07-15] 사용 보류 번호(엠투넷 정리 대기)는 수동 입력도 거부.
+    const bl = await this.sql<{ value: string }[]>`
+      SELECT value FROM setting WHERE namespace = 'dtmfno' AND key = 'blocked' LIMIT 1
+    `;
+    const blocked = new Set(
+      String(bl[0]?.value ?? '').split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isFinite(n)),
+    );
+    if (blocked.has(parseInt(dtmfno, 10))) {
+      throw new ConflictException(
+        `상담사 번호 ${dtmfno} 는 현재 사용 보류된 번호입니다 (엠투넷 정리 대기). 다른 번호를 사용하거나 비워두면 자동 배정됩니다.`,
+      );
+    }
     const rows = await this.sql<{ id: number; nickname: string | null }[]>`
       SELECT id, nickname FROM member
        WHERE role = 'counselor' AND dtmfno = ${dtmfno}
@@ -1303,7 +1323,85 @@ export class MembersService {
     };
   }
 
-  async linkCounselorToM2net(id: number): Promise<{ ok: boolean; csrid: string | null; error?: string }> {
+  /**
+   * 상담사 탈퇴 처리 — left_at 만 세팅(소프트 삭제). 수익금·등급·후기·정산·단골·m2net csrid 전부 보존.
+   * 목록·사용자 앱 카탈로그에서는 left_at IS NULL 필터로 자동 숨김. 되돌리기는 restoreCounselor.
+   * (완전삭제는 되돌릴 수 없어 제공하지 않음.)
+   */
+  async leaveCounselor(id: number): Promise<{ ok: boolean; left: boolean; left_at: string | null; message: string }> {
+    const rows = await this.sql<{ id: number; role: string; left_at: Date | null }[]>`
+      SELECT id, role, left_at FROM member WHERE id = ${id} LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('회원을 찾을 수 없습니다.');
+    const m = rows[0];
+    if (m.role !== 'counselor') {
+      throw new ConflictException('상담사 계정이 아닙니다. 탈퇴 처리는 상담사만 가능합니다.');
+    }
+    if (m.left_at != null) {
+      return { ok: true, left: false, left_at: String(m.left_at), message: '이미 탈퇴 상태입니다.' };
+    }
+    const upd = await this.sql<{ left_at: Date }[]>`
+      UPDATE member SET left_at = now(), updated_at = now() WHERE id = ${id} RETURNING left_at
+    `;
+    return {
+      ok: true,
+      left: true,
+      left_at: String(upd[0].left_at),
+      message: '탈퇴 처리 완료 — 목록·앱에서 숨겨집니다. 수익금·등급·후기는 보존되며 복구 버튼으로 되살릴 수 있습니다.',
+    };
+  }
+
+  /**
+   * 탈퇴 처리 전 미리보기 — 재가입(다른 아이디) 상황 판단용.
+   *  - has_data(미정산 수익금 or 과거 정산)면: 탈퇴보다 '복구'가 데이터 보존에 유리하다고 화면이 경고.
+   *  - same_phone_active: 같은 전화로 살아있는 다른 상담사 계정(= 재가입으로 보이는 새 아이디).
+   */
+  async leaveCounselorPrecheck(id: number): Promise<{
+    name: string | null;
+    mb_id: string | null;
+    already_left: boolean;
+    unsettled_earning: number;
+    paid_settlement_count: number;
+    has_data: boolean;
+    same_phone_active: { id: number; mb_id: string | null; name: string | null }[];
+  }> {
+    const rows = await this.sql<{ id: number; role: string; phone: string | null; name: string | null; mb_id: string | null; left_at: Date | null }[]>`
+      SELECT id, role, phone, name, mb_id, left_at FROM member WHERE id = ${id} LIMIT 1
+    `;
+    if (rows.length === 0) throw new NotFoundException('회원을 찾을 수 없습니다.');
+    const m = rows[0];
+    const earnRows = await this.sql<{ s: string }[]>`
+      SELECT COALESCE(SUM(earn_point - use_point), 0)::text AS s
+        FROM point_history
+       WHERE member_id = ${id} AND balance_kind = 'earning' AND is_settled = false
+    `;
+    const unsettled = Math.max(0, Number(earnRows[0]?.s ?? 0));
+    const paidRows = await this.sql<{ c: string }[]>`
+      SELECT count(*)::text AS c FROM settlement_monthly WHERE member_id = ${id} AND status = 'paid'
+    `;
+    const paidCount = Number(paidRows[0]?.c ?? 0);
+    let samePhone: { id: number; mb_id: string | null; name: string | null }[] = [];
+    const digits = (m.phone ?? '').replace(/[^0-9]/g, '');
+    if (digits) {
+      samePhone = await this.sql<{ id: number; mb_id: string | null; name: string | null }[]>`
+        SELECT id, mb_id, name FROM member
+         WHERE role = 'counselor' AND left_at IS NULL AND id <> ${id}
+           AND regexp_replace(phone, '[^0-9]', '', 'g') = ${digits}
+         ORDER BY id DESC
+      `;
+    }
+    return {
+      name: m.name,
+      mb_id: m.mb_id,
+      already_left: m.left_at != null,
+      unsettled_earning: unsettled,
+      paid_settlement_count: paidCount,
+      has_data: unsettled > 0 || paidCount > 0,
+      same_phone_active: samePhone,
+    };
+  }
+
+  async linkCounselorToM2net(id: number, opts?: { force?: boolean }): Promise<{ ok: boolean; csrid: string | null; error?: string }> {
     const rows = await this.sql<{
       id: number; nickname: string; dtmfno: string | null; telno: string | null;
       counselor_priority: number | null; call_unit_seconds: number | null;
@@ -1343,7 +1441,11 @@ export class MembersService {
     };
 
     // 이미 csrid 가 발급된 상태면 PUT 으로 갱신 (M2NET req_result=25 중복등록 방지)
-    if (m.csrid) {
+    // [2026-07-15] force=true 면 csrid 가 있어도 PUT 을 건너뛰고 아래 POST(신규발급)로 간다.
+    //   ⚠️ m2net 은 "존재하지 않는 csrid 에 PUT" 해도 req_result=00(거짓 성공)을 반환한다(실측).
+    //   그래서 DB엔 csrid 가 있으나 m2net 엔 없는 "유령 상담사"(미륵선생 이후 승인분: 칠백별20288·천궁20269 등)를
+    //   PUT/재연동으로는 영영 복구하지 못한다. force 로 POST 신규등록을 강제해 실제 m2net 목록에 올린다.
+    if (m.csrid && !opts?.force) {
       // sample/adm/member_form_update.php:474,487 동등 — PUT 시에도 dtmfno 포함.
       // dtmfno 는 회원이 통화 연결 시 입력하는 상담사 식별 번호 (자유 입력, 빈값 허용).
       // 변경 시 M2NET·AG9 쪽에도 반영되어야 콜백/연결 매칭이 일관성 있게 동작함.
@@ -1368,9 +1470,18 @@ export class MembersService {
     }
 
     // 최초 등록 — POST 로 신규 csrid 발급
-    const result = await this.m2net.registerCounselor(payload);
+    // [2026-07-15] m2net 에서 dtmfno 가 이미 점유(req_result=25)면 다음 번호로 자동 재시도.
+    //   미륵선생 이후 승인 상담사들이 m2net 유령상태로 dtmfno(43·44...)를 물고 있어 원 번호로는 등록 불가.
+    //   비어있는 번호를 찾아 등록 → 회원 표시번호(dtmfno+150)는 바뀔 수 있음(상담사 안내 필요).
+    let tryNo = Number(dtmfnoFinal) || 1;
+    let result = await this.m2net.registerCounselor({ ...payload, dtmfno: String(tryNo) });
+    for (let i = 0; i < 40 && !result.ok && String(result.raw?.req_result ?? '') === '25'; i++) {
+      tryNo += 1;
+      result = await this.m2net.registerCounselor({ ...payload, dtmfno: String(tryNo) });
+    }
     if (result.ok && result.csrid) {
-      await this.sql`UPDATE member SET csrid = ${result.csrid} WHERE id = ${id}`;
+      const finalDtmfno = result.dtmfno && /^\d+$/.test(String(result.dtmfno)) ? String(result.dtmfno) : String(tryNo);
+      await this.sql`UPDATE member SET csrid = ${result.csrid}, dtmfno = ${finalDtmfno} WHERE id = ${id}`;
       await this.m2net.updateCounselorState(result.csrid, payload.state);
       return { ok: true, csrid: result.csrid };
     }

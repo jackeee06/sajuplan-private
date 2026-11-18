@@ -19,6 +19,22 @@ export class SettlementsController {
     return this.settlementsService.preview(m);
   }
 
+  /** 중복지급 환수(회수) 대상 목록 — 정산 미리보기 상단 패널용. */
+  @Get('recovery-targets')
+  recoveryTargets() {
+    return this.settlementsService.recoveryTargets();
+  }
+
+  /** 회수 대상 1건 회수완료 처리 (상쇄/협의 완료 표시). */
+  @Patch('recovery/:id/resolve')
+  resolveRecovery(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { memo?: string },
+    @Req() req: AuthedRequest,
+  ) {
+    return this.settlementsService.resolveRecovery(id, req.admin.sub, body.memo);
+  }
+
   @Get()
   list(@Query() q: Record<string, string>) {
     const sfl = ALLOWED_SFLS.includes(q.sfl as SettlementSfl) ? (q.sfl as SettlementSfl) : undefined;
@@ -38,12 +54,14 @@ export class SettlementsController {
   settleNow(
     @Param('memberId', ParseIntPipe) memberId: number,
     @Query('month') month: string | undefined,
+    @Query('silent') silent: string | undefined,
     @Req() req: AuthedRequest,
   ) {
     const m = month && /^\d{4}-\d{2}$/.test(month)
       ? month
       : this.settlementsService.currentMonthKst();
-    return this.settlementsService.settleNow(memberId, m, req.admin.sub);
+    // silent=true → 정산완료 알림톡 생략(과거 누적분 조용히 정합화용)
+    return this.settlementsService.settleNow(memberId, m, req.admin.sub, silent === 'true');
   }
 
   /** 정산 지급완료 마킹 — 사장님 통장 송금 후. */
@@ -60,5 +78,11 @@ export class SettlementsController {
     @Req() req: AuthedRequest,
   ) {
     return this.settlementsService.markVoided(id, req.admin.sub, body.reason ?? '');
+  }
+
+  /** 정산완료 알리기 — 지급완료 상담사에게 인앱 + FCM 푸시 알림. */
+  @Post(':id/notify-paid')
+  notifyPaid(@Param('id', ParseIntPipe) id: number) {
+    return this.settlementsService.notifyPaid(id);
   }
 }

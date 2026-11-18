@@ -61,6 +61,59 @@ export class UserConsultService {
     ).replace(/\/$/, '');
   }
 
+  /**
+   * [2026-06-26] 진행 중 타로 전화상담 → 라이브 타로보드 세션 정보.
+   *   홈 "타로상담" 스마트 버튼이 호출 → 진행 중이면 보드로 즉시 입장(role/session/상대이름),
+   *   아니면 { active:false } → 설명 페이지로 보낸다.
+   *   판별: 전화(roomid NULL) + ended_at NULL + 60분내 + 같은 callid 종료행 없음(좀비 CONNECT_CSR 방어)
+   *         + 상담사 카테고리='타로'. 같은 consultation 행을 양쪽(csrid/membid)이 조회 → 동일 callid = 동일 방.
+   */
+  async getTarotSession(userId: number): Promise<
+    | { active: false }
+    | { active: true; role: 'counselor' | 'member'; session: string; counselorName: string; memberName: string }
+  > {
+    if (!Number.isFinite(userId) || userId <= 0) return { active: false };
+    const rows = await this.sql<{
+      callid: string;
+      counselor_id: number | null;
+      counselor_nickname: string | null;
+      counselor_name: string | null;
+      member_nickname: string | null;
+      member_name: string | null;
+    }[]>`
+      SELECT c.callid, c.counselor_id,
+             cc.nickname AS counselor_nickname, cc.name AS counselor_name,
+             mm.nickname AS member_nickname,    mm.name AS member_name
+        FROM consultation c
+        JOIN member cc ON cc.id = c.counselor_id
+        LEFT JOIN member mm ON mm.id = c.member_id
+       WHERE c.roomid IS NULL
+         AND c.started_at IS NOT NULL
+         AND c.ended_at IS NULL
+         AND c.started_at > now() - interval '60 minutes'
+         AND c.callid IS NOT NULL AND c.callid <> ''
+         AND cc.counselor_category = '타로'
+         AND (c.counselor_id = ${userId} OR c.member_id = ${userId})
+         AND NOT EXISTS (
+           SELECT 1 FROM consultation d
+            WHERE d.callid = c.callid
+              AND d.reason IN ('DISCONNECT','END_CHAT','END_CHAT_LOCAL','NO_ANSWER_CSR','INSUFFICIENT_CONN')
+         )
+       ORDER BY c.started_at DESC
+       LIMIT 1
+    `;
+    const r = rows[0];
+    if (!r) return { active: false };
+    const role: 'counselor' | 'member' = Number(r.counselor_id) === Number(userId) ? 'counselor' : 'member';
+    return {
+      active: true,
+      role,
+      session: `call-${r.callid}`,
+      counselorName: (r.counselor_nickname || r.counselor_name || '상담사').trim(),
+      memberName: (r.member_nickname || r.member_name || '회원').trim(),
+    };
+  }
+
   /** 전화상담 시작 */
   async startPhone(params: {
     memberId: number;
@@ -1452,7 +1505,7 @@ export interface ConsultHistoryItem {
   counselor_code: string | null;
   counselor_avatar: string | null;
   counselor_avatar_webp: string | null;
-  counselor_badge: '사주' | '타로' | '신점' | '기타';
+  counselor_badge: '사주' | '타로' | '신점' | '심리' | '기타';
   /** 후기 작성 완료된 경우 review id, 없으면 null */
   review_id: number | null;
   /** 상담사 시점에서만 채워짐 — 본인이 작성한 후기 답변 id, 없으면 null */
@@ -1478,11 +1531,12 @@ function formatUsetm(seconds: number): string {
   return `${String(h).padStart(2, '0')}시간${String(m).padStart(2, '0')}분${String(sec).padStart(2, '0')}초`;
 }
 
-function inferBadge(...vals: (string | null)[]): '사주' | '타로' | '신점' | '기타' {
+function inferBadge(...vals: (string | null)[]): '사주' | '타로' | '신점' | '심리' | '기타' {
   const text = vals.filter(Boolean).join(' ');
   if (text.includes('타로')) return '타로';
   if (text.includes('신점')) return '신점';
   if (text.includes('사주')) return '사주';
+  if (text.includes('심리')) return '심리';
   return '기타';
 }
 

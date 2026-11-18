@@ -111,6 +111,17 @@ export class UserConsultController {
     return this.svc.listIncomingChats(req.user.sub);
   }
 
+  /**
+   * [2026-06-26] GET /api/user/consult/tarot-session
+   *   진행 중인 타로 전화상담이 있으면 라이브 보드 입장 정보(role/session/상대이름),
+   *   없으면 { active:false }. 홈 "타로상담" 스마트 버튼 전용.
+   *   회원·상담사 누구든 자기 토큰으로 호출 → 서버가 매칭(consultation)으로 같은 방을 내준다.
+   */
+  @Get('tarot-session')
+  async tarotSession(@Req() req: UserAuthedRequest) {
+    return this.svc.getTarotSession(Number(req.user.sub));
+  }
+
   // ─────────────────────────────────────────────
   // 상담 메모 — 상담사 전용
   //   GET  /api/user/consult/memo/:consultationId

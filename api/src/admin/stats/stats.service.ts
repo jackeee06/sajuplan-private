@@ -40,13 +40,24 @@ export class StatsService {
         WHERE created_at >= (CURRENT_DATE - (${safeDays}::int || ' days')::interval)::date
           AND status = 'completed'
         GROUP BY 1
+      ),
+      -- 선결제 채팅은 consultation.amt=0 이라 cs 에서 누락 → point_history(rel_table='chat_room')의
+      -- 실차감(use_point)을 매출로 보강. rel_id = chat_room.id (문자매칭으로 캐스트 회피).
+      pp AS (
+        SELECT date_trunc('day', cr.started_at)::date AS d, COALESCE(SUM(ph.use_point), 0)::bigint AS amt
+        FROM point_history ph
+        JOIN chat_room cr ON cr.id::text = ph.rel_id
+        WHERE ph.rel_table = 'chat_room'
+          AND cr.started_at >= (CURRENT_DATE - (${safeDays}::int || ' days')::interval)::date
+        GROUP BY 1
       )
       SELECT dates.d::text AS date,
-             COALESCE(cs.amt, 0)::int AS consultation_amt,
+             (COALESCE(cs.amt, 0) + COALESCE(pp.amt, 0))::int AS consultation_amt,
              COALESCE(pm.amt, 0)::int AS payment_amt
       FROM dates
       LEFT JOIN cs ON cs.d = dates.d
       LEFT JOIN pm ON pm.d = dates.d
+      LEFT JOIN pp ON pp.d = dates.d
       ORDER BY dates.d ASC
     `;
     return { items, days: safeDays };
@@ -74,13 +85,23 @@ export class StatsService {
         WHERE created_at >= date_trunc('month', CURRENT_DATE - interval '11 months')
           AND status = 'completed'
         GROUP BY 1
+      ),
+      -- 선결제 채팅(consultation.amt=0) 매출 보강 — point_history(rel_table='chat_room') 실차감액
+      pp AS (
+        SELECT date_trunc('month', cr.started_at)::date AS m, COALESCE(SUM(ph.use_point), 0)::bigint AS amt
+        FROM point_history ph
+        JOIN chat_room cr ON cr.id::text = ph.rel_id
+        WHERE ph.rel_table = 'chat_room'
+          AND cr.started_at >= date_trunc('month', CURRENT_DATE - interval '11 months')
+        GROUP BY 1
       )
       SELECT to_char(months.m, 'YYYY-MM') AS month,
-             COALESCE(cs.amt, 0)::int AS consultation_amt,
+             (COALESCE(cs.amt, 0) + COALESCE(pp.amt, 0))::int AS consultation_amt,
              COALESCE(pm.amt, 0)::int AS payment_amt
       FROM months
       LEFT JOIN cs ON cs.m = months.m
       LEFT JOIN pm ON pm.m = months.m
+      LEFT JOIN pp ON pp.m = months.m
       ORDER BY months.m ASC
     `;
     return { items };
@@ -142,10 +163,23 @@ export class StatsService {
       WHERE ${dateFilter}
         AND reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
     `;
+    // 선결제 채팅 매출 보강 — consultation.amt=0 이라 위 SUM(amt)에서 빠짐.
+    //   실차감(use_point)을 gross 로 더한다. 환불은 consultation.refunded_amount 에 이미 반영돼 있어 그대로 둔다.
+    const ppFilter = frDate && toDate
+      ? this.sql`cr.started_at >= ${frDate + ' 00:00:00'}::timestamptz AND cr.started_at <= ${toDate + ' 23:59:59'}::timestamptz`
+      : this.sql`cr.started_at >= (CURRENT_DATE - (${safeDays}::int || ' days')::interval)`;
+    const ppRows = await this.sql<{ gross: string }[]>`
+      SELECT COALESCE(SUM(ph.use_point), 0)::text AS gross
+      FROM point_history ph
+      JOIN chat_room cr ON cr.id::text = ph.rel_id
+      WHERE ph.rel_table = 'chat_room' AND ${ppFilter}
+    `;
+    const prepaidGross = Number(ppRows[0]?.gross ?? 0);
+
     const r = rows[0];
     const total = Number(r.total_count);
     const refundedCount = Number(r.refunded_count);
-    const totalAmt = Number(r.total_amt);
+    const totalAmt = Number(r.total_amt) + prepaidGross;
     const totalRefunded = Number(r.total_refunded);
     return {
       days: safeDays,
@@ -170,6 +204,11 @@ export class StatsService {
     const dateFilter = frDate && toDate
       ? this.sql`c.created_at >= ${frDate + ' 00:00:00'}::timestamptz AND c.created_at <= ${toDate + ' 23:59:59'}::timestamptz`
       : this.sql`c.created_at >= (CURRENT_DATE - (${safeDays}::int || ' days')::interval)`;
+    // 선결제 채팅 순매출(실차감 use_point − 환불 earn_point) — 상담사(chat_room.counselor_id) 귀속.
+    //   consultation.amt=0 이라 아래 SUM 에선 0 → 이 값을 더해야 실매출이 잡힌다.
+    const ppFilter = frDate && toDate
+      ? this.sql`cr.started_at >= ${frDate + ' 00:00:00'}::timestamptz AND cr.started_at <= ${toDate + ' 23:59:59'}::timestamptz`
+      : this.sql`cr.started_at >= (CURRENT_DATE - (${safeDays}::int || ' days')::interval)`;
     return await this.sql<Array<{
       counselor_id: number;
       mb_id: string | null;
@@ -184,16 +223,24 @@ export class StatsService {
         c.counselor_id,
         m.mb_id, m.nickname, m.grade,
         COUNT(*)::text AS count,
-        COALESCE(SUM(c.amt - c.refunded_amount), 0)::text AS revenue,
+        -- 종량제: GREATEST 로 선결제(amt=0, 환불>0)의 음수화 방지. 선결제 순매출은 pp 에서 합산.
+        (COALESCE(SUM(GREATEST(c.amt - c.refunded_amount, 0)), 0) + COALESCE(pp.prepaid_rev, 0))::text AS revenue,
         COALESCE(SUM(c.refunded_amount), 0)::text AS refunded,
         COALESCE(AVG(c.usetm), 0)::text AS avg_duration
       FROM consultation c
       JOIN member m ON m.id = c.counselor_id
+      LEFT JOIN (
+        SELECT cr.counselor_id, COALESCE(SUM(ph.use_point - ph.earn_point), 0) AS prepaid_rev
+        FROM point_history ph
+        JOIN chat_room cr ON cr.id::text = ph.rel_id
+        WHERE ph.rel_table = 'chat_room' AND ${ppFilter}
+        GROUP BY cr.counselor_id
+      ) pp ON pp.counselor_id = c.counselor_id
       WHERE ${dateFilter}
         AND c.reason IN ('DISCONNECT', 'END_CHAT', 'END_CHAT_LOCAL')
         AND c.refund_status IS DISTINCT FROM 'full'
-      GROUP BY c.counselor_id, m.mb_id, m.nickname, m.grade
-      ORDER BY SUM(c.amt - c.refunded_amount) DESC NULLS LAST
+      GROUP BY c.counselor_id, m.mb_id, m.nickname, m.grade, pp.prepaid_rev
+      ORDER BY (COALESCE(SUM(GREATEST(c.amt - c.refunded_amount, 0)), 0) + COALESCE(pp.prepaid_rev, 0)) DESC NULLS LAST
       LIMIT ${safeLimit}
     `;
   }

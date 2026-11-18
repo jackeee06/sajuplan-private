@@ -55,7 +55,7 @@ export class BannersController {
   )
   async uploadImage(@UploadedFile() file: Express.Multer.File) {
     if (!file) throw new BadRequestException('파일이 없습니다.');
-    const { webpFilename } = await convertImageToWebp(file.path);
+    const { webpFilename } = await convertImageToWebp(file.path, { maxDimension: 1280, quality: 80 });
     return {
       ok: true,
       image_url: `/uploads/banner/${file.filename}`,

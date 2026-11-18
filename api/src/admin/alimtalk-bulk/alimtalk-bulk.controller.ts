@@ -56,6 +56,7 @@ export class AlimtalkBulkController {
       template_code?: string;
       target?: BulkTarget;
       phones?: string;
+      member_ids?: number[];
       vars?: Record<string, string>;
     },
     @Req() req: AuthedRequest,
@@ -66,6 +67,7 @@ export class AlimtalkBulkController {
       templateCode: body.template_code,
       target: body.target,
       phones: body.phones,
+      memberIds: body.member_ids,
       vars: body.vars,
       adminId: req.admin.sub,
     });

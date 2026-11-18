@@ -101,6 +101,27 @@ export class M2netService {
   }
 
   /**
+   * 상담사 목록 조회 — GET /csr-mgr/{cpid} → { list: [{ csrid, dtmfno, state, ... }] }.
+   *   유령 감지용: DB엔 role=counselor+csrid 있으나 m2net 목록엔 없는 상담사를 찾아낸다.
+   *   (csr-mgr PUT 이 존재하지 않는 csrid 에도 req_result=00 을 주는 거짓 성공 문제의 유일한 확인 수단.)
+   */
+  async getCounselorList(): Promise<{ ok: boolean; csrids: Set<string>; count: number; error?: string }> {
+    if (!this.enabled) return { ok: false, csrids: new Set(), count: 0, error: 'M2NET 비활성' };
+    try {
+      const res = await this.get(`${this.apiUrl}/csr-mgr/${this.cpid}`);
+      const raw = res as unknown as { list?: unknown };
+      const list = Array.isArray(raw.list) ? (raw.list as Array<{ csrid?: string | number }>) : null;
+      if (!list) return { ok: false, csrids: new Set(), count: 0, error: '목록 형식 오류' };
+      const csrids = new Set<string>(
+        list.map((x) => String(x.csrid ?? '').trim()).filter((s) => /^[0-9]+$/.test(s)),
+      );
+      return { ok: true, csrids, count: csrids.size };
+    } catch (e) {
+      return { ok: false, csrids: new Set(), count: 0, error: e instanceof Error ? e.message : 'unknown' };
+    }
+  }
+
+  /**
    * 채팅방 생성 — chat-mgr csrchat
    * sample/chat_test/get_chat_token.php::chat_create_room() 동등.
    *

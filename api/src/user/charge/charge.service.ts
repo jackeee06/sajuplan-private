@@ -862,6 +862,21 @@ export class ChargeService {
       return { ok: true, ignored: true };
     }
 
+    // ❗[2026-06-26] 결제 취소(CANCEL_PAY) 통지는 '충전'이 아니다 — 절대 적립 금지.
+    //   m2net 결제취소 시 *같은 oid* 로 req_result='0000' + msg='CANCEL_PAY'(resultmsg='정상처리') push 가
+    //   도착한다. 원래 충전 push 는 msg 필드가 없다. 이를 충전으로 오인해 적립하면 '카드 환불 + 코인'
+    //   이중 지급(회사 손실)이 발생한다(강원구 251, 2026-06-26 실사고). msg 에 CANCEL 이 있으면 즉시 무시.
+    const pushMsg = String(payload.msg ?? '');
+    if (/CANCEL/i.test(pushMsg)) {
+      this.logger.warn(`[handleAutopayPush] 결제취소 통지 — 적립 안 함(무시). oid=${oid} msg=${pushMsg}`);
+      void this.opsAlert.send(
+        'ℹ️ 자동충전 결제취소 통지 수신 — 코인 적립 안 함',
+        `회원 m2net=${String(payload.membid ?? '')} 의 결제취소 통지가 도착했습니다(주문번호=${oid}).\n` +
+          `취소는 충전이 아니므로 코인을 적립하지 않았습니다. 만약 그 충전으로 이미 코인이 지급돼 있었다면 회수가 필요할 수 있어 확인 바랍니다.`,
+      );
+      return { ok: true, ignored: true, cancel: true };
+    }
+
     // 1) 동일 oid 가 이미 있으면 멱등 종료
     const exists = await this.sql<{ id: number }[]>`SELECT id FROM payment WHERE oid = ${oid} LIMIT 1`;
     if (exists.length > 0) {
@@ -880,7 +895,7 @@ export class ChargeService {
     const member = memberRows[0];
 
     const amount = Number(payload.amount) || 0;
-    const coinamt = Number(payload.coinamt) || 0;
+    let coinamt = Number(payload.coinamt) || 0;
 
     // ── 검사 순서 주의(2026-06-22 버그수정) ─────────────────────────────
     //   [중복방지 dedup] 을 [위조 방어 auto_enabled 체크] 보다 *먼저* 한다.
@@ -890,89 +905,155 @@ export class ChargeService {
     //   불필요한 운영경보를 쐈다. → dedup 을 먼저 걸어 정상 사후통지는 조용히 종료시킨다.
     // ────────────────────────────────────────────────────────────────────
 
-    // 1) 중복 적립 방지 — `autoPayCharge` 가 이미 자체 oid(`AUTO_PAY_CARD_*`) 로 row INSERT
-    //    한 케이스. m2net push 는 사후 통지일 뿐.
+    // 1) 중복 적립 방지 — `autoPayCharge` 가 *우리 자체 oid*(auto_pay_card_*) 로 INSERT 한 row 의
+    //    m2net 사후통지. m2net push 는 그 결제의 사후 확인일 뿐이므로 적립을 다시 하지 않는다.
     //
-    //    Race: autoPayCharge 가 INSERT(status='pending') → m2net.autoPayRequest() 응답 대기 중에
-    //    m2net push 가 먼저 도착하는 케이스가 있다. 이때 status='completed' 만 보면 pending row
-    //    를 못 잡아 신규 INSERT/적립 → 중복 발생. 따라서 status 와 무관하게 최근 자동결제 row
-    //    가 있으면 dedup.
-    const matched = await this.sql<{ id: number; m2net_status: string | null; status: string }[]>`
-      SELECT id, m2net_status, status FROM payment
+    //    ❗dedup 대상을 '우리 자체 oid prefix(auto_pay_card_%)' 로 한정한다(2026-06-26 감사).
+    //      과거엔 member+amount+coinamt+'%AUTO_PAY%'+10분 만 봐서, m2net 이 단독으로 같은 금액을
+    //      10분 내 2번 자동충전하면(잔액부족 통화 등) 두 번째를 첫 번째에 잘못 묶어 '카드 2회 청구·
+    //      코인 1회 적립'(고객 손실)이 가능했다. 우리 자체 row 만 매칭하면 m2net 단독건은 각자 신규 적립된다.
+    const matched = await this.sql<{ id: number; status: string }[]>`
+      SELECT id, status FROM payment
        WHERE member_id = ${member.id}
          AND amount = ${amount}
          AND coin_amount = ${coinamt}
-         AND pay_method LIKE '%AUTO_PAY%'
+         AND oid LIKE 'auto_pay_card_%'
          AND created_at > now() - interval '10 minutes'
        ORDER BY id DESC
        LIMIT 1
     `;
     if (matched.length > 0) {
       const matchedRow = matched[0];
-      // m2net 측 oid/tid 만 메타로 추가 기록. 적립은 절대 다시 안 함.
-      // 매칭 row 가 pending 이면 status 도 completed 로 끌어올려 — autoPayCharge 의 ag9 응답이
-      // 늦게 도착해도 이미 m2net 가 결제 처리한 사실을 반영. applyCompletion 은 이미 completed 면
-      // 'idempotent' 로 빠져나가므로 중복 적립 안 됨.
-      await this.sql`
-        UPDATE payment
-           SET m2net_status = COALESCE(NULLIF(m2net_status, ''), '') || ${`|m2net_push:oid=${oid}`},
-               result_message = COALESCE(NULLIF(result_message, ''), '') || ${`|push:${String(payload.resultmsg ?? '')}`},
-               status = CASE WHEN status = 'pending' THEN 'completed' ELSE status END,
-               updated_at = now()
-         WHERE id = ${matchedRow.id}
-      `;
-      // pending → completed 로 승격된 경우, applyCompletion 이 적립 안 했으니 여기서 적립.
-      if (matchedRow.status === 'pending') {
-        await this.sql.begin(async (tx) => {
+      // ❗이중적립 차단(2026-06-26 감사 — 검증관 3명 수렴):
+      //   메타 기록 + status 전이(pending→completed) + 적립을 *한 트랜잭션 + FOR UPDATE* 로 원자화하고,
+      //   적립 멱등키를 applyCompletion 과 *동일*(rel_table='payment', rel_action 기본 'coin_credit')하게 통일한다.
+      //   과거: 승격 적립이 rel_table='payment_autopay'/reason 이라 applyCompletion('payment'/'coin_credit')
+      //         과 키가 달라 point_history UNIQUE 가 교차 차단을 못 함 → 같은 결제 1건에 코인 2배(회사 손실).
+      //   이제: 잠금하 status 가 pending 일 때만 적립 + 통일 키 → 둘이 경합해도 ON CONFLICT 로 정확히 1회.
+      let promotedCredited = false;
+      await this.sql.begin(async (tx) => {
+        const locked = await tx<{ status: string }[]>`
+          SELECT status FROM payment WHERE id = ${matchedRow.id} FOR UPDATE
+        `;
+        await tx`
+          UPDATE payment
+             SET m2net_status = COALESCE(NULLIF(m2net_status, ''), '') || ${`|m2net_push:oid=${oid}`},
+                 result_message = COALESCE(NULLIF(result_message, ''), '') || ${`|push:${String(payload.resultmsg ?? '')}`},
+                 status = CASE WHEN status = 'pending' THEN 'completed' ELSE status END,
+                 updated_at = now()
+           WHERE id = ${matchedRow.id}
+        `;
+        if (locked.length > 0 && locked[0].status === 'pending') {
           await this.creditPointInTx(
             tx,
             member.id,
             coinamt,
             `등록카드 코인충전 :${oid}`,
-            'payment_autopay',
+            'payment',
             String(matchedRow.id),
-            String(payload.reason ?? ''),
           );
-        });
-        this.logger.log(
-          `[handleAutopayPush] pending row 승격 — member=${member.id} payment.id=${matchedRow.id} 적립 1회`,
-        );
-      } else {
-        this.logger.log(
-          `[handleAutopayPush] 중복 푸시 감지 — member=${member.id} amount=${amount} 기존 payment.id=${matchedRow.id} 매칭, 적립 스킵`,
-        );
-      }
+          promotedCredited = true;
+        }
+      });
+      this.logger.log(
+        promotedCredited
+          ? `[handleAutopayPush] pending row 승격 적립 1회 — member=${member.id} payment.id=${matchedRow.id}`
+          : `[handleAutopayPush] 중복 푸시(이미 적립됨) — member=${member.id} payment.id=${matchedRow.id} 적립 스킵`,
+      );
       return { ok: true, dedup: true };
     }
 
-    // 2) [위조 방어] 위 dedup 도 아닌데 push 도착 → 우리가 처리한 자동충전이 아니므로,
-    //    payload.membid 위조 가능성 대비 DB 진실원천으로 교차검증(자동결제 등록 + 금액 일치).
-    const autoCheck = await this.sql<{ auto_pkg_amount: number | null }[]>`
-      SELECT asg.amount AS auto_pkg_amount
+    // 2) [위조 방어 — 2026-06-26 재설계] 위 dedup 도 아닌 새 push.
+    //    ❗과거 버그: auto_enabled=TRUE 인 *활성* 카드가 있어야만 정상으로 인정.
+    //      → 카드는 본인이 등록했지만 ①'자동실행' 토글 OFF 거나 ②우리 DB 에서 비활성(is_active=FALSE)
+    //        상태인 회원에게, m2net 이 통화중(IN_CONNECT) 잔액부족으로 *단독* 자동충전한 정상 거래를
+    //        '미등록 위조'로 막아버렸다. 실고객이 카드로 돈을 내고 코인은 0개 받는 사고 발생
+    //        (강원구 member 251, 2026-06-26: 본인 billKey·전화 일치인데 카드가 is_active=FALSE 라 차단).
+    //      → 돈 불변식 '낸 만큼 받아야' 위반.
+    //    ✅재설계 근거: m2net 은 *우리 시스템에 등록된 카드(billKey)* 만 자동충전한다(콜백 IP 도 m2net 전용 allowlist).
+    //      위조 판정 기준을 'auto_enabled + is_active' → '회원이 등록한 카드 존재(활성·비활성 무관) + 전화번호 일치' 로 교체.
+    //        · 회원이 등록한 카드 row 가 하나라도 있으면 = 본인 실제 카드 → 코인 정상 적립(돈 불변식 보존)
+    //        · 등록 카드가 아예 없거나 / 전화번호가 다르면 → 진짜 위조 의심 → 차단
+    //        · 단, 비활성(삭제/만료 추정) 카드인데 m2net 이 충전한 경우는 '코인은 지급하되' 운영자 알림
+    //          (m2net 측 billKey 미정리 또는 환불 필요 가능성 — 사람이 후속 확인). 돈은 절대 안 떼임.
+    const cardRows = await this.sql<{ is_active: boolean; auto_enabled: boolean; card_amount: number | null; card_coin: number | null }[]>`
+      SELECT pm.is_active, pm.auto_enabled, pm.amount AS card_amount, pm.coin_amount AS card_coin
         FROM payment_method pm
-        LEFT JOIN account_setting asg ON asg.id = pm.auto_package_id
        WHERE pm.member_id = ${member.id}
-         AND pm.auto_enabled = TRUE
-         AND pm.is_active = TRUE
-       ORDER BY pm.id DESC
+       ORDER BY pm.is_active DESC, pm.auto_enabled DESC, pm.id DESC
        LIMIT 1
     `;
-    if (autoCheck.length === 0) {
-      // 우리 처리 거래도 없고 자동결제 등록도 없는데 push 도착 → 진짜 위조 의심 (쉬운 말 경보)
+    // 전화번호 교차검증 (숫자만 비교 + 국가코드 82→0 정규화 → 하이픈/포맷/국가코드 차이 흡수).
+    //   예: m2net 이 '821026256356' 로 보내도 회원 '010-2625-6356' 과 동일 판정.
+    const normTel = (s: unknown) => {
+      let d = String(s ?? '').replace(/\D/g, '');
+      if (d.startsWith('82')) d = '0' + d.slice(2);
+      return d;
+    };
+    const pushTelno = normTel(payload.telno);
+    const memberTelno = normTel(member.mb_hp);
+    const telnoMismatch = pushTelno !== '' && memberTelno !== '' && pushTelno !== memberTelno;
+
+    if (cardRows.length === 0) {
+      // 등록 카드가 아예 없음 → 진짜 위조 의심 → 차단 (본인 카드라는 근거가 0)
       void this.opsAlert.send(
         '⚠️ 등록 안 한 회원에게 자동충전 결제알림 — 위조 가능성',
-        `회원: ${member.mb_name ?? member.mb_id ?? member.id}(${member.id})\n금액: ${amount.toLocaleString()}원\n자동충전을 등록하지 않은 회원에게 결제 알림이 도착했습니다.\n가짜(위조) 결제일 수 있어 막았습니다. 확인이 필요합니다.\n(주문번호=${oid})`,
+        `회원: ${member.mb_name ?? member.mb_id ?? member.id}(${member.id})\n금액: ${amount.toLocaleString()}원\n` +
+          `등록된 카드가 없는 회원에게 결제 알림이 도착했습니다.\n가짜(위조) 결제일 수 있어 막았습니다. 확인이 필요합니다.\n(주문번호=${oid})`,
       );
-      throw new BadRequestException('자동결제 미등록 회원');
+      throw new BadRequestException('자동결제 위조 의심 (등록 카드 없음)');
     }
-    const expectedAmount = autoCheck[0].auto_pkg_amount;
-    if (expectedAmount !== null && Number(expectedAmount) !== amount) {
-      // 금액이 등록된 패키지와 불일치 → 위조 또는 PG 측 오류 (쉬운 말 경보)
+    // ❗전화번호 불일치 — 차단(throw) 아님, 코인은 지급 + 경보(2026-06-26 감사).
+    //   등록 카드(billKey)가 있으면 본인 카드라는 강한 증거다. req_result=0000 이면 고객 돈은 이미 빠졌으므로
+    //   여기서 throw 하면 '돈 빠졌는데 코인 0'(강원구·진유비 사고)가 [전화변경+m2net telno 미동기화] 축으로 재발한다.
+    //   따라서 비활성카드/금액불일치와 동일하게 '코인 지급 + 경보' 로 강등한다(진짜 위조는 위 '카드 없음'에서 차단됨).
+    if (telnoMismatch) {
       void this.opsAlert.send(
-        '⚠️ 자동충전 금액이 등록값과 다름 — 확인 필요',
-        `회원: ${member.mb_name ?? member.mb_id ?? member.id}(${member.id})\n등록 금액: ${Number(expectedAmount).toLocaleString()}원 / 들어온 알림 금액: ${amount.toLocaleString()}원\n금액이 안 맞아 막았습니다. 확인이 필요합니다.\n(주문번호=${oid})`,
+        'ℹ️ 자동충전 전화번호 불일치 — 코인은 지급, 확인 필요',
+        `회원: ${member.mb_name ?? member.mb_id ?? member.id}(${member.id})\n금액: ${amount.toLocaleString()}원\n` +
+          `결제알림 전화(${pushTelno})가 회원 전화와 다릅니다. 등록 카드가 있어 본인 결제로 보고 코인은 지급했습니다.\n` +
+          `m2net 전화번호 동기화(전화 변경 후 미반영) 확인이 필요합니다.\n(주문번호=${oid})`,
       );
-      throw new BadRequestException(`자동결제 등록 금액과 불일치 (expected=${expectedAmount} got=${amount})`);
+    }
+    // 비활성(삭제/만료 추정) 카드인데 m2net 이 자동충전 → 코인은 지급(아래)하되 사람이 후속 확인하도록 경보.
+    if (!cardRows[0].is_active) {
+      void this.opsAlert.send(
+        'ℹ️ 비활성 카드에 m2net 자동충전 발생 — 코인 지급함, 환불검토 필요',
+        `회원: ${member.mb_name ?? member.mb_id ?? member.id}(${member.id})\n금액: ${amount.toLocaleString()}원\n` +
+          `우리 시스템에서 '사용 안 함'으로 된 카드인데 m2net 에서 자동충전이 실행됐습니다.\n` +
+          `고객 돈이 빠졌으므로 코인은 정상 지급했습니다(돈 안 떼임).\n` +
+          `m2net 쪽 자동결제(billKey)가 안 풀렸을 수 있어 확인이 필요하고, 고객이 원하면 환불 처리하세요.\n(주문번호=${oid})`,
+      );
+    }
+    // 금액 sanity — ❗차단(throw) 아님, '경보'만 한다.
+    //   이유: req_result=0000 이면 고객 카드에서 돈은 이미 빠졌다. 여기서 막으면 '돈은 나갔는데 코인 0'
+    //         = 돈 불변식 위반(강원구·진유비 사고의 본질). 따라서 금액이 이상해도 코인은 지급하고 사람에게 알린다.
+    //   기준값 = payment_method.amount (등록 시 VAT 포함 *실결제금액*, m2net 실청구액과 동일).
+    //   ❗과거 잠복버그(2026-06-26 발견): account_setting.amount(부가세 전, 예 30,000)와 비교했음 →
+    //      m2net 실청구는 ×1.1=33,000 이라 '자동실행 ON' 회원의 정상 자동충전마다 무조건 불일치→차단될 뻔함.
+    const refAmount = cardRows[0].card_amount;
+    if (refAmount !== null && Number(refAmount) !== amount) {
+      void this.opsAlert.send(
+        'ℹ️ 자동충전 금액이 등록값과 다름 — 코인은 지급, 확인 필요',
+        `회원: ${member.mb_name ?? member.mb_id ?? member.id}(${member.id})\n등록 결제금액: ${Number(refAmount).toLocaleString()}원 / 들어온 알림 금액: ${amount.toLocaleString()}원\n금액이 달라 확인이 필요합니다. 고객 돈이 빠졌으므로 코인은 정상 지급했습니다.\n(주문번호=${oid})`,
+      );
+    }
+    // coinamt 안전망(2026-06-26 감사): amount>0 인데 지급할 코인 수가 0/누락이면 무경보로 '코인 0' 종료될 위험.
+    //   → 등록 카드의 coin_amount 로 fallback 지급(돈 불변식 보존), 그것도 없으면 반드시 경보(수동처리 유도).
+    if (amount > 0 && coinamt <= 0) {
+      const fallbackCoin = Number(cardRows[0].card_coin) || 0;
+      if (fallbackCoin > 0) {
+        coinamt = fallbackCoin;
+        void this.opsAlert.send(
+          'ℹ️ 자동충전 코인 수 누락 — 등록카드 기준 지급, 확인 필요',
+          `회원: ${member.mb_name ?? member.mb_id ?? member.id}(${member.id})\n금액: ${amount.toLocaleString()}원\n결제알림에 코인 수가 없어 등록카드 기준 ${fallbackCoin.toLocaleString()}코인을 지급했습니다. 확인이 필요합니다.\n(주문번호=${oid})`,
+        );
+      } else {
+        void this.opsAlert.send(
+          '⚠️ 자동충전 코인 수 불명 — 수동 적립/환불 필요',
+          `회원: ${member.mb_name ?? member.mb_id ?? member.id}(${member.id})\n금액 ${amount.toLocaleString()}원이 결제됐는데 지급할 코인 수를 알 수 없습니다. 수동 확인/처리가 필요합니다.\n(주문번호=${oid})`,
+        );
+      }
     }
 
     // 3) 매칭되는 기존 row 없음 — m2net 가 단독으로 자동결제 처리한 케이스. 신규 INSERT + 적립.

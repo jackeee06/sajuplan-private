@@ -48,9 +48,11 @@ export class CronController {
   //   GET /api/cron/daily-summary
   //   crontab: '0 9 * * * curl -H X-Cron-Token: ...'
   @Get('daily-summary')
-  async dailySummaryRun() {
+  async dailySummaryRun(@Query('test') test?: string) {
+    // ?test=1 → dry-run: 실제 발송 없이 렌더링된 미리보기만 반환(검증용).
+    const dryRun = test === '1' || test === 'true';
     try {
-      return await this.dailySummary.run();
+      return await this.dailySummary.run(dryRun);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await this.opsAlert.send('daily-summary cron 실패', msg);

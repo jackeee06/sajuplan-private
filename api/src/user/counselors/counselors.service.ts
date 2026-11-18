@@ -109,6 +109,8 @@ export interface PublicCounselorDetail {
   qna_count: number;
   /** 요청자가 이 상담사를 단골 등록했는지 (비로그인이면 false) */
   is_liked: boolean;
+  /** 요청자가 24h 내 이 상담사에게 상담요청을 보냈는지 (부재 카드의 "요청됨" 표시를 상세와 일치시킴) */
+  is_requested: boolean;
   /** 전속파트너 여부 */
   is_exclusive: boolean;
 }
@@ -148,6 +150,8 @@ export class UserCounselorsService {
   async requestConsult(params: {
     requesterId: number;
     counselorId: number;
+    /** 고객이 원하는 상담 방식 (부재중 상담사에게 알림 문구로 표시). 미지정=구버전 호환. */
+    channel?: 'phone' | 'chat';
   }): Promise<{ ok: true; already?: boolean; notified: { alimtalk: boolean; push: boolean } }> {
     if (params.requesterId === params.counselorId) {
       throw new BadRequestException('본인에게 상담을 요청할 수 없습니다.');
@@ -165,17 +169,24 @@ export class UserCounselorsService {
       throw new NotFoundException('상담사를 찾을 수 없습니다.');
     }
 
-    // 24시간 내 중복 신청 차단
-    const recent = await this.sql<{ id: number }[]>`
-      SELECT id FROM counselor_request_alert
-       WHERE member_id = ${params.requesterId}
-         AND counselor_id = ${params.counselorId}
-         AND requested_at > now() - interval '24 hours'
-       LIMIT 1
+    // 24시간 내 중복 신청 차단 — 원자적으로 처리(다기기/재시도 동시요청 시 이중 INSERT·알림톡 이중과금 방지).
+    //   기존엔 SELECT 로 확인 후 INSERT 라, 두 요청이 거의 동시면 둘 다 빈 결과를 보고 2행이 생겼다.
+    //   INSERT ... WHERE NOT EXISTS 단일 문으로 합쳐 그 경합 창을 없앤다. 이미 있으면 0행 반환.
+    const inserted = await this.sql<{ id: number }[]>`
+      INSERT INTO counselor_request_alert (counselor_id, member_id, requested_at, channel)
+      SELECT ${params.counselorId}, ${params.requesterId}, now(), ${params.channel ?? null}
+      WHERE NOT EXISTS (
+        SELECT 1 FROM counselor_request_alert
+         WHERE member_id = ${params.requesterId}
+           AND counselor_id = ${params.counselorId}
+           AND requested_at > now() - interval '24 hours'
+      )
+      RETURNING id
     `;
-    if (recent.length > 0) {
+    if (inserted.length === 0) {
       return { ok: true, already: true, notified: { alimtalk: false, push: false } };
     }
+    const rowId = inserted[0].id;
 
     // 요청자 닉네임 조회 (알림 내용용)
     const requesterRows = await this.sql<{ nickname: string | null; name: string | null }[]>`
@@ -184,13 +195,9 @@ export class UserCounselorsService {
     const requesterNick =
       (requesterRows[0]?.nickname || requesterRows[0]?.name || '회원').trim();
 
-    // DB INSERT
-    const inserted = await this.sql<{ id: number }[]>`
-      INSERT INTO counselor_request_alert (counselor_id, member_id, requested_at)
-      VALUES (${params.counselorId}, ${params.requesterId}, now())
-      RETURNING id
-    `;
-    const rowId = inserted[0].id;
+    // 채널 라벨 — "전화 " / "채팅 " / "" (구버전). 알림 문구에 삽입.
+    const channelLabel =
+      params.channel === 'chat' ? '채팅 ' : params.channel === 'phone' ? '전화 ' : '';
 
     // 알림 발송 — 알림톡 + 푸시 모두 시도. 둘 다 실패해도 DB row 는 유지 (이력).
     const counselorDisplayName = (counselor.nickname || counselor.name || '').trim();
@@ -205,7 +212,7 @@ export class UserCounselorsService {
           tplCode,
           counselor.phone,
           { member_nickname: requesterNick, url: 'mypage' },
-          `[사주플랜] ${requesterNick} 님이 상담을 요청했습니다.`,
+          `[사주플랜] ${requesterNick} 님이 ${channelLabel}상담을 요청했습니다.`,
           // [2026-06-17] iOS 앱 크래시 수정(앱스토어 1.2.0 출시) 후 재개 — iOS도 안드와 동일 버튼 알림톡 발송.
           { recipientMemberId: params.counselorId, iosSkip: false },
         );
@@ -229,9 +236,9 @@ export class UserCounselorsService {
       `;
       if (tokenRows.length > 0) {
         const r = await this.push.sendToTokens(tokenRows.map((t) => t.token), {
-          title: '상담 요청이 도착했습니다',
-          body: `${requesterNick} 님이 상담을 요청했습니다. 지금 접속해주세요.`,
-          data: { type: 'counselor_request', counselor_id: String(params.counselorId), event_url: '/counselor' },
+          title: `${requesterNick} 님이 ${channelLabel}상담을 기다렸어요`,
+          body: `상담 가능이 꺼져 있는 동안 ${channelLabel}상담 요청이 왔어요. 상담 가능을 다시 켜두시면 고객을 놓치지 않아요 🔔`,
+          data: { type: 'counselor_request', counselor_id: String(params.counselorId), event_url: '/counselor/mypage' },
         });
         pushOk = r.ok && r.success > 0;
         if (!r.ok && r.error) lastError = `${lastError} | push: ${r.error}`.trim();
@@ -262,9 +269,9 @@ export class UserCounselorsService {
       memberId: params.counselorId,
       actorMemberId: params.requesterId,
       code: 'call_request',
-      title: '상담 요청이 도착했습니다',
-      content: `${requesterNick} 님이 상담을 요청했습니다. 지금 접속해주세요.`,
-      linkUrl: '/counselor',
+      title: `${requesterNick} 님이 ${channelLabel}상담을 기다렸어요`,
+      content: `상담 가능이 꺼져 있는 동안 ${channelLabel}상담 요청이 왔어요. 상담 가능을 다시 켜두시면 고객을 놓치지 않아요 🔔`,
+      linkUrl: '/counselor/mypage',
       viaPush: pushOk,
       viaAlimtalk: alimtalkOk,
     });
@@ -301,10 +308,17 @@ export class UserCounselorsService {
       throw new BadRequestException('상담사만 변경할 수 있습니다.');
     }
 
-    const usePhone = input.use_phone ?? c.use_phone;
-    const useChat = input.use_chat ?? c.use_chat;
+    let usePhone = input.use_phone ?? c.use_phone;
+    let useChat = input.use_chat ?? c.use_chat;
     // available=false → ABSE (휴식). 미지정이면 활성으로 간주 (기존 토글 유지).
     const available = input.available ?? !(c.state === 'ABSE');
+    // [2026-07-16] 상담 켜는데 전화·채팅이 둘 다 꺼져 있으면 둘 다 켠다 — 켤 채널이 없어 ABSE 로 튕기는 함정 방지.
+    //   칠백별 사고(use_phone/use_chat=f/f 라 "상담 켜기"를 눌러도 안 켜짐)의 근본 fix.
+    //   전화만/채팅만 켜둔 상담사는 그 선택을 존중하고(하나라도 켜져 있으면 유지), 둘 다 꺼진 경우만 자동으로 켠다.
+    if (available && !usePhone && !useChat) {
+      usePhone = true;
+      useChat = true;
+    }
 
     const target = !available
       ? 'ABSE'
@@ -345,7 +359,81 @@ export class UserCounselorsService {
       });
     }
 
-    return { use_phone: usePhone, use_chat: useChat, available, state: target };
+    // [2026-07-03] 부재 → 상담 가능 전환 시, 24h 내 요청했던 고객들에게 "상담 가능해졌어요" 콜백 알림.
+    //   상담사가 켜기만 하면 고객이 몰라 재요청을 못 하던 문제 해소 (진짜 "다시 연결" 흐름).
+    //   [2026-07-03 재점검] "부재"는 ABSE 뿐 아니라 RESV(예약중)도 포함해야 한다.
+    //   프론트(counselor-mapper isOffline)가 ABSE·RESV 둘 다 오프라인으로 보고 요청 버튼을 띄우므로,
+    //   RESV 상담사에게 온 요청도 콜백 대상이다. ABSE 만 보면 RESV 고객을 영영 놓친다.
+    const wasOffline = c.state === 'ABSE' || c.state === 'RESV';
+    if (wasOffline && target !== 'ABSE' && !unchanged) {
+      this.notifyRequestersOnAvailable(counselorId).catch((e) =>
+        this.logger.warn(`[setMyAvailability] 콜백 알림 실패 counselorId=${counselorId}: ${e instanceof Error ? e.message : String(e)}`),
+      );
+    }
+
+    // 반환 available 은 실제 저장된 state 기준(둘 다 끄면 target=ABSE 인데 입력 available=true 를
+    //   그대로 돌려주면 토글이 "켜짐"으로 착각 → 손님 놓침). getMyAvailability(state!=='ABSE')와 일치시킨다.
+    return { use_phone: usePhone, use_chat: useChat, available: target !== 'ABSE', state: target };
+  }
+
+  /** 부재 상담사가 상담 가능으로 전환됐을 때, 최근(24h) 요청했던 고객들에게 콜백 알림. */
+  private async notifyRequestersOnAvailable(counselorId: number): Promise<void> {
+    const cr = await this.sql<{ nickname: string | null; name: string | null }[]>`
+      SELECT nickname, name FROM member WHERE id = ${counselorId} LIMIT 1
+    `;
+    const counselorNick = (cr[0]?.nickname || cr[0]?.name || '상담사').trim();
+
+    // 원자적 claim+마킹: 대상 행을 UPDATE 하면서 동시에 잡는다.
+    //  - 발송 루프 도중 새로 들어온 요청은 이 UPDATE에 잡히지 않아 (callback_sent_at 여전히 NULL)
+    //    다음 상담가능 켜기 때 정상 콜백된다. (조회↔마킹 사이 신규요청 유실 방지)
+    //  - 동시에 두 번 켜도(더블탭/두 기기) 한 호출만 행을 획득 → 콜백 1회만 발송(중복 방지).
+    const reqs = await this.sql<{ id: number; member_id: number; channel: string | null }[]>`
+      UPDATE counselor_request_alert
+         SET callback_sent_at = now()
+       WHERE counselor_id = ${counselorId}
+         AND callback_sent_at IS NULL
+         AND requested_at > now() - interval '24 hours'
+      RETURNING id, member_id, channel
+    `;
+    if (reqs.length === 0) return;
+
+    for (const req of reqs) {
+      const channelLabel =
+        req.channel === 'chat' ? '채팅 ' : req.channel === 'phone' ? '전화 ' : '';
+      const title = `${counselorNick} 상담사가 지금 상담 가능해요!`;
+      const content = `기다리시던 ${channelLabel}상담을 지금 이어가보세요.`;
+
+      const tokenRows = await this.sql<{ token: string }[]>`
+        SELECT token FROM member_push_token
+         WHERE member_id = ${req.member_id}
+           AND is_active = TRUE
+           AND token IS NOT NULL AND token <> ''
+         LIMIT 10
+      `;
+      let viaPush = false;
+      if (tokenRows.length > 0) {
+        try {
+          const r = await this.push.sendToTokens(tokenRows.map((t) => t.token), {
+            title,
+            body: content,
+            data: { type: 'counselor_available', counselor_id: String(counselorId), event_url: `/counselors/${counselorId}` },
+          });
+          viaPush = r.ok && r.success > 0;
+        } catch { /* best-effort */ }
+      }
+
+      await this.inbox.record({
+        memberId: req.member_id,
+        actorMemberId: counselorId,
+        code: 'counselor_available',
+        title,
+        content,
+        linkUrl: `/counselors/${counselorId}`,
+        viaPush,
+      }).catch(() => {});
+    }
+
+    this.logger.log(`[availableCallback] counselor=${counselorId} → ${reqs.length}명에게 상담가능 콜백 발송`);
   }
 
   /** 본인 상담사 토글 현재값 조회 (마이페이지 prefill 용) */
@@ -374,6 +462,45 @@ export class UserCounselorsService {
       available: c.state !== 'ABSE',
       state: c.state,
     };
+  }
+
+  /**
+   * 상담사 본인이 받은 최근(24h) 미처리 상담요청 목록 — 대시보드 "지금 상담 켜기" 맥락 카드용.
+   *   callback_sent_at IS NULL = 아직 상담사가 상담가능을 켜지 않아 콜백이 안 나간(=미응답) 요청.
+   *   상담사가 상담가능을 켜면 notifyRequestersOnAvailable 이 콜백 발송 + 마킹 → 목록에서 사라진다.
+   */
+  async getMyConsultRequests(counselorId: number): Promise<{
+    id: number;
+    requester_nick: string;
+    channel: string | null;
+    requested_at: string;
+  }[]> {
+    const meRows = await this.sql<{ role: string }[]>`
+      SELECT role FROM member WHERE id = ${counselorId} LIMIT 1
+    `;
+    const me = meRows[0];
+    if (!me) throw new NotFoundException('회원을 찾을 수 없습니다.');
+    if (me.role !== 'counselor') {
+      throw new BadRequestException('상담사만 조회할 수 있습니다.');
+    }
+    const rows = await this.sql<{
+      id: number; nickname: string | null; name: string | null; channel: string | null; requested_at: Date;
+    }[]>`
+      SELECT cra.id, m.nickname, m.name, cra.channel, cra.requested_at
+        FROM counselor_request_alert cra
+        JOIN member m ON m.id = cra.member_id
+       WHERE cra.counselor_id = ${counselorId}
+         AND cra.callback_sent_at IS NULL
+         AND cra.requested_at > now() - interval '24 hours'
+       ORDER BY cra.requested_at DESC
+       LIMIT 10
+    `;
+    return rows.map((r) => ({
+      id: r.id,
+      requester_nick: (r.nickname || r.name || '회원').trim(),
+      channel: r.channel,
+      requested_at: r.requested_at.toISOString(),
+    }));
   }
 
   /**
@@ -798,11 +925,12 @@ export class UserCounselorsService {
 
   private inferCategory(
     ...vals: (string | null)[]
-  ): '사주' | '타로' | '신점' | '기타' {
+  ): '사주' | '타로' | '신점' | '심리' | '기타' {
     const text = vals.filter(Boolean).join(' ');
     if (text.includes('타로')) return '타로';
     if (text.includes('신점')) return '신점';
     if (text.includes('사주')) return '사주';
+    if (text.includes('심리')) return '심리';
     return '기타';
   }
 
@@ -1182,7 +1310,7 @@ export class UserCounselorsService {
    * 회원의 단골 상담사 목록.
    *  - 좋아요(member_favorite_counselor)에 등록된 상담사 중 활성(role='counselor', left_at IS NULL) 만.
    *  - 정렬: 단골 등록 최신순 (created_at DESC).
-   *  - 카테고리 필터(전체/사주/타로/신점) 옵션 적용.
+   *  - 카테고리 필터(전체/사주/타로/신점/심리) 옵션 적용.
    */
   async listFavorites(params: {
     memberId: number;
@@ -1439,6 +1567,18 @@ export class UserCounselorsService {
       isLiked = likedRows.length > 0;
     }
 
+    // 24h 내 상담요청 여부 (로그인된 회원만) — 카드의 "요청됨" 표시를 상세페이지와 일치시킨다.
+    let isRequested = false;
+    if (requesterId != null) {
+      const reqRows = await this.sql<{ id: number }[]>`
+        SELECT id FROM counselor_request_alert
+         WHERE member_id = ${requesterId} AND counselor_id = ${id}
+           AND requested_at > now() - interval '24 hours'
+         LIMIT 1
+      `;
+      isRequested = reqRows.length > 0;
+    }
+
     // fan_count 실시간 조회 — post_counselor.fan_count 캐시 대신 정확한 값
     const fanCountRows = await this.sql<{ count: string }[]>`
       SELECT COUNT(*)::text AS count FROM member_favorite_counselor WHERE counselor_id = ${id}
@@ -1510,6 +1650,7 @@ export class UserCounselorsService {
       live_viewers: pseudoLiveViewers(r.id, fanCount),
       qna_count: qnaCount,
       is_liked: isLiked,
+      is_requested: isRequested,
       category: (r.counselor_category as any) || this.inferCategory(r.specialty, r.hashtag1, r.hashtag2),
     };
   }

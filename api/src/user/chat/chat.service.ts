@@ -590,7 +590,7 @@ export class UserChatService {
           `
         : await this.sql<{ id: number }[]>`
             UPDATE chat_room
-               SET member_try_out = TRUE
+               SET member_try_out = TRUE, member_left_at = now()
              WHERE id = ${room.id} AND status <> 'DISCONNECT' AND member_try_out = FALSE
              RETURNING id
           `;
@@ -758,7 +758,7 @@ export class UserChatService {
              RETURNING id
           `
         : await this.sql<{ id: number }[]>`
-            UPDATE chat_room SET member_try_out = TRUE
+            UPDATE chat_room SET member_try_out = TRUE, member_left_at = now()
              WHERE id = ${room.id} AND status <> 'DISCONNECT' AND member_try_out = FALSE
              RETURNING id
           `;
@@ -1282,18 +1282,24 @@ export class UserChatService {
    *   → 잠깐 백그라운드 후 복귀(rejoin 으로 try_out 해제)한 채팅도 매칭 안 됨.
    * 매분 cron(chat/auto-cancel)에서 호출.
    */
-  async settleAbandonedChats(idleMinutes = 3): Promise<{ settled: number; ids: number[] }> {
+  // [2026-07-07] 방치정산 판정을 "고객이 완전히 나갔는지"로 단일화 (사장님 지시).
+  //   기존: (고객 OR 상담사 이탈) + 3분 무메시지 → 정상 무활동(고객이 답 읽는 중, 상담사 시간끌기)을
+  //         오종료하거나, 반대로 게이트를 양쪽 이탈로 바꾸면 상담사 "개기기" 어뷰징을 열어버림.
+  //   현재: 고객이 이탈한 지 idleMinutes(5분) 동안 복귀 없음 → 종료. 상담사 상태·메시지와 무관.
+  //     - 정상: 고객이 화면 켜고 대화/독서 중이면 member_try_out=FALSE → 제외. 잠깐 화면 꺼도 5분 내
+  //       복귀(rejoin)하면 member_try_out=FALSE 로 리셋되어 제외.
+  //     - 어뷰징 방어: 고객이 완전히 나가면 상담사가 화면을 붙잡거나 혼자 메시지를 써도 5분 후 종료.
+  //     - member_left_at 은 이탈 전환 시각. rejoin 하면 try_out=FALSE 라 게이트 첫 조건에서 빠지고,
+  //       재이탈 시 markLeave/handlePeerEvent 가 now() 로 다시 찍으므로 stale 값 문제 없음.
+  async settleAbandonedChats(idleMinutes = 5): Promise<{ settled: number; ids: number[] }> {
     const rooms = await this.sql<{ id: number }[]>`
       SELECT cr.id
         FROM chat_room cr
        WHERE cr.status = 'CNCH'
-         AND (cr.member_try_out = TRUE OR cr.counselor_try_out = TRUE)
+         AND cr.member_try_out = TRUE
+         AND cr.member_left_at IS NOT NULL
+         AND cr.member_left_at < NOW() - make_interval(mins => ${idleMinutes})
          AND cr.started_at < NOW() - INTERVAL '1 minute'
-         AND NOT EXISTS (
-           SELECT 1 FROM chat_message cm
-            WHERE cm.chat_room_id = cr.id
-              AND cm.created_at > NOW() - make_interval(mins => ${idleMinutes})
-         )
        ORDER BY cr.id
        LIMIT 50
     `;

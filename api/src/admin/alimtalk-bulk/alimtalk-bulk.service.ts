@@ -8,7 +8,8 @@ import { SmsService } from '../../user/sms/sms.service';
  * 대상 그룹:
  *  - all_members      — 회원 전원 (탈퇴 제외)
  *  - all_counselors   — 활동 상담사 (level=5, left_at IS NULL)
- *  - phones           — 직접 입력한 번호들 (콤마/줄바꿈 구분)
+ *  - members          — 검색해서 고른 회원들 (member_ids — 전화번호는 서버에서 해석, PII 보호)
+ *  - phones           — 직접 입력한 번호들 (콤마/줄바꿈 구분, 고급 옵션)
  *
  * 모든 발송 결과는 alimtalk_send_log 에 기록 — 사후 분석/재발송 근거.
  *
@@ -16,7 +17,7 @@ import { SmsService } from '../../user/sms/sms.service';
  *  - BizM 처리량 한계 고려 — 동시 발송 5건 직렬 처리 (외부 API rate limit 회피)
  *  - 전체 발송은 백그라운드 비동기 X — 동기 처리 후 결과 반환 (수십~수백명까지 OK)
  */
-export type BulkTarget = 'all_members' | 'all_counselors' | 'phones';
+export type BulkTarget = 'all_members' | 'all_counselors' | 'members' | 'phones';
 
 @Injectable()
 export class AlimtalkBulkService {
@@ -35,10 +36,11 @@ export class AlimtalkBulkService {
     templateCode: string;
     target: BulkTarget;
     phones?: string;
+    memberIds?: number[];
     vars?: Record<string, string>;
     adminId: number;
   }): Promise<{ job_id: number; total: number; sent: number; failed: number }> {
-    const { templateCode, target, phones, vars, adminId } = params;
+    const { templateCode, target, phones, memberIds, vars, adminId } = params;
     if (!templateCode) throw new BadRequestException('templateCode 필수');
 
     // 1. 수신자 목록 결정
@@ -59,6 +61,20 @@ export class AlimtalkBulkService {
         SELECT phone, id AS member_id
           FROM member
          WHERE role = 'counselor'
+           AND left_at IS NULL
+           AND phone IS NOT NULL
+           AND phone != ''
+      `;
+    } else if (target === 'members') {
+      // 검색해서 고른 회원들 — 전화번호는 여기(서버)에서만 해석 (프론트에 PII 미노출)
+      const ids = (memberIds ?? []).map((n) => Number(n)).filter((n) => Number.isFinite(n) && n > 0);
+      if (ids.length === 0) {
+        throw new BadRequestException('회원을 1명 이상 선택하세요.');
+      }
+      recipients = await this.sql<Recipient[]>`
+        SELECT phone, id AS member_id
+          FROM member
+         WHERE id = ANY(${ids}::bigint[])
            AND left_at IS NULL
            AND phone IS NOT NULL
            AND phone != ''

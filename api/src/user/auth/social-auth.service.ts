@@ -485,6 +485,28 @@ export class SocialAuthService {
   }
 
   /**
+   * 전화번호로 기존 회원 조회 — 소셜 신규 가입 전, 같은 번호로 이미 가입된 계정이 있는지 확인용.
+   *   (카카오 phone 은 '+8210...' 형식일 수 있어 82 접두를 0 으로 정규화.)
+   */
+  async findMemberByPhone(
+    rawPhone: string,
+  ): Promise<{ id: number; mb_id: string | null; social_provider: string | null } | null> {
+    let digits = String(rawPhone).replace(/[^0-9]/g, '');
+    if (digits.startsWith('82')) digits = '0' + digits.slice(2);
+    if (!digits) return null;
+    const rows = await this.sql<
+      { id: number; mb_id: string | null; social_provider: string | null }[]
+    >`
+      SELECT id, mb_id, social_provider FROM member
+       WHERE regexp_replace(coalesce(phone, ''), '[^0-9]', '', 'g') = ${digits}
+         AND role IN ('user', 'counselor')
+         AND left_at IS NULL
+       ORDER BY id DESC LIMIT 1
+    `;
+    return rows[0] ?? null;
+  }
+
+  /**
    * 소셜 가입으로 신규 member row 생성.
    * — sample/register_member_update.php 의 신규 회원 INSERT 부분에 해당
    * — mb_id/password 는 NULL (소셜 전용 계정, 로컬 로그인 불가)

@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { SQL, type Sql } from '../shared/db/db.module';
 import { OpsAlertService } from '../shared/ops-alert/ops-alert.service';
 import { AlertsService } from '../shared/alerts/alerts.service';
+import { M2netService } from '../shared/m2net/m2net.service';
 
 /**
  * Phase G — DB 일관성 health-check 서비스.
@@ -23,6 +24,7 @@ export class HealthCheckService {
     @Inject(SQL) private readonly sql: Sql,
     private readonly opsAlert: OpsAlertService,
     private readonly alerts: AlertsService,
+    private readonly m2net: M2netService,
   ) {}
 
   /**
@@ -469,6 +471,26 @@ export class HealthCheckService {
       violations: Number(c24[0].cnt),
       detail: c24[0].sample ?? undefined,
     });
+
+    // C-25 m2net 미등록 상담사 (유령) — DB엔 role=counselor+csrid 있으나 m2net csr-mgr 목록엔 없음.
+    //   [2026-07-15] csr-mgr PUT 이 존재하지 않는 csrid 에도 req_result=00(거짓 성공)을 주는 탓에
+    //   재연동으로는 안 잡히던 유령(칠백별·천궁 사고)을 m2net 목록 대조로 자동 감지 → 전화·채팅 연결 불가 상담사.
+    try {
+      const m2netList = await this.m2net.getCounselorList();
+      if (m2netList.ok) {
+        const dbCsrs = await this.sql<{ id: number; csrid: string; nickname: string | null }[]>`
+          SELECT id, csrid, nickname FROM member
+           WHERE role = 'counselor' AND csrid ~ '^[0-9]+$' AND left_at IS NULL
+        `;
+        const ghosts = dbCsrs.filter((r) => !m2netList.csrids.has(String(r.csrid).trim()));
+        const sample = ghosts.slice(0, 5).map((g) => `${g.nickname ?? g.id}(csrid ${g.csrid})`).join(', ');
+        checks.push({ id: 'C-25', name: 'm2net 미등록 상담사(유령 — 전화·채팅 연결 불가)', severity: 'critical', violations: ghosts.length, detail: sample || undefined });
+      } else {
+        checks.push({ id: 'C-25', name: 'm2net 미등록 상담사(유령)', severity: 'info', violations: 0, detail: `m2net 목록 조회 실패: ${m2netList.error ?? ''}` });
+      }
+    } catch (e) {
+      checks.push({ id: 'C-25', name: 'm2net 미등록 상담사(유령)', severity: 'info', violations: 0, detail: `점검 예외: ${e instanceof Error ? e.message : ''}` });
+    }
 
     // 종합
     const critical = checks.filter((c) => c.severity === 'critical' && c.violations > 0);

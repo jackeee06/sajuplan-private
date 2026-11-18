@@ -128,15 +128,23 @@ export class DashboardService {
           FROM payment
          WHERE status = 'completed' AND created_at >= CURRENT_DATE - (${days - 1}::int)
          GROUP BY 1
+      ),
+      -- 선결제 채팅(consultation.amt=0)은 point_history(rel_table='chat_room') 실차감으로 보강
+      ppchat AS (
+        SELECT cr.ended_at::date AS d, SUM(ph.use_point) AS chat
+          FROM point_history ph JOIN chat_room cr ON cr.id::text = ph.rel_id
+         WHERE ph.rel_table = 'chat_room' AND cr.ended_at >= CURRENT_DATE - (${days - 1}::int)
+         GROUP BY 1
       )
       SELECT dates.d,
              COALESCE(consult.call_070, 0) AS call_070,
              COALESCE(consult.call_060, 0) AS call_060,
-             COALESCE(consult.chat, 0)     AS chat,
+             (COALESCE(consult.chat, 0) + COALESCE(ppchat.chat, 0)) AS chat,
              COALESCE(pay.charge, 0)       AS charge
         FROM dates
         LEFT JOIN consult ON consult.d = dates.d
         LEFT JOIN pay     ON pay.d = dates.d
+        LEFT JOIN ppchat  ON ppchat.d = dates.d
        ORDER BY dates.d
     `;
 
@@ -187,18 +195,45 @@ export class DashboardService {
     }));
   }
 
+  /** 날짜별 신규 가입 추이 — 회원(user) / 상담사(counselor) 분리 (2026-06-23) */
+  async signupTrend(days = 12) {
+    const rows = await this.sql<{ d: Date; members: string; counselors: string }[]>`
+      WITH dates AS (
+        SELECT generate_series(CURRENT_DATE - (${days - 1}::int), CURRENT_DATE, INTERVAL '1 day')::date AS d
+      )
+      SELECT dates.d,
+             COUNT(*) FILTER (WHERE m.role = 'user')::text      AS members,
+             COUNT(*) FILTER (WHERE m.role = 'counselor')::text AS counselors
+        FROM dates
+        LEFT JOIN member m ON m.created_at::date = dates.d
+       GROUP BY dates.d
+       ORDER BY dates.d
+    `;
+    return rows.map((r) => ({
+      date: r.d.toISOString().slice(0, 10),
+      members: Number(r.members ?? 0),
+      counselors: Number(r.counselors ?? 0),
+    }));
+  }
+
   /** TOP5 상담사 (상담금액 기준) */
   async topCounselorsByAmount(limit = 5) {
     const rows = await this.sql<
       { id: string; name: string; nickname: string; total: string; cnt: string }[]
     >`
       SELECT m.id, m.name, m.nickname,
-             COALESCE(SUM(c.amt), 0) AS total,
+             (COALESCE(SUM(c.amt), 0) + COALESCE(pp.rev, 0)) AS total,
              COUNT(c.id) AS cnt
         FROM member m
         LEFT JOIN consultation c ON c.counselor_id = m.id
+        LEFT JOIN (
+          SELECT cr.counselor_id, SUM(ph.use_point) AS rev
+            FROM point_history ph JOIN chat_room cr ON cr.id::text = ph.rel_id
+           WHERE ph.rel_table = 'chat_room'
+           GROUP BY cr.counselor_id
+        ) pp ON pp.counselor_id = m.id
        WHERE m.role = 'counselor'
-       GROUP BY m.id, m.name, m.nickname
+       GROUP BY m.id, m.name, m.nickname, pp.rev
        ORDER BY total DESC, cnt DESC
        LIMIT ${limit}
     `;
@@ -221,11 +256,17 @@ export class DashboardService {
     >`
       SELECT m.id, m.name, m.nickname,
              COUNT(c.id) AS cnt,
-             COALESCE(SUM(c.amt), 0) AS total
+             (COALESCE(SUM(c.amt), 0) + COALESCE(pp.rev, 0)) AS total
         FROM member m
         LEFT JOIN consultation c ON c.counselor_id = m.id AND c.reason = 'DISCONNECT'
+        LEFT JOIN (
+          SELECT cr.counselor_id, SUM(ph.use_point) AS rev
+            FROM point_history ph JOIN chat_room cr ON cr.id::text = ph.rel_id
+           WHERE ph.rel_table = 'chat_room'
+           GROUP BY cr.counselor_id
+        ) pp ON pp.counselor_id = m.id
        WHERE m.role = 'counselor'
-       GROUP BY m.id, m.name, m.nickname
+       GROUP BY m.id, m.name, m.nickname, pp.rev
        ORDER BY cnt DESC
        LIMIT ${limit}
     `;
@@ -247,12 +288,18 @@ export class DashboardService {
       { id: string; name: string; nickname: string; total: string; cnt: string }[]
     >`
       SELECT m.id, m.name, m.nickname,
-             COALESCE(SUM(c.amt), 0) AS total,
+             (COALESCE(SUM(c.amt), 0) + COALESCE(pp.spend, 0)) AS total,
              COUNT(c.id) AS cnt
         FROM member m
         LEFT JOIN consultation c ON c.member_id = m.id
+        LEFT JOIN (
+          SELECT ph.member_id, SUM(ph.use_point) AS spend
+            FROM point_history ph
+           WHERE ph.rel_table = 'chat_room'
+           GROUP BY ph.member_id
+        ) pp ON pp.member_id = m.id
        WHERE m.role = 'user'
-       GROUP BY m.id, m.name, m.nickname
+       GROUP BY m.id, m.name, m.nickname, pp.spend
        ORDER BY total DESC
        LIMIT ${limit}
     `;
@@ -578,8 +625,12 @@ export class DashboardService {
           SELECT 'last' AS period, NOW() - INTERVAL '14 days' AS f, NOW() - INTERVAL '7 days' AS t
         )
         SELECT r.period,
-               COALESCE((SELECT SUM(amt) FROM consultation
-                          WHERE is_paid = true AND created_at >= r.f AND created_at < r.t), 0)::text AS sales,
+               (COALESCE((SELECT SUM(amt) FROM consultation
+                          WHERE is_paid = true AND created_at >= r.f AND created_at < r.t), 0)
+                + COALESCE((SELECT SUM(ph.use_point) FROM point_history ph
+                             JOIN chat_room cr ON cr.id::text = ph.rel_id
+                            WHERE ph.rel_table = 'chat_room' AND ph.is_paid = true
+                              AND cr.started_at >= r.f AND cr.started_at < r.t), 0))::text AS sales,
                COALESCE((SELECT COUNT(*) FROM consultation
                           WHERE is_paid = true AND created_at >= r.f AND created_at < r.t), 0)::text AS consultations,
                COALESCE((SELECT COUNT(*) FROM member
@@ -598,8 +649,14 @@ export class DashboardService {
          WHERE is_paid = true AND roomid IS NULL AND callee_phone = '5000878'
            AND created_at >= NOW() - INTERVAL '14 days'
         UNION ALL
-        SELECT 'chat', COALESCE(SUM(amt), 0)::text FROM consultation
-         WHERE is_paid = true AND roomid IS NOT NULL AND created_at >= NOW() - INTERVAL '14 days'
+        -- 선결제 채팅(consultation.amt=0)은 point_history 실차감으로 보강
+        SELECT 'chat',
+               (COALESCE((SELECT SUM(amt) FROM consultation
+                           WHERE is_paid = true AND roomid IS NOT NULL AND created_at >= NOW() - INTERVAL '14 days'), 0)
+                + COALESCE((SELECT SUM(ph.use_point) FROM point_history ph
+                             JOIN chat_room cr ON cr.id::text = ph.rel_id
+                            WHERE ph.rel_table = 'chat_room' AND ph.is_paid = true
+                              AND cr.started_at >= NOW() - INTERVAL '14 days'), 0))::text
         UNION ALL
         SELECT 'charge', COALESCE(SUM(amount), 0)::text FROM payment
          WHERE status = 'completed' AND created_at >= NOW() - INTERVAL '14 days'

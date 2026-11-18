@@ -840,6 +840,55 @@ export class M2netPushService {
       }
     }
 
+    // [2026-06-26 감사+회귀감사 보강] 전화 종료(DISCONNECT)인데 callid 가 비어 오는 경우 보조 중복방지.
+    //   uq_consultation_call_callid 부분 UNIQUE 는 (callid IS NOT NULL AND callid<>'') 조건이라
+    //   빈 callid 면 인덱스가 비활성 → 재전송 시 이중 차감 위험. ❗이 블록은 *callid 가 빈 경우에만*
+    //   실행되므로 정상 통화(callid 존재=현재 100%)에는 전혀 영향이 없다.
+    //   ❗정밀화(회귀감사 지적): '같은 통화의 재전송'은 eventtm(통화 이벤트 시각)이 동일하고,
+    //     '별개 통화'는 eventtm 이 다르다. 따라서 eventtm 정확 일치로 매칭하면 별개 통화 오병합(과금 누락)
+    //     없이 재전송만 정확히 잡는다. eventtm 이 없을 때만 좁은 창(금액+10분)으로 폴백(고객 보호 우선).
+    if (
+      isCall &&
+      endsHere &&
+      reason === 'DISCONNECT' &&
+      amt > 0 &&
+      (!callid || callid === '') &&
+      memberId !== null &&
+      counselorId !== null
+    ) {
+      const dupCall = eventAt
+        ? await this.sql<{ id: number }[]>`
+            SELECT id FROM consultation
+             WHERE reason = 'DISCONNECT'
+               AND member_id = ${memberId}
+               AND counselor_id = ${counselorId}
+               AND (callid IS NULL OR callid = '')
+               AND eventtm = ${eventAt}
+             LIMIT 1
+          `
+        : await this.sql<{ id: number }[]>`
+            SELECT id FROM consultation
+             WHERE reason = 'DISCONNECT'
+               AND member_id = ${memberId}
+               AND counselor_id = ${counselorId}
+               AND (callid IS NULL OR callid = '')
+               AND amt = ${amt}
+               AND created_at > now() - interval '10 minutes'
+             LIMIT 1
+          `;
+      void this.opsAlert.send(
+        'ℹ️ 전화 종료 알림에 통화번호(callid) 없음 — 확인 필요',
+        `회원(${memberId})·상담사(${counselorId}) 통화 종료 알림에 callid 가 비어 있습니다.\n` +
+          `${eventAt ? '이벤트시각(eventtm) 일치' : '금액+최근10분'} 기준으로 같은 통화 재전송인지 점검했습니다(이중 차감 방지).\n금액=${amt}. m2net 확인이 필요합니다.`,
+      );
+      if (dupCall.length > 0) {
+        this.logger.log(
+          `[handleCallPush] 빈 callid DISCONNECT 보조 중복방지 — 기존 consultation.id=${dupCall[0].id} 존재, skip INSERT`,
+        );
+        return { ok: true };
+      }
+    }
+
     // ─── 등급/단가 스냅샷 (Phase 2) ───
     // 통화 종료 시점의 상담사 등급/단가를 consultation 에 박제. 정산/분쟁 추적용.
     // 월 1일 락 정책상 통화 중 단가 변경은 불가하므로 종료 시점 값 = 통화 시점 값.
@@ -1139,6 +1188,14 @@ export class M2netPushService {
          LIMIT 1
       `;
       if (existing.length > 0) {
+        // [2026-07-11] 이미 END_CHAT 정산 완료된 방 — 좀비 'm2net_failed' 플래그 정리.
+        //   m2net 잔액 조회 실패로 m2net_failed 마킹됐으나 정산 자체는 이미 끝난 방(id=100 등)이
+        //   재시도 때마다 이 멱등 분기로 빠지며 status 를 안 고쳐 매일 일일요약 알림을 울리던 근본 버그 fix.
+        //   ⚠️ 돈 트랜잭션은 건드리지 않고 상태 플래그만 정리한다.
+        await this.sql`
+          UPDATE chat_room SET settle_status = 'completed', settle_failure_reason = NULL
+           WHERE id = ${chatRoomId} AND COALESCE(settle_status, '') <> 'completed'
+        `;
         return { ok: true, settled: false };
       }
     } else {
@@ -1153,6 +1210,11 @@ export class M2netPushService {
            LIMIT 1
         `;
         if (existing.length > 0) {
+          // [2026-07-11] 이미 정산 완료 — 좀비 'm2net_failed' 플래그 정리 (위 분기와 동일 사유).
+          await this.sql`
+            UPDATE chat_room SET settle_status = 'completed', settle_failure_reason = NULL
+             WHERE id = ${chatRoomId} AND COALESCE(settle_status, '') <> 'completed'
+          `;
           return { ok: true, settled: false };
         }
       }

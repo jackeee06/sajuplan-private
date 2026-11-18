@@ -91,7 +91,7 @@ export class PopupLayersController {
   ) {
     if (!file) throw new BadRequestException('파일이 비어있습니다.');
     const url = `/uploads/popup/${file.filename}`;
-    const { webpFilename } = await convertImageToWebp(file.path);
+    const { webpFilename } = await convertImageToWebp(file.path, { maxDimension: 1280, quality: 80 });
     const webpUrl = webpFilename ? `/uploads/popup/${webpFilename}` : null;
     return this.svc.setImage(id, url, webpUrl);
   }

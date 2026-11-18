@@ -518,7 +518,7 @@ export class AdminCounselorApplyService {
           `회원 id=${memberId}, 별명=${penName}\n` +
           `사유: ${m2netResult.error ?? '알 수 없음'}\n\n` +
           `→ 어드민 → 상담사 → 해당 상담사 상세 → "엠투넷 재연동" 버튼으로 복구.\n` +
-          `csrid 가 비어있으면 통화/채팅이 라우팅되지 않습니다.`,
+          `통화·채팅 연동번호가 비어있으면 통화/채팅이 라우팅되지 않습니다.`,
       );
     }
 
