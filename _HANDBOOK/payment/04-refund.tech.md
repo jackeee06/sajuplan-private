@@ -138,7 +138,26 @@ earning_balance 차감(GREATEST 0) + point_history(balance_kind='earning', use_p
 - ⚠️ **알려진 한계(추천수익금)**: 추천관계가 있던 상담은 추천자(referrer)가 받은 incentive 는 이 회수에서 빠진다(상담사 gross 기준 회수라 회사는 보호됨, 추천자↔피추천자 분배 미세차만 잔존). 추천 비율 낮아 우선순위 낮음.
 - 검증: 코드+타입체크. 실 상담+환불 E2E 는 외부의존(실통화)이라 미수행(카드결제 E2E 부재와 동일 한계).
 
+## m2net 자동충전 결제취소(카드 환불) 절차 (2026-06-26)
+
+자동충전(등록카드)으로 빠진 돈을 환불할 땐 m2net 관리자(passcall)에서 해당 결제 줄 `취소` 버튼을 누른다. 두 가지 함정:
+
+### ① "취소불가 — 잔액부족"
+m2net 취소는 **충전 때 넣어준 코인(예 30,000)을 회원 잔액에서 회수해야** 완료된다. 회원 잔액이 그보다 적으면(예 7,700) 거부된다. 특히 **우리가 코인을 안 줬던 케이스**(위조로 막힌 미지급 건)는 m2net 잔액도 우리 잔액(7,700)으로 동기화돼 회수할 30,000 이 없어 막힌다.
+- **대응(안전)**: m2net 회원상세 화면에서 `현재잔액`을 직접 `+30,000`(예 7,700→37,700) 올려 저장 → 곧바로 `취소` → m2net 이 30,000 회수(→7,700) + 카드 환불. **우리 DB 는 안 건드린다**(회원은 부풀린 m2net 코인을 못 씀 — 사용은 우리 DB 7,700 기준). ①올림과 ②취소 사이에 그 회원이 로그인/통화하면 우리→m2net 동기화가 덮어써 다시 막힐 수 있으니 **연달아 빠르게**.
+
+### ② 🔴 취소 통지(CANCEL_PAY)가 충전으로 오적립되는 함정
+m2net 결제취소 시 **같은 oid 로 `req_result='0000'` + `msg='CANCEL_PAY'`** push 가 우리 `handleAutopayPush` 로 온다. 이를 충전으로 오인하면 **카드환불 + 코인 둘 다 지급**(회사손실)된다. (강원구 251 실사고)
+- **수정 완료**: `handleAutopayPush` 가 `msg` 에 `CANCEL` 있으면 적립 안 하고 무시+경보. 상세 → `payment/07-auto-charge.tech.md` 2번.
+- 이미 오적립된 건 정정: 회원 우리DB 해당액 회수(`point_history` `rel_action='cancel_reversal'` + payment `status='cancelled'`) + `_verify_money_integrity.py` PASS.
+
+### 환불 후 정합성 체크 (필수)
+- 우리 DB 회원 잔액 = 환불 전 값(코인 회수했으면 원위치)인지
+- m2net 화면 잔액 = 우리 DB 와 동일한지(우리 DB 가 정답)
+- `python tools/_verify_money_integrity.py` PASS
+
 ## 관련 메모리
 
 - `[[prepaid-chat-plan]]` §5 (G 정책)
 - `[[money-flow-master]]`
+- `[[project-kangwongu-autopay-refund]]` (자동충전 미지급→환불 + CANCEL_PAY 오적립 사고)

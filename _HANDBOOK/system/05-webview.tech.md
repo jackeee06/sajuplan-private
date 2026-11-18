@@ -41,6 +41,13 @@
 - 앱 아이콘 이미지 `/img/android-chrome-512x512.png`.
 - 검증: `e2e/tests/76-web-app-gate.spec.ts` (webdriver 통과 / webdriver=false PC→QR2개+깨진이미지0 / 안드로이드UA→탭버튼 / SajumoonBridge.isNative→통과).
 
+### 6. 웹에서 되는 기능 — 상담·결제 코드 흐름 (2026-06-25 확인)
+앱 전용 게이팅 없음(`ConsultModal.tsx`·`Charge.tsx`에 `isNativeApp` 분기 0) + `WEB_OPEN=true` → 브라우저에서도 동작.
+- **전화상담**: `consultApi.phone(id, 'prepaid'|'postpaid')` → `phone_number`(070 m2net 가상번호) → `window.location.href = 'tel:'+번호` (`ConsultModal.tsx:149-153`). 모바일=다이얼러 / PC=`tel:` 무시 가능. 후불 탭은 `POSTPAID_ENABLED=false`로 숨김(060 미계약).
+- **채팅상담**: `consultApi.chat(id, minutes)` → `navigate('/chat/:room', { wss_url, member_token, roomid })` (`ConsultModal.tsx:154-172`). 실시간=WebSocket(`wss_url`). 선결제=상담사 입장 시 선택분×단가 차감(_PREPAID_CHAT_POLICY).
+- **결제(충전)**: 일반결제 `chargeApi.prepare` → AG9 form auto-submit → PG → returnurl `/charge/complete`. 사주플랜페이 `chargeApi.autopayCharge`(빌링키) → `/charge/complete?oid=`. 카드 미등록 시 `/mypage/charge/card-register` (`Charge.tsx`). isNativeApp 분기 없음 → 웹·앱 동일.
+- **앱 우위(기기 종속)**: incoming 채팅요청 **FCM 푸시**(브라우저 미지원) · PC **전화 다이얼러**. 그 외는 웹·앱 동일.
+
 ## 메모리 박제
 
 - `[[mobile-app]]` (RN WebView 셸 정보)

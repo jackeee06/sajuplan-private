@@ -20,11 +20,22 @@ const softLeave = (useBeacon) => {            // mode:'soft' (pagehide 는 sendB
 }
 const doRejoin = () => chatApi.rejoin(chatRoomIdRef.current)
 
-onPageHide / onBeforeUnload → softLeave(true)         // 탭/앱 이탈 = soft (즉시 종료 X)
-onVisibility hidden → softLeave(false) / visible → doRejoin()
-onBlur → softLeave(false) / onFocus → doRejoin()      // RN WebView visibilitychange 미발화 보완
-onPageShow → doRejoin()                                // bfcache 복귀
+// [2026-07-07] 8초 유예 — 순간 blur·엠투넷 5분 재연결의 "나감/들어옴" 도배 억제
+const SOFT_LEAVE_GRACE_MS = 8000
+let leaveTimer = null, softLeftActive = false        // effect 지역 상태
+scheduleSoftLeave() // leaveTimer/softLeftActive 없을 때만 setTimeout(8s)→softLeftActive=true; softLeave(false)
+cancelOrRejoin()    // leaveTimer 있으면 clearTimeout(예약취소=leave 안나감) / 없으면 무조건 doRejoin
+                    //   ★ rejoin 은 멱등 → 무조건 호출로 member_try_out self-heal. softLeftActive 로
+                    //     게이팅하면 pagehide 경로(softLeftActive 미세팅)가 복귀 rejoin 누락→try_out 고착
+                    //     →방치정산 오종료. (2026-07-07 엄격검증서 잡은 회귀. 무조건 rejoin 으로 수정.)
+
+onBlur / onVisibility hidden → scheduleSoftLeave()    // 즉시 X, 8초 예약
+onFocus / onVisibility visible / onPageShow → cancelOrRejoin()  // 유예 내 복귀 시 취소(노이즈 0)
+onPageHide / onBeforeUnload → (leaveTimer clear) + softLeave(true)  // 진짜 종료 = 유예 없이 즉시 beacon
+// cleanup: leaveTimer clear
 ```
+- **유예 핵심**: 8초 안에 복귀하면 예약된 softLeave 를 취소 → `leave` API 자체가 안 나가므로 백엔드 시스템 메시지("나갔습니다")가 생성되지 않음 = 노이즈 0. 진짜 이탈(8초+)만 발송. 과금은 CNCH 중 try_out 무관 계속(불변식)이라 유예 둬도 영향 0.
+- 왜 8초 유예가 필요: 엠투넷 wss 접속 토큰 수명(~5분, 엠투넷 서버 정책·우리 제어 불가)으로 물리 연결이 5분마다 끊겼다 자동 재연결됨. 재연결·순간 blur(푸시배너·키보드·앱전환)가 유예 0 이던 기존 코드에선 매번 "나감/들어옴" 시스템 메시지로 표시돼 대화창 도배. 재연결·메시지 복구·큐잉은 이미 자동이라 대화·과금은 영향 없었고, 화면 노이즈만 문제였음. → 유예로 순간 이탈 표시 제거. [[reference_chat_5min_reconnect]]
 - `fireEndRef`(close) 는 더 이상 lifecycle 에서 호출 안 함. '상담종료' 버튼(`chatApi.leave(id,'close')`)만 사용.
 - Effect B(unmount): 회원 30초 grace leave / 상담사 leave 안 함(명시 종료만).
 
@@ -42,20 +53,23 @@ if (status === 'STAY')       return awaiting_counselor   // 차감 0 (F 정책)
 if (remain < 10) → DISCONNECT + settleChatRoomLocal()    // 시간 소진
 ```
 
-## 방치 정산 cron — settleAbandonedChats
+## 방치 정산 cron — settleAbandonedChats (2026-07-07 개편: 고객 중심 5분)
 ```sql
--- chat.service.ts settleAbandonedChats() — 매분 chat/auto-cancel cron 에서 호출
+-- chat.service.ts settleAbandonedChats(idleMinutes=5) — 매분 chat/auto-cancel cron
 SELECT id FROM chat_room
  WHERE status='CNCH'
-   AND (member_try_out OR counselor_try_out)                 -- 한쪽 이상 명시 이탈
+   AND member_try_out = TRUE                                 -- 고객이 이탈 (상담사 상태는 안 봄)
+   AND member_left_at IS NOT NULL
+   AND member_left_at < NOW() - make_interval(mins => 5)     -- 고객이 나간 지 5분 복귀 없음
    AND started_at < NOW() - INTERVAL '1 minute'
-   AND NOT EXISTS (SELECT 1 FROM chat_message cm
-                    WHERE cm.chat_room_id=id
-                      AND cm.created_at > NOW()-make_interval(mins=>3))  -- 3분 무활동
 -- 매칭 → DISCONNECT(+roomid suffix) → settleChatRoomLocal()
 ```
-- 2중 가드(try_out + 3분 무활동)라 정상 진행/조용한 활성 채팅은 매칭 안 됨.
-- 복귀(rejoin)로 try_out 해제된 방도 매칭 안 됨.
+- **판정 = "고객이 완전히 나갔는가" 단일 기준.** counselor_try_out·메시지 무활동 조건 **제거**(2026-07-07).
+  - 기존 `(member OR counselor try_out) + 3분무활동` 의 문제: ① 고객이 답 읽다 화면 꺼지면 정상 상담 오종료 ② 양쪽 이탈로 바꾸면 상담사 개기기 어뷰징. → 고객 이탈 5분 단일 기준으로 둘 다 해소.
+- `member_left_at` = 고객 이탈(soft) 전환 시각. **markLeave(회원 soft)·handlePeerEvent(회원 leave)** 두 경로에서 `member_try_out=TRUE, member_left_at=now()`. rejoin(try_out=FALSE)하면 게이트 첫 조건에서 빠짐. 재이탈 시 now() 재기록(FALSE→TRUE 전환 시 UPDATE)이라 stale 없음.
+- ⚠️ **member_try_out=TRUE 로 만드는 모든 경로가 member_left_at 을 찍어야 함** — 안 찍으면 그 방은 `member_left_at IS NULL` 로 영영 방치정산 제외(죽은 방 잔류). 신규 이탈 경로 추가 시 반드시 동반.
+- 상담사 이탈만 있고 고객은 있는 방(고객 대화 중, 상담사만 자리비움)은 **안 죽음** — 정상 상담 보호.
+- 어뷰징(고객 떠남+상담사 개기기/혼자 메시지)은 **5분 후 종료** — 메시지 조건이 없으니 상담사 활동 무관.
 
 ## cron 2종
 ```
@@ -80,6 +94,9 @@ chat_room
 - WSS 열려 bfcache 불가 → `persisted` 로 background/close 구분 시도 금지.
 - use_seconds 는 클라가 화면 켜야 누적 → 최종 손실 0 보장은 정산을 m2net 실과금 기준으로. settleChatRoomLocal 이 m2net 잔액조회로 처리.
 - **CNCH 과금정지 절대 추가 금지** — [[feedback-no-chat-billing-pause]]
+- **엠투넷 wss 5분 재연결은 못 막음** — 토큰 수명이 엠투넷 서버 정책. 우리 env·파라미터로 조절 불가, 엠투넷은 공용 인프라라 문의 무의미. 우리 대응 = "끊김을 안 느끼게"(자동 재연결+메시지 복구+8초 유예로 노이즈 억제). heartbeat `{CmdTp:'ping'}` 는 m2net 프로토콜에 없는 명령이라 세션 수명 리셋에 무효 가능(30초 idle 겨냥이지 5분과 별개).
+- **유예 시간(8초)은 조절 가능** — 도배 심하면 상향. 단 너무 길면 진짜 이탈 표시가 늦어짐.
+- **pagehide/beforeunload 는 유예 우회(즉시 leave)** — iOS WebView 앱전환 시 pagehide 를 쏘므로 iOS 에선 유예가 안 걸려 "나감/들어옴" 이 여전히 표시될 수 있음. pagehide 에 유예를 못 두는 이유: 페이지 unload 순간이라 `setTimeout` 이 실행 안 될 수 있음(진짜 종료 시 leave beacon 누락 위험). 안드(blur/visibilitychange)는 유예 정상 적용. iOS 노이즈는 백엔드 `insertActorSystemMessage` 30초 멱등 가드로 부분 완화. 완전 제거는 pagehide vs 진짜 unload 구분이 WSS 상시연결로 불가한 제약과 얽혀 후속 과제.
 
 ## 관련
 - `[[feedback-no-chat-billing-pause]]`, `[[prepaid-chat-plan]]`

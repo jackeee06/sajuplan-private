@@ -35,7 +35,7 @@ counselor_apply
 - member_id INT FK
 - nickname VARCHAR
 - introduction TEXT
-- category VARCHAR — '사주' / '타로' / '신점'
+- category VARCHAR — '사주' / '타로' / '신점' / '심리'
 - profile_image_url VARCHAR
 - status VARCHAR — 'pending' / 'approved' / 'rejected'
 - rejected_reason TEXT

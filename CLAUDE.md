@@ -176,7 +176,7 @@ Tailwind CDN + jQuery 3.7.1 + Lucide Icons + `css/design.css` + `js/design.js`
 |---|---|---|
 | `filter_select` 칩 (분야/스타일/성별) | bg `#F9FAFB` · border `#F3F4F6` · text `#6A7282` | bg `#fdf2f8` · border `#f472b6` · text `#ec4899` |
 | `filter_chip` (#연애/#재물 등) | bg `transparent` · text `#99A1AF` | bg `#fdf2f8` · text `#ec4899` |
-| `main_tab01` (전체/사주/타로/신점) | text `#6A7282` | text `#ec4899` (밑줄 옵션) |
+| `main_tab01` (전체/사주/타로/신점/심리) | text `#6A7282` | text `#ec4899` (밑줄 옵션) |
 | `pill_tab` / `toggle_tab` | bg `#F9FAFB` · text `#6A7282` | bg `#ec4899` · text white |
 | `like_btn_icon` (단골 하트) | `like_btn_icon_off.svg` | `like_btn_icon_on.svg` (핑크 fill) |
 | 페이지네이션 숫자 | radius 6 · text `#252B36` | radius 50 · bg `#f472b6` · text white |

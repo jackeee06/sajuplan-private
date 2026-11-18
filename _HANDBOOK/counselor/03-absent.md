@@ -67,6 +67,7 @@
 - 마지막 접속 N시간 경과 시 리스트에서 숨김 (가장 가벼운 안)
 
 ## 관련 항목
+- [부재중 상담요청 & 다시 연결 (전화/채팅 요청 → 콜백)](counselor/09-consult-request) — 부재중 상담사에게 온 요청을 다시 연결하는 흐름
 - [상담사 채팅 요청 받기](chat/05-incoming)
 - [채팅 상태 머신](chat/02-state-machine)
 - [상담사 신청](counselor/01-apply)
